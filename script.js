@@ -1,5 +1,5 @@
 // script.js
-const RENDER_URL = "https://dukan-pro.onrender.com"; // 💡 यहाँ अपने Render Service का URL डालें
+const RENDER_URL = "https://dukan-pro-ultimate.onrender.com"; // 💡 यहाँ अपने Render Service का URL डालें
 const API_BASE_URL = RENDER_URL;
 
 // --- DOM Elements ---
@@ -418,4 +418,5 @@ function clearBill() {
 
 function printInvoice() { window.print(); }
 function handleQrCodeUpload() { /* Implement QR upload logic if needed */ }
+
 function startTrialTimer() { /* Implement trial timer UI if needed */ }
