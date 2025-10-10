@@ -1,4 +1,5 @@
 // script.js
+// RENDER URL UPDATED FOR NEW SERVICE
 const RENDER_URL = "https://dukan-pro-ultimate.onrender.com";
 const API_BASE_URL = RENDER_URL;
 
@@ -13,368 +14,557 @@ const welcomeUserDisplay = document.getElementById('welcome-user');
 const expiryNotificationBar = document.getElementById('expiry-notification-bar');
 
 let expiryTimerInterval = null;
-let appState = { stock: [], sales: [], purchases: [], customers: [], expenses: [] };
+let appState = { stock: [], sales: [], purchases: [], customers: [], expenses: [], cart: [] };
 
-// --- INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
-    const savedKey = localStorage.getItem('licenseKey');
-    if (savedKey) {
-        validateKey(savedKey, true);
-    } else {
-        licenseInputContainer.classList.remove('d-none');
-    }
-
-    validateButton.addEventListener('click', () => validateKey(licenseKeyInput.value.trim(), false));
+// --- HELPER FUNCTION: PostgreSQL Key Transformation ---
+// This function converts PostgreSQL column names (e.g., "Item Name")
+// to the lowercase keys expected by the frontend (e.g., "itemname").
+function transformDataKeys(data) {
+    if (!Array.isArray(data)) return data;
     
-    // Attach event listeners for new forms
-    document.getElementById('add-stock-form').addEventListener('submit', handleAddStock);
-    document.getElementById('purchase-form').addEventListener('submit', handleAddPurchase);
-    document.getElementById('add-customer-form').addEventListener('submit', handleAddCustomer);
-    document.getElementById('add-expense-form').addEventListener('submit', handleAddExpense);
-
-    // Event listeners for invoice auto-update
-    document.getElementById('shopName').addEventListener('input', updateInvoicePreview);
-    document.getElementById('shopGstin').addEventListener('input', updateInvoicePreview);
-    document.getElementById('shopAddress').addEventListener('input', updateInvoicePreview);
-    document.getElementById('invoice-number').addEventListener('input', updateInvoicePreview);
-    document.getElementById('customer-name').addEventListener('input', updateInvoicePreview);
-    document.getElementById('notes').addEventListener('input', updateInvoicePreview);
-    document.getElementById('shopLogo').addEventListener('change', updateInvoicePreview);
-    document.getElementById('qrCode').addEventListener('change', updateInvoicePreview);
-});
-
-// --- CORE VALIDATION & DATA LOADING ---
-async function validateKey(key, silent = false) {
-    if (!key) {
-        if (!silent) updateLicenseMessage("कृपया एक लाइसेंस कुंजी दर्ज करें।", true);
-        return;
-    }
-    if (!silent) {
-        validateButton.disabled = true;
-        validateButton.innerHTML = `<span class="spinner-border spinner-border-sm"></span> जाँच हो रही है...`;
-    }
-    try {
-        const response = await fetch(`${API_BASE_URL}/validate-key`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }),
-        });
-        const data = await response.json();
-        if (data.isValid) {
-            handleValidationSuccess(key, data);
-        } else {
-            handleValidationFailure(data, silent);
+    return data.map(item => {
+        const newItem = {};
+        for (const key in item) {
+            if (item.hasOwnProperty(key)) {
+                // Default conversion to lowercase, removing spaces
+                let newKey = key.replace(/\s+/g, '').toLowerCase();
+                
+                // Specific mappings for complex keys used by the frontend
+                if (key === "Item Name") newKey = "itemname";
+                if (key === "Purchase Price") newKey = "purchaseprice";
+                if (key === "Sale Price") newKey = "saleprice";
+                if (key === "Last Updated") newKey = "lastupdated";
+                if (key === "Date Added") newKey = "dateadded";
+                if (key === "Total Value") newKey = "totalvalue";
+                if (key === "Invoice Number") newKey = "invoicenumber";
+                if (key === "Customer Name") newKey = "customername";
+                if (key === "Total Amount") newKey = "totalamount";
+                if (key === "Total Tax") newKey = "totaltax";
+                
+                newItem[newKey] = item[key];
+            }
         }
-    } catch (error) {
-        handleValidationFailure({ message: `सर्वर से कनेक्ट नहीं हो सका: ${error.message}` }, silent);
-    } finally {
-        if (!silent) {
-            validateButton.disabled = false;
-            validateButton.innerText = 'ऐप सक्रिय करें';
-        }
-    }
-}
-
-function handleValidationSuccess(key, data) {
-    localStorage.setItem('licenseKey', key);
-    localStorage.setItem('customerName', data.name || 'Customer');
-    localStorage.setItem('licenseExpiry', data.expiryDate);
-
-    licenseInputContainer.classList.add('d-none');
-    mainApp.classList.remove('d-none');
-    welcomeUserDisplay.innerText = `Welcome, ${data.name || 'User'}`;
-    
-    startExpiryTimer(data.expiryDate);
-    loadInitialData();
-}
-
-function handleValidationFailure(data, silent) {
-    localStorage.clear();
-    clearInterval(expiryTimerInterval);
-    mainApp.classList.add('d-none');
-    licenseInputContainer.classList.remove('d-none');
-    if (!silent) {
-        updateLicenseMessage(data.message || "अमान्य लाइसेंस कुंजी।", true);
-    }
-}
-
-async function loadInitialData() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/initial-data`);
-        if (!response.ok) throw new Error('Failed to load app data.');
-        const data = await response.json();
-        appState = data;
-        renderAll();
-    } catch (error) {
-        alert("Error loading data: " + error.message);
-    }
-}
-
-// --- RENDER FUNCTIONS ---
-function renderAll() {
-    renderDashboard();
-    renderStockTable();
-    renderCustomersTable();
-    renderExpensesTable();
-    addItemRow(); // Add one item row by default in invoice
-}
-
-function renderDashboard() {
-    const totalSales = appState.sales.reduce((sum, s) => sum + parseFloat(s.totalamount || 0), 0);
-    const totalPurchases = appState.purchases.reduce((sum, p) => sum + parseFloat(p.totalamount || 0), 0);
-    const totalExpenses = appState.expenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-    const netProfit = totalSales - totalPurchases - totalExpenses;
-
-    document.getElementById('dash-total-sales').innerText = `₹${totalSales.toFixed(2)}`;
-    document.getElementById('dash-total-purchases').innerText = `₹${totalPurchases.toFixed(2)}`;
-    document.getElementById('dash-total-expenses').innerText = `₹${totalExpenses.toFixed(2)}`;
-    document.getElementById('dash-net-profit').innerText = `₹${netProfit.toFixed(2)}`;
-}
-
-function renderStockTable() {
-    const body = document.getElementById('stock-table-body');
-    body.innerHTML = appState.stock.map(item => `
-        <tr><td>${item.sku}</td><td>${item.itemname}</td><td>₹${item.purchaseprice}</td><td>₹${item.saleprice}</td><td>${item.quantity}</td></tr>
-    `).join('');
-}
-
-function renderCustomersTable() {
-    const body = document.getElementById('customers-table-body');
-    body.innerHTML = appState.customers.map(c => `
-        <tr><td>${c.customerid}</td><td>${c.name}</td><td>${c.phone}</td><td>${c.address}</td></tr>
-    `).join('');
-    // For autocomplete in invoice
-    const dataList = document.getElementById('customer-list');
-    dataList.innerHTML = appState.customers.map(c => `<option value="${c.name}">`).join('');
-}
-
-function renderExpensesTable() {
-    const body = document.getElementById('expenses-table-body');
-    body.innerHTML = appState.expenses.map(e => `
-        <tr><td>${new Date(e.date).toLocaleDateString()}</td><td>${e.category}</td><td>₹${e.amount}</td><td>${e.description}</td></tr>
-    `).join('');
-}
-
-// --- FORM HANDLERS ---
-async function apiPost(endpoint, data, successMessage) {
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message);
-        alert(successMessage);
-        return true;
-    } catch (error) {
-        alert(`Error: ${error.message}`);
-        return false;
-    }
-}
-
-async function handleAddStock(e) {
-    e.preventDefault();
-    const data = {
-        sku: e.target.elements['stock-sku'].value,
-        itemName: e.target.elements['stock-item-name'].value,
-        purchasePrice: e.target.elements['stock-purchase-price'].value,
-        salePrice: e.target.elements['stock-sale-price'].value,
-        quantity: e.target.elements['stock-quantity'].value
-    };
-    if (await apiPost('/api/stock', data, 'Stock added successfully!')) {
-        e.target.reset();
-        bootstrap.Modal.getInstance(document.getElementById('addStockModal')).hide();
-        loadInitialData();
-    }
-}
-
-async function handleAddPurchase(e) {
-    e.preventDefault();
-    const data = {
-        itemName: e.target.elements['purchase-item-name'].value,
-        sku: e.target.elements['purchase-item-sku'].value,
-        quantity: e.target.elements['purchase-quantity'].value,
-        purchasePrice: e.target.elements['purchase-price'].value,
-        supplier: e.target.elements['purchase-supplier'].value
-    };
-    if (await apiPost('/api/purchases', data, 'Purchase logged successfully!')) {
-        e.target.reset();
-        loadInitialData();
-    }
-}
-
-async function handleAddCustomer(e) {
-    e.preventDefault();
-    const data = {
-        name: e.target.elements['customer-form-name'].value,
-        phone: e.target.elements['customer-form-phone'].value,
-        address: e.target.elements['customer-form-address'].value
-    };
-    if (await apiPost('/api/customers', data, 'Customer added successfully!')) {
-        e.target.reset();
-        loadInitialData();
-    }
-}
-
-async function handleAddExpense(e) {
-    e.preventDefault();
-    const data = {
-        category: e.target.elements['expense-category'].value,
-        amount: e.target.elements['expense-amount'].value,
-        description: e.target.elements['expense-description'].value
-    };
-    if (await apiPost('/api/expenses', data, 'Expense added successfully!')) {
-        e.target.reset();
-        loadInitialData();
-    }
-}
-
-// --- INVOICE LOGIC ---
-function addItemRow() {
-    const newRow = document.createElement('div');
-    newRow.className = 'row g-2 mb-2 item-row';
-    newRow.innerHTML = `
-        <div class="col-5"><input type="text" class="form-control item-name" list="stock-item-list" placeholder="Item Name"></div>
-        <div class="col-2"><input type="number" class="form-control item-quantity" placeholder="Qty" value="1" min="1"></div>
-        <div class="col-2"><input type="number" class="form-control item-price" placeholder="Rate" value="0"></div>
-        <div class="col-2"><input type="number" class="form-control item-gst" placeholder="GST %" value="0"></div>
-        <div class="col-1"><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.item-row').remove(); updateInvoicePreview();">X</button></div>
-    `;
-    itemsContainer.appendChild(newRow);
-    newRow.querySelector('.item-name').focus();
-    // Add event listeners to all inputs in the new row
-    newRow.querySelectorAll('input').forEach(input => input.addEventListener('input', updateInvoicePreview));
-}
-
-function calculateTotals() {
-    let subtotal = 0, totalGst = 0, currentItems = [];
-    document.querySelectorAll('.item-row').forEach(row => {
-        const name = row.querySelector('.item-name').value;
-        const qty = parseFloat(row.querySelector('.item-quantity').value) || 0;
-        const rate = parseFloat(row.querySelector('.item-price').value) || 0;
-        const gstPercent = parseFloat(row.querySelector('.item-gst').value) || 0;
-        if (name && qty && rate) {
-            const itemTotal = qty * rate;
-            const itemGst = itemTotal * (gstPercent / 100);
-            subtotal += itemTotal;
-            totalGst += itemGst;
-            currentItems.push({ itemName: name, quantity: qty, price: rate, gstRate: gstPercent, total: itemTotal + itemGst });
-        }
+        return newItem;
     });
-    const grandTotal = subtotal + totalGst;
-    return { subtotal, totalGst, grandTotal, currentItems };
 }
 
-async function updateInvoicePreview() {
-    const totals = calculateTotals();
-    const preview = document.getElementById('invoice-preview');
-    
-    const logoFile = document.getElementById('shopLogo').files[0];
-    const qrFile = document.getElementById('qrCode').files[0];
-    const logoUrl = logoFile ? URL.createObjectURL(logoFile) : null;
-    const qrUrl = qrFile ? URL.createObjectURL(qrFile) : null;
 
-    const itemRowsHTML = totals.currentItems.map((item, i) => `
-        <tr>
-            <td>${i + 1}</td>
-            <td style="text-align: left;">${item.itemName}</td>
-            <td>${item.quantity}</td>
-            <td>${item.price.toFixed(2)}</td>
-            <td>${item.gstRate}%</td>
-            <td>${(item.total).toFixed(2)}</td>
-        </tr>`).join('');
+// --- API CALLS ---
+
+async function fetchData(sheetName, autoLoad = false) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/data/${sheetName}`);
+        if (!response.ok) throw new Error('Failed to fetch data.');
+        
+        const data = await response.json();
+        const transformedData = transformDataKeys(data); // Apply transformation
+
+        if (sheetName === 'Stock') {
+            appState.stock = transformedData;
+            if (autoLoad) renderStock();
+        } else if (sheetName === 'Customers') {
+            appState.customers = transformedData;
+        } else if (sheetName === 'Sales') {
+            appState.sales = transformedData;
+            if (autoLoad) renderInvoices(); // Render invoices after fetching sales
+        } else if (sheetName === 'Purchases') {
+            appState.purchases = transformedData;
+        } else if (sheetName === 'Expenses') {
+            appState.expenses = transformedData;
+            if (autoLoad) renderExpenses();
+        }
+
+    } catch (error) {
+        console.error(`Error fetching ${sheetName}:`, error);
+        if (!autoLoad) alert(`डेटा लोड करने में विफल: ${sheetName}`);
+    }
+}
+
+async function handleAddStock(event) {
+    event.preventDefault();
+    const sku = document.getElementById('stock-sku').value;
+    const itemName = document.getElementById('stock-item-name').value;
+    const purchasePrice = parseFloat(document.getElementById('stock-purchase-price').value);
+    const salePrice = parseFloat(document.getElementById('stock-sale-price').value);
+    const quantity = parseInt(document.getElementById('stock-quantity').value);
+
+    const body = { sku, itemName, purchasePrice, salePrice, quantity };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/stock`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+            alert('स्टॉक सफलतापूर्वक अपडेट किया गया!');
+            document.getElementById('add-stock-form').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addStockModal'));
+            modal.hide();
+            await fetchData('Stock', true);
+        } else {
+            const errorData = await response.json();
+            alert(`स्टॉक अपडेट विफल: ${errorData.message}`);
+        }
+    } catch (error) {
+        alert('नेटवर्क एरर। स्टॉक अपडेट नहीं हो सका।');
+        console.error("Stock API Error:", error);
+    }
+}
+
+async function handleAddCustomer(event) {
+    event.preventDefault();
+    const id = document.getElementById('customer-id').value.trim();
+    const name = document.getElementById('customer-name').value.trim();
+    const phone = document.getElementById('customer-phone').value.trim();
+    const address = document.getElementById('customer-address').value.trim();
+
+    const body = { id, name, phone, address };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/customers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+            alert('ग्राहक सफलतापूर्वक जोड़ा/अपडेट किया गया!');
+            document.getElementById('add-customer-form').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addCustomerModal'));
+            modal.hide();
+            await fetchData('Customers');
+        } else {
+            const errorData = await response.json();
+            alert(`ग्राहक अपडेट विफल: ${errorData.message}`);
+        }
+    } catch (error) {
+        alert('नेटवर्क एरर। ग्राहक अपडेट नहीं हो सका।');
+        console.error("Customer API Error:", error);
+    }
+}
+
+async function handleAddPurchase(event) {
+    event.preventDefault();
+    const sku = document.getElementById('purchase-sku').value;
+    const itemName = document.getElementById('purchase-item-name').value;
+    const quantity = parseInt(document.getElementById('purchase-quantity').value);
+    const purchasePrice = parseFloat(document.getElementById('purchase-price').value);
+    const totalValue = quantity * purchasePrice;
+    const supplier = document.getElementById('purchase-supplier').value;
+
+    const stockBody = { sku, itemName, purchasePrice, salePrice: 0, quantity: quantity }; 
+    const purchaseBody = { sku, itemName, quantity, purchasePrice, totalValue, supplier };
+
+    try {
+        // 1. Update Stock (will use ON CONFLICT in server.js)
+        const stockResponse = await fetch(`${API_BASE_URL}/api/stock`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stockBody)
+        });
+
+        if (!stockResponse.ok) {
+            const errorData = await stockResponse.json();
+            throw new Error(`स्टॉक अपडेट विफल: ${errorData.message}`);
+        }
+
+        // 2. Add Purchase Record
+        const purchaseResponse = await fetch(`${API_BASE_URL}/api/purchases`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(purchaseBody)
+        });
+
+        if (!purchaseResponse.ok) {
+            const errorData = await purchaseResponse.json();
+            throw new Error(`खरीद रिकॉर्ड विफल: ${errorData.message}`);
+        }
+
+        alert('खरीद और स्टॉक सफलतापूर्वक अपडेट किए गए!');
+        document.getElementById('purchase-form').reset();
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addPurchaseModal'));
+        modal.hide();
+        await fetchData('Stock', true); 
+        await fetchData('Purchases'); 
+
+    } catch (error) {
+        alert(`त्रुटि: ${error.message}`);
+        console.error("Purchase/Stock Error:", error);
+    }
+}
+
+async function handleAddExpense(event) {
+    event.preventDefault();
+    const category = document.getElementById('expense-category').value;
+    const amount = parseFloat(document.getElementById('expense-amount').value);
+    const description = document.getElementById('expense-description').value;
+
+    const body = { category, amount, description };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/expenses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+            alert('खर्चा सफलतापूर्वक दर्ज किया गया!');
+            document.getElementById('add-expense-form').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addExpenseModal'));
+            modal.hide();
+            await fetchData('Expenses', true); 
+        } else {
+            const errorData = await response.json();
+            alert(`खर्चा दर्ज विफल: ${errorData.message}`);
+        }
+    } catch (error) {
+        alert('नेटवर्क एरर। खर्चा दर्ज नहीं हो सका।');
+        console.error("Expense API Error:", error);
+    }
+}
+
+async function handleRecordSale(invoiceNumber, customerName, totalAmount, totalTax, cartItems) {
+    const saleBody = {
+        invoiceNumber,
+        customerName,
+        totalAmount,
+        totalTax,
+        items: cartItems.map(item => ({ 
+            sku: item.sku, 
+            itemName: item.itemname, 
+            quantity: item.quantity, 
+            salePrice: item.saleprice 
+        }))
+    };
+
+    try {
+        // 1. Record Sale
+        const saleResponse = await fetch(`${API_BASE_URL}/api/sales`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(saleBody)
+        });
+
+        if (!saleResponse.ok) {
+            const errorData = await saleResponse.json();
+            throw new Error(`बिक्री रिकॉर्ड विफल: ${errorData.message}`);
+        }
+        
+        // 2. Stock Deduction (Simple logic: decrease stock quantity for each item)
+        // Send negative quantity to the stock endpoint for deduction
+        
+        for (const item of cartItems) {
+            const stockDeductionBody = { 
+                sku: item.sku, 
+                itemName: item.itemname, 
+                purchasePrice: item.purchaseprice, // Must send original data
+                salePrice: item.saleprice,       // Must send original data
+                quantity: -item.quantity // Send negative quantity to deduct
+            };
+            await fetch(`${API_BASE_URL}/api/stock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(stockDeductionBody)
+            });
+        }
+
+
+        alert(`बिक्री (${invoiceNumber}) सफलतापूर्वक दर्ज की गई!`);
+        appState.cart = []; // Clear cart after successful sale
+        renderCart(); 
+        await fetchData('Sales', true); // Refresh sales and invoices
+        await fetchData('Stock', true); // Refresh stock display
+
+    } catch (error) {
+        alert(`बिक्री रिकॉर्ड करते समय त्रुटि: ${error.message}`);
+        console.error("Sale Record Error:", error);
+    }
+}
+
+
+// --- UI RENDERING & LOGIC ---
+
+function renderStock() {
+    itemsContainer.innerHTML = '';
+    const search = document.getElementById('search-item').value.toLowerCase();
     
-    preview.innerHTML = `
+    appState.stock.filter(item => 
+        (item.sku && item.sku.toLowerCase().includes(search)) || 
+        (item.itemname && item.itemname.toLowerCase().includes(search))
+    ).forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'col-md-3 mb-4';
+        card.innerHTML = `
+            <div class="card h-100 shadow-sm item-card" data-sku="${item.sku}">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">${item.itemname}</h5>
+                    <p class="card-text mb-1">SKU: ${item.sku}</p>
+                    <p class="card-text mb-1 text-success">Price: ₹${parseFloat(item.saleprice).toFixed(2)}</p>
+                    <p class="card-text fw-bold ${item.quantity <= 10 ? 'text-danger' : 'text-success'}">Stock: ${item.quantity}</p>
+                    <button class="btn btn-sm btn-outline-primary w-100 add-to-cart-btn" data-sku="${item.sku}">कार्ट में जोड़ें</button>
+                </div>
+            </div>
+        `;
+        itemsContainer.appendChild(card);
+    });
+}
+
+function renderCart() {
+    const cartItemsList = document.getElementById('cart-items-list');
+    const cartTotalDisplay = document.getElementById('cart-total');
+    cartItemsList.innerHTML = '';
+    let total = 0;
+    
+    appState.cart.forEach((item, index) => {
+        const itemTotal = item.saleprice * item.quantity;
+        total += itemTotal;
+
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+        li.innerHTML = `
+            <div>
+                ${item.itemname} (${item.sku}) <br>
+                <small class="text-muted">₹${parseFloat(item.saleprice).toFixed(2)} x ${item.quantity}</small>
+            </div>
+            <span class="badge bg-primary rounded-pill">₹${itemTotal.toFixed(2)}</span>
+            <button class="btn btn-sm btn-danger remove-item-btn" data-index="${index}"><i class="fas fa-trash"></i></button>
+        `;
+        cartItemsList.appendChild(li);
+    });
+
+    cartTotalDisplay.innerText = `₹${total.toFixed(2)}`;
+    document.getElementById('checkout-btn').disabled = appState.cart.length === 0;
+}
+
+function renderInvoices() {
+    const invoiceTableBody = document.getElementById('invoice-table-body');
+    invoiceTableBody.innerHTML = '';
+
+    // Sort sales by date descending
+    const sortedSales = [...appState.sales].sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+    });
+
+    sortedSales.forEach(sale => {
+        const row = invoiceTableBody.insertRow();
+        row.insertCell().textContent = sale.invoicenumber || 'N/A';
+        row.insertCell().textContent = sale.customername || 'N/A';
+        row.insertCell().textContent = `₹${parseFloat(sale.totalamount).toFixed(2)}`;
+        row.insertCell().textContent = new Date(sale.date).toLocaleDateString('hi-IN');
+        
+        const actionCell = row.insertCell();
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn btn-sm btn-info';
+        viewBtn.textContent = 'देखें';
+        viewBtn.addEventListener('click', () => viewInvoice(sale));
+        actionCell.appendChild(viewBtn);
+    });
+}
+
+// Function to handle showing the detailed invoice modal
+function viewInvoice(sale) {
+    // PostgreSQL stores items as a JSON string
+    const items = typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items;
+    
+    let itemsHtml = items.map(item => `
+        <tr>
+            <td>${item.itemName || item.itemname}</td>
+            <td class="text-end">${item.quantity}</td>
+            <td class="text-end">₹${parseFloat(item.salePrice || item.saleprice).toFixed(2)}</td>
+            <td class="text-end">₹${(item.quantity * parseFloat(item.salePrice || item.saleprice)).toFixed(2)}</td>
+        </tr>
+    `).join('');
+
+    document.getElementById('invoice-preview-details').innerHTML = `
         <div class="invoice-header">
             <div>
-                ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-width: 120px; max-height: 60px; margin-bottom: 10px;">` : ''}
-                <h4>${document.getElementById('shopName').value}</h4>
-                <p class="mb-0">${document.getElementById('shopAddress').value}</p>
-                <p><strong>GSTIN:</strong> ${document.getElementById('shopGstin').value}</p>
+                <h3 class="text-primary">INVOICE</h3>
+                <p>Date: ${new Date(sale.date).toLocaleDateString('hi-IN')}</p>
+                <p>Invoice No: ${sale.invoicenumber}</p>
             </div>
             <div>
-                <h3>INVOICE</h3>
-                <p><strong>No:</strong> ${document.getElementById('invoice-number').value}</p>
-                <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                <h4>Customer</h4>
+                <p>${sale.customername || 'Cash Customer'}</p>
             </div>
         </div>
-        <p><strong>Bill To:</strong> ${document.getElementById('customer-name').value}</p>
+
         <table class="invoice-table">
-            <thead><tr><th>#</th><th style="text-align: left;">Item</th><th>Qty</th><th>Rate</th><th>GST</th><th>Total (₹)</th></tr></thead>
-            <tbody>${itemRowsHTML}</tbody>
+            <thead>
+                <tr><th>Item</th><th class="text-end">Qty</th><th class="text-end">Price</th><th class="text-end">Total</th></tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
         </table>
+
         <div class="invoice-footer">
-            <div class="notes-section">
-                <p><strong>Notes:</strong><br>${document.getElementById('notes').value}</p>
-                ${qrUrl ? `<img src="${qrUrl}" alt="QR Code" style="width: 100px; height: 100px;">` : ''}
+            <div class="totals-left">
+                <p class="fw-bold">Tax: ₹${parseFloat(sale.totaltax).toFixed(2)}</p>
             </div>
-            <table class="totals-table">
-                <tr><td>Subtotal:</td><td>${totals.subtotal.toFixed(2)}</td></tr>
-                <tr><td>Total GST:</td><td>${totals.totalGst.toFixed(2)}</td></tr>
-                <tr class="grand-total"><td>GRAND TOTAL:</td><td>₹${totals.grandTotal.toFixed(2)}</td></tr>
-            </table>
-        </div>`;
+            <div class="totals-right">
+                <h4 class="text-primary">Grand Total: ₹${parseFloat(sale.totalamount).toFixed(2)}</h4>
+            </div>
+        </div>
+    `;
+
+    const invoiceModal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+    invoiceModal.show();
 }
 
-async function logAndClearInvoice() {
-    const totals = calculateTotals();
-    if (totals.currentItems.length === 0) {
-        alert("Please add at least one item to the invoice.");
-        return;
-    }
-    const data = {
-        invoiceNumber: document.getElementById('invoice-number').value,
-        customerName: document.getElementById('customer-name').value,
-        totalAmount: totals.grandTotal,
-        items: totals.currentItems,
-    };
-    if (await apiPost('/api/sales', data, `Invoice ${data.invoiceNumber} saved!`)) {
-        clearBill();
-        loadInitialData();
-    }
-}
+function renderExpenses() {
+    const expenseTableBody = document.getElementById('expense-table-body');
+    expenseTableBody.innerHTML = '';
 
-function clearBill() {
-    const fieldsToClear = ['customer-name', 'notes'];
-    fieldsToClear.forEach(id => document.getElementById(id).value = '');
-    document.getElementById('items-container').innerHTML = '';
-    // Increment invoice number
-    let invNum = document.getElementById('invoice-number').value;
-    let newInvNum = invNum.replace(/(\d+)$/, (n) => (+n + 1).toString().padStart(n.length, '0'));
-    document.getElementById('invoice-number').value = newInvNum;
-    addItemRow();
-    updateInvoicePreview();
-}
+    const sortedExpenses = [...appState.expenses].sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+    });
 
-function printInvoice() { window.print(); }
-
-function downloadInvoice() {
-    const { jsPDF } = window.jspdf;
-    const invoice = document.getElementById('invoice-preview');
-    const invoiceNumber = document.getElementById('invoice-number').value || 'invoice';
-    html2canvas(invoice, { scale: 2 }).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${invoiceNumber}.pdf`);
+    sortedExpenses.forEach(exp => {
+        const row = expenseTableBody.insertRow();
+        row.insertCell().textContent = new Date(exp.date).toLocaleDateString('hi-IN');
+        row.insertCell().textContent = exp.category || 'Other';
+        row.insertCell().textContent = `₹${parseFloat(exp.amount).toFixed(2)}`;
+        row.insertCell().textContent = exp.description || 'N/A';
     });
 }
 
-// --- UTILITY FUNCTIONS ---
-function startExpiryTimer(expiryDateISO) {
-    const expiryTime = new Date(expiryDateISO).getTime();
-    clearInterval(expiryTimerInterval);
-    expiryTimerInterval = setInterval(() => {
-        const now = new Date().getTime();
-        const distance = expiryTime - now;
-        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+function getUniqueInvoiceNumber() {
+    const now = new Date();
+    const datePart = now.getFullYear().toString().slice(2) + 
+                     (now.getMonth() + 1).toString().padStart(2, '0') + 
+                     now.getDate().toString().padStart(2, '0');
+    // Find the max sequence number for today
+    const salesToday = appState.sales.filter(sale => 
+        new Date(sale.date).toLocaleDateString() === now.toLocaleDateString()
+    );
+    let maxSequence = 0;
+    salesToday.forEach(sale => {
+        const parts = (sale.invoicenumber || "").split('-');
+        if (parts.length === 2 && !isNaN(parseInt(parts[1]))) {
+            maxSequence = Math.max(maxSequence, parseInt(parts[1]));
+        }
+    });
+    const sequence = (maxSequence + 1).toString().padStart(3, '0');
+    return `${datePart}-${sequence}`;
+}
+
+function handleAddToCart(sku) {
+    const stockItem = appState.stock.find(item => item.sku === sku);
+    if (!stockItem || stockItem.quantity <= 0) {
+        alert("यह आइटम स्टॉक में नहीं है।");
+        return;
+    }
+
+    const cartItem = appState.cart.find(item => item.sku === sku);
+
+    if (cartItem) {
+        if (cartItem.quantity < stockItem.quantity) {
+            cartItem.quantity++;
+        } else {
+            alert("अधिकतम स्टॉक मात्रा तक पहुँच गया।");
+            return;
+        }
+    } else {
+        // Find the full item details from stock for adding to cart
+        const fullItem = { ...stockItem, quantity: 1 };
+        appState.cart.push(fullItem);
+    }
+    renderCart();
+}
+
+function handleRemoveFromCart(index) {
+    appState.cart.splice(index, 1);
+    renderCart();
+}
+
+function handleCheckout() {
+    if (appState.cart.length === 0) {
+        alert("कृपया पहले कार्ट में आइटम जोड़ें।");
+        return;
+    }
+
+    const invoiceNumber = getUniqueInvoiceNumber();
+    const customerName = prompt("Enter Customer Name (Optional, leave blank for Cash):") || "Cash Customer";
+    let totalAmount = appState.cart.reduce((sum, item) => sum + (item.saleprice * item.quantity), 0);
+    let totalTax = 0; // Keeping tax at 0 for simplicity
+
+    // Confirm checkout
+    const confirmation = confirm(`Confirm sale for Invoice ${invoiceNumber}:\nCustomer: ${customerName}\nTotal: ₹${totalAmount.toFixed(2)}`);
+
+    if (confirmation) {
+        handleRecordSale(invoiceNumber, customerName, totalAmount, totalTax, appState.cart);
+    }
+}
+
+// --- LICENSE VALIDATION LOGIC ---
+
+async function validateKey(key, silent = false) {
+    if (!silent) updateLicenseMessage('Key validating...', false);
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/validate-key`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key })
+        });
         
-        expiryNotificationBar.style.display = 'block';
-        if (distance < 0) {
+        const result = await response.json();
+
+        if (result.valid) {
+            if (!silent) updateLicenseMessage(`Activation successful! Welcome, ${result.user}.`, false);
+            localStorage.setItem('licenseKey', key);
+            activateApp(result.user, result.expiry);
+        } else {
+            if (!silent) updateLicenseMessage(result.message, true);
+            deactivateApp();
+        }
+    } catch (error) {
+        if (!silent) updateLicenseMessage('Network error. Could not reach activation server.', true);
+        console.error("Validation Error:", error);
+        deactivateApp();
+    }
+}
+
+function activateApp(userName, expiryDateString) {
+    licenseInputContainer.classList.add('d-none');
+    mainApp.classList.remove('d-none');
+    welcomeUserDisplay.innerText = `Welcome, ${userName}!`;
+    
+    // Load all data after activation
+    fetchData('Stock', true); 
+    fetchData('Customers');
+    fetchData('Sales', true); 
+    fetchData('Purchases');
+    fetchData('Expenses', true); 
+    
+    startExpiryTimer(expiryDateString);
+}
+
+function deactivateApp() {
+    mainApp.classList.add('d-none');
+    licenseInputContainer.classList.remove('d-none');
+    mainApp.style.pointerEvents = 'none'; 
+    mainApp.style.opacity = '0.5';
+    localStorage.removeItem('licenseKey');
+    if (expiryTimerInterval) clearInterval(expiryTimerInterval);
+}
+
+function startExpiryTimer(expiryDateString) {
+    const expiryDate = new Date(expiryDateString);
+    
+    const checkExpiry = () => {
+        const now = new Date();
+        const diff = expiryDate - now;
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (diff < 0) {
+            expiryNotificationBar.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>License Expired. Please renew your license key to continue using the app.`;
             expiryNotificationBar.className = 'alert alert-danger mb-0 text-center fw-bold no-print';
-            expiryNotificationBar.innerHTML = 'Your license has expired. Please renew to continue using the app.';
-            mainApp.style.pointerEvents = 'none'; // Lock the app
+            mainApp.style.pointerEvents = 'none';
             mainApp.style.opacity = '0.5';
             clearInterval(expiryTimerInterval);
         } else {
@@ -384,7 +574,11 @@ function startExpiryTimer(expiryDateISO) {
                 : 'alert alert-warning mb-0 text-center fw-bold no-print';
             expiryNotificationBar.innerHTML = `<i class="fas fa-clock me-2"></i>${message}`;
         }
-    }, 60000); // Update every minute
+    };
+    
+    checkExpiry();
+    if (expiryTimerInterval) clearInterval(expiryTimerInterval);
+    expiryTimerInterval = setInterval(checkExpiry, 60000);
 }
 
 function updateLicenseMessage(message, isError) {
@@ -394,7 +588,6 @@ function updateLicenseMessage(message, isError) {
 
 function exportToCSV() {
     let csvContent = "data:text/csv;charset=utf-8,";
-    // Example for exporting stock
     csvContent += "SKU,Item Name,Purchase Price,Sale Price,Quantity\r\n";
     appState.stock.forEach(item => {
         csvContent += `${item.sku},${item.itemname},${item.purchaseprice},${item.saleprice},${item.quantity}\r\n`;
@@ -408,3 +601,51 @@ function exportToCSV() {
     document.body.removeChild(link);
 }
 
+
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    const savedKey = localStorage.getItem('licenseKey');
+    if (savedKey) {
+        validateKey(savedKey, true);
+    } else {
+        licenseInputContainer.classList.remove('d-none');
+    }
+
+    validateButton.addEventListener('click', () => validateKey(licenseKeyInput.value.trim(), false));
+    
+    // Attach event listeners for forms
+    document.getElementById('add-stock-form').addEventListener('submit', handleAddStock);
+    document.getElementById('purchase-form').addEventListener('submit', handleAddPurchase);
+    document.getElementById('add-customer-form').addEventListener('submit', handleAddCustomer);
+    document.getElementById('add-expense-form').addEventListener('submit', handleAddExpense);
+    
+    // Attach event listener for search
+    document.getElementById('search-item').addEventListener('input', renderStock);
+    
+    // Attach event listener for export
+    document.getElementById('export-stock-btn').addEventListener('click', exportToCSV);
+    
+    // Attach event listeners for navigation
+    document.getElementById('stock-tab-btn').addEventListener('click', () => fetchData('Stock', true));
+    document.getElementById('invoice-tab-btn').addEventListener('click', () => fetchData('Sales', true));
+    document.getElementById('purchase-tab-btn').addEventListener('click', () => fetchData('Purchases'));
+    document.getElementById('customer-tab-btn').addEventListener('click', () => fetchData('Customers'));
+    document.getElementById('expense-tab-btn').addEventListener('click', () => fetchData('Expenses', true));
+
+    // Cart management listeners
+    itemsContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('add-to-cart-btn')) {
+            const sku = e.target.getAttribute('data-sku');
+            handleAddToCart(sku);
+        }
+    });
+
+    document.getElementById('cart-items-list').addEventListener('click', (e) => {
+        if (e.target.closest('.remove-item-btn')) {
+            const index = e.target.closest('.remove-item-btn').getAttribute('data-index');
+            handleRemoveFromCart(parseInt(index));
+        }
+    });
+    
+    document.getElementById('checkout-btn').addEventListener('click', handleCheckout);
+});
