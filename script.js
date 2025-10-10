@@ -602,7 +602,7 @@ function exportToCSV() {
 }
 
 
-// --- INITIALIZATION ---
+// --- INITIALIZATION (Safeguarded) ---
 document.addEventListener('DOMContentLoaded', () => {
     const savedKey = localStorage.getItem('licenseKey');
     if (savedKey) {
@@ -613,24 +613,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     validateButton.addEventListener('click', () => validateKey(licenseKeyInput.value.trim(), false));
     
-    // Attach event listeners for forms
-    document.getElementById('add-stock-form').addEventListener('submit', handleAddStock);
-    document.getElementById('purchase-form').addEventListener('submit', handleAddPurchase);
-    document.getElementById('add-customer-form').addEventListener('submit', handleAddCustomer);
-    document.getElementById('add-expense-form').addEventListener('submit', handleAddExpense);
+    // Attach event listeners for forms (using safe check 'el && el.addEventListener')
+    const addStockForm = document.getElementById('add-stock-form');
+    addStockForm && addStockForm.addEventListener('submit', handleAddStock);
+    
+    const purchaseForm = document.getElementById('purchase-form');
+    purchaseForm && purchaseForm.addEventListener('submit', handleAddPurchase);
+    
+    const addCustomerForm = document.getElementById('add-customer-form');
+    addCustomerForm && addCustomerForm.addEventListener('submit', handleAddCustomer);
+    
+    const addExpenseForm = document.getElementById('add-expense-form');
+    addExpenseForm && addExpenseForm.addEventListener('submit', handleAddExpense);
     
     // Attach event listener for search
-    document.getElementById('search-item').addEventListener('input', renderStock);
+    const searchItem = document.getElementById('search-item');
+    searchItem && searchItem.addEventListener('input', renderStock);
     
     // Attach event listener for export
-    document.getElementById('export-stock-btn').addEventListener('click', exportToCSV);
+    const exportStockBtn = document.getElementById('export-stock-btn');
+    exportStockBtn && exportStockBtn.addEventListener('click', exportToCSV);
     
     // Attach event listeners for navigation
-    document.getElementById('stock-tab-btn').addEventListener('click', () => fetchData('Stock', true));
-    document.getElementById('invoice-tab-btn').addEventListener('click', () => fetchData('Sales', true));
-    document.getElementById('purchase-tab-btn').addEventListener('click', () => fetchData('Purchases'));
-    document.getElementById('customer-tab-btn').addEventListener('click', () => fetchData('Customers'));
-    document.getElementById('expense-tab-btn').addEventListener('click', () => fetchData('Expenses', true));
+    document.getElementById('stock-tab-btn') && document.getElementById('stock-tab-btn').addEventListener('click', () => fetchData('Stock', true));
+    document.getElementById('invoice-tab-btn') && document.getElementById('invoice-tab-btn').addEventListener('click', () => fetchData('Sales', true));
+    document.getElementById('purchase-tab-btn') && document.getElementById('purchase-tab-btn').addEventListener('click', () => fetchData('Purchases'));
+    document.getElementById('customer-tab-btn') && document.getElementById('customer-tab-btn').addEventListener('click', () => fetchData('Customers'));
+    document.getElementById('expense-tab-btn') && document.getElementById('expense-tab-btn').addEventListener('click', () => fetchData('Expenses', true));
 
     // Cart management listeners
     itemsContainer.addEventListener('click', (e) => {
@@ -640,12 +649,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('cart-items-list').addEventListener('click', (e) => {
+    const cartItemsListElement = document.getElementById('cart-items-list');
+    cartItemsListElement && cartItemsListElement.addEventListener('click', (e) => {
         if (e.target.closest('.remove-item-btn')) {
             const index = e.target.closest('.remove-item-btn').getAttribute('data-index');
             handleRemoveFromCart(parseInt(index));
         }
     });
     
-    document.getElementById('checkout-btn').addEventListener('click', handleCheckout);
+    const checkoutBtn = document.getElementById('checkout-btn');
+    checkoutBtn && checkoutBtn.addEventListener('click', handleCheckout);
 });
