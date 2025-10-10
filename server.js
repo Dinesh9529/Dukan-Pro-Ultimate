@@ -1,29 +1,35 @@
 /*
- * Node.js Server for Dukan Pro Business Suite
+ * Node.js Server for Dukan Pro Business Suite (PostgreSQL Backend)
  * Handles: License Validation, Stock, Sales, Purchases, CRM, Expenses
- * Database: PostgreSQL (Auto-Initialization)
- * New Feature: Admin Panel Endpoints
+ * Database: PostgreSQL
  */
 import express from 'express';
 import pg from 'pg'; // PostgreSQL Client
-import { createCipheriv, createDecipheriv, randomBytes, createHash, createHmac } from 'crypto';
+import { createDecipheriv, createHash, createHmac } from 'crypto';
 import cors from 'cors';
 
 // --- Server Setup ---
 const app = express();
-app.use(cors());
+
+// ------------------------------------------
+// 🔥 CORS FIX: GitHub Pages URL को allow करें
+// ------------------------------------------
+const FRONTEND_URL = 'https://dinesh9529.github.io'; 
+app.use(cors({
+    origin: FRONTEND_URL, 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], 
+    allowedHeaders: ['Content-Type'],
+}));
 app.use(express.json());
+// ------------------------------------------
 
 
 // --- Environment Variables & Constants ---
-// APP_SECRET_KEY: License Key के लॉजिक के लिए इस्तेमाल होता है (SAME AS BEFORE)
 const APP_SECRET_KEY = process.env.APP_SECRET_KEY || '6019c9ecf0fd55147c482910a17f1b21'; 
-// ADMIN_PASSWORD: Admin Panel Login के लिए इस्तेमाल होता है (Render ENV में सेट करें)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'defaultadminpass'; 
-
 const PORT = process.env.PORT || 3000;
 
-// Table Names (Sheets Names का उपयोग करते हुए)
+// Table Names
 const CUSTOMERS_TABLE_NAME = 'Customers';
 const STOCK_TABLE_NAME = 'Stock';
 const PURCHASES_TABLE_NAME = 'Purchases';
@@ -33,49 +39,51 @@ const EXPENSES_TABLE_NAME = 'Expenses';
 
 // --- PostgreSQL Connection Pool ---
 const { Pool } = pg;
-// Render स्वचालित रूप से DATABASE_URL Environment Variable सेट करता है
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL, 
     ssl: {
-        rejectUnauthorized: false // Render पर SSL ज़रूरी है
+        rejectUnauthorized: false
     }
 });
 
 
-// --- License Key & Crypto Logic (SAME AS BEFORE) ---
+// --- License Key & Crypto Logic ---
+// Key Derivation: SHA256 hash of the secret key (SAME AS IN HTML GENERATOR)
 const derivedKey = createHash('sha256').update(APP_SECRET_KEY).digest();
 const ALGORITHM = 'aes-256-cbc';
 const IV_LENGTH = 16; 
 
-// Decrypt function (SAME AS BEFORE)
-function decrypt(encryptedText) {
-    if (!encryptedText) return null;
-    try {
-        const parts = encryptedText.split(':');
-        if (parts.length !== 2) return null;
 
-        const iv = Buffer.from(parts[0], 'hex');
-        const encrypted = Buffer.from(parts[1], 'hex');
-        if (iv.length !== IV_LENGTH) return null;
+// 🔥 UPDATED Decrypt function:
+// This handles the Base64 key format (IV + Ciphertext) from the HTML generator.
+function decrypt(encryptedBase64Key) {
+    if (!encryptedBase64Key) return null;
+    try {
+        // 1. Base64 string को Buffer में बदलें
+        const combined = Buffer.from(encryptedBase64Key, 'base64');
+        
+        // 2. IV (16 bytes) और Encrypted Text को अलग करें
+        const iv = combined.slice(0, IV_LENGTH);
+        const encrypted = combined.slice(IV_LENGTH);
+
+        if (iv.length !== IV_LENGTH) {
+            console.error("Decryption failed: IV length mismatch.");
+            return null;
+        }
 
         const decipher = createDecipheriv(ALGORITHM, derivedKey, iv);
         let decrypted = decipher.update(encrypted);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
-        return JSON.parse(decrypted.toString());
+        
+        // Final JSON parse
+        return JSON.parse(decrypted.toString('utf8'));
     } catch (e) {
         console.error("Decryption failed:", e.message);
         return null;
     }
 }
 
-// Encrypt function (SAME AS BEFORE) - Key Generator के लिए
-function encrypt(text) {
-    const iv = randomBytes(IV_LENGTH);
-    const cipher = createCipheriv(ALGORITHM, derivedKey, iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString('hex') + ':' + encrypted.toString('hex');
-}
+// Encrypt function is NOT NEEDED for server validation. (Removed)
 
 
 // --- Database Initialization Function (Auto-Create Tables) ---
@@ -93,6 +101,7 @@ async function initializeDatabase() {
             "Last Updated" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );`);
         
+        // Table definition uses the new fields (Name, Phone, Address)
         await client.query(`CREATE TABLE IF NOT EXISTS "${CUSTOMERS_TABLE_NAME}" (
             ID VARCHAR(50) PRIMARY KEY,
             "Name" VARCHAR(255) NOT NULL,
@@ -144,12 +153,14 @@ async function initializeDatabase() {
 //          CORE API ENDPOINTS
 // ===================================
 
-// 1. License Key Validation (SAME LOGIC)
+// 1. License Key Validation
 app.post('/api/validate-key', (req, res) => {
     const { key } = req.body;
     if (!key) return res.status(400).json({ valid: false, message: 'Key is required.' });
 
     const decryptedData = decrypt(key);
+    
+    // Decryption or key format failure
     if (!decryptedData || !decryptedData.expiry) {
         return res.status(401).json({ valid: false, message: 'Invalid or corrupted license key.' });
     }
@@ -161,14 +172,19 @@ app.post('/api/validate-key', (req, res) => {
         return res.status(401).json({ valid: false, message: 'License key has expired.' });
     }
 
+    // Token for client-side persistence (using HMAC)
     const tokenPayload = `${decryptedData.expiry}:${currentDate.toISOString().split('T')[0]}`;
     const token = createHmac('sha256', APP_SECRET_KEY).update(tokenPayload).digest('hex');
 
+    // 🔥 RESPONSE UPDATE: Include name, phone, address
     res.json({ 
         valid: true, 
         message: 'License key validated successfully.',
-        user: decryptedData.user || 'Dukan Pro User',
+        name: decryptedData.name || 'Dukan Pro User',
+        phone: decryptedData.phone || 'N/A',
+        address: decryptedData.address || 'N/A',
         expiry: decryptedData.expiry,
+        plan: decryptedData.plan || 'N/A',
         token: token 
     });
 });
@@ -375,12 +391,6 @@ app.get('/api/admin/all-data', async (req, res) => {
         res.status(500).json({ message: `Failed to fetch admin data: ${error.message}` });
     }
 });
-
-// --- Note on License Disable/Activate ---
-// मैन्युअल रूप से License Key Disable/Activate करने के लिए, हमें एक 
-// 'Licenses' टेबल बनाने की आवश्यकता होगी जहाँ हम हर Key और उसकी स्थिति को स्टोर करें।
-// चूँकि आपकी वर्तमान लॉजिक केवल एन्क्रिप्टेड EXPIRY DATE पर निर्भर करती है,
-// एडमिन को केवल एक नई Key GENERATE करनी होगी ताकि क्लाइंट एक्सेस कर सके।
 
 
 // ===================================
