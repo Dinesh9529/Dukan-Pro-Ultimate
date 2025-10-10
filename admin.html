@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dukan Pro - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css"> <style>
+        .admin-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        #login-form-card { max-width: 400px; margin: 100px auto; }
+        .data-card { min-height: 400px; }
+        .table-scroll { max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="header-bar text-center">
+        <h2>Dukan Pro - एडमिन डैशबोर्ड</h2>
+    </div>
+
+    <div id="login-container">
+        <div class="card p-4 shadow-lg" id="login-form-card">
+            <h5 class="card-title text-center mb-4">एडमिन लॉगिन</h5>
+            <form id="admin-login-form">
+                <div class="mb-3">
+                    <label for="admin-password" class="form-label">पासवर्ड</label>
+                    <input type="password" class="form-control" id="admin-password" required>
+                </div>
+                <button type="submit" class="btn btn-danger w-100">लॉगिन</button>
+                <div id="login-msg" class="text-center mt-3"></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="admin-dashboard" class="admin-container d-none">
+        <h3 class="mt-4 mb-4">डैशबोर्ड अवलोकन</h3>
+
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card data-card shadow">
+                    <div class="card-header bg-primary text-white">सभी क्लाइंट डिटेल्स</div>
+                    <div class="card-body">
+                        <div class="table-scroll">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr><th>नाम</th><th>मोबाइल</th><th>पता</th><th>ID</th></tr>
+                                </thead>
+                                <tbody id="customers-table-body">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+                <div class="card data-card shadow">
+                    <div class="card-header bg-success text-white">इनवॉइस डिटेल्स (बिक्री)</div>
+                    <div class="card-body">
+                        <div class="table-scroll">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr><th>इनवॉइस नं.</th><th>ग्राहक</th><th>राशि</th><th>तिथि</th></tr>
+                                </thead>
+                                <tbody id="sales-table-body">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-12 mb-4">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">लाइसेंस कुंजी जनरेटर/मैनेजमेंट (बाहरी)</div>
+                    <div class="card-body text-center">
+                        <p>लाइसेंस कुंजी $\text{Generate}$ करने के लिए, कृपया $\text{Dukan Pro Ultimate License Key Generator.html}$ फ़ाइल का उपयोग करें।</p>
+                        <p class="text-danger fw-bold">Disable/Activate लॉजिक को लागू करने के लिए, हमें एक नया $\text{Licenses}$ टेबल बनाना होगा।</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
