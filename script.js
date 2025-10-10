@@ -261,7 +261,7 @@ async function handleRecordSale(invoiceNumber, customerName, totalAmount, totalT
                 sku: item.sku, 
                 itemName: item.itemname, 
                 purchasePrice: item.purchaseprice, // Must send original data
-                salePrice: item.saleprice,       // Must send original data
+                salePrice: item.saleprice,     // Must send original data
                 quantity: -item.quantity // Send negative quantity to deduct
             };
             await fetch(`${API_BASE_URL}/api/stock`, {
