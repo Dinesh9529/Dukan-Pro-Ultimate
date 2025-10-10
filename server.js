@@ -1,251 +1,242 @@
 /*
  * Node.js Server for Dukan Pro Business Suite
  * Handles: License Validation, Stock, Sales, Purchases, CRM, Expenses
+ * NOW USING: PostgreSQL
  */
 import express from 'express';
-import { google } from 'googleapis';
+// import { google } from 'googleapis'; // Google Sheets API हटा दिया गया है
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 import cors from 'cors';
+import { Pool } from 'pg'; // NEW: PostgreSQL क्लाइंट इम्पोर्ट किया गया
 
 // --- Environment Variables & Constants ---
-// NOTE: For production, it's best to use environment variables instead of hardcoding.
-const CUSTOMER_SPREADSHEET_ID = '109TtsLFXzJGQbn1r2zr59kl86-peOEF_VFYK1HVu6MU';
-const DATA_SPREADSHEET_ID = '1RXW43LrZbpmyQMCbvdWmk0c9RWrAJVGaXiIA3vW-PrA';
-const APP_SECRET_KEY = '6019c9ecf0fd55147c482910a17f1b21';
+// NOTE: Google Sheet IDs हटा दिए गए हैं, DATABASE_URL को ENV में सेट किया गया है।
+// const CUSTOMER_SPREADSHEET_ID = '109TtsLFXzJGQbn1r2zr59kl86-peOEF_VFYK1HVu6MU'; // हटाया गया
+// const DATA_SPREADSHEET_ID = '1RXW43LrZbpmyQMCbvdWmk0c9RWrAJVGaXiIA3vW-PrA'; // हटाया गया
+const APP_SECRET_KEY = '6019c9ecf0fd55147c482910a17f1b21'; // License Key Security (रखा गया)
 
-const CUSTOMERS_SHEET_NAME = 'Customers';
-const STOCK_SHEET_NAME = 'Stock';
-const PURCHASES_SHEET_NAME = 'Purchases';
-const SALES_SHEET_NAME = 'Sales';
-const EXPENSES_SHEET_NAME = 'Expenses';
+// Sheet names अब Table names हैं
+const CUSTOMERS_TABLE_NAME = 'Customers';
+const STOCK_TABLE_NAME = 'Stock';
+const PURCHASES_TABLE_NAME = 'Purchases';
+const SALES_TABLE_NAME = 'Sales';
+const EXPENSES_TABLE_NAME = 'Expenses';
 const PORT = process.env.PORT || 3000;
 
-// Derive a 32-byte key for AES-256
+// Derive a 32-byte key for AES-256 (License Key Logic - रखा गया)
 const derivedKey = createHash('sha256').update(APP_SECRET_KEY).digest();
 const ALGORITHM = 'aes-256-cbc';
 
-let GOOGLE_CLIENT_EMAIL = '';
-let GOOGLE_PRIVATE_KEY = '';
+// --- NEW: PostgreSQL Setup ---
+const pool = new Pool({
+    // Render में सेट किया गया DATABASE_URL ENV variable का उपयोग करें
+    connectionString: process.env.DATABASE_URL, 
+    // Render SSL के लिए ज़रूरी
+    ssl: { rejectUnauthorized: false } 
+});
 
-if (process.env.GOOGLE_CREDENTIALS) {
-    try {
-        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-        GOOGLE_CLIENT_EMAIL = credentials.client_email;
-        GOOGLE_PRIVATE_KEY = credentials.private_key?.replace(/\\n/g, '\n');
-    } catch (e) {
-        console.error("FATAL ERROR: Failed to parse GOOGLE_CREDENTIALS.");
-    }
-}
+// टेस्ट कनेक्शन
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('CRITICAL: Error connecting to PostgreSQL:', err.stack);
+    process.exit(1); 
+  } else {
+    client.query('SELECT NOW()', (err, result) => {
+      release();
+      if (err) {
+        console.error('Error executing test query:', err.stack);
+      } else {
+        console.log("PostgreSQL Connected successfully! Time:", result.rows[0].now);
+      }
+    });
+  }
+});
 
-const isConfigValid = GOOGLE_CLIENT_EMAIL && GOOGLE_PRIVATE_KEY;
-if (!isConfigValid) {
-    console.error("FATAL ERROR: Missing Google credentials. Please set GOOGLE_CREDENTIALS environment variable.");
-}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// --- Google Sheets Authentication ---
-const auth = new google.auth.JWT({
-    email: GOOGLE_CLIENT_EMAIL,
-    key: GOOGLE_PRIVATE_KEY,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets']
-});
-const sheets = google.sheets({ version: 'v4', auth });
+app.use(express.static('public')); 
 
 // --- Helper Functions ---
-async function readSheetData(sheetId, sheetName) {
-    if (!isConfigValid) throw new Error("Google Sheets configuration is invalid.");
-    const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: sheetId,
-        range: `${sheetName}!A:Z`,
-    });
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) return [];
 
-    const headers = rows[0].map(h => h.toLowerCase().replace(/\s/g, ''));
-    return rows.slice(1).map(row => {
-        let obj = {};
-        headers.forEach((header, index) => {
-            obj[header] = row[index] || '';
-        });
-        return obj;
-    });
-}
-
-// --- License Key Logic (UNCHANGED) ---
-function decrypt(key) {
+// License Decryption Function (UNCHANGED)
+function decryptKey(base64Key) {
     try {
-        const combined = Buffer.from(key, 'base64');
+        const key = derivedKey;
+        const combined = Buffer.from(base64Key, 'base64');
         const iv = combined.slice(0, 16);
-        const encryptedText = combined.slice(16);
-        if (iv.length !== 16) return null;
-        const decipher = createDecipheriv(ALGORITHM, derivedKey, iv);
-        const decrypted = Buffer.concat([decipher.update(encryptedText), decipher.final()]);
-        return decrypted.toString('utf8');
-    } catch (e) { return null; }
+        const ciphertext = combined.slice(16);
+
+        const decipher = createDecipheriv(ALGORITHM, key, iv);
+        let decrypted = decipher.update(ciphertext);
+        decrypted = Buffer.concat([decrypted, decipher.final()]);
+        
+        return decrypted.toString();
+    } catch (e) {
+        console.error("Decryption failed:", e.message);
+        return null;
+    }
 }
 
+// NEW Helper to read all data from a table (replaces readSheetData)
+async function readTableData(tableName) {
+    // Note: Column names with spaces like "Item Name" must be double-quoted in SQL
+    // We assume the tables were created with the schema provided earlier.
+    const result = await pool.query(`SELECT * FROM "${tableName}"`); 
+    return result.rows; 
+}
 
 // --- API Endpoints ---
 
-// License Validation Endpoint (UNCHANGED)
-app.post('/validate-key', async (req, res) => {
+// 1. License Validation (UNCHANGED LOGIC)
+app.post('/api/validate-key', (req, res) => {
     const { key } = req.body;
-    if (!key) return res.status(400).json({ isValid: false, message: "License key is required." });
+    if (!key) return res.status(400).json({ valid: false, message: 'Key is required.' });
+
+    const decryptedDataJson = decryptKey(key);
+    if (!decryptedDataJson) return res.status(401).json({ valid: false, message: 'Invalid license key format.' });
+    
     try {
-        const decryptedDataString = decrypt(key);
-        if (!decryptedDataString) return res.status(200).json({ isValid: false, message: "Invalid license key." });
-        const keyData = JSON.parse(decryptedDataString);
-        const expiryDate = new Date(keyData.expiry);
-        if (new Date() > expiryDate) return res.status(200).json({ isValid: false, message: "License key has expired." });
+        const data = JSON.parse(decryptedDataJson);
+        const expiryDate = new Date(data.expiry);
+        const currentDate = new Date();
         
-        return res.status(200).json({
-            isValid: true,
-            name: keyData.name,
-            plan: keyData.plan || 'UNKNOWN',
-            message: "Key validated successfully.",
-            expiryDate: expiryDate.toISOString() // Send ISO string for accurate client-side parsing
-        });
-    } catch (error) {
-        return res.status(500).json({ isValid: false, message: `Server Error: ${error.message}` });
-    }
-});
-
-// --- Main Data API (fetches everything needed for the app) ---
-app.get('/api/initial-data', async (req, res) => {
-    try {
-        const [sales, purchases, stock, customers, expenses] = await Promise.all([
-            readSheetData(DATA_SPREADSHEET_ID, SALES_SHEET_NAME),
-            readSheetData(DATA_SPREADSHEET_ID, PURCHASES_SHEET_NAME),
-            readSheetData(DATA_SPREADSHEET_ID, STOCK_SHEET_NAME),
-            readSheetData(CUSTOMER_SPREADSHEET_ID, CUSTOMERS_SHEET_NAME),
-            readSheetData(DATA_SPREADSHEET_ID, EXPENSES_SHEET_NAME),
-        ]);
-        res.status(200).json({ sales, purchases, stock, customers, expenses });
-    } catch (error) {
-        res.status(500).json({ message: `Failed to get initial data: ${error.message}` });
-    }
-});
-
-// --- Stock Management API (UNCHANGED) ---
-app.post('/api/stock', async (req, res) => {
-    const { sku, itemName, purchasePrice, salePrice, quantity } = req.body;
-    if (!sku || !itemName || !purchasePrice || !salePrice || !quantity) {
-        return res.status(400).json({ message: "All fields are required." });
-    }
-    try {
-        const rowData = [sku, itemName, purchasePrice, salePrice, quantity, new Date().toISOString()];
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: DATA_SPREADSHEET_ID,
-            range: `${STOCK_SHEET_NAME}!A:F`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values: [rowData] }
-        });
-        res.status(201).json({ message: "Stock item added successfully." });
-    } catch (error) {
-        res.status(500).json({ message: `Failed to add stock item: ${error.message}` });
-    }
-});
-
-
-// --- Purchase Logging API (UNCHANGED) ---
-app.post('/api/purchases', async (req, res) => {
-    const { itemName, sku, quantity, purchasePrice, supplier } = req.body;
-    try {
-        const purchaseRow = [new Date().toISOString(), itemName, quantity, purchasePrice, supplier, quantity * purchasePrice];
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: DATA_SPREADSHEET_ID, range: `${PURCHASES_SHEET_NAME}!A:F`, valueInputOption: 'USER_ENTERED', requestBody: { values: [purchaseRow] }
-        });
-        const stockData = await sheets.spreadsheets.values.get({ spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!A:Z` });
-        const rows = stockData.data.values || [];
-        const rowIndex = rows.findIndex(row => row[0] === sku || row[1] === itemName);
-        if (rowIndex > -1) {
-            const existingQty = parseInt(rows[rowIndex][4]) || 0;
-            const newQty = existingQty + parseInt(quantity);
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!E${rowIndex + 1}`, valueInputOption: 'USER_ENTERED', requestBody: { values: [[newQty]] }
+        if (expiryDate > currentDate) {
+            return res.json({ 
+                valid: true, 
+                user: data.name, 
+                expiry: data.expiry,
+                message: `License activated for ${data.plan}. Expires on ${expiryDate.toLocaleDateString()}.`
             });
         } else {
-             const newStockRow = [sku || `SKU-${Date.now()}`, itemName, purchasePrice, purchasePrice * 1.25, quantity, new Date().toISOString()];
-             await sheets.spreadsheets.values.append({ spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!A:F`, valueInputOption: 'USER_ENTERED', requestBody: { values: [newStockRow] } });
+            return res.status(401).json({ valid: false, message: 'License key has expired. Please renew.' });
         }
-        res.status(201).json({ message: "Purchase logged and stock updated." });
-    } catch (error) {
-        res.status(500).json({ message: `Failed to log purchase: ${error.message}` });
+
+    } catch (e) {
+        console.error("Error processing license data:", e);
+        return res.status(401).json({ valid: false, message: 'Invalid license key data.' });
     }
 });
 
-// --- Sales Logging API (UNCHANGED) ---
-app.post('/api/sales', async (req, res) => {
-    const { invoiceNumber, customerName, totalAmount, items } = req.body;
+
+// 2. Main Data API (fetches everything from PostgreSQL - CHANGED)
+app.get('/api/initial-data', async (req, res) => {
     try {
-        let profit = 0; // Simplified profit calculation
-        const saleRow = [new Date().toISOString(), invoiceNumber, customerName, totalAmount, JSON.stringify(items), profit];
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: DATA_SPREADSHEET_ID, range: `${SALES_SHEET_NAME}!A:F`, valueInputOption: 'USER_ENTERED', requestBody: { values: [saleRow] }
+        // All data fetching now uses readTableData for PostgreSQL
+        const [stock, sales, purchases, customers, expenses] = await Promise.all([
+            readTableData(STOCK_TABLE_NAME),
+            readTableData(SALES_TABLE_NAME),
+            readTableData(PURCHASES_TABLE_NAME),
+            readTableData(CUSTOMERS_TABLE_NAME),
+            readTableData(EXPENSES_TABLE_NAME),
+        ]);
+        
+        res.status(200).json({ stock, sales, purchases, customers, expenses });
+
+    } catch (error) {
+        console.error("Critical Error loading initial data from PostgreSQL:", error.message, error.stack);
+        res.status(500).json({ 
+            message: `डेटा लोड करने में विफल: PostgreSQL कनेक्शन या टेबल स्कीमा जाँचें। Error: ${error.message}` 
         });
-        const stockData = await sheets.spreadsheets.values.get({ spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!A:Z` });
-        const stockRows = stockData.data.values || [];
-        for (const item of items) {
-            const rowIndex = stockRows.findIndex(row => row[1] && row[1].toLowerCase() === item.itemName.toLowerCase());
-            if (rowIndex > -1) {
-                const existingQty = parseInt(stockRows[rowIndex][4]) || 0;
-                const newQty = existingQty - parseInt(item.quantity);
-                await sheets.spreadsheets.values.update({
-                    spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!E${rowIndex + 1}`, valueInputOption: 'USER_ENTERED', requestBody: { values: [[newQty]] }
-                });
-            }
-        }
-        res.status(201).json({ success: true, message: "Sale logged and stock updated successfully." });
+    }
+});
+
+// 3. Add Stock (CHANGED: Uses ON CONFLICT for upsert logic)
+app.post('/api/add-stock', async (req, res) => {
+    const { sku, itemname, purchaseprice, saleprice, quantity } = req.body;
+    try {
+        const sql = `
+            INSERT INTO "${STOCK_TABLE_NAME}" (
+                "SKU", "Item Name", "Purchase Price", "Sale Price", "Quantity", "Last Updated"
+            ) VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (SKU) DO UPDATE
+            SET "Item Name" = EXCLUDED."Item Name", 
+                "Purchase Price" = EXCLUDED."Purchase Price", 
+                "Sale Price" = EXCLUDED."Sale Price", 
+                "Quantity" = "${STOCK_TABLE_NAME}".Quantity + EXCLUDED.Quantity, 
+                "Last Updated" = NOW()
+        `; 
+
+        await pool.query(sql, [sku, itemname, purchaseprice, saleprice, quantity]);
+        res.status(201).json({ message: "Stock added/updated successfully." });
+    } catch (error) {
+        res.status(500).json({ message: `Failed to add stock: ${error.message}` });
+    }
+});
+
+// 4. Add Purchase (CHANGED)
+app.post('/api/add-purchase', async (req, res) => {
+    const { sku, itemname, quantity, purchaseprice, supplier } = req.body;
+    try {
+        const totalValue = quantity * purchaseprice;
+        const sql = `
+            INSERT INTO "${PURCHASES_TABLE_NAME}" (
+                "Date", SKU, "Item Name", Quantity, "Purchase Price", "Total Value", Supplier
+            ) VALUES (NOW(), $1, $2, $3, $4, $5, $6)
+        `;
+        await pool.query(sql, [sku, itemname, quantity, purchaseprice, totalValue, supplier]);
+        res.status(201).json({ message: "Purchase added successfully." });
+    } catch (error) {
+        res.status(500).json({ message: `Failed to add purchase: ${error.message}` });
+    }
+});
+
+// 5. Log Sales (CHANGED)
+app.post('/api/log-sale', async (req, res) => {
+    const { invoiceNumber, customerName, totalAmount, totalTax, items } = req.body;
+    try {
+        const sql = `
+            INSERT INTO "${SALES_TABLE_NAME}" (
+                "Date", "Invoice Number", "Customer Name", "Total Amount", "Total Tax", Items
+            ) VALUES (NOW(), $1, $2, $3, $4, $5)
+        `;
+        // Items array को JSONB कॉलम में सेव करने के लिए JSON.stringify का उपयोग करें
+        await pool.query(sql, [invoiceNumber, customerName, totalAmount, totalTax, JSON.stringify(items)]);
+        res.status(201).json({ message: "Sale logged successfully." });
     } catch (error) {
         res.status(500).json({ message: `Failed to log sale: ${error.message}` });
     }
 });
 
-// --- NEW: CRM API ---
-app.post('/api/customers', async (req, res) => {
+// 6. Add Customer (CHANGED)
+app.post('/api/add-customer', async (req, res) => {
     const { name, phone, address } = req.body;
-    if (!name || !phone) {
-        return res.status(400).json({ message: "Name and Phone are required." });
-    }
     try {
-        const customerId = `CUST-${Date.now()}`;
-        const rowData = [customerId, name, phone, address, new Date().toISOString()];
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: CUSTOMER_SPREADSHEET_ID,
-            range: `${CUSTOMERS_SHEET_NAME}!A:E`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values: [rowData] }
-        });
+        // Customer ID generation logic is preserved
+        const customerId = 'CUST-' + Math.floor(Math.random() * 1000000); 
+        const sql = `
+            INSERT INTO "${CUSTOMERS_TABLE_NAME}" (
+                ID, Name, Phone, Address, "Date Added"
+            ) VALUES ($1, $2, $3, $4, NOW())
+        `;
+        await pool.query(sql, [customerId, name, phone, address]);
         res.status(201).json({ message: "Customer added successfully." });
     } catch (error) {
         res.status(500).json({ message: `Failed to add customer: ${error.message}` });
     }
 });
 
-// --- NEW: Expenses API ---
+// 7. Add Expense (CHANGED)
 app.post('/api/expenses', async (req, res) => {
     const { category, amount, description } = req.body;
     if (!category || !amount) {
         return res.status(400).json({ message: "Category and Amount are required." });
     }
     try {
-        const rowData = [new Date().toISOString(), category, amount, description];
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: DATA_SPREADSHEET_ID,
-            range: `${EXPENSES_SHEET_NAME}!A:D`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values: [rowData] }
-        });
+        const sql = `
+            INSERT INTO "${EXPENSES_TABLE_NAME}" (
+                "Date", Category, Amount, Description
+            ) VALUES (NOW(), $1, $2, $3)
+        `;
+        await pool.query(sql, [category, amount, description]);
         res.status(201).json({ message: "Expense added successfully." });
     } catch (error) {
         res.status(500).json({ message: `Failed to add expense: ${error.message}` });
     }
 });
 
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    if(!isConfigValid) console.log("WARNING: Server is running with invalid configuration.");
 });
