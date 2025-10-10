@@ -1,27 +1,26 @@
 /*
  * Node.js Server for Dukan Pro Business Suite
  * Handles: License Validation, Stock, Sales, Purchases, CRM, Expenses
- * Database: PostgreSQL (using DATABASE_URL environment variable)
- * Feature: Auto-Initializes tables on server startup if they don't exist.
+ * Database: PostgreSQL (Auto-Initialization)
+ * New Feature: Admin Panel Endpoints
  */
 import express from 'express';
-// OLD: import { google } from 'googleapis'; // Google Sheets हटाएँ
-import pg from 'pg'; // NEW: PostgreSQL Client
+import pg from 'pg'; // PostgreSQL Client
 import { createCipheriv, createDecipheriv, randomBytes, createHash, createHmac } from 'crypto';
 import cors from 'cors';
 
 // --- Server Setup ---
 const app = express();
 app.use(cors());
-app.use(express.json()); // Body parser middleware
+app.use(express.json());
 
 
 // --- Environment Variables & Constants ---
-// Google Sheets IDs अब ज़रूरी नहीं हैं।
-// const CUSTOMER_SPREADSHEET_ID = '...'; 
-// const DATA_SPREADSHEET_ID = '...'; 
+// APP_SECRET_KEY: License Key के लॉजिक के लिए इस्तेमाल होता है (SAME AS BEFORE)
+const APP_SECRET_KEY = process.env.APP_SECRET_KEY || '6019c9ecf0fd55147c482910a17f1b21'; 
+// ADMIN_PASSWORD: Admin Panel Login के लिए इस्तेमाल होता है (Render ENV में सेट करें)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'defaultadminpass'; 
 
-const APP_SECRET_KEY = process.env.APP_SECRET_KEY || '6019c9ecf0fd55147c482910a17f1b21'; // App Secret Key
 const PORT = process.env.PORT || 3000;
 
 // Table Names (Sheets Names का उपयोग करते हुए)
@@ -38,7 +37,7 @@ const { Pool } = pg;
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL, 
     ssl: {
-        rejectUnauthorized: false // Render के साथ SSL ज़रूरी है
+        rejectUnauthorized: false // Render पर SSL ज़रूरी है
     }
 });
 
@@ -69,7 +68,7 @@ function decrypt(encryptedText) {
     }
 }
 
-// Encrypt function (SAME AS BEFORE, although not used in validation)
+// Encrypt function (SAME AS BEFORE) - Key Generator के लिए
 function encrypt(text) {
     const iv = randomBytes(IV_LENGTH);
     const cipher = createCipheriv(ALGORITHM, derivedKey, iv);
@@ -78,12 +77,12 @@ function encrypt(text) {
     return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
-// --- NEW: Database Initialization Function (Auto-Create Tables) ---
+
+// --- Database Initialization Function (Auto-Create Tables) ---
 async function initializeDatabase() {
     console.log("Initializing database tables...");
     const client = await pool.connect();
     try {
-        // SQL कमांड्स को एक-एक करके चलाएँ
         await client.query(`CREATE TABLE IF NOT EXISTS "${STOCK_TABLE_NAME}" (
             ID SERIAL PRIMARY KEY,
             "SKU" VARCHAR(50) UNIQUE NOT NULL, 
@@ -96,9 +95,9 @@ async function initializeDatabase() {
         
         await client.query(`CREATE TABLE IF NOT EXISTS "${CUSTOMERS_TABLE_NAME}" (
             ID VARCHAR(50) PRIMARY KEY,
-            Name VARCHAR(255) NOT NULL,
-            Phone VARCHAR(20),
-            Address TEXT,
+            "Name" VARCHAR(255) NOT NULL,
+            "Phone" VARCHAR(20),
+            "Address" TEXT,
             "Date Added" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );`);
 
@@ -107,10 +106,10 @@ async function initializeDatabase() {
             "Date" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             "SKU" VARCHAR(50) NOT NULL,
             "Item Name" VARCHAR(255),
-            Quantity INTEGER NOT NULL,
+            "Quantity" INTEGER NOT NULL,
             "Purchase Price" NUMERIC(10, 2),
             "Total Value" NUMERIC(10, 2),
-            Supplier VARCHAR(255)
+            "Supplier" VARCHAR(255)
         );`);
 
         await client.query(`CREATE TABLE IF NOT EXISTS "${SALES_TABLE_NAME}" (
@@ -120,15 +119,15 @@ async function initializeDatabase() {
             "Customer Name" VARCHAR(255),
             "Total Amount" NUMERIC(10, 2),
             "Total Tax" NUMERIC(10, 2),
-            Items JSONB 
+            "Items" JSONB 
         );`);
 
         await client.query(`CREATE TABLE IF NOT EXISTS "${EXPENSES_TABLE_NAME}" (
             ID SERIAL PRIMARY KEY,
             "Date" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            Category VARCHAR(100) NOT NULL,
-            Amount NUMERIC(10, 2) NOT NULL,
-            Description TEXT
+            "Category" VARCHAR(100) NOT NULL,
+            "Amount" NUMERIC(10, 2) NOT NULL,
+            "Description" TEXT
         );`);
         
         console.log("All tables initialized successfully (if they didn't exist).");
@@ -141,18 +140,16 @@ async function initializeDatabase() {
 }
 
 
-// --- API Endpoints ---
+// ===================================
+//          CORE API ENDPOINTS
+// ===================================
 
-// 1. License Key Validation (Logic Maintained)
+// 1. License Key Validation (SAME LOGIC)
 app.post('/api/validate-key', (req, res) => {
     const { key } = req.body;
-
-    if (!key) {
-        return res.status(400).json({ valid: false, message: 'Key is required.' });
-    }
+    if (!key) return res.status(400).json({ valid: false, message: 'Key is required.' });
 
     const decryptedData = decrypt(key);
-
     if (!decryptedData || !decryptedData.expiry) {
         return res.status(401).json({ valid: false, message: 'Invalid or corrupted license key.' });
     }
@@ -160,12 +157,10 @@ app.post('/api/validate-key', (req, res) => {
     const expiryDate = new Date(decryptedData.expiry);
     const currentDate = new Date();
     
-    // Check if key has expired
     if (currentDate > expiryDate) {
         return res.status(401).json({ valid: false, message: 'License key has expired.' });
     }
 
-    // Generate a simple token (as per previous logic)
     const tokenPayload = `${decryptedData.expiry}:${currentDate.toISOString().split('T')[0]}`;
     const token = createHmac('sha256', APP_SECRET_KEY).update(tokenPayload).digest('hex');
 
@@ -174,27 +169,22 @@ app.post('/api/validate-key', (req, res) => {
         message: 'License key validated successfully.',
         user: decryptedData.user || 'Dukan Pro User',
         expiry: decryptedData.expiry,
-        token: token // Sending back a simple auth token
+        token: token 
     });
 });
 
 
-// 2. Fetch Data (Replaces sheets.spreadsheets.values.get)
+// 2. Fetch Data (PostgreSQL)
 app.get('/api/data/:sheetName', async (req, res) => {
     const { sheetName } = req.params;
-    
-    // Validate table name to prevent SQL Injection
     const validTables = [STOCK_TABLE_NAME, CUSTOMERS_TABLE_NAME, PURCHASES_TABLE_NAME, SALES_TABLE_NAME, EXPENSES_TABLE_NAME];
     if (!validTables.includes(sheetName)) {
         return res.status(400).json({ message: "Invalid data source specified." });
     }
 
     try {
-        // PostgreSQL query
         const queryText = `SELECT * FROM "${sheetName}"`;
         const result = await pool.query(queryText);
-        
-        // Rows/Data वापस भेजें
         res.json(result.rows);
     } catch (error) {
         console.error(`PostgreSQL Error fetching ${sheetName}:`, error);
@@ -203,7 +193,7 @@ app.get('/api/data/:sheetName', async (req, res) => {
 });
 
 
-// 3. Add/Update Stock Item (Replaces sheets.spreadsheets.values.append)
+// 3. Add/Update Stock Item (PostgreSQL)
 app.post('/api/stock', async (req, res) => {
     const { sku, itemName, purchasePrice, salePrice, quantity } = req.body;
     if (!sku || !itemName || !purchasePrice || !salePrice || !quantity) {
@@ -220,10 +210,8 @@ app.post('/api/stock', async (req, res) => {
             "Sale Price" = EXCLUDED."Sale Price",
             "Quantity" = "Stock"."Quantity" + EXCLUDED."Quantity",
             "Last Updated" = EXCLUDED."Last Updated"
-    `;
-
+    `; 
     const values = [sku, itemName, purchasePrice, salePrice, quantity, new Date().toISOString()];
-
     try {
         await pool.query(queryText, values);
         res.status(201).json({ message: "Stock item added/updated successfully in PostgreSQL." });
@@ -234,7 +222,7 @@ app.post('/api/stock', async (req, res) => {
 });
 
 
-// 4. Add Customer (Replaces sheets.spreadsheets.values.append)
+// 4. Add Customer (PostgreSQL)
 app.post('/api/customers', async (req, res) => {
     const { id, name, phone, address } = req.body;
     if (!id || !name) {
@@ -242,17 +230,15 @@ app.post('/api/customers', async (req, res) => {
     }
 
     const queryText = `
-        INSERT INTO "${CUSTOMERS_TABLE_NAME}" (ID, Name, Phone, Address, "Date Added")
+        INSERT INTO "${CUSTOMERS_TABLE_NAME}" (ID, "Name", "Phone", "Address", "Date Added")
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (ID) 
         DO UPDATE SET 
-            Name = EXCLUDED.Name, 
-            Phone = EXCLUDED.Phone, 
-            Address = EXCLUDED.Address
+            "Name" = EXCLUDED."Name", 
+            "Phone" = EXCLUDED."Phone", 
+            "Address" = EXCLUDED."Address"
     `;
-
     const values = [id, name, phone, address, new Date().toISOString()];
-
     try {
         await pool.query(queryText, values);
         res.status(201).json({ message: "Customer added/updated successfully." });
@@ -263,7 +249,7 @@ app.post('/api/customers', async (req, res) => {
 });
 
 
-// 5. Add Purchase (Replaces sheets.spreadsheets.values.append)
+// 5. Add Purchase (PostgreSQL)
 app.post('/api/purchases', async (req, res) => {
     const { sku, itemName, quantity, purchasePrice, totalValue, supplier } = req.body;
     if (!sku || !quantity || !purchasePrice) {
@@ -271,11 +257,10 @@ app.post('/api/purchases', async (req, res) => {
     }
 
     const queryText = `
-        INSERT INTO "${PURCHASES_TABLE_NAME}" ("Date", "SKU", "Item Name", Quantity, "Purchase Price", "Total Value", Supplier)
+        INSERT INTO "${PURCHASES_TABLE_NAME}" ("Date", "SKU", "Item Name", "Quantity", "Purchase Price", "Total Value", "Supplier")
         VALUES ($1, $2, $3, $4, $5, $6, $7)
     `;
     const values = [new Date().toISOString(), sku, itemName, quantity, purchasePrice, totalValue, supplier];
-
     try {
         await pool.query(queryText, values);
         res.status(201).json({ message: "Purchase added successfully." });
@@ -286,7 +271,7 @@ app.post('/api/purchases', async (req, res) => {
 });
 
 
-// 6. Add Sale (Replaces sheets.spreadsheets.values.append)
+// 6. Add Sale (PostgreSQL)
 app.post('/api/sales', async (req, res) => {
     const { invoiceNumber, customerName, totalAmount, totalTax, items } = req.body;
     if (!invoiceNumber || !totalAmount || !items) {
@@ -294,12 +279,10 @@ app.post('/api/sales', async (req, res) => {
     }
 
     const queryText = `
-        INSERT INTO "${SALES_TABLE_NAME}" ("Date", "Invoice Number", "Customer Name", "Total Amount", "Total Tax", Items)
+        INSERT INTO "${SALES_TABLE_NAME}" ("Date", "Invoice Number", "Customer Name", "Total Amount", "Total Tax", "Items")
         VALUES ($1, $2, $3, $4, $5, $6)
     `;
-    // items array को PostgreSQL के JSONB कॉलम में डालने के लिए JSON.stringify का उपयोग करें
     const values = [new Date().toISOString(), invoiceNumber, customerName, totalAmount, totalTax, JSON.stringify(items)];
-
     try {
         await pool.query(queryText, values);
         res.status(201).json({ message: "Sale recorded successfully." });
@@ -310,7 +293,7 @@ app.post('/api/sales', async (req, res) => {
 });
 
 
-// 7. Add Expense (Replaces sheets.spreadsheets.values.append)
+// 7. Add Expense (PostgreSQL)
 app.post('/api/expenses', async (req, res) => {
     const { category, amount, description } = req.body;
     if (!category || !amount) {
@@ -318,11 +301,10 @@ app.post('/api/expenses', async (req, res) => {
     }
     
     const queryText = `
-        INSERT INTO "${EXPENSES_TABLE_NAME}" ("Date", Category, Amount, Description)
+        INSERT INTO "${EXPENSES_TABLE_NAME}" ("Date", "Category", "Amount", "Description")
         VALUES ($1, $2, $3, $4)
     `;
     const values = [new Date().toISOString(), category, amount, description];
-
     try {
         await pool.query(queryText, values);
         res.status(201).json({ message: "Expense added successfully." });
@@ -336,26 +318,17 @@ app.post('/api/expenses', async (req, res) => {
 // 8. Search API (General Search)
 app.get('/api/search', async (req, res) => {
     const { query } = req.query;
-    if (!query) {
-        return res.status(400).json({ message: "Search query is required." });
-    }
+    if (!query) return res.status(400).json({ message: "Search query is required." });
 
     try {
-        // हम यहाँ एक उदाहरण के लिए Stock Table में खोज रहे हैं। 
-        // आप इसे अन्य टेबल्स में भी विस्तारित कर सकते हैं।
         const searchQuery = `%${query.toLowerCase()}%`;
         const queryText = `
-            SELECT * FROM "${STOCK_TABLE_NAME}"
+            SELECT "SKU", "Item Name" FROM "${STOCK_TABLE_NAME}"
             WHERE LOWER("SKU") LIKE $1 OR LOWER("Item Name") LIKE $1
             LIMIT 10
         `;
-        
         const result = await pool.query(queryText, [searchQuery]);
-        
-        res.json({
-            results: result.rows,
-            source: STOCK_TABLE_NAME
-        });
+        res.json({ results: result.rows, source: STOCK_TABLE_NAME });
     } catch (error) {
         console.error("PostgreSQL Search Error:", error);
         res.status(500).json({ message: `Failed to perform search: ${error.message}` });
@@ -363,8 +336,57 @@ app.get('/api/search', async (req, res) => {
 });
 
 
-// --- Server Start ---
-// Initialization को पहले चलाएँ
+// ===================================
+//         ADMIN API ENDPOINTS
+// ===================================
+
+// 9. Admin Login (Authentication)
+app.post('/api/admin/auth', (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASSWORD) {
+        // Success: Generate a simple token 
+        const adminToken = createHmac('sha256', APP_SECRET_KEY).update(new Date().toISOString().split('T')[0] + 'ADMIN').digest('hex');
+        res.json({ success: true, token: adminToken });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid Admin Password' });
+    }
+});
+
+// 10. Fetch All Admin Data (Customers, Sales Overview, Stock)
+app.get('/api/admin/all-data', async (req, res) => {
+    // Note: यहाँ सुरक्षा के लिए Admin Token Validation जोड़ा जाना चाहिए।
+    try {
+        // Fetch all customer details (Name, Phone, Address, Date Added)
+        const customers = await pool.query(`SELECT "ID", "Name", "Phone", "Address", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "Date Added" DESC`);
+        
+        // Fetch sales overview (Invoice, Customer, Amount)
+        const sales = await pool.query(`SELECT "Invoice Number", "Customer Name", "Total Amount", "Date" FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC LIMIT 100`);
+        
+        // Fetch stock overview (SKU, Item Name, Quantity)
+        const stock = await pool.query(`SELECT "SKU", "Item Name", "Quantity" FROM "${STOCK_TABLE_NAME}" WHERE "Quantity" <= 10 ORDER BY "Quantity" ASC`);
+
+        res.json({
+            customers: customers.rows,
+            sales: sales.rows,
+            lowStock: stock.rows // Low stock items
+        });
+    } catch (error) {
+        console.error("Admin Data Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch admin data: ${error.message}` });
+    }
+});
+
+// --- Note on License Disable/Activate ---
+// मैन्युअल रूप से License Key Disable/Activate करने के लिए, हमें एक 
+// 'Licenses' टेबल बनाने की आवश्यकता होगी जहाँ हम हर Key और उसकी स्थिति को स्टोर करें।
+// चूँकि आपकी वर्तमान लॉजिक केवल एन्क्रिप्टेड EXPIRY DATE पर निर्भर करती है,
+// एडमिन को केवल एक नई Key GENERATE करनी होगी ताकि क्लाइंट एक्सेस कर सके।
+
+
+// ===================================
+//          SERVER START
+// ===================================
+
 async function startServer() {
     try {
         // 1. Tables बनाएँ (या चेक करें कि वे मौजूद हैं)
@@ -381,5 +403,4 @@ async function startServer() {
     }
 }
 
-// सबसे नीचे, startServer को कॉल करें
 startServer();
