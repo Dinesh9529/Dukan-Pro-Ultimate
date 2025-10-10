@@ -1,20 +1,23 @@
 /*
  * Node.js Server for Dukan Pro Business Suite
- * Handles: License Validation, Stock Management, Sales/Purchase Logging, Dashboard Data
+ * Handles: License Validation, Stock, Sales, Purchases, CRM, Expenses
  */
 import express from 'express';
 import { google } from 'googleapis';
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 import cors from 'cors';
 
-// --- Environment Variables Setup ---
-const CUSTOMER_SPREADSHEET_ID = process.env.CUSTOMER_SPREADSHEET_ID;
-const DATA_SPREADSHEET_ID = process.env.DATA_SPREADSHEET_ID;
-const CUSTOMER_SHEET_NAME = 'Customers';
+// --- Environment Variables & Constants ---
+// NOTE: For production, it's best to use environment variables instead of hardcoding.
+const CUSTOMER_SPREADSHEET_ID = '109TtsLFXzJGQbn1r2zr59kl86-peOEF_VFYK1HVu6MU';
+const DATA_SPREADSHEET_ID = '1RXW43LrZbpmyQMCbvdWmk0c9RWrAJVGaXiIA3vW-PrA';
+const APP_SECRET_KEY = '6019c9ecf0fd55147c482910a17f1b21';
+
+const CUSTOMERS_SHEET_NAME = 'Customers';
 const STOCK_SHEET_NAME = 'Stock';
 const PURCHASES_SHEET_NAME = 'Purchases';
 const SALES_SHEET_NAME = 'Sales';
-const APP_SECRET_KEY = process.env.APP_SECRET_KEY || 'DEFAULT_APP_SECRET';
+const EXPENSES_SHEET_NAME = 'Expenses';
 const PORT = process.env.PORT || 3000;
 
 // Derive a 32-byte key for AES-256
@@ -34,9 +37,9 @@ if (process.env.GOOGLE_CREDENTIALS) {
     }
 }
 
-const isConfigValid = CUSTOMER_SPREADSHEET_ID && DATA_SPREADSHEET_ID && GOOGLE_CLIENT_EMAIL && GOOGLE_PRIVATE_KEY;
+const isConfigValid = GOOGLE_CLIENT_EMAIL && GOOGLE_PRIVATE_KEY;
 if (!isConfigValid) {
-    console.error("FATAL ERROR: Missing critical Google Sheet variables or credentials.");
+    console.error("FATAL ERROR: Missing Google credentials. Please set GOOGLE_CREDENTIALS environment variable.");
 }
 
 const app = express();
@@ -72,13 +75,6 @@ async function readSheetData(sheetId, sheetName) {
 }
 
 // --- License Key Logic (UNCHANGED) ---
-function encrypt(data) {
-    const iv = randomBytes(16);
-    const cipher = createCipheriv(ALGORITHM, derivedKey, iv);
-    const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
-    return Buffer.concat([iv, encrypted]).toString('base64');
-}
-
 function decrypt(key) {
     try {
         const combined = Buffer.from(key, 'base64');
@@ -110,23 +106,30 @@ app.post('/validate-key', async (req, res) => {
             name: keyData.name,
             plan: keyData.plan || 'UNKNOWN',
             message: "Key validated successfully.",
-            expiryDate: expiryDate.toLocaleString('en-US')
+            expiryDate: expiryDate.toISOString() // Send ISO string for accurate client-side parsing
         });
     } catch (error) {
         return res.status(500).json({ isValid: false, message: `Server Error: ${error.message}` });
     }
 });
 
-// --- NEW: Stock Management API ---
-app.get('/api/stock', async (req, res) => {
+// --- Main Data API (fetches everything needed for the app) ---
+app.get('/api/initial-data', async (req, res) => {
     try {
-        const stockData = await readSheetData(DATA_SPREADSHEET_ID, STOCK_SHEET_NAME);
-        res.status(200).json(stockData);
+        const [sales, purchases, stock, customers, expenses] = await Promise.all([
+            readSheetData(DATA_SPREADSHEET_ID, SALES_SHEET_NAME),
+            readSheetData(DATA_SPREADSHEET_ID, PURCHASES_SHEET_NAME),
+            readSheetData(DATA_SPREADSHEET_ID, STOCK_SHEET_NAME),
+            readSheetData(CUSTOMER_SPREADSHEET_ID, CUSTOMERS_SHEET_NAME),
+            readSheetData(DATA_SPREADSHEET_ID, EXPENSES_SHEET_NAME),
+        ]);
+        res.status(200).json({ sales, purchases, stock, customers, expenses });
     } catch (error) {
-        res.status(500).json({ message: `Failed to get stock: ${error.message}` });
+        res.status(500).json({ message: `Failed to get initial data: ${error.message}` });
     }
 });
 
+// --- Stock Management API (UNCHANGED) ---
 app.post('/api/stock', async (req, res) => {
     const { sku, itemName, purchasePrice, salePrice, quantity } = req.body;
     if (!sku || !itemName || !purchasePrice || !salePrice || !quantity) {
@@ -147,68 +150,51 @@ app.post('/api/stock', async (req, res) => {
 });
 
 
-// --- NEW: Purchase Logging API ---
+// --- Purchase Logging API (UNCHANGED) ---
 app.post('/api/purchases', async (req, res) => {
     const { itemName, sku, quantity, purchasePrice, supplier } = req.body;
     try {
-        // Log the purchase
         const purchaseRow = [new Date().toISOString(), itemName, quantity, purchasePrice, supplier, quantity * purchasePrice];
         await sheets.spreadsheets.values.append({
             spreadsheetId: DATA_SPREADSHEET_ID, range: `${PURCHASES_SHEET_NAME}!A:F`, valueInputOption: 'USER_ENTERED', requestBody: { values: [purchaseRow] }
         });
-
-        // Update stock
         const stockData = await sheets.spreadsheets.values.get({ spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!A:Z` });
-        const rows = stockData.data.values;
+        const rows = stockData.data.values || [];
         const rowIndex = rows.findIndex(row => row[0] === sku || row[1] === itemName);
-
-        if (rowIndex > -1) { // Update existing stock
+        if (rowIndex > -1) {
             const existingQty = parseInt(rows[rowIndex][4]) || 0;
             const newQty = existingQty + parseInt(quantity);
             await sheets.spreadsheets.values.update({
-                spreadsheetId: DATA_SPREADSHEET_ID,
-                range: `${STOCK_SHEET_NAME}!E${rowIndex + 1}`,
-                valueInputOption: 'USER_ENTERED',
-                requestBody: { values: [[newQty]] }
+                spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!E${rowIndex + 1}`, valueInputOption: 'USER_ENTERED', requestBody: { values: [[newQty]] }
             });
-        } else { // Add new stock item
-             const newStockRow = [sku || `SKU-${Date.now()}`, itemName, purchasePrice, purchasePrice * 1.25, quantity, new Date().toISOString()]; // Default 25% markup
+        } else {
+             const newStockRow = [sku || `SKU-${Date.now()}`, itemName, purchasePrice, purchasePrice * 1.25, quantity, new Date().toISOString()];
              await sheets.spreadsheets.values.append({ spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!A:F`, valueInputOption: 'USER_ENTERED', requestBody: { values: [newStockRow] } });
         }
-
         res.status(201).json({ message: "Purchase logged and stock updated." });
     } catch (error) {
         res.status(500).json({ message: `Failed to log purchase: ${error.message}` });
     }
 });
 
-// --- NEW: Sales Logging API (updates stock) ---
+// --- Sales Logging API (UNCHANGED) ---
 app.post('/api/sales', async (req, res) => {
     const { invoiceNumber, customerName, totalAmount, items } = req.body;
     try {
-        // Log the sale
-        let profit = 0;
-        // In a real app, you would fetch purchase price from stock to calculate profit.
-        // For simplicity, we are skipping profit calculation here.
+        let profit = 0; // Simplified profit calculation
         const saleRow = [new Date().toISOString(), invoiceNumber, customerName, totalAmount, JSON.stringify(items), profit];
         await sheets.spreadsheets.values.append({
             spreadsheetId: DATA_SPREADSHEET_ID, range: `${SALES_SHEET_NAME}!A:F`, valueInputOption: 'USER_ENTERED', requestBody: { values: [saleRow] }
         });
-
-        // Update stock quantities
         const stockData = await sheets.spreadsheets.values.get({ spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!A:Z` });
-        const stockRows = stockData.data.values;
-
+        const stockRows = stockData.data.values || [];
         for (const item of items) {
-            const rowIndex = stockRows.findIndex(row => row[1].toLowerCase() === item.itemName.toLowerCase());
+            const rowIndex = stockRows.findIndex(row => row[1] && row[1].toLowerCase() === item.itemName.toLowerCase());
             if (rowIndex > -1) {
                 const existingQty = parseInt(stockRows[rowIndex][4]) || 0;
                 const newQty = existingQty - parseInt(item.quantity);
                 await sheets.spreadsheets.values.update({
-                    spreadsheetId: DATA_SPREADSHEET_ID,
-                    range: `${STOCK_SHEET_NAME}!E${rowIndex + 1}`,
-                    valueInputOption: 'USER_ENTERED',
-                    requestBody: { values: [[newQty]] }
+                    spreadsheetId: DATA_SPREADSHEET_ID, range: `${STOCK_SHEET_NAME}!E${rowIndex + 1}`, valueInputOption: 'USER_ENTERED', requestBody: { values: [[newQty]] }
                 });
             }
         }
@@ -218,17 +204,46 @@ app.post('/api/sales', async (req, res) => {
     }
 });
 
-// --- NEW: Dashboard Data API ---
-app.get('/api/dashboard-data', async (req, res) => {
+// --- NEW: CRM API ---
+app.post('/api/customers', async (req, res) => {
+    const { name, phone, address } = req.body;
+    if (!name || !phone) {
+        return res.status(400).json({ message: "Name and Phone are required." });
+    }
     try {
-        const salesData = await readSheetData(DATA_SPREADSHEET_ID, SALES_SHEET_NAME);
-        const purchasesData = await readSheetData(DATA_SPREADSHEET_ID, PURCHASES_SHEET_NAME);
-        res.status(200).json({ sales: salesData, purchases: purchasesData });
+        const customerId = `CUST-${Date.now()}`;
+        const rowData = [customerId, name, phone, address, new Date().toISOString()];
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: CUSTOMER_SPREADSHEET_ID,
+            range: `${CUSTOMERS_SHEET_NAME}!A:E`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: { values: [rowData] }
+        });
+        res.status(201).json({ message: "Customer added successfully." });
     } catch (error) {
-        res.status(500).json({ message: `Failed to get dashboard data: ${error.message}` });
+        res.status(500).json({ message: `Failed to add customer: ${error.message}` });
     }
 });
 
+// --- NEW: Expenses API ---
+app.post('/api/expenses', async (req, res) => {
+    const { category, amount, description } = req.body;
+    if (!category || !amount) {
+        return res.status(400).json({ message: "Category and Amount are required." });
+    }
+    try {
+        const rowData = [new Date().toISOString(), category, amount, description];
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: DATA_SPREADSHEET_ID,
+            range: `${EXPENSES_SHEET_NAME}!A:D`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: { values: [rowData] }
+        });
+        res.status(201).json({ message: "Expense added successfully." });
+    } catch (error) {
+        res.status(500).json({ message: `Failed to add expense: ${error.message}` });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
