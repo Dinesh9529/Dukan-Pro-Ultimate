@@ -1,7 +1,7 @@
 {
   "name": "dukan-pro-server",
   "version": "1.0.0",
-  "description": "Backend for Dukan Pro Business Suite",
+  "description": "Backend for Dukan Pro Business Suite (PostgreSQL)",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -10,6 +10,6 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "googleapis": "^140.0.0"
+    "pg": "^8.12.0" 
   }
 }
