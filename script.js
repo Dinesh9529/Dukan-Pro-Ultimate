@@ -1,374 +1,463 @@
-// script.js
-// RENDER URL UPDATED FOR NEW SERVICE
-const RENDER_URL = "https://dukan-pro-ultimate.onrender.com";
+// script.js (Professional & Fully Functional)
+
+const RENDER_URL = "https://dukan-pro-ultimate.onrender.com"; // Your Render.com server URL
 const API_BASE_URL = RENDER_URL;
 
-// --- DOM Elements ---
-const licenseInputContainer = document.getElementById('license-input-container');
-// FIX: Corrected the main app container ID
-const mainApp = document.getElementById('main-app'); 
-const validateButton = document.getElementById('validate-key-btn');
-const licenseKeyInput = document.getElementById('license-key');
-const licenseMsgDisplay = document.getElementById('license-msg');
-const itemsContainer = document.getElementById('items-container');
-const welcomeUserDisplay = document.getElementById('welcome-user');
-const expiryNotificationBar = document.getElementById('expiry-notification-bar');
-const invoicePreviewDiv = document.getElementById('invoice-preview');
+// --- DOM Elements & State ---
+const DOM = {
+    licenseContainer: document.getElementById('license-input-container'),
+    mainApp: document.getElementById('main-app'),
+    licenseKeyInput: document.getElementById('license-key'),
+    validateBtn: document.getElementById('validate-key-btn'),
+    licenseMsg: document.getElementById('license-msg'),
+    sidebarLinks: document.querySelectorAll('#sidebar .nav-link'),
+    paneContainer: document.getElementById('pane-container'),
+    headerTitle: document.getElementById('header-title'),
+    welcomeUser: document.getElementById('welcome-user'),
+    expiryBar: document.getElementById('expiry-notification-bar'),
+    stockModal: new bootstrap.Modal(document.getElementById('stock-modal')),
+};
 
-let expiryTimerInterval = null;
-let appState = { stock: [], sales: [], purchases: [], customers: [], expenses: [] };
+let AppState = {
+    stock: [],
+    settings: {
+        shopName: 'आपकी दुकान का नाम',
+        shopAddress: 'आपका पता यहाँ',
+        shopGstin: 'आपका GSTIN',
+        logoDataUrl: null,
+        qrDataUrl: null,
+    },
+    currentInvoice: {
+        items: [],
+        customerName: 'ग्राहक',
+        notes: 'आपकी खरीदारी के लिए धन्यवाद!'
+    }
+};
 
-// --- HELPER FUNCTION: PostgreSQL Key Transformation ---
-// This is important to convert DB columns like "Item Name" to JS-friendly keys like "itemname"
-function transformDataKeys(data) {
-    if (!Array.isArray(data)) return data;
-    return data.map(item => {
-        const newItem = {};
-        for (const key in item) {
-            if (item.hasOwnProperty(key)) {
-                let newKey = key.replace(/\s+/g, '').toLowerCase();
-                if (key === "Item Name") newKey = "itemname";
-                if (key === "Purchase Price") newKey = "purchaseprice";
-                if (key === "Sale Price") newKey = "saleprice";
-                if (key === "Last Updated") newKey = "lastupdated";
-                if (key === "Date Added") newKey = "dateadded";
-                if (key === "Total Value") newKey = "totalvalue";
-                if (key === "Invoice Number") newKey = "invoicenumber";
-                if (key === "Customer Name") newKey = "customername";
-                if (key === "Total Amount") newKey = "totalamount";
-                if (key === "Total Tax") newKey = "totaltax";
-                newItem[newKey] = item[key];
-            }
-        }
-        return newItem;
-    });
-}
-
-// --- API CALLS ---
-async function fetchData(sheetName, autoLoad = false) {
+// --- API Helper ---
+async function apiCall(endpoint, method = 'GET', body = null) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/data/${sheetName}`);
-        if (!response.ok) throw new Error(`Failed to fetch ${sheetName}.`);
-        
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) options.body = JSON.stringify(body);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
         const data = await response.json();
-        const transformedData = transformDataKeys(data);
-
-        appState[sheetName.toLowerCase()] = transformedData;
-
-        // Auto-render data if needed
-        if (autoLoad) {
-            if (sheetName === 'Stock') renderStockTable();
-            if (sheetName === 'Expenses') renderExpensesTable();
-            // Add other render calls as needed
-        }
-        updateDashboard(); // Update dashboard on any data fetch
+        if (!response.ok) throw new Error(data.message || 'Server error');
+        return data;
     } catch (error) {
-        console.error(`Error fetching ${sheetName}:`, error);
-        if (!autoLoad) alert(`डेटा लोड करने में विफल: ${sheetName}`);
+        alert(`सर्वर से संपर्क करने में विफल: ${error.message}`);
+        return null;
     }
 }
 
-async function handleAddStock(event) {
-    event.preventDefault();
-    const sku = document.getElementById('stock-sku').value.trim();
-    const itemName = document.getElementById('stock-item-name').value.trim();
-    const purchasePrice = parseFloat(document.getElementById('stock-purchase-price').value);
-    const salePrice = parseFloat(document.getElementById('stock-sale-price').value);
-    const quantity = parseInt(document.getElementById('stock-quantity').value);
-
-    if (!sku || !itemName || isNaN(purchasePrice) || isNaN(salePrice) || isNaN(quantity)) {
-        alert("Please fill all fields correctly.");
-        return;
-    }
-
-    const body = { sku, itemName, purchasePrice, salePrice, quantity };
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/stock`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        if (response.ok) {
-            alert('स्टॉक सफलतापूर्वक अपडेट किया गया!');
-            document.getElementById('add-stock-form').reset();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('addStockModal'));
-            modal.hide();
-            await fetchData('Stock', true);
-        } else {
-            const errorData = await response.json();
-            alert(`स्टॉक अपडेट विफल: ${errorData.message}`);
-        }
-    } catch (error) {
-        alert('नेटवर्क एरर। स्टॉक अपडेट नहीं हो सका।');
-        console.error("Stock API Error:", error);
-    }
-}
-
-async function handleAddExpense(event) {
-    event.preventDefault();
-    const category = document.getElementById('expense-category').value;
-    const amount = parseFloat(document.getElementById('expense-amount').value);
-    const description = document.getElementById('expense-description').value;
-
-    const body = { category, amount, description };
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/expenses`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        if (response.ok) {
-            alert('खर्चा सफलतापूर्वक दर्ज किया गया!');
-            document.getElementById('add-expense-form').reset();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('addExpenseModal'));
-            modal.hide();
-            await fetchData('Expenses', true);
-        } else {
-            const errorData = await response.json();
-            alert(`खर्चा दर्ज विफल: ${errorData.message}`);
-        }
-    } catch (error) {
-        alert('नेटवर्क एरर। खर्चा दर्ज नहीं हो सका।');
-        console.error("Expense API Error:", error);
-    }
-}
-
-// --- UI RENDERING & LOGIC ---
-
-function renderStockTable() {
-    const stockTableBody = document.getElementById('stock-table-body');
-    if (!stockTableBody) return;
-    stockTableBody.innerHTML = '';
-    
-    appState.stock.forEach(item => {
-        const row = stockTableBody.insertRow();
-        row.innerHTML = `
-            <td>${item.sku}</td>
-            <td>${item.itemname}</td>
-            <td>₹${parseFloat(item.purchaseprice).toFixed(2)}</td>
-            <td>₹${parseFloat(item.saleprice).toFixed(2)}</td>
-            <td class="fw-bold ${item.quantity <= 10 ? 'text-danger' : ''}">${item.quantity}</td>
-            <td>${new Date(item.lastupdated).toLocaleString('hi-IN')}</td>
-        `;
-    });
-}
-
-function renderExpensesTable() {
-    const expenseTableBody = document.getElementById('expense-table-body');
-    if (!expenseTableBody) return;
-    expenseTableBody.innerHTML = '';
-    
-    const sortedExpenses = [...appState.expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    sortedExpenses.forEach(exp => {
-        const row = expenseTableBody.insertRow();
-        row.innerHTML = `
-            <td>${new Date(exp.date).toLocaleDateString('hi-IN')}</td>
-            <td>${exp.category || 'Other'}</td>
-            <td>₹${parseFloat(exp.amount).toFixed(2)}</td>
-            <td>${exp.description || 'N/A'}</td>
-        `;
-    });
-}
-
-function updateDashboard() {
-    const totalSales = appState.sales.reduce((sum, sale) => sum + parseFloat(sale.totalamount), 0);
-    const totalPurchases = appState.purchases.reduce((sum, pur) => sum + parseFloat(pur.totalvalue), 0);
-    const totalExpenses = appState.expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
-    
-    // Simple profit calculation (Sales - Expenses)
-    // A more accurate calculation would involve cost of goods sold (COGS)
-    const netProfit = totalSales - totalExpenses;
-
-    document.getElementById('dash-total-sales').innerText = `₹${totalSales.toFixed(2)}`;
-    document.getElementById('dash-total-purchases').innerText = `₹${totalPurchases.toFixed(2)}`;
-    document.getElementById('dash-total-expenses').innerText = `₹${totalExpenses.toFixed(2)}`;
-    document.getElementById('dash-net-profit').innerText = `₹${netProfit.toFixed(2)}`;
-}
-
-// --- INVOICE SPECIFIC FUNCTIONS (Placeholder/Simplified) ---
-function addItemRow() { alert('This feature is under development.'); }
-function printInvoice() { window.print(); }
-function downloadInvoice() { alert('This feature is under development.'); }
-function clearBill() { 
-    document.getElementById('customer-name').value = '';
-    document.getElementById('items-container').innerHTML = '';
-    generateInvoicePreview(); // Update preview to be empty
-    alert('Bill cleared.');
-}
-
-// FIX: New function to handle Save & New logic
-async function logAndClearInvoice() {
-    // This function needs to be fully implemented
-    // 1. Collect all items from the items-container
-    // 2. Calculate totals
-    // 3. Call a function similar to handleRecordSale from your old code
-    // 4. On success, call clearBill()
-    alert('"Save & New" feature is under development.');
-}
-
-function generateInvoicePreview() {
-    const template = document.getElementById('invoice-template');
-    const clone = template.content.cloneNode(true);
-    
-    // Update basic details
-    clone.getElementById('inv-shop-name').innerText = document.getElementById('shopName').value;
-    clone.getElementById('inv-shop-address').innerText = document.getElementById('shopAddress').value;
-    clone.querySelector('.gstin-val').innerText = document.getElementById('shopGstin').value;
-    clone.getElementById('inv-number').innerText = document.getElementById('invoice-number').value;
-    clone.getElementById('inv-date').innerText = new Date().toLocaleDateString('hi-IN');
-    clone.getElementById('inv-customer-name').innerText = document.getElementById('customer-name').value || "Guest Customer";
-    clone.getElementById('inv-notes').innerText = document.getElementById('notes').value;
-    clone.getElementById('inv-shop-signature').innerText = document.getElementById('shopName').value;
-    
-    // Clear previous preview and append new one
-    invoicePreviewDiv.innerHTML = '';
-    invoicePreviewDiv.appendChild(clone);
-}
-
-
-// --- LICENSE VALIDATION LOGIC ---
-
-async function validateKey(key, silent = false) {
-    if (!key) return;
-    if (!silent) updateLicenseMessage('Validating key...', false);
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/validate-key`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key })
-        });
-        const result = await response.json();
-
-        if (result.valid) {
-            // FIX: Use `result.name` instead of `result.user`
-            if (!silent) updateLicenseMessage(`Activation successful! Welcome, ${result.name}.`, false);
-            localStorage.setItem('licenseKey', key);
-            activateApp(result.name, result.expiry);
-        } else {
-            if (!silent) updateLicenseMessage(result.message, true);
-            deactivateApp();
-        }
-    } catch (error) {
-        if (!silent) updateLicenseMessage('Network error. Could not reach activation server.', true);
-        console.error("Validation Error:", error);
-        deactivateApp();
-    }
-}
-
-function activateApp(userName, expiryDateString) {
-    licenseInputContainer.classList.add('d-none');
-    mainApp.classList.remove('d-none');
-    welcomeUserDisplay.innerText = `Welcome, ${userName}!`;
-    
-    // Load all data after activation
-    Promise.all([
-        fetchData('Stock', true),
-        fetchData('Customers'),
-        fetchData('Sales'),
-        fetchData('Purchases'),
-        fetchData('Expenses', true)
-    ]).then(() => {
-        console.log("All initial data loaded.");
-        generateInvoicePreview(); // Generate initial empty invoice
-    });
-    
-    startExpiryTimer(expiryDateString);
-}
-
-function deactivateApp() {
-    mainApp.classList.add('d-none');
-    licenseInputContainer.classList.remove('d-none');
-    localStorage.removeItem('licenseKey');
-    if (expiryTimerInterval) clearInterval(expiryTimerInterval);
-}
-
-function startExpiryTimer(expiryDateString) {
-    const expiryDate = new Date(expiryDateString);
-    expiryNotificationBar.style.display = 'block';
-
-    const checkExpiry = () => {
-        const now = new Date();
-        const diff = expiryDate - now;
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        
-        if (diff < 0) {
-            expiryNotificationBar.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>License Expired. Please renew.`;
-            expiryNotificationBar.className = 'alert alert-danger mb-0 text-center fw-bold no-print';
-            mainApp.style.pointerEvents = 'none';
-            mainApp.style.opacity = '0.5';
-            clearInterval(expiryTimerInterval);
-        } else {
-            let message = `License expires in ${days} day(s).`;
-            expiryNotificationBar.className = (days < 7) 
-                ? 'alert alert-danger mb-0 text-center fw-bold no-print' 
-                : 'alert alert-warning mb-0 text-center fw-bold no-print';
-            expiryNotificationBar.innerHTML = `<i class="fas fa-clock me-2"></i>${message}`;
-        }
-    };
-    
-    checkExpiry();
-    if (expiryTimerInterval) clearInterval(expiryTimerInterval);
-    expiryTimerInterval = setInterval(checkExpiry, 60 * 60 * 1000); // Check every hour
-}
-
-function updateLicenseMessage(message, isError) {
-    licenseMsgDisplay.innerText = message;
-    licenseMsgDisplay.className = `mt-3 fw-bold text-center ${isError ? 'text-danger' : 'text-success'}`;
-}
-
-function exportToCSV() {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "SKU,Item Name,Purchase Price,Sale Price,Quantity\r\n";
-    appState.stock.forEach(item => {
-        csvContent += `${item.sku},${item.itemname},${item.purchaseprice},${item.saleprice},${item.quantity}\r\n`;
-    });
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "dukan_pro_stock_export.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-
-// --- INITIALIZATION ---
+// --- Initialization & License ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Check for saved key on load
+    DOM.validateBtn.addEventListener('click', () => handleValidation(false));
     const savedKey = localStorage.getItem('licenseKey');
     if (savedKey) {
-        validateKey(savedKey, true);
-    } else {
-        licenseInputContainer.classList.remove('d-none');
+        DOM.licenseKeyInput.value = savedKey;
+        handleValidation(true);
     }
+});
 
-    validateButton.addEventListener('click', () => validateKey(licenseKeyInput.value.trim()));
-    
-    // Attach form submit listeners safely
-    document.getElementById('add-stock-form')?.addEventListener('submit', handleAddStock);
-    document.getElementById('add-expense-form')?.addEventListener('submit', handleAddExpense);
-    document.getElementById('export-stock-btn')?.addEventListener('click', exportToCSV);
-    
-    // Attach listeners to invoice form inputs to update preview live
-    const invoiceInputs = ['shopName', 'shopAddress', 'shopGstin', 'invoice-number', 'customer-name', 'notes'];
-    invoiceInputs.forEach(id => {
-        document.getElementById(id)?.addEventListener('input', generateInvoicePreview);
+async function handleValidation(silent = false) {
+    const key = DOM.licenseKeyInput.value.trim();
+    if (!key) {
+        if (!silent) showLicenseMessage('कृपया कुंजी दर्ज करें।', true);
+        return;
+    }
+    DOM.validateBtn.disabled = true;
+    DOM.validateBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> जाँच हो रही है...`;
+
+    const data = await apiCall('/api/validate-key', 'POST', { key });
+
+    if (data && data.valid) {
+        localStorage.setItem('licenseKey', key);
+        initializeApp(data);
+    } else {
+        if (!silent) showLicenseMessage(data ? data.message : 'कनेक्शन त्रुटि', true);
+        DOM.validateBtn.disabled = false;
+        DOM.validateBtn.innerText = 'ऐप सक्रिय करें';
+    }
+}
+
+function initializeApp(licenseData) {
+    DOM.licenseContainer.classList.add('d-none');
+    DOM.mainApp.classList.remove('d-none');
+    DOM.welcomeUser.innerText = `स्वागत है, ${licenseData.name}!`;
+    loadSettings();
+    setupNavigation();
+    apiCall('/api/stock').then(data => {
+        if (data) AppState.stock = data;
+        // Load initial pane
+        DOM.sidebarLinks[0].click();
     });
-    
-    // Handle tab switching to update header title and fetch data
-    document.querySelectorAll('#main-tabs .nav-link').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            const headerTitle = document.getElementById('header-title');
-            headerTitle.innerHTML = e.target.innerHTML; // Set header title to tab content
-            
-            // Fetch data when a tab is shown for the first time
-            const targetPaneId = e.target.getAttribute('data-bs-target');
-            if (targetPaneId === '#stock-pane') fetchData('Stock', true);
-            if (targetPaneId === '#expenses-pane') fetchData('Expenses', true);
+}
+
+function showLicenseMessage(message, isError) {
+    DOM.licenseMsg.textContent = message;
+    DOM.licenseMsg.className = `mt-3 fw-bold ${isError ? 'text-danger' : 'text-success'}`;
+}
+
+// --- Navigation & Pane Rendering ---
+function setupNavigation() {
+    DOM.sidebarLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            DOM.sidebarLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            const paneName = link.getAttribute('data-pane');
+            DOM.headerTitle.innerHTML = link.innerHTML;
+            renderPane(paneName);
         });
     });
-});
+}
+
+function renderPane(paneName) {
+    let html = '';
+    switch (paneName) {
+        case 'dashboard':
+            html = getDashboardHTML();
+            break;
+        case 'invoice':
+            html = getInvoiceHTML();
+            break;
+
+        case 'stock':
+            html = getStockHTML();
+            break;
+        case 'settings':
+            html = getSettingsHTML();
+            break;
+    }
+    DOM.paneContainer.innerHTML = html;
+    // Attach event listeners for the newly rendered pane
+    attachPaneEventListeners(paneName);
+}
+
+// --- HTML Templates for Panes ---
+function getDashboardHTML() {
+    return `<div class="row g-4">
+                <div class="col-md-4"><div class="card p-3 text-center stat-card bg-success text-white"><h5>कुल बिक्री</h5><h3 id="dash-total-sales">लोड हो रहा है...</h3></div></div>
+                <div class="col-md-4"><div class="card p-3 text-center stat-card bg-primary text-white"><h5>स्टॉक मूल्य</h5><h3 id="dash-stock-value">लोड हो रहा है...</h3></div></div>
+            </div>`;
+}
+
+function getInvoiceHTML() {
+    return `
+    <div class="row g-4">
+        <div class="col-lg-4 no-print">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">आइटम जोड़ें</h5>
+                    <input class="form-control" list="stock-datalist" id="invoice-item-search" placeholder="प्रोडक्ट खोजें...">
+                    <datalist id="stock-datalist"></datalist>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="d-flex gap-2 mb-3 no-print">
+                <button class="btn btn-primary" onclick="downloadInvoicePDF()"><i class="fas fa-file-pdf me-2"></i>PDF डाउनलोड करें</button>
+                <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print me-2"></i>प्रिंट करें</button>
+                <button class="btn btn-success" onclick="recordSale()"><i class="fas fa-save me-2"></i>सेल रिकॉर्ड करें</button>
+            </div>
+            <div id="invoice-preview-container">
+                </div>
+        </div>
+    </div>`;
+}
+
+function getStockHTML() {
+    return `
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">स्टॉक मैनेजमेंट</h5>
+                <button class="btn btn-primary" onclick="openStockModal()"><i class="fas fa-plus me-2"></i>नया प्रोडक्ट जोड़ें</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead><tr><th>SKU</th><th>नाम</th><th>खरीद मूल्य</th><th>बिक्री मूल्य</th><th>मात्रा</th></tr></thead>
+                    <tbody id="stock-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>`;
+}
+
+function getSettingsHTML() {
+    return `
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title mb-4">दुकान की सेटिंग्स</h5>
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label">दुकान का नाम</label><input type="text" id="setting-shop-name" class="form-control"></div>
+                <div class="col-md-6"><label class="form-label">GSTIN</label><input type="text" id="setting-shop-gstin" class="form-control"></div>
+                <div class="col-12"><label class="form-label">पता</label><textarea id="setting-shop-address" class="form-control" rows="2"></textarea></div>
+                <div class="col-md-6">
+                    <label class="form-label">दुकान का लोगो</label>
+                    <input type="file" class="form-control" id="logo-upload" accept="image/*">
+                    <img id="logo-preview" class="mt-2" style="max-height: 80px; display: none;">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">पेमेंट QR कोड</label>
+                    <input type="file" class="form-control" id="qr-upload" accept="image/*">
+                    <img id="qr-preview" class="mt-2" style="max-height: 80px; display: none;">
+                </div>
+            </div>
+            <button class="btn btn-primary mt-4" onclick="saveSettings()">सेटिंग्स सेव करें</button>
+        </div>
+    </div>`;
+}
+
+// --- Event Listeners for Dynamic Panes ---
+function attachPaneEventListeners(paneName) {
+    switch (paneName) {
+        case 'dashboard':
+            updateDashboardStats();
+            break;
+        case 'invoice':
+            updateStockDatalist();
+            updateInvoicePreview();
+            document.getElementById('invoice-item-search').addEventListener('change', handleAddItemToInvoice);
+            break;
+        case 'stock':
+            renderStockTable();
+            break;
+        case 'settings':
+            loadSettingsIntoForm();
+            break;
+    }
+}
+
+// --- Dashboard Logic ---
+async function updateDashboardStats() {
+    const data = await apiCall('/api/dashboard-stats');
+    if (data) {
+        document.getElementById('dash-total-sales').innerText = `₹${data.totalSales.toFixed(2)}`;
+        document.getElementById('dash-stock-value').innerText = `₹${data.stockValue.toFixed(2)}`;
+    }
+}
+
+
+// --- Invoice Logic ---
+function updateStockDatalist() {
+    const datalist = document.getElementById('stock-datalist');
+    if (!datalist) return;
+    datalist.innerHTML = AppState.stock.map(item => `<option value="${item['Item Name']}" data-id="${item.ID}"></option>`).join('');
+}
+
+function handleAddItemToInvoice(e) {
+    const selectedOption = Array.from(e.target.list.options).find(opt => opt.value === e.target.value);
+    if (selectedOption) {
+        const stockId = parseInt(selectedOption.dataset.id);
+        const stockItem = AppState.stock.find(item => item.ID === stockId);
+        if (stockItem) {
+            const existingItem = AppState.currentInvoice.items.find(item => item.id === stockId);
+            if(existingItem){
+                existingItem.quantity++;
+            } else {
+                 AppState.currentInvoice.items.push({
+                    id: stockItem.ID,
+                    name: stockItem['Item Name'],
+                    quantity: 1,
+                    price: parseFloat(stockItem['Sale Price']),
+                    gstPercent: 0,
+                    discount: 0,
+                    discountType: 'percent'
+                });
+            }
+            updateInvoicePreview();
+        }
+    }
+    e.target.value = ''; // Clear input
+}
+
+function updateInvoiceItem(index, field, value) {
+    const item = AppState.currentInvoice.items[index];
+    if (field === 'quantity' || field === 'price' || field === 'gstPercent' || field === 'discount') {
+        item[field] = parseFloat(value) || 0;
+    } else {
+        item[field] = value;
+    }
+    updateInvoicePreview();
+}
+
+function removeInvoiceItem(index) {
+    AppState.currentInvoice.items.splice(index, 1);
+    updateInvoicePreview();
+}
+
+function updateInvoicePreview() {
+    const container = document.getElementById('invoice-preview-container');
+    if (!container) return;
+
+    let subtotal = 0;
+    let totalDiscount = 0;
+    let totalCgst = 0;
+    let totalSgst = 0;
+
+    const itemsHTML = AppState.currentInvoice.items.map((item, index) => {
+        const itemTotal = item.quantity * item.price;
+        let discountAmount = item.discountType === 'percent' ? (itemTotal * item.discount / 100) : item.discount;
+        totalDiscount += discountAmount;
+        const taxableAmount = itemTotal - discountAmount;
+        const gstAmount = taxableAmount * item.gstPercent / 100;
+        totalCgst += gstAmount / 2;
+        totalSgst += gstAmount / 2;
+        subtotal += itemTotal;
+        const finalAmount = taxableAmount + gstAmount;
+
+        return `<tr>
+            <td>${index + 1}</td>
+            <td class="text-start">${item.name}</td>
+            <td><input type="number" class="form-control form-control-sm" value="${item.quantity}" oninput="updateInvoiceItem(${index}, 'quantity', this.value)"></td>
+            <td><input type="number" class="form-control form-control-sm" value="${item.price.toFixed(2)}" oninput="updateInvoiceItem(${index}, 'price', this.value)"></td>
+            <td><input type="number" class="form-control form-control-sm" value="${item.gstPercent}" oninput="updateInvoiceItem(${index}, 'gstPercent', this.value)">%</td>
+            <td>₹${finalAmount.toFixed(2)}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="removeInvoiceItem(${index})"><i class="fa fa-times"></i></button></td>
+        </tr>`;
+    }).join('');
+    
+    const grandTotal = subtotal - totalDiscount + totalCgst + totalSgst;
+    const logoImg = AppState.settings.logoDataUrl ? `<img src="${AppState.settings.logoDataUrl}" alt="Shop Logo">` : '';
+    const qrImg = AppState.settings.qrDataUrl ? `<img src="${AppState.settings.qrDataUrl}" alt="Payment QR">` : '';
+
+    container.innerHTML = `
+        <div class="invoice-header">
+            <div class="shop-logo">${logoImg}</div>
+            <div class="shop-details">
+                <h3>${AppState.settings.shopName}</h3>
+                <p>${AppState.settings.shopAddress}</p>
+                <p><strong>GSTIN:</strong> ${AppState.settings.shopGstin}</p>
+            </div>
+            <div class="invoice-meta">
+                <h2>INVOICE</h2>
+                <p><strong>Invoice #:</strong> INV-${Date.now().toString().slice(-6)}</p>
+                <p><strong>Date:</strong> ${new Date().toLocaleDateString('hi-IN')}</p>
+            </div>
+        </div>
+        <div class="customer-details">
+             <input type="text" class="form-control" placeholder="ग्राहक का नाम" value="${AppState.currentInvoice.customerName}" oninput="AppState.currentInvoice.customerName=this.value">
+        </div>
+        <table class="table invoice-table">
+            <thead><tr><th>#</th><th class="text-start">आइटम</th><th>मात्रा</th><th>दर</th><th>GST</th><th>कुल</th><th></th></tr></thead>
+            <tbody>${itemsHTML}</tbody>
+        </table>
+        <div class="invoice-summary">
+            <div class="notes-and-qr">
+                <h6>नोट्स:</h6>
+                <textarea class="form-control" oninput="AppState.currentInvoice.notes=this.value">${AppState.currentInvoice.notes}</textarea>
+                <div class="mt-3">${qrImg}</div>
+            </div>
+            <table class="table totals-table">
+                <tr><td>Subtotal:</td><td class="text-end">₹${subtotal.toFixed(2)}</td></tr>
+                <tr><td>Discount:</td><td class="text-end">- ₹${totalDiscount.toFixed(2)}</td></tr>
+                <tr><td>CGST:</td><td class="text-end">+ ₹${totalCgst.toFixed(2)}</td></tr>
+                <tr><td>SGST:</td><td class="text-end">+ ₹${totalSgst.toFixed(2)}</td></tr>
+                <tr class="grand-total"><td>Grand Total:</td><td class="text-end">₹${grandTotal.toFixed(2)}</td></tr>
+            </table>
+        </div>
+        <div class="invoice-footer">यह एक कंप्यूटर जनित चालान है।</div>
+    `;
+}
+
+function downloadInvoicePDF() {
+    const invoice = document.getElementById('invoice-preview-container');
+    html2canvas(invoice, { scale: 2 }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`invoice-${Date.now()}.pdf`);
+    });
+}
+
+// --- Stock Logic ---
+function renderStockTable() {
+    const tbody = document.getElementById('stock-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = AppState.stock.map(item => `
+        <tr>
+            <td>${item.SKU}</td>
+            <td>${item['Item Name']}</td>
+            <td>₹${parseFloat(item['Purchase Price']).toFixed(2)}</td>
+            <td>₹${parseFloat(item['Sale Price']).toFixed(2)}</td>
+            <td class="fw-bold ${item.Quantity <= 10 ? 'text-danger' : ''}">${item.Quantity}</td>
+        </tr>
+    `).join('');
+}
+
+function openStockModal() {
+    document.getElementById('stock-form').reset();
+    document.getElementById('stock-id').value = '';
+    document.getElementById('stock-modal-title').innerText = 'नया प्रोडक्ट जोड़ें';
+    DOM.stockModal.show();
+    document.getElementById('save-stock-btn').onclick = handleSaveStock;
+}
+
+async function handleSaveStock() {
+    const data = {
+        name: document.getElementById('stock-item-name').value,
+        sku: document.getElementById('stock-sku').value,
+        purchase_price: document.getElementById('stock-purchase-price').value,
+        sale_price: document.getElementById('stock-sale-price').value,
+        quantity: document.getElementById('stock-quantity').value
+    };
+    const result = await apiCall('/api/stock', 'POST', data);
+    if(result) {
+        AppState.stock.push(result);
+        renderStockTable();
+        DOM.stockModal.hide();
+    }
+}
+
+
+// --- Settings Logic ---
+function saveSettings() {
+    AppState.settings.shopName = document.getElementById('setting-shop-name').value;
+    AppState.settings.shopAddress = document.getElementById('setting-shop-address').value;
+    AppState.settings.shopGstin = document.getElementById('setting-shop-gstin').value;
+    localStorage.setItem('dukanProSettings', JSON.stringify(AppState.settings));
+    alert('सेटिंग्स सेव हो गईं!');
+}
+
+function loadSettings() {
+    const saved = localStorage.getItem('dukanProSettings');
+    if (saved) {
+        AppState.settings = JSON.parse(saved);
+    }
+}
+
+function loadSettingsIntoForm() {
+    document.getElementById('setting-shop-name').value = AppState.settings.shopName;
+    document.getElementById('setting-shop-address').value = AppState.settings.shopAddress;
+    document.getElementById('setting-shop-gstin').value = AppState.settings.shopGstin;
+    
+    const logoPreview = document.getElementById('logo-preview');
+    if (AppState.settings.logoDataUrl) {
+        logoPreview.src = AppState.settings.logoDataUrl;
+        logoPreview.style.display = 'block';
+    }
+    document.getElementById('logo-upload').addEventListener('change', (e) => handleFileUpload(e, 'logoDataUrl', 'logo-preview'));
+
+    const qrPreview = document.getElementById('qr-preview');
+    if (AppState.settings.qrDataUrl) {
+        qrPreview.src = AppState.settings.qrDataUrl;
+        qrPreview.style.display = 'block';
+    }
+    document.getElementById('qr-upload').addEventListener('change', (e) => handleFileUpload(e, 'qrDataUrl', 'qr-preview'));
+}
+
+function handleFileUpload(event, settingKey, previewId) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        AppState.settings[settingKey] = e.target.result;
+        document.getElementById(previewId).src = e.target.result;
+        document.getElementById(previewId).style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
