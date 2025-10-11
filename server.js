@@ -1,7 +1,6 @@
 /*
  * Node.js Server for Dukan Pro Business Suite (PostgreSQL Backend)
- * Handles: License Validation, Stock, Sales, Purchases, CRM, Expenses
- * Database: PostgreSQL
+ * FINAL FIX: Includes automated schema update for the 'Sales' table.
  */
 import express from 'express';
 import pg from 'pg'; // PostgreSQL Client
@@ -55,14 +54,10 @@ const IV_LENGTH = 16;
 
 
 // 🔥 UPDATED Decrypt function:
-// This handles the Base64 key format (IV + Ciphertext) from the HTML generator.
 function decrypt(encryptedBase64Key) {
     if (!encryptedBase64Key) return null;
     try {
-        // 1. Base64 string को Buffer में बदलें
         const combined = Buffer.from(encryptedBase64Key, 'base64');
-        
-        // 2. IV (16 bytes) और Encrypted Text को अलग करें
         const iv = combined.slice(0, IV_LENGTH);
         const encrypted = combined.slice(IV_LENGTH);
 
@@ -75,7 +70,6 @@ function decrypt(encryptedBase64Key) {
         let decrypted = decipher.update(encrypted);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
         
-        // Final JSON parse
         return JSON.parse(decrypted.toString('utf8'));
     } catch (e) {
         console.error("Decryption failed:", e.message);
@@ -83,14 +77,13 @@ function decrypt(encryptedBase64Key) {
     }
 }
 
-// Encrypt function is NOT NEEDED for server validation. (Removed)
 
-
-// --- Database Initialization Function (Auto-Create Tables) ---
+// --- Database Initialization Function (Auto-Create & Repair Tables) ---
 async function initializeDatabase() {
     console.log("Initializing database tables...");
     const client = await pool.connect();
     try {
+        // 1. Create all tables (IF NOT EXISTS)
         await client.query(`CREATE TABLE IF NOT EXISTS "${STOCK_TABLE_NAME}" (
             ID SERIAL PRIMARY KEY,
             "SKU" VARCHAR(50) UNIQUE NOT NULL, 
@@ -101,7 +94,6 @@ async function initializeDatabase() {
             "Last Updated" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );`);
         
-        // Table definition uses the new fields (Name, Phone, Address)
         await client.query(`CREATE TABLE IF NOT EXISTS "${CUSTOMERS_TABLE_NAME}" (
             ID VARCHAR(50) PRIMARY KEY,
             "Name" VARCHAR(255) NOT NULL,
@@ -139,7 +131,23 @@ async function initializeDatabase() {
             "Description" TEXT
         );`);
         
-        console.log("All tables initialized successfully (if they didn't exist).");
+        // --- 🔥 FIX: SCHEMA REPAIR FOR MISSING ITEMS COLUMN (The root cause of the 500 error) ---
+        // Since CREATE TABLE IF NOT EXISTS does not add new columns, we try to ALTER the table.
+        try {
+            await client.query(`ALTER TABLE "${SALES_TABLE_NAME}" ADD COLUMN "Items" JSONB`);
+            console.log(`[FIX] Successfully added missing "Items" column to "${SALES_TABLE_NAME}".`);
+        } catch (err) {
+            // Error code '42701' means the column already exists. We ignore this error.
+            if (err.code === '42701') { 
+                console.log(`[FIX] "Items" column already exists in "${SALES_TABLE_NAME}". Skipping ALTER.`);
+            } else {
+                 // Log any other unexpected error.
+                console.error("Warning: Could not run ALTER TABLE for Sales.Items:", err.message);
+            }
+        }
+        // --- END OF FIX ---
+        
+        console.log("All tables initialized and schema repaired successfully.");
     } catch (err) {
         console.error("FATAL: Database Initialization Error:", err);
         throw err; 
@@ -298,7 +306,8 @@ app.post('/api/sales', async (req, res) => {
         INSERT INTO "${SALES_TABLE_NAME}" ("Date", "Invoice Number", "Customer Name", "Total Amount", "Total Tax", "Items")
         VALUES ($1, $2, $3, $4, $5, $6)
     `;
-    const values = [new Date().toISOString(), invoiceNumber, customerName, totalAmount, totalTax, JSON.stringify(items)];
+    // Note: Items is passed as a JSON string to PostgreSQL's JSONB column
+    const values = [new Date().toISOString(), invoiceNumber, customerName, totalAmount, totalTax, JSON.stringify(items)]; 
     try {
         await pool.query(queryText, values);
         res.status(201).json({ message: "Sale recorded successfully." });
@@ -330,7 +339,7 @@ app.post('/api/expenses', async (req, res) => {
     }
 });
 
-// 8. Dashboard Stats - All Financial Data (Required by Index.html)
+// 8. Dashboard Stats - All Financial Data 
 app.get('/api/dashboard-stats', async (req, res) => {
     try {
         // 1. Total Revenue, Tax, Sales Revenue
@@ -359,7 +368,8 @@ app.get('/api/dashboard-stats', async (req, res) => {
         let totalCOGS = 0;
         COGSResult.rows.forEach(row => {
             const item = row.item_data;
-            totalCOGS += (parseFloat(item.purchasePrice) || 0) * (parseFloat(item.qty) || 0);
+            // Ensure data types are handled as numbers
+            totalCOGS += (parseFloat(item.purchasePrice) || 0) * (parseFloat(item.qty) || 0); 
         });
         
         const totalSalesRevenue = parseFloat(salesSummary.rows[0].totalSalesRevenue);
@@ -376,6 +386,7 @@ app.get('/api/dashboard-stats', async (req, res) => {
         
         res.json(stats);
     } catch (error) {
+        // Error here should now only be if data is corrupted, not column missing
         console.error("Dashboard Stats Error:", error);
         res.status(500).json({ message: `Failed to fetch dashboard statistics: ${error.message}` });
     }
@@ -449,7 +460,7 @@ app.get('/api/admin/all-data', async (req, res) => {
 
 async function startServer() {
     try {
-        // 1. Tables बनाएँ (या चेक करें कि वे मौजूद हैं)
+        // 1. Tables बनाएँ (और Schema Repair करें)
         await initializeDatabase(); 
         
         // 2. Server शुरू करें
