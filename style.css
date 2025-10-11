@@ -1,83 +1,105 @@
 /* style.css (Final Professional Version) */
 :root {
     --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
     --sidebar-bg: #212529;
     --sidebar-text: #adb5bd;
     --sidebar-text-hover: #ffffff;
     --content-bg: #f8f9fa;
     --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --border-color: #dee2e6;
 }
 
 body {
     background-color: var(--content-bg);
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Poppins', sans-serif;
     overflow-x: hidden;
 }
 
 #license-input-container {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(33, 37, 41, 0.8);
     display: flex; justify-content: center; align-items: center;
     z-index: 9999; backdrop-filter: blur(5px);
 }
-.license-card { max-width: 450px; width: 90%; padding: 2rem; box-shadow: var(--card-shadow); }
+.license-card { width: 90%; max-width: 450px; border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
 
 #main-app { display: flex; }
 
 #sidebar {
-    min-width: 250px; max-width: 250px;
+    width: 260px;
     background: var(--sidebar-bg);
     color: var(--sidebar-text);
     min-height: 100vh;
     transition: all 0.3s;
+    position: fixed;
+    z-index: 100;
 }
 .sidebar-header { padding: 20px; background: #343a40; text-align: center; }
-.sidebar-header h3 { color: #fff; margin: 0; }
-#sidebar ul.components { padding: 20px 0; }
-#sidebar ul li .nav-link {
-    padding: 15px 20px; font-size: 1.1em; display: block;
+.sidebar-header h3 { color: #fff; margin: 0; font-weight: 600; }
+#sidebar ul.components { padding: 20px 0; border-bottom: 1px solid #495057; }
+#sidebar ul li a.nav-link {
+    padding: 15px 25px; font-size: 1rem; display: block;
     width: 100%; text-align: left; border: none; background: none;
-    color: var(--sidebar-text); border-radius: 0; transition: all 0.2s;
+    color: var(--sidebar-text); text-decoration: none; border-left: 3px solid transparent;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
 }
-#sidebar ul li .nav-link:hover { color: var(--sidebar-text-hover); background: var(--primary-color); }
-#sidebar ul li .nav-link.active { color: #fff; background: var(--primary-color); }
+#sidebar ul li a.nav-link:hover { color: var(--sidebar-text-hover); background: #343a40; border-left-color: var(--primary-color); }
+#sidebar ul li a.nav-link.active { color: #fff; background: var(--primary-color); border-left-color: #fff; }
 
 #main-content {
-    width: 100%; min-height: 100vh; transition: all 0.3s;
+    width: 100%;
+    min-height: 100vh;
+    transition: all 0.3s;
+    padding-left: 260px; /* Same as sidebar width */
 }
 .header-bar {
     padding: 1rem 1.5rem; background-color: #ffffff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    position: sticky; top: 0; z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    position: sticky; top: 0; z-index: 50;
 }
-#header-title { color: #343a40; }
-.stat-card { border: none; transition: transform 0.2s; box-shadow: var(--card-shadow); }
-.stat-card:hover { transform: translateY(-5px); }
+#header-title { color: #343a40; font-weight: 600; }
+.stat-card { border: none; border-radius: 10px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: var(--card-shadow); }
+.stat-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
 
 /* Invoice Preview Styles */
-#invoice-preview .card-body { padding: 0; }
-.invoice-container { padding: 2.5rem; border: 1px solid #dee2e6; background: #fff; }
-.invoice-header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--primary-color); padding-bottom: 15px; }
-.invoice-header .shop-details p { margin-bottom: 2px; font-size: 0.9rem; color: #6c757d; }
-.invoice-header .shop-details h3 { color: var(--primary-color); font-weight: 600; }
-.invoice-meta h2 { font-weight: 700; color: #343a40; }
-.customer-details { border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; margin-top: 20px; }
+#invoice-preview-container {
+    background: #fff;
+    border-radius: 15px;
+    box-shadow: var(--card-shadow);
+    padding: 2.5rem;
+}
+.invoice-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--primary-color); padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
+.shop-logo img { max-height: 80px; max-width: 200px; object-fit: contain; }
+.shop-details p { margin-bottom: 2px; font-size: 0.9rem; color: #6c757d; }
+.shop-details h3 { color: #343a40; font-weight: 600; margin-top: 10px; }
+.invoice-meta { text-align: right; }
+.invoice-meta h2 { font-weight: 700; color: var(--primary-color); }
+.invoice-meta p { margin-bottom: 2px; }
+
+.customer-details { background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 1.5rem; }
+
 .invoice-table { width: 100%; }
 .invoice-table thead { background-color: #e9ecef; }
-.invoice-table th, .invoice-table td { padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6; }
-.invoice-table th:nth-child(2), .invoice-table td:nth-child(2) { text-align: left; }
-.summary-table tr td:first-child { font-weight: 600; }
-.summary-table .table-primary { background-color: #cfe2ff !important; font-size: 1.2rem; }
-.invoice-summary .summary-box { border-left: 3px solid var(--primary-color); padding-left: 15px; }
-.invoice-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #adb5bd; }
-.signature { text-align: right; }
+.invoice-table th, .invoice-table td { padding: 12px 10px; text-align: right; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+.invoice-table th:nth-child(2), .invoice-table td:nth-child(2) { text-align: left; width: 40%; }
+.invoice-table input.form-control { min-width: 70px; text-align: right; }
+
+.invoice-summary { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2rem; }
+.notes-and-qr { width: 55%; }
+.notes-and-qr img { max-width: 120px; border: 1px solid var(--border-color); padding: 5px; border-radius: 5px; }
+.totals-table { width: 40%; }
+.totals-table td { padding: 8px 10px; }
+.totals-table tr.grand-total td { font-size: 1.3rem; font-weight: 700; color: var(--primary-color); border-top: 2px solid var(--primary-color); padding-top: 10px; }
+
+.invoice-footer { text-align: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.9rem; color: #6c757d; }
 
 @media print {
-    body, #main-app, #main-content { display: block; }
+    body, #main-app, #main-content { display: block; padding-left: 0; }
     .no-print, .no-print * { display: none !important; }
     #invoice-preview-container {
         position: absolute; left: 0; top: 0; width: 100%;
-        border: none; padding: 0; margin: 0; box-shadow: none;
+        border: none; padding: 0; margin: 0; box-shadow: none; border-radius: 0;
     }
-    .invoice-container { border: none !important; box-shadow: none !important; padding: 0; }
 }
