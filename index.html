@@ -77,6 +77,23 @@
     </style>
 </head>
 <body>
+    <div class="modal fade" id="license-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">लाइसेंस कुंजी</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="text-danger" id="license-message">कृपया अपनी वैध लाइसेंस कुंजी दर्ज करें।</p>
+                    <input type="text" id="license-key-input" class="form-control" placeholder="अपनी कुंजी यहां दर्ज करें">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="validate-license-btn">वैध करें</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div id="main-app">
         <nav id="sidebar" class="no-print">
             <div class="sidebar-header">
@@ -88,6 +105,7 @@
                 <li><a href="#" class="nav-link" data-pane="stock"><i class="fas fa-boxes-stacked fa-fw me-2"></i>स्टॉक मैनेजमेंट</a></li>
                 <li><a href="#" class="nav-link" data-pane="crm"><i class="fas fa-users fa-fw me-2"></i>ग्राहक (CRM)</a></li>
                 <li><a href="#" class="nav-link" data-pane="reports"><i class="fas fa-chart-line fa-fw me-2"></i>रिपोर्ट्स</a></li>
+                <li><a href="#" class="nav-link" data-pane="cash-flow"><i class="fas fa-money-bill-transfer fa-fw me-2"></i>कैश/बैंक फ्लो</a></li>
             </ul>
         </nav>
 
@@ -107,18 +125,24 @@
     
 <script>
 // ===================================================================================
-// DUKAN PRO - ULTIMATE BUSINESS SUITE SCRIPT
-// All logic is contained within this single script block.
-// It uses localStorage for data persistence.
+// DUKAN PRO - ULTIMATE BUSINESS SUITE SCRIPT (PostgreSQL Integration)
 // ===================================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- STATE MANAGEMENT ---
+    // --- CONFIGURATION & STATE MANAGEMENT ---
+    const API_URL = 'https://dukan-pro-ultimate.onrender.com/api'; // Change to your deployed server URL
+    const GST_RATE = 0.18; // 18%
+
     const AppState = {
-        stock: JSON.parse(localStorage.getItem('dukan_stock')) || [],
-        customers: JSON.parse(localStorage.getItem('dukan_customers')) || [],
-        sales: JSON.parse(localStorage.getItem('dukan_sales')) || [],
-        settings: JSON.parse(localStorage.getItem('dukan_settings')) || { shopName: 'आपकी दुकान', shopAddress: 'आपका पता', shopContact: '', shopGstin: '', qrCodeImage: '' }
+        stock: [],
+        customers: JSON.parse(localStorage.getItem('dukan_customers')) || [], // CRM remains local for simplicity
+        sales: [], // Sales from API
+        stats: {}, // Dashboard stats from API
+        settings: JSON.parse(localStorage.getItem('dukan_settings')) || { 
+            shopName: 'आपकी दुकान', shopAddress: 'आपका पता', shopContact: '', shopGstin: '', qrCodeImage: '' 
+        },
+        license: localStorage.getItem('dukan_license_key') || null,
+        isLicensed: false
     };
 
     // --- DOM ELEMENTS ---
@@ -128,22 +152,127 @@ document.addEventListener('DOMContentLoaded', () => {
         headerTitle: document.getElementById('header-title'),
         stockModal: new bootstrap.Modal(document.getElementById('stock-modal')),
         crmModal: new bootstrap.Modal(document.getElementById('crm-modal')),
+        licenseModal: new bootstrap.Modal(document.getElementById('license-modal'), {})
     };
 
-    // --- DATA PERSISTENCE FUNCTIONS ---
-    const saveData = (key, data) => {
+    // --- UTILITY FUNCTIONS ---
+    const saveLocalData = (key, data) => {
         localStorage.setItem(`dukan_${key}`, JSON.stringify(data));
     };
 
+    const formatCurrency = (amount) => {
+        return `₹${parseFloat(amount).toFixed(2)}`;
+    };
+
+    const showToast = (message, type = 'success') => {
+        // Simple alert for now
+        alert(`${type.toUpperCase()}: ${message}`);
+    };
+    
+    // --- API FUNCTIONS ---
+    const fetchAPI = async (endpoint, options = {}) => {
+        try {
+            const response = await fetch(`${API_URL}${endpoint}`, options);
+            const data = await response.json();
+            if (!response.ok) {
+                showToast(data.message || 'Server Error', 'error');
+                return null;
+            }
+            return data;
+        } catch (error) {
+            console.error("API Error:", error);
+            showToast('API से कनेक्ट करने में विफल।', 'error');
+            return null;
+        }
+    };
+
+    const loadStock = async () => {
+        const data = await fetchAPI('/stock');
+        if (data) {
+            // Map keys to client-side friendly names
+            AppState.stock = data.map(item => ({
+                id: item.ID, // Unique ID for updating stock
+                name: item['Item Name'],
+                sku: item.SKU,
+                purchasePrice: parseFloat(item['Purchase Price']),
+                salePrice: parseFloat(item['Sale Price']),
+                quantity: parseInt(item.Quantity)
+            }));
+            return true;
+        }
+        return false;
+    };
+    
+    const loadDashboardStats = async () => {
+        const data = await fetchAPI('/dashboard-stats');
+        if (data) {
+            AppState.stats = data;
+            return true;
+        }
+        return false;
+    };
+    
+    // --- LICENSE LOGIC ---
+    const setupLicenseCheck = () => {
+        const savedKey = localStorage.getItem('dukan_license_key');
+        if (savedKey) {
+            document.getElementById('license-key-input').value = savedKey;
+            validateLicense(savedKey);
+        } else {
+            DOM.licenseModal.show();
+        }
+
+        document.getElementById('validate-license-btn').addEventListener('click', () => {
+            const key = document.getElementById('license-key-input').value;
+            validateLicense(key);
+        });
+    };
+
+    const validateLicense = async (key) => {
+        const data = await fetchAPI('/validate-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key })
+        });
+
+        if (data && data.valid) {
+            AppState.isLicensed = true;
+            AppState.license = key;
+            localStorage.setItem('dukan_license_key', key);
+            showToast('लाइसेंस सफलतापूर्वक मान्य किया गया!', 'success');
+            DOM.licenseModal.hide();
+            // Load initial data and navigation
+            await loadStock();
+            await loadDashboardStats();
+            setupNavigation();
+            DOM.sidebarLinks[0].click(); 
+        } else {
+            AppState.isLicensed = false;
+            document.getElementById('license-message').innerText = data ? data.message : 'अमान्य कुंजी या सर्वर त्रुटि।';
+            DOM.licenseModal.show();
+        }
+    };
+    
     // --- NAVIGATION & PANE RENDERING ---
     const setupNavigation = () => {
         DOM.sidebarLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
+            link.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (!AppState.isLicensed) return DOM.licenseModal.show();
+
                 DOM.sidebarLinks.forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
                 const paneName = link.getAttribute('data-pane');
                 DOM.headerTitle.innerHTML = link.innerHTML;
+                
+                // Reload data if needed
+                if (paneName === 'dashboard' || paneName === 'reports') {
+                    await loadDashboardStats();
+                }
+                if (paneName === 'stock' || paneName === 'invoice') {
+                    await loadStock();
+                }
+                
                 renderPane(paneName);
             });
         });
@@ -156,23 +285,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const attachPaneEventListeners = (paneName) => {
         switch (paneName) {
-            case 'dashboard':
-                renderDashboard();
-                break;
-            case 'invoice':
-                initializeInvoice();
-                break;
-            case 'stock':
-                renderStockTable();
-                document.getElementById('add-stock-btn').addEventListener('click', openStockModal);
-                break;
-            case 'crm':
-                renderCrmTable();
-                document.getElementById('add-crm-btn').addEventListener('click', openCrmModal);
-                break;
-            case 'reports':
-                renderReports();
-                break;
+            case 'dashboard': renderDashboard(); break;
+            case 'invoice': initializeInvoice(); break;
+            case 'stock': renderStockTable(); document.getElementById('add-stock-btn').addEventListener('click', () => openStockModal(null)); break;
+            case 'crm': renderCrmTable(); document.getElementById('add-crm-btn').addEventListener('click', openCrmModal); break;
+            case 'reports': renderReports(); break;
+            case 'cash-flow': renderCashFlow(); break; // New
         }
     };
     
@@ -184,19 +302,19 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'stock': return getStockHTML();
             case 'crm': return getCrmHTML();
             case 'reports': return getReportsHTML();
+            case 'cash-flow': return getCashFlowHTML(); // New Pane
             default: return `<h2>पेज नहीं मिला</h2>`;
         }
     };
 
     const getDashboardHTML = () => `
         <div class="row g-4">
-            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-success text-white"><h5>कुल बिक्री</h5><h3 id="dash-total-sales">₹0.00</h3></div></div>
-            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-primary text-white"><h5>कुल ग्राहक</h5><h3 id="dash-total-customers">0</h3></div></div>
-            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-info text-dark"><h5>कुल प्रोडक्ट्स</h5><h3 id="dash-total-products">0</h3></div></div>
+            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-success text-white"><h5>कुल बिक्री (GST सहित)</h5><h3 id="dash-total-revenue">${formatCurrency(AppState.stats.totalRevenue || 0)}</h3></div></div>
+            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-primary text-white"><h5>कुल प्रोडक्ट्स</h5><h3 id="dash-total-products">${AppState.stats.totalProducts || 0}</h3></div></div>
+            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-info text-dark"><h5>स्टॉक मूल्य</h5><h3 id="dash-stock-value">${formatCurrency(AppState.stats.stockValue || 0)}</h3></div></div>
         </div>
         <div class="card mt-4"><div class="card-body"><canvas id="salesChart"></canvas></div></div>`;
     
-    // THIS IS THE NEW INVOICE GENERATOR CODE YOU PROVIDED, INTEGRATED HERE
     const getInvoiceHTML = () => `
         <div class="row g-4">
             <div class="col-lg-5 no-print">
@@ -213,15 +331,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="row g-3 mb-4">
                             <h5>👤 ग्राहक का विवरण</h5>
-                            <div class="col-md-6"><input type="text" id="customerName" class="form-control" placeholder="ग्राहक का नाम"></div>
+                            <div class="col-md-6"><input type="text" id="customerName" class="form-control" placeholder="ग्राहक का नाम" list="crm-datalist"></div>
                             <div class="col-md-6"><input type="text" id="customerContact" class="form-control" placeholder="संपर्क नंबर"></div>
                             <div class="col-12"><input type="text" id="customerAddress" class="form-control" placeholder="ग्राहक का पता"></div>
+                            <datalist id="crm-datalist">${AppState.customers.map(c => `<option value="${c.name}"></option>`).join('')}</datalist>
                         </div>
                         <h5 class="mb-3">➕ आइटम जोड़ें</h5>
                         <div id="items-container"></div>
                         <button class="btn btn-outline-primary w-100 mt-2" id="add-item-row-btn"><i class="fas fa-plus"></i> नया आइटम जोड़ें</button>
                         <hr>
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button class="btn btn-success" id="record-sale-btn">✅ बिक्री रिकॉर्ड करें</button>
                             <button class="btn btn-primary" id="download-pdf-btn">⬇️ PDF डाउनलोड</button>
                             <button class="btn btn-info text-white" id="print-invoice-btn">🖨️ प्रिंट</button>
                             <button class="btn btn-danger" id="clear-bill-btn">🗑️ बिल साफ़ करें</button>
@@ -238,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h5 class="card-title mb-0">स्टॉक मैनेजमेंट</h5><button class="btn btn-primary" id="add-stock-btn"><i class="fas fa-plus me-2"></i>नया प्रोडक्ट</button>
             </div>
             <div class="table-responsive"><table class="table table-hover">
-                <thead><tr><th>SKU</th><th>नाम</th><th>खरीद मूल्य</th><th>बिक्री मूल्य</th><th>मात्रा</th><th>एक्शन</th></tr></thead>
+                <thead><tr><th>ID</th><th>SKU</th><th>नाम</th><th>खरीद मूल्य</th><th>बिक्री मूल्य</th><th>मात्रा</th><th>एक्शन</th></tr></thead>
                 <tbody id="stock-table-body"></tbody>
             </table></div>
         </div></div>`;
@@ -255,99 +375,131 @@ document.addEventListener('DOMContentLoaded', () => {
         </div></div>`;
 
     const getReportsHTML = () => `
-        <div class="card"><div class="card-body">
-            <h5 class="card-title mb-4">व्यापार रिपोर्ट्स</h5>
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>प्रॉफिट & लॉस स्टेटमेंट</h6>
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card"><div class="card-body">
+                    <h5 class="card-title mb-4">📈 प्रॉफिट & लॉस स्टेटमेंट</h5>
                     <table class="table table-bordered">
-                        <tr><td>कुल बिक्री (Total Revenue)</td><td id="report-total-sales" class="text-end">₹0.00</td></tr>
-                        <tr><td>बेचे गए माल की लागत (COGS)</td><td id="report-total-cogs" class="text-end">- ₹0.00</td></tr>
-                        <tr class="table-info"><th>कुल लाभ (Gross Profit)</th><th id="report-gross-profit" class="text-end">₹0.00</th></tr>
+                        <tr><td>कुल बिक्री राजस्व (Total Sales Revenue - Excl. GST)</td><td id="report-total-sales-rev" class="text-end">${formatCurrency(AppState.stats.totalSalesRevenue || 0)}</td></tr>
+                        <tr><td>कुल GST (Liability)</td><td id="report-total-gst" class="text-end">${formatCurrency(AppState.stats.totalTaxCollected || 0)}</td></tr>
+                        <tr><td>बेचे गए माल की लागत (COGS)</td><td id="report-total-cogs" class="text-end text-danger">- ${formatCurrency(AppState.stats.totalCOGS || 0)}</td></tr>
+                        <tr class="table-info"><th>सकल लाभ (Gross Profit)</th><th id="report-gross-profit" class="text-end">${formatCurrency(AppState.stats.grossProfit || 0)}</th></tr>
+                        <tr><td>अन्य खर्च (Other Expenses)</td><td class="text-end text-danger">- ₹0.00</td></tr>
+                        <tr class="table-success"><th>शुद्ध लाभ (Net Profit)</th><th id="report-net-profit" class="text-end">${formatCurrency(AppState.stats.grossProfit || 0)}</th></tr>
                     </table>
+                </div></div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card"><div class="card-body">
+                    <h5 class="card-title mb-4">💰 बैलेंस शीट (सरल)</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <h6>Assets (संपत्ति)</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr><td>स्टॉक का मूल्य (Inventory)</td><td id="report-stock-value" class="text-end">${formatCurrency(AppState.stats.stockValue || 0)}</td></tr>
+                                <tr><td>बैंक/कैश बैलेंस (Net Cash)</td><td class="text-end">₹0.00</td></tr>
+                                <tr class="table-light"><th>कुल संपत्ति</th><th id="report-total-assets" class="text-end">${formatCurrency(AppState.stats.stockValue || 0)}</th></tr>
+                            </table>
+                        </div>
+                        <div class="col-6">
+                            <h6>Liabilities & Equity (देनदारियां और पूंजी)</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr><td>GST Payables</td><td id="report-gst-payable" class="text-end">${formatCurrency(AppState.stats.totalTaxCollected || 0)}</td></tr>
+                                <tr><td>प्रारंभिक पूंजी (Owner's Equity)</td><td class="text-end">₹0.00</td></tr>
+                                <tr><td>शुद्ध लाभ (Retained Earnings)</td><td class="text-end">${formatCurrency(AppState.stats.grossProfit || 0)}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div></div>
+            </div>
+        </div>`;
+
+    const getCashFlowHTML = () => `
+        <div class="card"><div class="card-body">
+            <h5 class="card-title mb-4">💵 कैश/बैंक फ्लो (पैसे का आना-जाना)</h5>
+            <div class="alert alert-warning">यह फीचर इस संस्करण में केवल फ्रंट-एंड पर है। पैसे के आने-जाने का सटीक रिकॉर्ड रखने के लिए एक अलग 'Transactions' डेटाबेस टेबल की आवश्यकता होगी।</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <h6>पैसे का आना (Inflow)</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-down text-success me-2"></i>बिक्री से प्राप्त राशि</span><span class="text-success">${formatCurrency(AppState.stats.totalRevenue || 0)}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-down text-success me-2"></i>पूंजी निवेश</span><span>₹0.00</span></li>
+                    </ul>
                 </div>
                 <div class="col-md-6">
-                    <h6>बैलेंस शीट (सरल)</h6>
-                    <table class="table table-bordered">
-                        <tr><th colspan="2">Assets (संपत्ति)</th></tr>
-                        <tr><td>स्टॉक का मूल्य (Inventory Value)</td><td id="report-stock-value" class="text-end">₹0.00</td></tr>
-                        <tr class="table-light"><th>कुल संपत्ति</th><th id="report-total-assets" class="text-end">₹0.00</th></tr>
-                    </table>
+                    <h6>पैसे का जाना (Outflow)</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-up text-danger me-2"></i>माल की खरीद पर खर्च (COGS)</span><span class="text-danger">${formatCurrency(AppState.stats.totalCOGS || 0)}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-up text-danger me-2"></i>अन्य खर्च (किराया, वेतन)</span><span>₹0.00</span></li>
+                    </ul>
                 </div>
             </div>
         </div></div>`;
 
-    // --- DASHBOARD LOGIC ---
+    // --- DASHBOARD LOGIC (No Chart Data for now) ---
     const renderDashboard = () => {
-        document.getElementById('dash-total-sales').innerText = `₹${AppState.sales.reduce((sum, sale) => sum + sale.total, 0).toFixed(2)}`;
-        document.getElementById('dash-total-customers').innerText = AppState.customers.length;
-        document.getElementById('dash-total-products').innerText = AppState.stock.length;
-        renderSalesChart();
+        // Stats are loaded via loadDashboardStats()
+        document.getElementById('dash-total-revenue').innerText = formatCurrency(AppState.stats.totalRevenue || 0);
+        document.getElementById('dash-stock-value').innerText = formatCurrency(AppState.stats.stockValue || 0);
+        document.getElementById('dash-total-products').innerText = AppState.stats.totalProducts || 0;
+        // renderSalesChart(); // Removed chart logic for simplicity as historical sales data is not available on demand
     };
     
-    const renderSalesChart = () => {
-        const ctx = document.getElementById('salesChart').getContext('2d');
-        const salesByDate = AppState.sales.reduce((acc, sale) => {
-            const date = new Date(sale.date).toLocaleDateString('hi-IN');
-            acc[date] = (acc[date] || 0) + sale.total;
-            return acc;
-        }, {});
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(salesByDate),
-                datasets: [{
-                    label: 'दैनिक बिक्री',
-                    data: Object.values(salesByDate),
-                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
-                    borderColor: 'rgba(13, 110, 253, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: { scales: { y: { beginAtZero: true } } }
-        });
-    };
-
-    // --- INVOICE LOGIC (from your provided code, adapted) ---
+    // --- INVOICE LOGIC (ENHANCED) ---
     let invoiceItems = [];
     const initializeInvoice = () => {
         // Load settings into fields
-        document.getElementById('shopName').value = AppState.settings.shopName;
-        document.getElementById('shopContact').value = AppState.settings.shopContact;
-        document.getElementById('shopAddress').value = AppState.settings.shopAddress;
-        document.getElementById('shopGstin').value = AppState.settings.shopGstin;
+        ['shopName', 'shopContact', 'shopAddress', 'shopGstin'].forEach(id => {
+            document.getElementById(id).value = AppState.settings[id];
+        });
 
         // Attach listeners
         ['shopName', 'shopContact', 'shopAddress', 'shopGstin', 'customerName', 'customerContact', 'customerAddress'].forEach(id => {
             document.getElementById(id).addEventListener('keyup', updateInvoicePreview);
         });
-        document.getElementById('qrUpload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => { AppState.settings.qrCodeImage = e.target.result; updateInvoicePreview(); };
-                reader.readAsDataURL(file);
-            }
-        });
+        document.getElementById('qrUpload').addEventListener('change', handleQrUpload);
         document.getElementById('add-item-row-btn').addEventListener('click', addInvoiceItemRow);
         document.getElementById('download-pdf-btn').addEventListener('click', downloadInvoicePDF);
         document.getElementById('print-invoice-btn').addEventListener('click', () => window.print());
         document.getElementById('clear-bill-btn').addEventListener('click', clearBill);
+        document.getElementById('record-sale-btn').addEventListener('click', recordSale); // New button
+
+        // Customer auto-fill on name selection
+        document.getElementById('customerName').addEventListener('input', (e) => {
+             const selectedCustomer = AppState.customers.find(c => c.name === e.target.value);
+             if (selectedCustomer) {
+                 document.getElementById('customerContact').value = selectedCustomer.phone;
+                 document.getElementById('customerAddress').value = selectedCustomer.address;
+             }
+             updateInvoicePreview();
+        });
         
         // Initial render
         addInvoiceItemRow();
         updateInvoicePreview();
     };
 
+    const handleQrUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => { 
+                AppState.settings.qrCodeImage = e.target.result; 
+                saveLocalData('settings', AppState.settings);
+                updateInvoicePreview(); 
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
     const addInvoiceItemRow = () => {
         const container = document.getElementById('items-container');
-        const itemIndex = container.children.length;
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2 item-row';
         row.innerHTML = `
             <div class="col-5"><input type="text" class="form-control item-name" placeholder="आइटम का नाम" list="stock-datalist"></div>
-            <div class="col-2"><input type="number" class="form-control item-qty" placeholder="मात्रा" value="1"></div>
-            <div class="col-3"><input type="number" class="form-control item-price" placeholder="दर"></div>
+            <div class="col-2"><input type="number" class="form-control item-qty" placeholder="मात्रा" value="1" min="1"></div>
+            <div class="col-3"><input type="number" class="form-control item-price" placeholder="दर" step="0.01"></div>
             <div class="col-2"><button class="btn btn-sm btn-danger remove-item-btn">X</button></div>
             <datalist id="stock-datalist">${AppState.stock.map(s => `<option value="${s.name}"></option>`).join('')}</datalist>
         `;
@@ -355,11 +507,17 @@ document.addEventListener('DOMContentLoaded', () => {
         row.querySelector('.remove-item-btn').addEventListener('click', () => { row.remove(); updateInvoicePreview(); });
         row.querySelectorAll('input').forEach(input => {
             input.addEventListener('input', (e) => {
-                // Auto-fill price if item is selected from datalist
+                // Auto-fill price and track stock ID/purchase price
                 if (e.target.classList.contains('item-name')) {
                     const selectedStock = AppState.stock.find(s => s.name === e.target.value);
                     if (selectedStock) {
                         row.querySelector('.item-price').value = selectedStock.salePrice;
+                        // Attach data attributes for tracking
+                        row.setAttribute('data-stock-id', selectedStock.id);
+                        row.setAttribute('data-purchase-price', selectedStock.purchasePrice);
+                    } else {
+                        row.removeAttribute('data-stock-id');
+                        row.removeAttribute('data-purchase-price');
                     }
                 }
                 updateInvoicePreview();
@@ -375,57 +533,134 @@ document.addEventListener('DOMContentLoaded', () => {
         AppState.settings.shopContact = document.getElementById('shopContact').value;
         AppState.settings.shopAddress = document.getElementById('shopAddress').value;
         AppState.settings.shopGstin = document.getElementById('shopGstin').value;
-        saveData('settings', AppState.settings);
+        saveLocalData('settings', AppState.settings);
 
         const customerName = document.getElementById('customerName').value || 'ग्राहक';
         
         invoiceItems = [];
-        let subTotal = 0, totalGst = 0;
+        let subTotal = 0, totalGst = 0, totalCOGS = 0;
+        
         document.querySelectorAll('.item-row').forEach(row => {
             const name = row.querySelector('.item-name').value;
             const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
             const price = parseFloat(row.querySelector('.item-price').value) || 0;
+            const stockId = row.getAttribute('data-stock-id');
+            const purchasePrice = parseFloat(row.getAttribute('data-purchase-price')) || 0;
+
             if (name && qty > 0 && price > 0) {
-                const stockItem = AppState.stock.find(s => s.name === name);
-                const purchasePrice = stockItem ? stockItem.purchasePrice : price;
-                const itemData = { name, qty, price, total: qty * price, purchasePrice };
+                const itemTotal = qty * price;
+                const gstAmount = itemTotal * GST_RATE;
+                const totalWithGst = itemTotal + gstAmount;
+
+                const itemData = { 
+                    id: stockId, // Required for stock update
+                    name, 
+                    qty, 
+                    price, 
+                    total: itemTotal, 
+                    gst: gstAmount,
+                    totalWithGst: totalWithGst,
+                    purchasePrice: purchasePrice // Required for COGS calculation
+                };
                 invoiceItems.push(itemData);
-                subTotal += itemData.total;
+                subTotal += itemTotal;
+                totalGst += gstAmount;
+                totalCOGS += qty * purchasePrice;
             }
         });
-        const grandTotal = subTotal; // Simplified total for this version
+
+        const grandTotal = subTotal + totalGst;
+        const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
 
         let itemsHtml = invoiceItems.map((item, index) => `
             <tr>
                 <td>${index + 1}. ${item.name}</td>
                 <td>${item.qty}</td>
-                <td>₹${item.price.toFixed(2)}</td>
-                <td>₹${item.total.toFixed(2)}</td>
+                <td>${formatCurrency(item.price)}</td>
+                <td>${formatCurrency(item.total)}</td>
+                <td>${formatCurrency(item.gst)}</td>
+                <td>${formatCurrency(item.totalWithGst)}</td>
             </tr>`).join('');
         
         preview.innerHTML = `
             <div class="invoice-header">
                 <div class="shop-details">
                     <h3>${AppState.settings.shopName}</h3>
-                    <p>${AppState.settings.shopAddress}<br>${AppState.settings.shopContact}<br>${AppState.settings.shopGstin}</p>
+                    <p>${AppState.settings.shopAddress}<br>संपर्क: ${AppState.settings.shopContact}<br>GSTIN: ${AppState.settings.shopGstin}</p>
                 </div>
                 <div>${AppState.settings.qrCodeImage ? `<img src="${AppState.settings.qrCodeImage}" alt="QR Code" style="max-width:100px;">` : ''}</div>
             </div>
             <h4 class="text-center bg-light p-2 mb-3">TAX INVOICE</h4>
-            <div class="row customer-details">
-                <div class="col-6"><strong>Bill To:</strong><br>${customerName}<br>${document.getElementById('customerAddress').value}<br>${document.getElementById('customerContact').value}</div>
-                <div class="col-6 text-end"><strong>Invoice No:</strong> INV-${Date.now().toString().slice(-6)}<br><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN')}</div>
+            <div class="row customer-details mb-3">
+                <div class="col-6"><strong>Bill To:</strong><br>${customerName}<br>${document.getElementById('customerAddress').value}<br>फोन: ${document.getElementById('customerContact').value}</div>
+                <div class="col-6 text-end"><strong>Invoice No:</strong> ${invoiceNumber}<br><strong>Date:</strong> ${new Date().toLocaleDateString('hi-IN')}</div>
             </div>
-            <table class="table invoice-table">
-                <thead><tr><th style="width:50%;">आइटम</th><th>मात्रा</th><th>दर</th><th>कुल</th></tr></thead>
-                <tbody>${itemsHtml || '<tr><td colspan="4" class="text-center">कोई आइटम नहीं</td></tr>'}</tbody>
+            <table class="table invoice-table table-bordered table-sm">
+                <thead><tr><th>#</th><th style="width:25%;">आइटम</th><th>मात्रा</th><th>दर (Excl. GST)</th><th>कुल (Excl. GST)</th><th>GST (${GST_RATE * 100}%)</th><th>Grand Total</th></tr></thead>
+                <tbody>${itemsHtml || '<tr><td colspan="7" class="text-center">कोई आइटम नहीं</td></tr>'}</tbody>
             </table>
-            <div class="invoice-footer d-flex justify-content-end">
-                <table class="totals-table">
-                    <tr><td>Sub Total:</td><td>₹${subTotal.toFixed(2)}</td></tr>
-                    <tr><td><strong>Grand Total:</strong></td><td><strong>₹${grandTotal.toFixed(2)}</strong></td></tr>
+            <div class="invoice-footer d-flex justify-content-end mt-4">
+                <table class="table totals-table w-50 table-sm table-borderless">
+                    <tr><th>Sub Total (Excl. GST):</th><td class="text-end">${formatCurrency(subTotal)}</td></tr>
+                    <tr><th>Total GST:</th><td class="text-end">${formatCurrency(totalGst)}</td></tr>
+                    <tr class="table-primary"><th><strong>Grand Total:</strong></th><td class="text-end"><strong>${formatCurrency(grandTotal)}</strong></td></tr>
                 </table>
-            </div>`;
+            </div>
+            <div class="mt-4 text-center border-top pt-2"><small>यह एक कंप्यूटर जनित इनवॉइस है।</small></div>
+            `;
+            
+        // Save current totals for sale recording
+        preview.setAttribute('data-subtotal', subTotal.toFixed(2));
+        preview.setAttribute('data-total-gst', totalGst.toFixed(2));
+        preview.setAttribute('data-grand-total', grandTotal.toFixed(2));
+        preview.setAttribute('data-total-cogs', totalCOGS.toFixed(2));
+        preview.setAttribute('data-invoice-number', invoiceNumber);
+    };
+
+    const recordSale = async () => {
+        if (!AppState.isLicensed) return DOM.licenseModal.show();
+        if (invoiceItems.length === 0) {
+            showToast("रिकॉर्ड करने के लिए कोई आइटम नहीं है।", "error");
+            return;
+        }
+
+        if (invoiceItems.some(item => !item.id)) {
+            showToast("कुछ आइटम स्टॉक में नहीं हैं। कृपया उन्हें स्टॉक में जोड़ें।", "error");
+            return;
+        }
+        
+        const preview = document.getElementById('invoice-preview');
+        const subTotal = parseFloat(preview.getAttribute('data-subtotal'));
+        const totalGst = parseFloat(preview.getAttribute('data-total-gst'));
+        const totalCOGS = parseFloat(preview.getAttribute('data-total-cogs'));
+        const invoiceNumber = preview.getAttribute('data-invoice-number');
+
+        const saleData = {
+            invoice_number: invoiceNumber,
+            total_amount: subTotal, // Revenue before tax
+            total_tax: totalGst,
+            total_cogs: totalCOGS,
+            items: invoiceItems.map(item => ({
+                id: item.id,
+                quantity: item.qty,
+                sale_price: item.price,
+                purchase_price: item.purchasePrice
+            }))
+        };
+        
+        const data = await fetchAPI('/sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(saleData)
+        });
+
+        if (data && data.success) {
+            showToast("बिक्री सफलतापूर्वक रिकॉर्ड की गई! स्टॉक अपडेट हो गया है।", "success");
+            clearBill(false); // Clear the form but no confirmation
+            await loadDashboardStats(); // Refresh stats after sale
+        } else {
+            showToast(data.message || "बिक्री रिकॉर्ड करने में विफल।", "error");
+        }
     };
 
     const downloadInvoicePDF = () => {
@@ -441,8 +676,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const clearBill = () => {
-        if (confirm("क्या आप वाकई बिल साफ़ करना चाहते हैं?")) {
+    const clearBill = (confirm = true) => {
+        if (!confirm || window.confirm("क्या आप वाकई बिल साफ़ करना चाहते हैं?")) {
             invoiceItems = [];
             document.getElementById('items-container').innerHTML = '';
             document.getElementById('customerName').value = '';
@@ -453,12 +688,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- STOCK LOGIC ---
+    // --- STOCK LOGIC (API INTEGRATION) ---
     const renderStockTable = () => {
         const tbody = document.getElementById('stock-table-body');
         tbody.innerHTML = AppState.stock.map(item => `
             <tr>
-                <td>${item.sku}</td><td>${item.name}</td><td>₹${item.purchasePrice.toFixed(2)}</td><td>₹${item.salePrice.toFixed(2)}</td>
+                <td>${item.id}</td><td>${item.sku}</td><td>${item.name}</td><td>${formatCurrency(item.purchasePrice)}</td><td>${formatCurrency(item.salePrice)}</td>
                 <td class="fw-bold ${item.quantity <= 10 ? 'text-danger' : ''}">${item.quantity}</td>
                 <td><button class="btn btn-sm btn-danger" onclick="deleteStockItem('${item.id}')"><i class="fas fa-trash"></i></button></td>
             </tr>`).join('');
@@ -469,39 +704,43 @@ document.addEventListener('DOMContentLoaded', () => {
         form.reset();
         document.getElementById('stock-id').value = '';
         if (id) {
-            // Edit logic here
+            // Edit logic here (not implemented for simplicity)
         }
         document.getElementById('save-stock-btn').onclick = saveStockItem;
         DOM.stockModal.show();
     };
 
-    const saveStockItem = () => {
-        const newItem = {
-            id: 'S' + Date.now(),
-            name: document.getElementById('stock-item-name').value,
-            sku: document.getElementById('stock-sku').value,
-            quantity: parseFloat(document.getElementById('stock-quantity').value),
-            purchasePrice: parseFloat(document.getElementById('stock-purchase-price').value),
-            salePrice: parseFloat(document.getElementById('stock-sale-price').value),
-        };
-        if(!newItem.name || !newItem.quantity || !newItem.purchasePrice || !newItem.salePrice) {
+    const saveStockItem = async () => {
+        const name = document.getElementById('stock-item-name').value;
+        const sku = document.getElementById('stock-sku').value;
+        const quantity = parseFloat(document.getElementById('stock-quantity').value);
+        const purchase_price = parseFloat(document.getElementById('stock-purchase-price').value);
+        const sale_price = parseFloat(document.getElementById('stock-sale-price').value);
+        
+        if(!name || !quantity || !purchase_price || !sale_price) {
             alert("कृपया सभी * चिह्नित फ़ील्ड भरें।"); return;
         }
-        AppState.stock.push(newItem);
-        saveData('stock', AppState.stock);
-        renderStockTable();
-        DOM.stockModal.hide();
-    };
 
-    window.deleteStockItem = (id) => { // Make it global for inline onclick
-        if (confirm("क्या आप वाकई इस प्रोडक्ट को हटाना चाहते हैं?")) {
-            AppState.stock = AppState.stock.filter(item => item.id !== id);
-            saveData('stock', AppState.stock);
+        const data = await fetchAPI('/stock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, sku, purchase_price, sale_price, quantity })
+        });
+
+        if (data) {
+            showToast("स्टॉक आइटम सफलतापूर्वक जोड़ा गया।", "success");
+            await loadStock();
             renderStockTable();
+            DOM.stockModal.hide();
         }
     };
 
-    // --- CRM LOGIC ---
+    window.deleteStockItem = (id) => { // Global function for inline onclick
+        // Deletion logic would require a DELETE API endpoint (Not implemented in server.js)
+        showToast("डिलीट फ़ीचर के लिए सर्वर एंडपॉइंट लागू नहीं है।", "info");
+    };
+
+    // --- CRM LOGIC (Local Storage) ---
     const renderCrmTable = () => {
         const tbody = document.getElementById('crm-table-body');
         tbody.innerHTML = AppState.customers.map(c => `
@@ -524,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if(!newItem.name) { alert("कृपया ग्राहक का नाम भरें।"); return; }
         AppState.customers.push(newItem);
-        saveData('customers', AppState.customers);
+        saveLocalData('customers', AppState.customers);
         renderCrmTable();
         DOM.crmModal.hide();
     };
@@ -532,31 +771,36 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deleteCrmItem = (id) => {
         if(confirm("क्या आप वाकई इस ग्राहक को हटाना चाहते हैं?")){
             AppState.customers = AppState.customers.filter(c => c.id !== id);
-            saveData('customers', AppState.customers);
+            saveLocalData('customers', AppState.customers);
             renderCrmTable();
         }
     };
     
-    // --- REPORTS LOGIC ---
+    // --- REPORTS LOGIC (API Data) ---
     const renderReports = () => {
-        const totalSales = AppState.sales.reduce((sum, sale) => sum + sale.total, 0);
-        const totalCogs = AppState.sales.reduce((sum, sale) => {
-            const saleCogs = sale.items.reduce((itemSum, item) => itemSum + (item.purchasePrice * item.qty), 0);
-            return sum + saleCogs;
-        }, 0);
-        const grossProfit = totalSales - totalCogs;
-        const stockValue = AppState.stock.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0);
+        // Data is fetched and stored in AppState.stats by setupNavigation
+        const { totalSalesRevenue, totalTaxCollected, totalCOGS, grossProfit, stockValue } = AppState.stats;
         
-        document.getElementById('report-total-sales').innerText = `₹${totalSales.toFixed(2)}`;
-        document.getElementById('report-total-cogs').innerText = `- ₹${totalCogs.toFixed(2)}`;
-        document.getElementById('report-gross-profit').innerText = `₹${grossProfit.toFixed(2)}`;
-        document.getElementById('report-stock-value').innerText = `₹${stockValue.toFixed(2)}`;
-        document.getElementById('report-total-assets').innerText = `₹${stockValue.toFixed(2)}`;
+        // P&L
+        document.getElementById('report-total-sales-rev').innerText = formatCurrency(totalSalesRevenue || 0);
+        document.getElementById('report-total-gst').innerText = formatCurrency(totalTaxCollected || 0);
+        document.getElementById('report-total-cogs').innerText = `- ${formatCurrency(totalCOGS || 0)}`;
+        document.getElementById('report-gross-profit').innerText = formatCurrency(grossProfit || 0);
+        document.getElementById('report-net-profit').innerText = formatCurrency(grossProfit || 0); // Net Profit = Gross Profit for now
+
+        // Balance Sheet
+        document.getElementById('report-stock-value').innerText = formatCurrency(stockValue || 0);
+        document.getElementById('report-total-assets').innerText = formatCurrency(stockValue || 0);
+        document.getElementById('report-gst-payable').innerText = formatCurrency(totalTaxCollected || 0);
+    };
+
+    // --- CASH FLOW LOGIC ---
+    const renderCashFlow = () => {
+        // Rendered by template
     };
 
     // --- INITIAL APP LOAD ---
-    setupNavigation();
-    DOM.sidebarLinks[0].click(); // Load dashboard initially
+    setupLicenseCheck(); // Start with license check
 });
 </script>
 
