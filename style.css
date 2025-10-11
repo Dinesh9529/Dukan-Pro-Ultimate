@@ -84,7 +84,7 @@ body {
 .invoice-table thead { background-color: #e9ecef; }
 .invoice-table th, .invoice-table td { padding: 12px 10px; text-align: right; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
 .invoice-table th:nth-child(2), .invoice-table td:nth-child(2) { text-align: left; width: 40%; }
-.invoice-table input.form-control { min-width: 70px; text-align: right; }
+.invoice-table input.form-control { min-width: 70px; text-align: center; }
 
 .invoice-summary { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2rem; }
 .notes-and-qr { width: 55%; }
