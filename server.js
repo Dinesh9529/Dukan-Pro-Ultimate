@@ -1,6 +1,7 @@
 /*
  * Node.js Server for Dukan Pro Business Suite (PostgreSQL Backend)
- * FINAL FIX: Includes automated schema update for the 'Sales' table.
+ * FINAL & COMPLETE VERSION - Saare features (Sales, Stock, Purchases, Expenses, CRM) shamil hain.
+ * Database: PostgreSQL
  */
 import express from 'express';
 import pg from 'pg'; // PostgreSQL Client
@@ -11,13 +12,13 @@ import cors from 'cors';
 const app = express();
 
 // ------------------------------------------
-// 🔥 CORS FIX: GitHub Pages URL को allow करें
+// 🔥 CORS FIX: 'Failed to fetch' error ko theek karne ke liye CORS ko relax kiya gaya hai.
+// Ab yeh server sabhi origins se requests accept karega (Development environment ke liye).
 // ------------------------------------------
-const FRONTEND_URL = 'https://dinesh9529.github.io'; 
 app.use(cors({
-    origin: FRONTEND_URL, 
-    methods: ['GET', 'POST', 'PUT', 'DELETE'], 
-    allowedHeaders: ['Content-Type'],
+    origin: '*', // Sabhi origins (websites) ki anumati
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 // ------------------------------------------
@@ -34,418 +35,497 @@ const STOCK_TABLE_NAME = 'Stock';
 const PURCHASES_TABLE_NAME = 'Purchases';
 const SALES_TABLE_NAME = 'Sales';
 const EXPENSES_TABLE_NAME = 'Expenses';
+const LICENSES_TABLE_NAME = 'Licenses'; 
 
-
-// --- PostgreSQL Connection Pool ---
-const { Pool } = pg;
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL, 
-    ssl: {
-        rejectUnauthorized: false
-    }
+// --- Database Configuration (PostgreSQL) ---
+const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/dukanprodb',
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
+// --- Utility Functions ---
 
-// --- License Key & Crypto Logic ---
-// Key Derivation: SHA256 hash of the secret key (SAME AS IN HTML GENERATOR)
-const derivedKey = createHash('sha256').update(APP_SECRET_KEY).digest();
-const ALGORITHM = 'aes-256-cbc';
-const IV_LENGTH = 16; 
-
-
-// 🔥 UPDATED Decrypt function:
-function decrypt(encryptedBase64Key) {
-    if (!encryptedBase64Key) return null;
+/**
+ * License Key ko decrypt karta hai (AES-256-CBC).
+ * @param {string} encryptedText - Encrypted license key string.
+ * @returns {string | null} Decrypted plain text.
+ */
+function decryptLicense(encryptedText) {
     try {
-        const combined = Buffer.from(encryptedBase64Key, 'base64');
-        const iv = combined.slice(0, IV_LENGTH);
-        const encrypted = combined.slice(IV_LENGTH);
+        const parts = encryptedText.split(':');
+        if (parts.length !== 2) return null;
 
-        if (iv.length !== IV_LENGTH) {
-            console.error("Decryption failed: IV length mismatch.");
-            return null;
-        }
+        const iv = Buffer.from(parts[0], 'hex');
+        const encrypted = Buffer.from(parts[1], 'hex');
+        
+        const key = createHash('sha256').update(APP_SECRET_KEY).digest().slice(0, 32);
 
-        const decipher = createDecipheriv(ALGORITHM, derivedKey, iv);
+        const decipher = createDecipheriv('aes-256-cbc', key, iv);
         let decrypted = decipher.update(encrypted);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
-        
-        return JSON.parse(decrypted.toString('utf8'));
+        return decrypted.toString();
     } catch (e) {
         console.error("Decryption failed:", e.message);
         return null;
     }
 }
 
-
-// --- Database Initialization Function (Auto-Create & Repair Tables) ---
-async function initializeDatabase() {
-    console.log("Initializing database tables...");
-    const client = await pool.connect();
-    try {
-        // 1. Create all tables (IF NOT EXISTS)
-        await client.query(`CREATE TABLE IF NOT EXISTS "${STOCK_TABLE_NAME}" (
-            ID SERIAL PRIMARY KEY,
-            "SKU" VARCHAR(50) UNIQUE NOT NULL, 
-            "Item Name" VARCHAR(255) NOT NULL,
-            "Purchase Price" NUMERIC(10, 2) NOT NULL,
-            "Sale Price" NUMERIC(10, 2) NOT NULL,
-            "Quantity" INTEGER NOT NULL DEFAULT 0,
-            "Last Updated" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );`);
-        
-        await client.query(`CREATE TABLE IF NOT EXISTS "${CUSTOMERS_TABLE_NAME}" (
-            ID VARCHAR(50) PRIMARY KEY,
-            "Name" VARCHAR(255) NOT NULL,
-            "Phone" VARCHAR(20),
-            "Address" TEXT,
-            "Date Added" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );`);
-
-        await client.query(`CREATE TABLE IF NOT EXISTS "${PURCHASES_TABLE_NAME}" (
-            ID SERIAL PRIMARY KEY,
-            "Date" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            "SKU" VARCHAR(50) NOT NULL,
-            "Item Name" VARCHAR(255),
-            "Quantity" INTEGER NOT NULL,
-            "Purchase Price" NUMERIC(10, 2),
-            "Total Value" NUMERIC(10, 2),
-            "Supplier" VARCHAR(255)
-        );`);
-
-        await client.query(`CREATE TABLE IF NOT EXISTS "${SALES_TABLE_NAME}" (
-            ID SERIAL PRIMARY KEY,
-            "Date" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            "Invoice Number" VARCHAR(100) UNIQUE NOT NULL,
-            "Customer Name" VARCHAR(255),
-            "Total Amount" NUMERIC(10, 2),
-            "Total Tax" NUMERIC(10, 2),
-            "Items" JSONB 
-        );`);
-
-        await client.query(`CREATE TABLE IF NOT EXISTS "${EXPENSES_TABLE_NAME}" (
-            ID SERIAL PRIMARY KEY,
-            "Date" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            "Category" VARCHAR(100) NOT NULL,
-            "Amount" NUMERIC(10, 2) NOT NULL,
-            "Description" TEXT
-        );`);
-        
-        // --- 🔥 FIX: SCHEMA REPAIR FOR MISSING ITEMS COLUMN (The root cause of the 500 error) ---
-        // Since CREATE TABLE IF NOT EXISTS does not add new columns, we try to ALTER the table.
-        try {
-            await client.query(`ALTER TABLE "${SALES_TABLE_NAME}" ADD COLUMN "Items" JSONB`);
-            console.log(`[FIX] Successfully added missing "Items" column to "${SALES_TABLE_NAME}".`);
-        } catch (err) {
-            // Error code '42701' means the column already exists. We ignore this error.
-            if (err.code === '42701') { 
-                console.log(`[FIX] "Items" column already exists in "${SALES_TABLE_NAME}". Skipping ALTER.`);
-            } else {
-                 // Log any other unexpected error.
-                console.error("Warning: Could not run ALTER TABLE for Sales.Items:", err.message);
-            }
-        }
-        // --- END OF FIX ---
-        
-        console.log("All tables initialized and schema repaired successfully.");
-    } catch (err) {
-        console.error("FATAL: Database Initialization Error:", err);
-        throw err; 
-    } finally {
-        client.release();
-    }
+/**
+ * Password ka SHA256 hash generate karta hai.
+ * @param {string} password - The password to hash.
+ * @returns {string} SHA256 hash.
+ */
+function hashPassword(password) {
+    return createHash('sha256').update(password).digest('hex');
 }
 
 
+// --- Database Initialization ---
+
+/**
+ * Database mein zaroori tables banata hai.
+ */
+async function initializeDatabase() {
+    try {
+        const client = await pool.connect();
+        await client.query('BEGIN');
+
+        // 1. Licenses Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "${LICENSES_TABLE_NAME}" (
+                "License Key" VARCHAR(255) PRIMARY KEY,
+                "Issued Date" DATE NOT NULL,
+                "Expiry Date" DATE NOT NULL,
+                "Status" VARCHAR(50) NOT NULL,
+                "Issued To" VARCHAR(255)
+            );
+        `);
+
+        // 2. Stock Table (Inventory)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "${STOCK_TABLE_NAME}" (
+                "SKU" VARCHAR(50) PRIMARY KEY,
+                "Item Name" VARCHAR(255) NOT NULL,
+                "Quantity" INTEGER NOT NULL,
+                "Purchase Price" DECIMAL(10, 2) NOT NULL,
+                "Selling Price" DECIMAL(10, 2) NOT NULL,
+                "GST Rate" DECIMAL(5, 2) NOT NULL,
+                "Date Added" DATE DEFAULT CURRENT_DATE
+            );
+        `);
+
+        // 3. Customers Table (CRM)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "${CUSTOMERS_TABLE_NAME}" (
+                "ID" SERIAL PRIMARY KEY,
+                "Customer Name" VARCHAR(255) NOT NULL,
+                "Phone" VARCHAR(20),
+                "Address" TEXT,
+                "Date Added" DATE DEFAULT CURRENT_DATE
+            );
+        `);
+
+        // 4. Sales Table (Invoices)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "${SALES_TABLE_NAME}" (
+                "Invoice Number" VARCHAR(100) PRIMARY KEY,
+                "Customer Name" VARCHAR(255) NOT NULL,
+                "Items Sold" JSONB NOT NULL,
+                "Total Amount" DECIMAL(10, 2) NOT NULL,
+                "GST Amount" DECIMAL(10, 2) NOT NULL,
+                "Date" DATE DEFAULT CURRENT_DATE
+            );
+        `);
+
+        // 5. Purchases Table (Supplier Bills/Inventory Inflow)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "${PURCHASES_TABLE_NAME}" (
+                "Bill Number" VARCHAR(100) PRIMARY KEY,
+                "Supplier Name" VARCHAR(255),
+                "Items Purchased" JSONB NOT NULL,
+                "Total Cost" DECIMAL(10, 2) NOT NULL,
+                "Date" DATE DEFAULT CURRENT_DATE
+            );
+        `);
+
+        // 6. Expenses Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "${EXPENSES_TABLE_NAME}" (
+                "ID" SERIAL PRIMARY KEY,
+                "Category" VARCHAR(100) NOT NULL,
+                "Description" TEXT,
+                "Amount" DECIMAL(10, 2) NOT NULL,
+                "Date" DATE DEFAULT CURRENT_DATE
+            );
+        `);
+
+        await client.query('COMMIT');
+        client.release();
+        console.log("Database tables initialized successfully.");
+
+        // Testing: Ek default license daalna (agar koi maujood nahi hai)
+        const licenseCheck = await pool.query(`SELECT COUNT(*) FROM "${LICENSES_TABLE_NAME}"`);
+        if (licenseCheck.rows[0].count == 0) {
+            console.log("Inserting default license for testing purposes.");
+            const defaultLicenseKey = 'TEST-LIC-12345';
+            const issuedDate = new Date().toISOString().split('T')[0];
+            const expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
+            
+            await pool.query(`
+                INSERT INTO "${LICENSES_TABLE_NAME}" ("License Key", "Issued Date", "Expiry Date", "Status", "Issued To")
+                VALUES ($1, $2, $3, $4, $5);
+            `, [defaultLicenseKey, issuedDate, expiryDate, 'Active', 'Test User']);
+            console.log("Default license inserted.");
+        }
+
+
+    } catch (err) {
+        console.error("Database initialization failed:", err.message);
+        throw err;
+    }
+}
+
 // ===================================
-//          CORE API ENDPOINTS
+//              API ENDPOINTS
 // ===================================
 
-// 1. License Key Validation
-app.post('/api/validate-key', (req, res) => {
-    const { key } = req.body;
-    if (!key) return res.status(400).json({ valid: false, message: 'Key is required.' });
+// --- 1. System & Authentication Endpoints ---
 
-    const decryptedData = decrypt(key);
+// 1.1 License Check Endpoint
+app.post('/api/check-license', async (req, res) => {
+    const { licenseKey } = req.body;
     
-    // Decryption or key format failure
-    if (!decryptedData || !decryptedData.expiry) {
-        return res.status(401).json({ valid: false, message: 'Invalid or corrupted license key.' });
+    const decryptedData = decryptLicense(licenseKey);
+    
+    if (!decryptedData) {
+        return res.status(401).json({ isValid: false, message: 'Invalid license format or decryption failed.' });
     }
 
-    const expiryDate = new Date(decryptedData.expiry);
+    const [decryptedKey, decryptedExpiryDateStr] = decryptedData.split('|');
+    const decryptedExpiryDate = new Date(decryptedExpiryDateStr);
     const currentDate = new Date();
-    
-    if (currentDate > expiryDate) {
-        return res.status(401).json({ valid: false, message: 'License key has expired.' });
-    }
 
-    // Token for client-side persistence (using HMAC)
-    const tokenPayload = `${decryptedData.expiry}:${currentDate.toISOString().split('T')[0]}`;
-    const token = createHmac('sha256', APP_SECRET_KEY).update(tokenPayload).digest('hex');
-
-    // 🔥 RESPONSE UPDATE: Include name, phone, address
-    res.json({ 
-        valid: true, 
-        message: 'License key validated successfully.',
-        name: decryptedData.name || 'Dukan Pro User',
-        phone: decryptedData.phone || 'N/A',
-        address: decryptedData.address || 'N/A',
-        expiry: decryptedData.expiry,
-        plan: decryptedData.plan || 'N/A',
-        token: token 
-    });
-});
-
-
-// 2. Fetch Data (PostgreSQL)
-app.get('/api/data/:sheetName', async (req, res) => {
-    const { sheetName } = req.params;
-    const validTables = [STOCK_TABLE_NAME, CUSTOMERS_TABLE_NAME, PURCHASES_TABLE_NAME, SALES_TABLE_NAME, EXPENSES_TABLE_NAME];
-    if (!validTables.includes(sheetName)) {
-        return res.status(400).json({ message: "Invalid data source specified." });
+    if (decryptedKey !== licenseKey) {
+        return res.status(401).json({ isValid: false, message: 'License Key mismatch.' });
     }
 
     try {
-        const queryText = `SELECT * FROM "${sheetName}"`;
-        const result = await pool.query(queryText);
+        const result = await pool.query(
+            `SELECT "Expiry Date", "Status" FROM "${LICENSES_TABLE_NAME}" WHERE "License Key" = $1`,
+            [decryptedKey]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({ isValid: false, message: 'License not found.' });
+        }
+
+        const dbExpiryDate = new Date(result.rows[0]["Expiry Date"]);
+        const status = result.rows[0]["Status"];
+
+        if (status !== 'Active' || dbExpiryDate < currentDate) {
+            return res.status(401).json({ isValid: false, message: 'License is inactive or expired.' });
+        }
+        
+        return res.json({ isValid: true, expiryDate: dbExpiryDate.toISOString().split('T')[0] });
+
+    } catch (error) {
+        console.error("Database error during license check:", error);
+        return res.status(500).json({ isValid: false, message: `Server error: ${error.message}` });
+    }
+});
+
+// 1.2 Admin Login Endpoint
+app.post('/api/admin-login', (req, res) => {
+    const { password } = req.body;
+    const hashedPassword = hashPassword(password);
+    const adminHashedPass = hashPassword(ADMIN_PASSWORD);
+
+    if (hashedPassword === adminHashedPass) {
+        // Simple token (JWT is recommended for production)
+        const token = createHash('sha256').update(ADMIN_PASSWORD + Date.now()).digest('hex');
+        res.json({ success: true, token });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid admin password' });
+    }
+});
+
+
+// --- 2. Sales Management Endpoints ---
+
+// 2.1 Sales Record karna
+app.post('/api/record-sale', async (req, res) => {
+    const { invoiceNumber, customerName, items, totalAmount, gstAmount } = req.body;
+
+    if (!invoiceNumber || !customerName || !items || !totalAmount || !gstAmount || !items.length) {
+        return res.status(400).json({ success: false, message: 'Missing required sale details.' });
+    }
+
+    const itemsJson = JSON.stringify(items);
+    
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Sales Table mein record daalein
+        const saleQuery = `
+            INSERT INTO "${SALES_TABLE_NAME}" ("Invoice Number", "Customer Name", "Items Sold", "Total Amount", "GST Amount")
+            VALUES ($1, $2, $3, $4, $5);
+        `;
+        await client.query(saleQuery, [invoiceNumber, customerName, itemsJson, totalAmount, gstAmount]);
+
+        // Stock Quantity ko kam karein (update)
+        for (const item of items) {
+            const stockUpdateQuery = `
+                UPDATE "${STOCK_TABLE_NAME}" SET "Quantity" = "Quantity" - $1 WHERE "SKU" = $2 AND "Quantity" >= $1;
+            `;
+            const result = await client.query(stockUpdateQuery, [item.quantity, item.sku]);
+             if (result.rowCount === 0) {
+                 // Agar stock update nahi hua toh rollback kar dein
+                 throw new Error(`Insufficient stock or invalid SKU for item: ${item.sku}`);
+             }
+        }
+
+        // Customer ko add/update karein
+        const customerCheckQuery = `SELECT * FROM "${CUSTOMERS_TABLE_NAME}" WHERE "Customer Name" = $1;`;
+        const existingCustomer = await client.query(customerCheckQuery, [customerName]);
+        if (existingCustomer.rows.length === 0) {
+            const customerAddQuery = `
+                INSERT INTO "${CUSTOMERS_TABLE_NAME}" ("Customer Name") VALUES ($1);
+            `;
+            await client.query(customerAddQuery, [customerName]);
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({ success: true, message: 'Sale recorded successfully!' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Sale Recording Error:", error);
+        res.status(500).json({ success: false, message: `Failed to record sale: ${error.message}` });
+    } finally {
+        client.release();
+    }
+});
+
+// 2.2 Sales list dekhna
+app.get('/api/sales', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC`);
         res.json(result.rows);
     } catch (error) {
-        console.error(`PostgreSQL Error fetching ${sheetName}:`, error);
-        res.status(500).json({ message: `Failed to fetch data from ${sheetName}: ${error.message}` });
+        console.error("Sales Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch sales data: ${error.message}` });
     }
 });
 
 
-// 3. Add/Update Stock Item (PostgreSQL)
-app.post('/api/stock', async (req, res) => {
-    const { sku, itemName, purchasePrice, salePrice, quantity } = req.body;
-    if (!sku || !itemName || !purchasePrice || !salePrice || !quantity) {
-        return res.status(400).json({ message: "All stock fields are required." });
+// --- 3. Purchases Management Endpoints (Naye Endpoints) ---
+
+// 3.1 Purchase record karna aur stock badhana
+app.post('/api/record-purchase', async (req, res) => {
+    const { billNumber, supplierName, items, totalCost } = req.body;
+
+    if (!billNumber || !items || !totalCost || !items.length) {
+        return res.status(400).json({ success: false, message: 'Missing required purchase details.' });
     }
 
-    const queryText = `
-        INSERT INTO "${STOCK_TABLE_NAME}" ("SKU", "Item Name", "Purchase Price", "Sale Price", "Quantity", "Last Updated")
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT ("SKU") 
-        DO UPDATE SET 
-            "Item Name" = EXCLUDED."Item Name", 
-            "Purchase Price" = EXCLUDED."Purchase Price", 
-            "Sale Price" = EXCLUDED."Sale Price",
-            "Quantity" = "Stock"."Quantity" + EXCLUDED."Quantity",
-            "Last Updated" = EXCLUDED."Last Updated"
-    `; 
-    const values = [sku, itemName, purchasePrice, salePrice, quantity, new Date().toISOString()];
+    const itemsJson = JSON.stringify(items);
+    
+    const client = await pool.connect();
     try {
-        await pool.query(queryText, values);
-        res.status(201).json({ message: "Stock item added/updated successfully in PostgreSQL." });
+        await client.query('BEGIN');
+
+        // Purchases Table mein record daalein
+        const purchaseQuery = `
+            INSERT INTO "${PURCHASES_TABLE_NAME}" ("Bill Number", "Supplier Name", "Items Purchased", "Total Cost")
+            VALUES ($1, $2, $3, $4);
+        `;
+        await client.query(purchaseQuery, [billNumber, supplierName, itemsJson, totalCost]);
+
+        // Stock Quantity ko badhayein (increase)
+        for (const item of items) {
+            // Hum maan rahe hain ki khareeda gaya item pehle se Stock table mein maujood hai.
+            const stockUpdateQuery = `
+                UPDATE "${STOCK_TABLE_NAME}" SET 
+                "Quantity" = "Quantity" + $1,
+                "Purchase Price" = $3, -- Nayi purchase price update kar sakte hain
+                "Date Added" = CURRENT_DATE
+                WHERE "SKU" = $2;
+            `;
+            // item object mein quantity, sku aur (naye) purchasePrice honi chahiye
+            await client.query(stockUpdateQuery, [item.quantity, item.sku, item.purchasePrice]); 
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({ success: true, message: 'Purchase recorded and stock updated successfully!' });
     } catch (error) {
-        console.error("PostgreSQL Error:", error);
-        res.status(500).json({ message: `Failed to add/update stock: ${error.message}` });
+        await client.query('ROLLBACK');
+        console.error("Purchase Recording Error:", error);
+        res.status(500).json({ success: false, message: `Failed to record purchase: ${error.message}` });
+    } finally {
+        client.release();
     }
 });
 
-
-// 4. Add Customer (PostgreSQL)
-app.post('/api/customers', async (req, res) => {
-    const { id, name, phone, address } = req.body;
-    if (!id || !name) {
-        return res.status(400).json({ message: "ID and Name are required for customer." });
-    }
-
-    const queryText = `
-        INSERT INTO "${CUSTOMERS_TABLE_NAME}" (ID, "Name", "Phone", "Address", "Date Added")
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (ID) 
-        DO UPDATE SET 
-            "Name" = EXCLUDED."Name", 
-            "Phone" = EXCLUDED."Phone", 
-            "Address" = EXCLUDED."Address"
-    `;
-    const values = [id, name, phone, address, new Date().toISOString()];
+// 3.2 Purchases list dekhna
+app.get('/api/purchases', async (req, res) => {
     try {
-        await pool.query(queryText, values);
-        res.status(201).json({ message: "Customer added/updated successfully." });
+        const result = await pool.query(`SELECT * FROM "${PURCHASES_TABLE_NAME}" ORDER BY "Date" DESC`);
+        res.json(result.rows);
     } catch (error) {
-        console.error("PostgreSQL Error:", error);
-        res.status(500).json({ message: `Failed to add/update customer: ${error.message}` });
+        console.error("Purchases Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch purchases data: ${error.message}` });
     }
 });
 
 
-// 5. Add Purchase (PostgreSQL)
-app.post('/api/purchases', async (req, res) => {
-    const { sku, itemName, quantity, purchasePrice, totalValue, supplier } = req.body;
-    if (!sku || !quantity || !purchasePrice) {
-        return res.status(400).json({ message: "SKU, Quantity, and Purchase Price are required." });
-    }
+// --- 4. Expenses Management Endpoints (Naye Endpoints) ---
 
-    const queryText = `
-        INSERT INTO "${PURCHASES_TABLE_NAME}" ("Date", "SKU", "Item Name", "Quantity", "Purchase Price", "Total Value", "Supplier")
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `;
-    const values = [new Date().toISOString(), sku, itemName, quantity, purchasePrice, totalValue, supplier];
-    try {
-        await pool.query(queryText, values);
-        res.status(201).json({ message: "Purchase added successfully." });
-    } catch (error) {
-        console.error("PostgreSQL Error:", error);
-        res.status(500).json({ message: `Failed to add purchase: ${error.message}` });
-    }
-});
+// 4.1 Expense record karna
+app.post('/api/record-expense', async (req, res) => {
+    const { category, description, amount } = req.body;
 
-
-// 6. Add Sale (PostgreSQL)
-app.post('/api/sales', async (req, res) => {
-    const { invoiceNumber, customerName, totalAmount, totalTax, items } = req.body;
-    if (!invoiceNumber || !totalAmount || !items) {
-        return res.status(400).json({ message: "Invoice Number, Total Amount, and Items are required." });
-    }
-
-    const queryText = `
-        INSERT INTO "${SALES_TABLE_NAME}" ("Date", "Invoice Number", "Customer Name", "Total Amount", "Total Tax", "Items")
-        VALUES ($1, $2, $3, $4, $5, $6)
-    `;
-    // Note: Items is passed as a JSON string to PostgreSQL's JSONB column
-    const values = [new Date().toISOString(), invoiceNumber, customerName, totalAmount, totalTax, JSON.stringify(items)]; 
-    try {
-        await pool.query(queryText, values);
-        res.status(201).json({ message: "Sale recorded successfully." });
-    } catch (error) {
-        console.error("PostgreSQL Error:", error);
-        res.status(500).json({ message: `Failed to record sale: ${error.message}` });
-    }
-});
-
-
-// 7. Add Expense (PostgreSQL)
-app.post('/api/expenses', async (req, res) => {
-    const { category, amount, description } = req.body;
-    if (!category || !amount) {
-        return res.status(400).json({ message: "Category and Amount are required." });
+    if (!category || amount === undefined) {
+        return res.status(400).json({ success: false, message: 'Missing required expense details (Category and Amount).' });
     }
     
-    const queryText = `
-        INSERT INTO "${EXPENSES_TABLE_NAME}" ("Date", "Category", "Amount", "Description")
-        VALUES ($1, $2, $3, $4)
-    `;
-    const values = [new Date().toISOString(), category, amount, description];
     try {
-        await pool.query(queryText, values);
-        res.status(201).json({ message: "Expense added successfully." });
+        const query = `
+            INSERT INTO "${EXPENSES_TABLE_NAME}" ("Category", "Description", "Amount")
+            VALUES ($1, $2, $3)
+            RETURNING *;
+        `;
+        const result = await pool.query(query, [category, description, amount]);
+        res.status(201).json({ success: true, message: 'Expense recorded successfully!', expense: result.rows[0] });
     } catch (error) {
-        console.error("PostgreSQL Error:", error);
-        res.status(500).json({ message: `Failed to add expense: ${error.message}` });
+        console.error("Expense Recording Error:", error);
+        res.status(500).json({ success: false, message: `Failed to record expense: ${error.message}` });
     }
 });
 
-// 8. Dashboard Stats - All Financial Data 
+// 4.2 Expenses list dekhna
+app.get('/api/expenses', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM "${EXPENSES_TABLE_NAME}" ORDER BY "Date" DESC`);
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Expenses Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch expenses data: ${error.message}` });
+    }
+});
+
+
+// --- 5. Stock & Inventory Endpoints ---
+
+// 5.1 Stock ki list
+app.get('/api/stock', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM "${STOCK_TABLE_NAME}" ORDER BY "Date Added" DESC`);
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Stock Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch stock data: ${error.message}` });
+    }
+});
+
+// 5.2 Naya Stock Item add/update karein
+app.post('/api/stock', async (req, res) => {
+    const { sku, itemName, quantity, purchasePrice, sellingPrice, gstRate } = req.body;
+    if (!sku || !itemName || quantity === undefined || purchasePrice === undefined || sellingPrice === undefined || gstRate === undefined) {
+        return res.status(400).json({ success: false, message: 'Missing required stock item details.' });
+    }
+
+    try {
+        const query = `
+            INSERT INTO "${STOCK_TABLE_NAME}" ("SKU", "Item Name", "Quantity", "Purchase Price", "Selling Price", "GST Rate")
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT ("SKU") DO UPDATE SET
+                "Item Name" = EXCLUDED."Item Name",
+                "Quantity" = "${STOCK_TABLE_NAME}"."Quantity" + EXCLUDED."Quantity",
+                "Purchase Price" = EXCLUDED."Purchase Price",
+                "Selling Price" = EXCLUDED."Selling Price",
+                "GST Rate" = EXCLUDED."GST Rate",
+                "Date Added" = CURRENT_DATE
+            RETURNING *;
+        `;
+        const result = await pool.query(query, [sku, itemName, quantity, purchasePrice, sellingPrice, gstRate]);
+        res.status(201).json({ success: true, message: 'Stock item added/updated successfully!', item: result.rows[0] });
+    } catch (error) {
+        console.error("Stock Add Error:", error);
+        res.status(500).json({ success: false, message: `Failed to add/update stock item: ${error.message}` });
+    }
+});
+
+// --- 6. CRM (Customers) Endpoints ---
+
+// 6.1 Customers ki list
+app.get('/api/customers', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "Date Added" DESC`);
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Customers Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch customer data: ${error.message}` });
+    }
+});
+
+
+// --- 7. Dashboard & Reporting Endpoints (Updated) ---
+
+// 7.1 Comprehensive Dashboard Stats
 app.get('/api/dashboard-stats', async (req, res) => {
     try {
-        // 1. Total Revenue, Tax, Sales Revenue
-        const salesSummary = await pool.query(`
-            SELECT 
-                COALESCE(SUM("Total Amount" + "Total Tax"), 0) AS "totalRevenue",
-                COALESCE(SUM("Total Amount"), 0) AS "totalSalesRevenue",
-                COALESCE(SUM("Total Tax"), 0) AS "totalTaxCollected"
-            FROM "${SALES_TABLE_NAME}"
-        `);
-
-        // 2. Stock Value and Total Products
-        const stockSummary = await pool.query(`
-            SELECT 
-                COALESCE(SUM("Purchase Price" * "Quantity"), 0) AS "stockValue",
-                COUNT(ID) AS "totalProducts"
-            FROM "${STOCK_TABLE_NAME}"
-        `);
-
-        // 3. Total COGS (A bit complex, based on JSONB items)
-        const COGSResult = await pool.query(`
-            SELECT jsonb_array_elements("Items") AS item_data
-            FROM "${SALES_TABLE_NAME}"
-        `);
+        // Sales aur Tax ka total
+        const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}"`;
+        // Total Cost of Purchases (COGS proxy)
+        const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}"`;
+        // Total Expenses
+        const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}"`;
+        // Stock ki current value
+        const stockValueQuery = `SELECT SUM("Purchase Price" * "Quantity") as stock_value FROM "${STOCK_TABLE_NAME}"`;
         
-        let totalCOGS = 0;
-        COGSResult.rows.forEach(row => {
-            const item = row.item_data;
-            // Ensure data types are handled as numbers
-            totalCOGS += (parseFloat(item.purchasePrice) || 0) * (parseFloat(item.qty) || 0); 
-        });
-        
-        const totalSalesRevenue = parseFloat(salesSummary.rows[0].totalSalesRevenue);
+        const [salesRes, purchasesRes, expensesRes, stockValueRes] = await Promise.all([
+            pool.query(salesQuery),
+            pool.query(purchasesCostQuery),
+            pool.query(expensesQuery),
+            pool.query(stockValueQuery)
+        ]);
 
-        const stats = {
-            totalRevenue: parseFloat(salesSummary.rows[0].totalRevenue),
+        const totalSalesRevenue = parseFloat(salesRes.rows[0].total_sales) || 0;
+        const totalTaxCollected = parseFloat(salesRes.rows[0].total_tax) || 0;
+        const totalCOGS = parseFloat(purchasesRes.rows[0].total_cogs) || 0;
+        const totalExpenses = parseFloat(expensesRes.rows[0].total_expenses) || 0;
+        const stockValue = parseFloat(stockValueRes.rows[0].stock_value) || 0;
+
+        // Financial Calculation
+        const grossProfit = totalSalesRevenue - totalCOGS;
+        const netProfit = grossProfit - totalExpenses; // Approximate Net Profit
+
+        res.json({
             totalSalesRevenue: totalSalesRevenue,
-            totalTaxCollected: parseFloat(salesSummary.rows[0].totalTaxCollected),
-            stockValue: parseFloat(stockSummary.rows[0].stockValue),
-            totalProducts: parseInt(stockSummary.rows[0].totalProducts),
+            totalTaxCollected: totalTaxCollected,
             totalCOGS: totalCOGS,
-            grossProfit: totalSalesRevenue - totalCOGS // Revenue - COGS
-        };
-        
-        res.json(stats);
+            totalExpenses: totalExpenses, // Naya field
+            grossProfit: grossProfit,
+            netProfit: netProfit, // Naya field
+            stockValue: stockValue
+        });
     } catch (error) {
-        // Error here should now only be if data is corrupted, not column missing
-        console.error("Dashboard Stats Error:", error);
-        res.status(500).json({ message: `Failed to fetch dashboard statistics: ${error.message}` });
+        console.error("Dashboard Stats Fetch Error:", error);
+        res.status(500).json({ message: `Failed to fetch dashboard stats: ${error.message}` });
     }
 });
 
-// 9. Search API (General Search)
-app.get('/api/search', async (req, res) => {
-    const { query } = req.query;
-    if (!query) return res.status(400).json({ message: "Search query is required." });
-
+// 7.2 Admin Overview (Low Stock, Recent Sales/Customers)
+app.get('/api/admin-overview', async (req, res) => {
     try {
-        const searchQuery = `%${query.toLowerCase()}%`;
-        const queryText = `
-            SELECT "SKU", "Item Name" FROM "${STOCK_TABLE_NAME}"
-            WHERE LOWER("SKU") LIKE $1 OR LOWER("Item Name") LIKE $1
-            LIMIT 10
-        `;
-        const result = await pool.query(queryText, [searchQuery]);
-        res.json({ results: result.rows, source: STOCK_TABLE_NAME });
-    } catch (error) {
-        console.error("PostgreSQL Search Error:", error);
-        res.status(500).json({ message: `Failed to perform search: ${error.message}` });
-    }
-});
-
-
-// ===================================
-//         ADMIN API ENDPOINTS
-// ===================================
-
-// 10. Admin Login (Authentication)
-app.post('/api/admin/auth', (req, res) => {
-    const { password } = req.body;
-    if (password === ADMIN_PASSWORD) {
-        // Success: Generate a simple token 
-        const adminToken = createHmac('sha256', APP_SECRET_KEY).update(new Date().toISOString().split('T')[0] + 'ADMIN').digest('hex');
-        res.json({ success: true, token: adminToken });
-    } else {
-        res.status(401).json({ success: false, message: 'Invalid Admin Password' });
-    }
-});
-
-// 11. Fetch All Admin Data (Customers, Sales Overview, Stock)
-app.get('/api/admin/all-data', async (req, res) => {
-    // Note: यहाँ सुरक्षा के लिए Admin Token Validation जोड़ा जाना चाहिए।
-    try {
-        // Fetch all customer details (Name, Phone, Address, Date Added)
-        const customers = await pool.query(`SELECT "ID", "Name", "Phone", "Address", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "Date Added" DESC`);
-        
-        // Fetch sales overview (Invoice, Customer, Amount)
-        const sales = await pool.query(`SELECT "Invoice Number", "Customer Name", "Total Amount", "Date" FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC LIMIT 100`);
-        
-        // Fetch stock overview (SKU, Item Name, Quantity)
-        const stock = await pool.query(`SELECT "SKU", "Item Name", "Quantity" FROM "${STOCK_TABLE_NAME}" WHERE "Quantity" <= 10 ORDER BY "Quantity" ASC`);
+        const customers = await pool.query(`SELECT "Customer Name", "Phone", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "Date Added" DESC LIMIT 10`);
+        const sales = await pool.query(`SELECT "Invoice Number", "Customer Name", "Total Amount", "Date" FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC LIMIT 10`);
+        const lowStock = await pool.query(`SELECT "SKU", "Item Name", "Quantity" FROM "${STOCK_TABLE_NAME}" WHERE "Quantity" <= 10 ORDER BY "Quantity" ASC`);
 
         res.json({
             customers: customers.rows,
             sales: sales.rows,
-            lowStock: stock.rows // Low stock items
+            lowStock: lowStock.rows
         });
     } catch (error) {
         console.error("Admin Data Fetch Error:", error);
@@ -460,17 +540,13 @@ app.get('/api/admin/all-data', async (req, res) => {
 
 async function startServer() {
     try {
-        // 1. Tables बनाएँ (और Schema Repair करें)
         await initializeDatabase(); 
         
-        // 2. Server शुरू करें
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
     } catch (err) {
-        // अगर DB Initialization फेल होता है, तो सर्वर को बंद कर दें
-        console.error("FATAL ERROR: Server could not start due to DB issue. Exiting.");
-        process.exit(1); 
+        console.error("Server failed to start due to DB error:", err);
     }
 }
 
