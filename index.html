@@ -4,805 +4,2052 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <!-- Poppins Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Required JS Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    
     <style>
-        :root {
-            --primary-color: #0d6efd;
-            --sidebar-bg: #212529;
-            --sidebar-text: #adb5bd;
-            --sidebar-text-hover: #ffffff;
-            --content-bg: #f8f9fa;
-            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
         body {
-            background-color: var(--content-bg);
             font-family: 'Poppins', sans-serif;
-            overflow-x: hidden;
+            background-color: #f8f9fa;
         }
-        #main-app { display: flex; }
-        #sidebar {
-            width: 260px;
-            background: var(--sidebar-bg);
-            color: var(--sidebar-text);
-            min-height: 100vh;
+        .sidebar {
+            width: 280px;
+            background-color: #343a40;
+            color: #fff;
+            height: 100vh;
             position: fixed;
-            z-index: 100;
+            top: 0;
+            left: 0;
+            padding-top: 20px;
+            transition: transform 0.3s ease;
+            z-index: 1050;
         }
-        .sidebar-header { padding: 20px; background: #343a40; text-align: center; }
-        .sidebar-header h3 { color: #fff; margin: 0; font-weight: 600; }
-        #sidebar ul.components { padding: 20px 0; }
-        #sidebar ul li a.nav-link {
-            padding: 15px 25px; font-size: 1rem; display: block;
-            width: 100%; text-align: left; border: none; background: none;
-            color: var(--sidebar-text); text-decoration: none; border-left: 3px solid transparent;
-            transition: all 0.2s ease-in-out;
-            cursor: pointer;
+        .sidebar .nav-link {
+            color: #adb5bd;
+            padding: 15px 20px;
+            border-left: 5px solid transparent;
+            transition: all 0.2s;
         }
-        #sidebar ul li a.nav-link:hover { color: var(--sidebar-text-hover); background: #343a40; border-left-color: var(--primary-color); }
-        #sidebar ul li a.nav-link.active { color: #fff; background: var(--primary-color); }
-        #main-content {
-            width: 100%;
-            min-height: 100vh;
-            padding-left: 260px;
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #495057;
+            border-left-color: #0d6efd;
         }
-        .header-bar {
-            padding: 1rem 1.5rem; background-color: #ffffff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            position: sticky; top: 0; z-index: 50;
+        .sidebar .nav-link i {
+            margin-right: 10px;
         }
-        .stat-card { border: none; border-radius: 10px; transition: transform 0.2s; box-shadow: var(--card-shadow); }
-        .stat-card:hover { transform: translateY(-5px); }
-        .invoice-container { padding: 2.5rem; border: 1px solid #dee2e6; background: #fff; }
-        .invoice-header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--primary-color); padding-bottom: 15px; }
-        #invoice-preview {
-             background: white; padding: 25px; border: 1px solid #dee2e6; min-height: 80vh;
+        .main-content {
+            margin-left: 280px;
+            padding: 20px;
+            transition: margin-left 0.3s ease;
         }
-        @media print {
-            body, #main-app, #main-content { display: block; padding-left: 0; }
-            .no-print, .no-print * { display: none !important; }
-            #invoice-preview-container, #invoice-preview {
-                position: absolute; left: 0; top: 0; width: 100%;
-                border: none; padding: 0; margin: 0; box-shadow: none;
+        .card {
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            border: none;
+        }
+        .card-header {
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            background-color: #0d6efd;
+            color: white;
+            padding: 15px;
+            font-weight: 600;
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        .form-control, .btn {
+            border-radius: 8px;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+        .table th {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        .table-striped > tbody > tr:nth-of-type(odd) > * {
+            --bs-table-bg-type: #f3f4f6;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-280px);
+            }
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .main-content.sidebar-open {
+                margin-left: 280px;
+                overflow-x: hidden;
+            }
+            .navbar-toggler {
+                display: block !important;
             }
         }
+        
+        .navbar-toggler {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1060;
+            display: none; /* Hide by default on desktop */
+            background-color: #343a40;
+            border-color: #fff;
+        }
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='white' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* Dashboard specific styles */
+        .dashboard-card {
+            transition: transform 0.2s;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+        }
+
+        /* Utility classes */
+        .bg-gradient-primary { background: linear-gradient(45deg, #0d6efd, #00b4d8); }
+        .text-shadow { text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); }
     </style>
 </head>
 <body>
-    <div class="modal fade" id="license-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">लाइसेंस कुंजी</h5>
-                </div>
-                <div class="modal-body">
-                    <p class="text-danger" id="license-message">कृपया अपनी वैध लाइसेंस कुंजी दर्ज करें।</p>
-                    <input type="text" id="license-key-input" class="form-control" placeholder="अपनी कुंजी यहां दर्ज करें">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" id="validate-license-btn">वैध करें</button>
-                </div>
-            </div>
+
+    <!-- Environment Setup -->
+    <script>
+        // Check for global variables and initialize constants
+        const __backend_url = typeof window.__backend_url !== 'undefined' ? window.__backend_url : 'http://localhost:3000';
+        const AppState = {
+            currentView: 'dashboard',
+            isLicensed: false,
+            stock: [],
+            sales: [],
+            purchases: [],
+            customers: [],
+            expenses: [],
+            stats: {}
+        };
+        const SERVER_TIMEOUT = 10000; // 10 seconds
+    </script>
+
+    <!-- License Validation and Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
         </div>
+        <div class="ms-3 text-primary" id="loading-message">लाइसेंस की जांच हो रही है...</div>
     </div>
-    
-    <div id="main-app">
-        <nav id="sidebar" class="no-print">
-            <div class="sidebar-header">
-                <h3><i class="fas fa-rocket me-2"></i>Dukan Pro</h3>
-            </div>
-            <ul class="list-unstyled components" id="main-tabs">
-                <li><a href="#" class="nav-link active" data-pane="dashboard"><i class="fas fa-tachometer-alt fa-fw me-2"></i>डैशबोर्ड</a></li>
-                <li><a href="#" class="nav-link" data-pane="invoice"><i class="fas fa-file-invoice fa-fw me-2"></i>इनवॉइस जेनरेटर</a></li>
-                <li><a href="#" class="nav-link" data-pane="stock"><i class="fas fa-boxes-stacked fa-fw me-2"></i>स्टॉक मैनेजमेंट</a></li>
-                <li><a href="#" class="nav-link" data-pane="crm"><i class="fas fa-users fa-fw me-2"></i>ग्राहक (CRM)</a></li>
-                <li><a href="#" class="nav-link" data-pane="reports"><i class="fas fa-chart-line fa-fw me-2"></i>रिपोर्ट्स</a></li>
-                <li><a href="#" class="nav-link" data-pane="cash-flow"><i class="fas fa-money-bill-transfer fa-fw me-2"></i>कैश/बैंक फ्लो</a></li>
+
+    <!-- Mobile Menu Toggle Button -->
+    <button class="navbar-toggler" type="button" id="menu-toggle">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Sidebar (Menu) -->
+    <nav id="sidebar" class="sidebar">
+        <div class="p-4 d-flex flex-column h-100">
+            <h3 class="mb-4 text-white text-shadow"><i class="fas fa-store me-2"></i>Dukan Pro</h3>
+            <ul class="nav flex-column mb-auto" id="sidebar-nav">
+                <!-- Dashboard -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link active" data-view="dashboard">
+                        <i class="fas fa-home"></i> डैशबोर्ड
+                    </a>
+                </li>
+                <!-- Stock -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="stock">
+                        <i class="fas fa-boxes"></i> स्टॉक प्रबंधन
+                    </a>
+                </li>
+                <!-- Sales -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="sales">
+                        <i class="fas fa-cash-register"></i> बिक्री (POS)
+                    </a>
+                </li>
+                <!-- Purchases -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="purchases">
+                        <i class="fas fa-shopping-basket"></i> खरीद
+                    </a>
+                </li>
+                <!-- CRM -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="crm">
+                        <i class="fas fa-users"></i> ग्राहक (CRM)
+                    </a>
+                </li>
+                <!-- Expenses -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="expenses">
+                        <i class="fas fa-money-bill-wave"></i> खर्च
+                    </a>
+                </li>
+                <!-- Reports -->
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="reports">
+                        <i class="fas fa-chart-line"></i> रिपोर्ट्स
+                    </a>
+                </li>
             </ul>
-        </nav>
-
-        <main id="main-content">
-            <header class="header-bar no-print">
-                <h1 class="mb-0 h4" id="header-title">📊 डैशबोर्ड</h1>
-            </header>
-            <div class="container-fluid p-4">
-                <div id="pane-container">
-                    </div>
+            <hr class="text-white-50">
+            <div class="text-center">
+                <button id="admin-login-btn" class="btn btn-sm btn-outline-light w-100"><i class="fas fa-user-shield me-2"></i>एडमिन लॉगिन</button>
             </div>
-        </main>
-    </div>
-
-    <div class="modal fade" id="stock-modal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="stock-modal-title">नया प्रोडक्ट</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="stock-form"><input type="hidden" id="stock-id"><div class="row g-3"><div class="col-md-12"><label class="form-label">प्रोडक्ट का नाम*</label><input type="text" id="stock-item-name" class="form-control" required></div><div class="col-md-6"><label class="form-label">SKU (बारकोड)</label><input type="text" id="stock-sku" class="form-control"></div><div class="col-md-6"><label class="form-label">वर्तमान मात्रा*</label><input type="number" id="stock-quantity" class="form-control" required></div><div class="col-md-6"><label class="form-label">खरीद मूल्य*</label><input type="number" id="stock-purchase-price" class="form-control" required step="0.01"></div><div class="col-md-6"><label class="form-label">बिक्री मूल्य*</label><input type="number" id="stock-sale-price" class="form-control" required step="0.01"></div></div></form></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button><button type="button" class="btn btn-primary" id="save-stock-btn">सेव करें</button></div></div></div></div>
-    <div class="modal fade" id="crm-modal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="crm-modal-title">नया ग्राहक</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="crm-form"><input type="hidden" id="crm-id"><div class="mb-3"><label class="form-label">ग्राहक का नाम*</label><input type="text" id="crm-name" class="form-control" required></div><div class="mb-3"><label class="form-label">फोन नंबर</label><input type="tel" id="crm-phone" class="form-control"></div><div class="mb-3"><label class="form-label">पता</label><textarea id="crm-address" class="form-control" rows="2"></textarea></div></form></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button><button type="button" class="btn btn-primary" id="save-crm-btn">सेव करें</button></div></div></div></div>
-    
-<script>
-// ===================================================================================
-// DUKAN PRO - ULTIMATE BUSINESS SUITE SCRIPT (PostgreSQL Integration)
-// ===================================================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    // --- CONFIGURATION & STATE MANAGEMENT ---
-    const API_URL = 'https://dukan-pro-ultimate.onrender.com/api'; // Change to your deployed server URL
-    const GST_RATE = 0.18; // 18%
-
-    const AppState = {
-        stock: [],
-        customers: JSON.parse(localStorage.getItem('dukan_customers')) || [], // CRM remains local for simplicity
-        sales: [], // Sales from API
-        stats: {}, // Dashboard stats from API
-        settings: JSON.parse(localStorage.getItem('dukan_settings')) || { 
-            shopName: 'आपकी दुकान', shopAddress: 'आपका पता', shopContact: '', shopGstin: '', qrCodeImage: '' 
-        },
-        license: localStorage.getItem('dukan_license_key') || null,
-        isLicensed: false
-    };
-
-    // --- DOM ELEMENTS ---
-    const DOM = {
-        sidebarLinks: document.querySelectorAll('#sidebar .nav-link'),
-        paneContainer: document.getElementById('pane-container'),
-        headerTitle: document.getElementById('header-title'),
-        stockModal: new bootstrap.Modal(document.getElementById('stock-modal')),
-        crmModal: new bootstrap.Modal(document.getElementById('crm-modal')),
-        licenseModal: new bootstrap.Modal(document.getElementById('license-modal'), {})
-    };
-
-    // --- UTILITY FUNCTIONS ---
-    const saveLocalData = (key, data) => {
-        localStorage.setItem(`dukan_${key}`, JSON.stringify(data));
-    };
-
-    const formatCurrency = (amount) => {
-        return `₹${parseFloat(amount).toFixed(2)}`;
-    };
-
-    const showToast = (message, type = 'success') => {
-        // Simple alert for now
-        alert(`${type.toUpperCase()}: ${message}`);
-    };
-    
-    // --- API FUNCTIONS ---
-    const fetchAPI = async (endpoint, options = {}) => {
-        try {
-            const response = await fetch(`${API_URL}${endpoint}`, options);
-            const data = await response.json();
-            if (!response.ok) {
-                showToast(data.message || 'Server Error', 'error');
-                return null;
-            }
-            return data;
-        } catch (error) {
-            console.error("API Error:", error);
-            showToast('API से कनेक्ट करने में विफल।', 'error');
-            return null;
-        }
-    };
-
-    const loadStock = async () => {
-        const data = await fetchAPI('/stock');
-        if (data) {
-            // Map keys to client-side friendly names
-            AppState.stock = data.map(item => ({
-                id: item.ID, // Unique ID for updating stock
-                name: item['Item Name'],
-                sku: item.SKU,
-                purchasePrice: parseFloat(item['Purchase Price']),
-                salePrice: parseFloat(item['Sale Price']),
-                quantity: parseInt(item.Quantity)
-            }));
-            return true;
-        }
-        return false;
-    };
-    
-    const loadDashboardStats = async () => {
-        const data = await fetchAPI('/dashboard-stats');
-        if (data) {
-            AppState.stats = data;
-            return true;
-        }
-        return false;
-    };
-    
-    // --- LICENSE LOGIC ---
-    const setupLicenseCheck = () => {
-        const savedKey = localStorage.getItem('dukan_license_key');
-        if (savedKey) {
-            document.getElementById('license-key-input').value = savedKey;
-            validateLicense(savedKey);
-        } else {
-            DOM.licenseModal.show();
-        }
-
-        document.getElementById('validate-license-btn').addEventListener('click', () => {
-            const key = document.getElementById('license-key-input').value;
-            validateLicense(key);
-        });
-    };
-
-    const validateLicense = async (key) => {
-        const data = await fetchAPI('/validate-key', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key })
-        });
-
-        if (data && data.valid) {
-            AppState.isLicensed = true;
-            AppState.license = key;
-            localStorage.setItem('dukan_license_key', key);
-            showToast('लाइसेंस सफलतापूर्वक मान्य किया गया!', 'success');
-            DOM.licenseModal.hide();
-            // Load initial data and navigation
-            await loadStock();
-            await loadDashboardStats();
-            setupNavigation();
-            DOM.sidebarLinks[0].click(); 
-        } else {
-            AppState.isLicensed = false;
-            document.getElementById('license-message').innerText = data ? data.message : 'अमान्य कुंजी या सर्वर त्रुटि।';
-            DOM.licenseModal.show();
-        }
-    };
-    
-    // --- NAVIGATION & PANE RENDERING ---
-    const setupNavigation = () => {
-        DOM.sidebarLinks.forEach(link => {
-            link.addEventListener('click', async (e) => {
-                e.preventDefault();
-                if (!AppState.isLicensed) return DOM.licenseModal.show();
-
-                DOM.sidebarLinks.forEach(l => l.classList.remove('active'));
-                link.classList.add('active');
-                const paneName = link.getAttribute('data-pane');
-                DOM.headerTitle.innerHTML = link.innerHTML;
-                
-                // Reload data if needed
-                if (paneName === 'dashboard' || paneName === 'reports') {
-                    await loadDashboardStats();
-                }
-                if (paneName === 'stock' || paneName === 'invoice') {
-                    await loadStock();
-                }
-                
-                renderPane(paneName);
-            });
-        });
-    };
-
-    const renderPane = (paneName) => {
-        DOM.paneContainer.innerHTML = getPaneHTML(paneName);
-        attachPaneEventListeners(paneName);
-    };
-
-    const attachPaneEventListeners = (paneName) => {
-        switch (paneName) {
-            case 'dashboard': renderDashboard(); break;
-            case 'invoice': initializeInvoice(); break;
-            case 'stock': renderStockTable(); document.getElementById('add-stock-btn').addEventListener('click', () => openStockModal(null)); break;
-            case 'crm': renderCrmTable(); document.getElementById('add-crm-btn').addEventListener('click', openCrmModal); break;
-            case 'reports': renderReports(); break;
-            case 'cash-flow': renderCashFlow(); break; // New
-        }
-    };
-    
-    // --- HTML TEMPLATE FUNCTIONS ---
-    const getPaneHTML = (paneName) => {
-        switch (paneName) {
-            case 'dashboard': return getDashboardHTML();
-            case 'invoice': return getInvoiceHTML();
-            case 'stock': return getStockHTML();
-            case 'crm': return getCrmHTML();
-            case 'reports': return getReportsHTML();
-            case 'cash-flow': return getCashFlowHTML(); // New Pane
-            default: return `<h2>पेज नहीं मिला</h2>`;
-        }
-    };
-
-    const getDashboardHTML = () => `
-        <div class="row g-4">
-            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-success text-white"><h5>कुल बिक्री (GST सहित)</h5><h3 id="dash-total-revenue">${formatCurrency(AppState.stats.totalRevenue || 0)}</h3></div></div>
-            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-primary text-white"><h5>कुल प्रोडक्ट्स</h5><h3 id="dash-total-products">${AppState.stats.totalProducts || 0}</h3></div></div>
-            <div class="col-md-4"><div class="card p-3 text-center stat-card bg-info text-dark"><h5>स्टॉक मूल्य</h5><h3 id="dash-stock-value">${formatCurrency(AppState.stats.stockValue || 0)}</h3></div></div>
+            <p class="text-muted mt-2 mb-0 text-center small">v1.0.1</p>
         </div>
-        <div class="card mt-4"><div class="card-body"><canvas id="salesChart"></canvas></div></div>`;
-    
-    const getInvoiceHTML = () => `
-        <div class="row g-4">
-            <div class="col-lg-5 no-print">
-                <div class="card">
-                    <div class="card-header"><h2>📝 नई इनवॉइस बनाएं</h2></div>
-                    <div class="card-body p-4">
-                        <div class="row g-3 mb-4">
-                            <h5>🏪 दुकान का विवरण</h5>
-                            <div class="col-md-6"><input type="text" id="shopName" class="form-control" placeholder="दुकान का नाम"></div>
-                            <div class="col-md-6"><input type="text" id="shopContact" class="form-control" placeholder="संपर्क नंबर"></div>
-                            <div class="col-12"><input type="text" id="shopAddress" class="form-control" placeholder="दुकान का पता"></div>
-                            <div class="col-md-6"><input type="text" id="shopGstin" class="form-control" placeholder="GSTIN (वैकल्पिक)"></div>
-                            <div class="col-md-6"><label class="form-label small">पेमेंट QR अपलोड करें</label><input type="file" id="qrUpload" class="form-control form-control-sm" accept="image/*"></div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div id="main-content" class="main-content">
+        <!-- --------------------------------- -->
+        <!-- 1. DASHBOARD Section -->
+        <!-- --------------------------------- -->
+        <section id="dashboard" class="section active">
+            <h2 class="mb-4 text-primary">डैशबोर्ड</h2>
+            <div class="row g-4">
+                <!-- Card 1: Total Sales -->
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-rupee-sign fa-2x text-primary me-3"></i>
+                            <div>
+                                <p class="text-muted mb-0">कुल बिक्री (रेवेन्यू)</p>
+                                <h4 class="mb-0" id="total-sales-revenue">₹0.00</h4>
+                            </div>
                         </div>
-                        <div class="row g-3 mb-4">
-                            <h5>👤 ग्राहक का विवरण</h5>
-                            <div class="col-md-6"><input type="text" id="customerName" class="form-control" placeholder="ग्राहक का नाम" list="crm-datalist"></div>
-                            <div class="col-md-6"><input type="text" id="customerContact" class="form-control" placeholder="संपर्क नंबर"></div>
-                            <div class="col-12"><input type="text" id="customerAddress" class="form-control" placeholder="ग्राहक का पता"></div>
-                            <datalist id="crm-datalist">${AppState.customers.map(c => `<option value="${c.name}"></option>`).join('')}</datalist>
+                    </div>
+                </div>
+                <!-- Card 2: Stock Value -->
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-boxes fa-2x text-warning me-3"></i>
+                            <div>
+                                <p class="text-muted mb-0">स्टॉक मूल्य (खरीद)</p>
+                                <h4 class="mb-0" id="total-stock-value">₹0.00</h4>
+                            </div>
                         </div>
-                        <h5 class="mb-3">➕ आइटम जोड़ें</h5>
-                        <div id="items-container"></div>
-                        <button class="btn btn-outline-primary w-100 mt-2" id="add-item-row-btn"><i class="fas fa-plus"></i> नया आइटम जोड़ें</button>
-                        <hr>
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button class="btn btn-success" id="record-sale-btn">✅ बिक्री रिकॉर्ड करें</button>
-                            <button class="btn btn-primary" id="download-pdf-btn">⬇️ PDF डाउनलोड</button>
-                            <button class="btn btn-info text-white" id="print-invoice-btn">🖨️ प्रिंट</button>
-                            <button class="btn btn-danger" id="clear-bill-btn">🗑️ बिल साफ़ करें</button>
+                    </div>
+                </div>
+                <!-- Card 3: Total Customers -->
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-users fa-2x text-success me-3"></i>
+                            <div>
+                                <p class="text-muted mb-0">कुल ग्राहक</p>
+                                <h4 class="mb-0" id="total-customers">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Card 4: Low Stock Items -->
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle fa-2x text-danger me-3"></i>
+                            <div>
+                                <p class="text-muted mb-0">कम स्टॉक वाले आइटम</p>
+                                <h4 class="mb-0" id="low-stock-count">0</h4>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-7"><div id="invoice-preview" class="card"></div></div>
-        </div>`;
 
-    const getStockHTML = () => `
-        <div class="card"><div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title mb-0">स्टॉक मैनेजमेंट</h5><button class="btn btn-primary" id="add-stock-btn"><i class="fas fa-plus me-2"></i>नया प्रोडक्ट</button>
+            <!-- Charts and Tables -->
+            <div class="row mt-4 g-4">
+                <!-- Sales Chart -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-gradient-primary">पिछले 30 दिनों की बिक्री</div>
+                        <div class="card-body">
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <!-- Low Stock Table -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header bg-warning text-dark">कम स्टॉक चेतावनी</div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>आइटम</th>
+                                            <th>Qty</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="low-stock-table-body">
+                                        <tr><td colspan="3" class="text-center text-muted">कोई कम स्टॉक आइटम नहीं</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="table-responsive"><table class="table table-hover">
-                <thead><tr><th>ID</th><th>SKU</th><th>नाम</th><th>खरीद मूल्य</th><th>बिक्री मूल्य</th><th>मात्रा</th><th>एक्शन</th></tr></thead>
-                <tbody id="stock-table-body"></tbody>
-            </table></div>
-        </div></div>`;
 
-    const getCrmHTML = () => `
-        <div class="card"><div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title mb-0">ग्राहक मैनेजमेंट</h5><button class="btn btn-primary" id="add-crm-btn"><i class="fas fa-plus me-2"></i>नया ग्राहक</button>
+            <!-- Recent Sales & Customers -->
+            <div class="row mt-4 g-4">
+                <!-- Recent Sales -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header bg-success">हाल की बिक्री</div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>चालान नं.</th>
+                                            <th>ग्राहक</th>
+                                            <th>राशि</th>
+                                            <th>तिथि</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recent-sales-table-body">
+                                        <tr><td colspan="4" class="text-center text-muted">कोई बिक्री नहीं</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Recent Customers -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header bg-info">हाल के ग्राहक</div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>नाम</th>
+                                            <th>फ़ोन</th>
+                                            <th>जोड़ा गया</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recent-customers-table-body">
+                                        <tr><td colspan="3" class="text-center text-muted">कोई ग्राहक नहीं</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="table-responsive"><table class="table table-hover">
-                <thead><tr><th>नाम</th><th>फोन</th><th>पता</th><th>एक्शन</th></tr></thead>
-                <tbody id="crm-table-body"></tbody>
-            </table></div>
-        </div></div>`;
+        </section>
 
-    const getReportsHTML = () => `
-        <div class="row g-4">
-            <div class="col-lg-6">
-                <div class="card"><div class="card-body">
-                    <h5 class="card-title mb-4">📈 प्रॉफिट & लॉस स्टेटमेंट</h5>
-                    <table class="table table-bordered">
-                        <tr><td>कुल बिक्री राजस्व (Total Sales Revenue - Excl. GST)</td><td id="report-total-sales-rev" class="text-end">${formatCurrency(AppState.stats.totalSalesRevenue || 0)}</td></tr>
-                        <tr><td>कुल GST (Liability)</td><td id="report-total-gst" class="text-end">${formatCurrency(AppState.stats.totalTaxCollected || 0)}</td></tr>
-                        <tr><td>बेचे गए माल की लागत (COGS)</td><td id="report-total-cogs" class="text-end text-danger">- ${formatCurrency(AppState.stats.totalCOGS || 0)}</td></tr>
-                        <tr class="table-info"><th>सकल लाभ (Gross Profit)</th><th id="report-gross-profit" class="text-end">${formatCurrency(AppState.stats.grossProfit || 0)}</th></tr>
-                        <tr><td>अन्य खर्च (Other Expenses)</td><td class="text-end text-danger">- ₹0.00</td></tr>
-                        <tr class="table-success"><th>शुद्ध लाभ (Net Profit)</th><th id="report-net-profit" class="text-end">${formatCurrency(AppState.stats.grossProfit || 0)}</th></tr>
+        <!-- --------------------------------- -->
+        <!-- 2. STOCK Section -->
+        <!-- --------------------------------- -->
+        <section id="stock" class="section">
+            <h2 class="mb-4 text-primary">स्टॉक प्रबंधन</h2>
+            <div class="card mb-4">
+                <div class="card-header">नया स्टॉक आइटम जोड़ें</div>
+                <div class="card-body">
+                    <form id="add-stock-form" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="stock-sku" class="form-label">SKU / कोड</label>
+                            <input type="text" class="form-control" id="stock-sku" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label for="stock-name" class="form-label">आइटम का नाम</label>
+                            <input type="text" class="form-control" id="stock-name" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="stock-quantity" class="form-label">मात्रा (Qty)</label>
+                            <input type="number" class="form-control" id="stock-quantity" required min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="stock-unit" class="form-label">इकाई</label>
+                            <input type="text" class="form-control" id="stock-unit" value="Pcs" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="stock-purchase-price" class="form-label">खरीद मूल्य (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="stock-purchase-price" required min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="stock-sale-price" class="form-label">बिक्री मूल्य (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="stock-sale-price" required min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="stock-gst" class="form-label">GST (%)</label>
+                            <input type="number" step="0.01" class="form-control" id="stock-gst" value="0" min="0">
+                        </div>
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-primary w-100">स्टॉक में आइटम जोड़ें</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">उपलब्ध स्टॉक सूची</div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>आइटम</th>
+                                    <th>Qty</th>
+                                    <th>इकाई</th>
+                                    <th>खरीद मूल्य</th>
+                                    <th>बिक्री मूल्य</th>
+                                    <th>GST %</th>
+                                    <th>एक्शन</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body">
+                                <tr><td colspan="8" class="text-center text-muted">कोई स्टॉक आइटम नहीं मिला</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- --------------------------------- -->
+        <!-- 3. SALES (POS) Section -->
+        <!-- --------------------------------- -->
+        <section id="sales" class="section">
+            <h2 class="mb-4 text-primary">बिक्री (पॉइंट ऑफ सेल)</h2>
+            <div class="row g-4">
+                <!-- Sales Entry Form -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">नया चालान बनाएं</div>
+                        <div class="card-body">
+                            <form id="pos-form">
+                                <div class="mb-3">
+                                    <label for="pos-customer" class="form-label">ग्राहक का नाम</label>
+                                    <input type="text" class="form-control" id="pos-customer" placeholder="अनाम ग्राहक या नाम टाइप करें">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="pos-item-search" class="form-label">आइटम खोजें / SKU</label>
+                                    <input type="text" class="form-control" id="pos-item-search" placeholder="आइटम का नाम या SKU टाइप करें">
+                                    <!-- Search results will appear here -->
+                                    <ul id="pos-search-results" class="list-group position-absolute w-100" style="z-index: 100;"></ul>
+                                </div>
+                                <hr>
+
+                                <h5>बिलिंग कार्ट</h5>
+                                <div class="table-responsive mb-3" style="min-height: 150px;">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>आइटम</th>
+                                                <th style="width: 10%;">Qty</th>
+                                                <th>दर</th>
+                                                <th>GST</th>
+                                                <th>कुल</th>
+                                                <th style="width: 1%;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pos-cart-body">
+                                            <tr><td colspan="6" class="text-center text-muted">कार्ट खाली है।</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between fw-bold mb-2">
+                                    <span>कुल टैक्सेबल राशि:</span>
+                                    <span id="pos-subtotal">₹0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between fw-bold mb-2 text-danger">
+                                    <span>कुल GST राशि:</span>
+                                    <span id="pos-gst-amount">₹0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between fw-bold fs-5 border-top pt-2">
+                                    <span>भुगतान की जाने वाली कुल राशि:</span>
+                                    <span id="pos-total-amount">₹0.00</span>
+                                </div>
+
+                                <div class="mt-4">
+                                    <label for="pos-payment-method" class="form-label">भुगतान विधि</label>
+                                    <select class="form-select" id="pos-payment-method">
+                                        <option value="Cash">नकद (Cash)</option>
+                                        <option value="Card">कार्ड (Card)</option>
+                                        <option value="UPI">यूपीआई (UPI)</option>
+                                        <option value="Credit">उधार (Credit)</option>
+                                    </select>
+                                </div>
+
+                                <div class="mt-4">
+                                    <button type="button" class="btn btn-success btn-lg w-100" id="complete-sale-btn">बिक्री पूरी करें</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Sales List -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">हाल के चालान</div>
+                        <div class="card-body">
+                            <div class="mb-3 d-flex justify-content-end">
+                                <button class="btn btn-sm btn-outline-secondary" id="refresh-sales-btn"><i class="fas fa-sync-alt"></i> ताज़ा करें</button>
+                            </div>
+                            <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>चालान नं.</th>
+                                            <th>ग्राहक</th>
+                                            <th>कुल राशि</th>
+                                            <th>तिथि</th>
+                                            <th>एक्शन</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sales-table-body">
+                                        <tr><td colspan="5" class="text-center text-muted">कोई बिक्री रिकॉर्ड नहीं।</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- --------------------------------- -->
+        <!-- 4. PURCHASES Section -->
+        <!-- --------------------------------- -->
+        <section id="purchases" class="section">
+            <h2 class="mb-4 text-primary">खरीद रिकॉर्ड</h2>
+            <div class="card mb-4">
+                <div class="card-header">नई खरीद दर्ज करें</div>
+                <div class="card-body">
+                    <form id="add-purchase-form" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="purchase-invoice" class="form-label">बिल / चालान नं.</label>
+                            <input type="text" class="form-control" id="purchase-invoice" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="purchase-supplier" class="form-label">आपूर्तिकर्ता का नाम</label>
+                            <input type="text" class="form-control" id="purchase-supplier" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="purchase-date" class="form-label">खरीद की तिथि</label>
+                            <input type="date" class="form-control" id="purchase-date" value="" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="purchase-item-sku" class="form-label">आइटम SKU</label>
+                            <input type="text" class="form-control" id="purchase-item-sku" placeholder="स्टॉक से आइटम SKU">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="purchase-item-name" class="form-label">आइटम का नाम</label>
+                            <input type="text" class="form-control" id="purchase-item-name" placeholder="नया आइटम नाम">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="purchase-quantity" class="form-label">मात्रा (Qty)</label>
+                            <input type="number" class="form-control" id="purchase-quantity" required min="1">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="purchase-price" class="form-label">खरीद दर (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-price" required min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="purchase-gst" class="form-label">GST (%)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-gst" value="0" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="purchase-total-amount" class="form-label">कुल बिल राशि (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-total-amount" required min="0">
+                        </div>
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-success w-100">खरीद रिकॉर्ड करें और स्टॉक अपडेट करें</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">हाल की खरीद का इतिहास</div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>चालान नं.</th>
+                                    <th>आपूर्तिकर्ता</th>
+                                    <th>आइटम</th>
+                                    <th>Qty</th>
+                                    <th>कुल राशि</th>
+                                    <th>तिथि</th>
+                                    <th>एक्शन</th>
+                                </tr>
+                            </thead>
+                            <tbody id="purchases-table-body">
+                                <tr><td colspan="7" class="text-center text-muted">कोई खरीद रिकॉर्ड नहीं मिला</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- --------------------------------- -->
+        <!-- 5. CRM Section -->
+        <!-- --------------------------------- -->
+        <section id="crm" class="section">
+            <h2 class="mb-4 text-primary">ग्राहक संबंध प्रबंधन (CRM)</h2>
+            <div class="card mb-4">
+                <div class="card-header">नया ग्राहक जोड़ें</div>
+                <div class="card-body">
+                    <form id="add-customer-form" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="customer-name" class="form-label">नाम</label>
+                            <input type="text" class="form-control" id="customer-name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customer-phone" class="form-label">फ़ोन नंबर</label>
+                            <input type="tel" class="form-control" id="customer-phone" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customer-email" class="form-label">ईमेल (वैकल्पिक)</label>
+                            <input type="email" class="form-control" id="customer-email">
+                        </div>
+                        <div class="col-12">
+                            <label for="customer-address" class="form-label">पता (Address)</label>
+                            <textarea class="form-control" id="customer-address" rows="1"></textarea>
+                        </div>
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-primary w-100">ग्राहक को जोड़ें</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">ग्राहक सूची</div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>नाम</th>
+                                    <th>फ़ोन</th>
+                                    <th>ईमेल</th>
+                                    <th>पता</th>
+                                    <th>जोड़ा गया</th>
+                                    <th>एक्शन</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crm-table-body">
+                                <tr><td colspan="6" class="text-center text-muted">कोई ग्राहक नहीं मिला</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- --------------------------------- -->
+        <!-- 6. EXPENSES Section -->
+        <!-- --------------------------------- -->
+        <section id="expenses" class="section">
+            <h2 class="mb-4 text-primary">खर्च प्रबंधन</h2>
+            <div class="card mb-4">
+                <div class="card-header">नया खर्च दर्ज करें</div>
+                <div class="card-body">
+                    <form id="add-expense-form" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="expense-date" class="form-label">तिथि</label>
+                            <input type="date" class="form-control" id="expense-date" value="" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="expense-category" class="form-label">श्रेणी</label>
+                            <select class="form-select" id="expense-category" required>
+                                <option value="" disabled selected>चुनें...</option>
+                                <option value="Rent">किराया (Rent)</option>
+                                <option value="Salary">वेतन (Salary)</option>
+                                <option value="Utilities">उपयोगिताएँ (Utilities)</option>
+                                <option value="Marketing">मार्केटिंग</option>
+                                <option value="Miscellaneous">विविध</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="expense-amount" class="form-label">राशि (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="expense-amount" required min="0">
+                        </div>
+                        <div class="col-12">
+                            <label for="expense-description" class="form-label">विवरण</label>
+                            <textarea class="form-control" id="expense-description" rows="1" required></textarea>
+                        </div>
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-danger w-100">खर्च दर्ज करें</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">खर्च इतिहास</div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>तिथि</th>
+                                    <th>श्रेणी</th>
+                                    <th>विवरण</th>
+                                    <th>राशि (₹)</th>
+                                    <th>एक्शन</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expenses-table-body">
+                                <tr><td colspan="5" class="text-center text-muted">कोई खर्च रिकॉर्ड नहीं मिला</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- --------------------------------- -->
+        <!-- 7. REPORTS Section -->
+        <!-- --------------------------------- -->
+        <section id="reports" class="section">
+            <h2 class="mb-4 text-primary">व्यावसायिक रिपोर्ट्स</h2>
+
+            <!-- Report Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">रिपोर्ट फ़िल्टर</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="report-start-date" class="form-label">प्रारंभ तिथि</label>
+                            <input type="date" class="form-control" id="report-start-date" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="report-end-date" class="form-label">समाप्ति तिथि</label>
+                            <input type="date" class="form-control" id="report-end-date" required>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-secondary w-100" id="generate-report-btn"><i class="fas fa-filter me-2"></i>रिपोर्ट जनरेट करें</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Profit & Loss (P&L) Statement -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">लाभ और हानि (Profit & Loss) विवरण</div>
+                <div class="card-body">
+                    <table class="table table-sm table-bordered">
+                        <tbody>
+                            <tr>
+                                <td class="fw-bold">कुल बिक्री राजस्व (Total Sales Revenue)</td>
+                                <td class="text-end" id="report-total-sales-rev">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">कुल GST जमा किया (Total Tax Collected)</td>
+                                <td class="text-end" id="report-total-gst">₹0.00</td>
+                            </tr>
+                            <tr class="table-light">
+                                <td class="fw-bold">बेचे गए माल की लागत (COGS)</td>
+                                <td class="text-end text-danger" id="report-total-cogs">- ₹0.00</td>
+                            </tr>
+                            <tr class="table-primary">
+                                <td class="fw-bolder">सकल लाभ (Gross Profit)</td>
+                                <td class="text-end fw-bolder" id="report-gross-profit">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">कुल खर्च (Total Expenses)</td>
+                                <td class="text-end text-danger" id="report-total-expenses">- ₹0.00</td>
+                            </tr>
+                            <tr class="table-success text-white">
+                                <td class="fw-bolder fs-5">शुद्ध लाभ (Net Profit)</td>
+                                <td class="text-end fw-bolder fs-5" id="report-net-profit">₹0.00</td>
+                            </tr>
+                        </tbody>
                     </table>
-                </div></div>
+                </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card"><div class="card-body">
-                    <h5 class="card-title mb-4">💰 बैलेंस शीट (सरल)</h5>
+
+            <!-- Balance Sheet Overview -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">बैलेंस शीट अवलोकन (Balance Sheet Overview)</div>
+                <div class="card-body">
                     <div class="row">
-                        <div class="col-6">
-                            <h6>Assets (संपत्ति)</h6>
+                        <div class="col-md-6">
+                            <h6>परिसंपत्तियां (Assets)</h6>
                             <table class="table table-sm table-borderless">
-                                <tr><td>स्टॉक का मूल्य (Inventory)</td><td id="report-stock-value" class="text-end">${formatCurrency(AppState.stats.stockValue || 0)}</td></tr>
-                                <tr><td>बैंक/कैश बैलेंस (Net Cash)</td><td class="text-end">₹0.00</td></tr>
-                                <tr class="table-light"><th>कुल संपत्ति</th><th id="report-total-assets" class="text-end">${formatCurrency(AppState.stats.stockValue || 0)}</th></tr>
+                                <tbody>
+                                    <tr>
+                                        <td>स्टॉक का मूल्य (Stock Value)</td>
+                                        <td class="text-end" id="report-stock-value">₹0.00</td>
+                                    </tr>
+                                    <tr class="table-light">
+                                        <td class="fw-bold">कुल परिसंपत्तियां</td>
+                                        <td class="text-end fw-bold" id="report-total-assets">₹0.00</td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
-                        <div class="col-6">
-                            <h6>Liabilities & Equity (देनदारियां और पूंजी)</h6>
+                        <div class="col-md-6">
+                            <h6>देनदारियां (Liabilities)</h6>
                             <table class="table table-sm table-borderless">
-                                <tr><td>GST Payables</td><td id="report-gst-payable" class="text-end">${formatCurrency(AppState.stats.totalTaxCollected || 0)}</td></tr>
-                                <tr><td>प्रारंभिक पूंजी (Owner's Equity)</td><td class="text-end">₹0.00</td></tr>
-                                <tr><td>शुद्ध लाभ (Retained Earnings)</td><td class="text-end">${formatCurrency(AppState.stats.grossProfit || 0)}</td></tr>
+                                <tbody>
+                                    <tr>
+                                        <td>GST जमा करने योग्य</td>
+                                        <td class="text-end" id="report-gst-payable">₹0.00</td>
+                                    </tr>
+                                    <tr class="table-light">
+                                        <td class="fw-bold">कुल देनदारियां</td>
+                                        <td class="text-end fw-bold" id="report-total-liabilities">₹0.00</td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
-                </div></div>
-            </div>
-        </div>`;
-
-    const getCashFlowHTML = () => `
-        <div class="card"><div class="card-body">
-            <h5 class="card-title mb-4">💵 कैश/बैंक फ्लो (पैसे का आना-जाना)</h5>
-            <div class="alert alert-warning">यह फीचर इस संस्करण में केवल फ्रंट-एंड पर है। पैसे के आने-जाने का सटीक रिकॉर्ड रखने के लिए एक अलग 'Transactions' डेटाबेस टेबल की आवश्यकता होगी।</div>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <h6>पैसे का आना (Inflow)</h6>
-                    <ul class="list-group">
-                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-down text-success me-2"></i>बिक्री से प्राप्त राशि</span><span class="text-success">${formatCurrency(AppState.stats.totalRevenue || 0)}</span></li>
-                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-down text-success me-2"></i>पूंजी निवेश</span><span>₹0.00</span></li>
-                    </ul>
-                </div>
-                <div class="col-md-6">
-                    <h6>पैसे का जाना (Outflow)</h6>
-                    <ul class="list-group">
-                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-up text-danger me-2"></i>माल की खरीद पर खर्च (COGS)</span><span class="text-danger">${formatCurrency(AppState.stats.totalCOGS || 0)}</span></li>
-                        <li class="list-group-item d-flex justify-content-between"><span><i class="fas fa-arrow-up text-danger me-2"></i>अन्य खर्च (किराया, वेतन)</span><span>₹0.00</span></li>
-                    </ul>
                 </div>
             </div>
-        </div></div>`;
+            
+        </section>
 
-    // --- DASHBOARD LOGIC (No Chart Data for now) ---
-    const renderDashboard = () => {
-        // Stats are loaded via loadDashboardStats()
-        document.getElementById('dash-total-revenue').innerText = formatCurrency(AppState.stats.totalRevenue || 0);
-        document.getElementById('dash-stock-value').innerText = formatCurrency(AppState.stats.stockValue || 0);
-        document.getElementById('dash-total-products').innerText = AppState.stats.totalProducts || 0;
-        // renderSalesChart(); // Removed chart logic for simplicity as historical sales data is not available on demand
-    };
-    
-    // --- INVOICE LOGIC (ENHANCED) ---
-    let invoiceItems = [];
-    const initializeInvoice = () => {
-        // Load settings into fields
-        ['shopName', 'shopContact', 'shopAddress', 'shopGstin'].forEach(id => {
-            document.getElementById(id).value = AppState.settings[id];
-        });
 
-        // Attach listeners
-        ['shopName', 'shopContact', 'shopAddress', 'shopGstin', 'customerName', 'customerContact', 'customerAddress'].forEach(id => {
-            document.getElementById(id).addEventListener('keyup', updateInvoicePreview);
-        });
-        document.getElementById('qrUpload').addEventListener('change', handleQrUpload);
-        document.getElementById('add-item-row-btn').addEventListener('click', addInvoiceItemRow);
-        document.getElementById('download-pdf-btn').addEventListener('click', downloadInvoicePDF);
-        document.getElementById('print-invoice-btn').addEventListener('click', () => window.print());
-        document.getElementById('clear-bill-btn').addEventListener('click', clearBill);
-        document.getElementById('record-sale-btn').addEventListener('click', recordSale); // New button
+        <!-- --------------------------------- -->
+        <!-- 8. ADMIN LOGIN Modal -->
+        <!-- --------------------------------- -->
+        <div class="modal fade" id="adminLoginModal" tabindex="-1" aria-labelledby="adminLoginModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title" id="adminLoginModalLabel">एडमिन लॉगिन</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="admin-login-form">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="admin-password" class="form-label">पासवर्ड</label>
+                                <input type="password" class="form-control" id="admin-password" required>
+                            </div>
+                            <div id="admin-login-message" class="text-danger small mt-2"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
+                            <button type="submit" class="btn btn-primary" id="admin-login-submit-btn">लॉगिन करें</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 
-        // Customer auto-fill on name selection
-        document.getElementById('customerName').addEventListener('input', (e) => {
-             const selectedCustomer = AppState.customers.find(c => c.name === e.target.value);
-             if (selectedCustomer) {
-                 document.getElementById('customerContact').value = selectedCustomer.phone;
-                 document.getElementById('customerAddress').value = selectedCustomer.address;
-             }
-             updateInvoicePreview();
-        });
-        
-        // Initial render
-        addInvoiceItemRow();
-        updateInvoicePreview();
-    };
+        <!-- --------------------------------- -->
+        <!-- 9. MESSAGE/CONFIRMATION Modal -->
+        <!-- --------------------------------- -->
+        <!-- This modal is used for all custom alerts and confirmations -->
+        <div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="messageModalLabel">संदेश</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="messageModalBody">
+                        ...
+                    </div>
+                    <div class="modal-footer" id="messageModalFooter">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">ठीक है</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-    const handleQrUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => { 
-                AppState.settings.qrCodeImage = e.target.result; 
-                saveLocalData('settings', AppState.settings);
-                updateInvoicePreview(); 
-            };
-            reader.readAsDataURL(file);
+    </div> <!-- End of Main Content -->
+
+
+    <!-- --------------------------------- -->
+    <!--         JAVASCRIPT LOGIC          -->
+    <!-- --------------------------------- -->
+    <script>
+        // Set the date input fields to today's date
+        function setTodayDate() {
+            const today = new Date().toISOString().split('T')[0];
+            const dateFields = ['purchase-date', 'expense-date', 'report-start-date', 'report-end-date'];
+            dateFields.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.value = today;
+                }
+            });
         }
-    };
-    
-    const addInvoiceItemRow = () => {
-        const container = document.getElementById('items-container');
-        const row = document.createElement('div');
-        row.className = 'row g-2 mb-2 item-row';
-        row.innerHTML = `
-            <div class="col-5"><input type="text" class="form-control item-name" placeholder="आइटम का नाम" list="stock-datalist"></div>
-            <div class="col-2"><input type="number" class="form-control item-qty" placeholder="मात्रा" value="1" min="1"></div>
-            <div class="col-3"><input type="number" class="form-control item-price" placeholder="दर" step="0.01"></div>
-            <div class="col-2"><button class="btn btn-sm btn-danger remove-item-btn">X</button></div>
-            <datalist id="stock-datalist">${AppState.stock.map(s => `<option value="${s.name}"></option>`).join('')}</datalist>
-        `;
-        container.appendChild(row);
-        row.querySelector('.remove-item-btn').addEventListener('click', () => { row.remove(); updateInvoicePreview(); });
-        row.querySelectorAll('input').forEach(input => {
-            input.addEventListener('input', (e) => {
-                // Auto-fill price and track stock ID/purchase price
-                if (e.target.classList.contains('item-name')) {
-                    const selectedStock = AppState.stock.find(s => s.name === e.target.value);
-                    if (selectedStock) {
-                        row.querySelector('.item-price').value = selectedStock.salePrice;
-                        // Attach data attributes for tracking
-                        row.setAttribute('data-stock-id', selectedStock.id);
-                        row.setAttribute('data-purchase-price', selectedStock.purchasePrice);
+        setTodayDate();
+
+        // Utility function to format currency in Indian Rupees
+        const formatCurrency = (amount) => {
+            if (typeof amount === 'string') {
+                amount = parseFloat(amount);
+            }
+            if (isNaN(amount)) return '₹0.00';
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        };
+
+        // Utility function to show custom modal messages (replaces alert/confirm)
+        const showMessage = (title, message, isConfirmation = false, onConfirm = null) => {
+            const modal = new bootstrap.Modal(document.getElementById('messageModal'));
+            document.getElementById('messageModalLabel').innerText = title;
+            document.getElementById('messageModalBody').innerHTML = message;
+            
+            const footer = document.getElementById('messageModalFooter');
+            footer.innerHTML = ''; // Clear previous buttons
+
+            if (isConfirmation && onConfirm) {
+                const confirmBtn = document.createElement('button');
+                confirmBtn.classList.add('btn', 'btn-danger');
+                confirmBtn.innerText = 'पुष्टि करें';
+                confirmBtn.onclick = () => {
+                    onConfirm();
+                    modal.hide();
+                };
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.classList.add('btn', 'btn-secondary');
+                cancelBtn.innerText = 'रद्द करें';
+                cancelBtn.setAttribute('data-bs-dismiss', 'modal');
+
+                footer.appendChild(cancelBtn);
+                footer.appendChild(confirmBtn);
+            } else {
+                const okBtn = document.createElement('button');
+                okBtn.classList.add('btn', 'btn-primary');
+                okBtn.innerText = 'ठीक है';
+                okBtn.setAttribute('data-bs-dismiss', 'modal');
+                footer.appendChild(okBtn);
+            }
+
+            modal.show();
+        };
+
+        // --- FETCH UTILITY ---
+        // Handles API calls, timeouts, and basic error responses
+        const fetchApi = async (endpoint, options = {}) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
+            
+            const defaultOptions = {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal
+            };
+            
+            const finalOptions = { ...defaultOptions, ...options };
+            if (options.body && typeof options.body !== 'string') {
+                finalOptions.body = JSON.stringify(options.body);
+            }
+
+            try {
+                const response = await fetch(`${__backend_url}${endpoint}`, finalOptions);
+                clearTimeout(timeoutId);
+
+                if (response.status === 401) {
+                    throw new Error("अनधिकृत (Unauthorized). कृपया एडमिन के रूप में लॉगिन करें।");
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    throw new Error("सर्वर प्रतिक्रिया में समय लगा (Server timeout)। कृपया जांचें कि आपका सर्वर चल रहा है।");
+                }
+                throw error;
+            }
+        };
+
+        // --- NAVIGATION & UI SETUP ---
+        const toggleSidebar = (show) => {
+            const sidebar = document.getElementById('sidebar');
+            // Check if on mobile (screen width less than 992px)
+            if (window.innerWidth <= 991.98) {
+                if (show === undefined) {
+                    sidebar.classList.toggle('active');
+                } else if (show) {
+                    sidebar.classList.add('active');
+                } else {
+                    sidebar.classList.remove('active');
+                }
+            }
+        };
+
+        document.getElementById('menu-toggle').addEventListener('click', () => toggleSidebar());
+
+        const setupNavigation = () => {
+            document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
+                link.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    
+                    if (!AppState.isLicensed) {
+                        showMessage('लाइसेंस त्रुटि', 'यह सुविधा केवल सक्रिय लाइसेंस के साथ उपलब्ध है। कृपया पहले एडमिन के रूप में लॉगिन करें।');
+                        return;
+                    }
+
+                    const newView = link.getAttribute('data-view');
+                    if (newView === AppState.currentView) return;
+
+                    // Update UI
+                    document.querySelector('.nav-link.active').classList.remove('active');
+                    link.classList.add('active');
+                    document.getElementById(AppState.currentView).classList.remove('active');
+                    document.getElementById(newView).classList.add('active');
+                    
+                    AppState.currentView = newView;
+                    toggleSidebar(false); // Close sidebar on mobile
+
+                    // Fetch data and render for the new view
+                    document.getElementById('loading-overlay').classList.remove('hidden');
+                    document.getElementById('loading-message').innerText = 'डेटा लोड हो रहा है...';
+                    
+                    try {
+                        let data;
+                        switch(newView) {
+                            case 'dashboard':
+                                data = await fetchApi('/api/admin-data'); // Fetches all required data
+                                AppState.stats = data.stats || {};
+                                AppState.sales = data.sales || [];
+                                AppState.customers = data.customers || [];
+                                AppState.stock = data.stock || [];
+                                AppState.lowStock = data.lowStock || [];
+                                renderDashboard();
+                                break;
+                            case 'stock':
+                                data = await fetchApi('/api/stock');
+                                AppState.stock = data;
+                                renderStockTable();
+                                break;
+                            case 'sales':
+                                // For sales list, use data from dashboard fetch if available, otherwise fetch.
+                                if (AppState.sales.length === 0) {
+                                    const salesData = await fetchApi('/api/sales');
+                                    AppState.sales = salesData;
+                                }
+                                // Ensure stock data is available for POS search
+                                if (AppState.stock.length === 0) {
+                                    const stockData = await fetchApi('/api/stock');
+                                    AppState.stock = stockData;
+                                }
+                                renderSalesTable(); // Render recent sales in POS section
+                                break;
+                            case 'purchases':
+                                data = await fetchApi('/api/purchases');
+                                AppState.purchases = data;
+                                renderPurchasesTable();
+                                // Ensure stock data is available for auto-filling item details
+                                if (AppState.stock.length === 0) {
+                                    const stockData = await fetchApi('/api/stock');
+                                    AppState.stock = stockData;
+                                }
+                                break;
+                            case 'crm':
+                                data = await fetchApi('/api/customers');
+                                AppState.customers = data;
+                                renderCrmTable();
+                                break;
+                            case 'expenses':
+                                data = await fetchApi('/api/expenses');
+                                AppState.expenses = data;
+                                renderExpensesTable();
+                                break;
+                            case 'reports':
+                                data = await fetchApi('/api/reports');
+                                AppState.stats = data; // Assumes reports endpoint returns comprehensive stats
+                                AppState.expenses = data.expenses || [];
+                                renderReports();
+                                break;
+                        }
+                    } catch (error) {
+                        showMessage('डेटा लोड त्रुटि', error.message);
+                        console.error("Navigation Data Fetch Error:", error);
+                    } finally {
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                    }
+                });
+            });
+        };
+
+        // --- LICENSE & AUTHENTICATION ---
+        const setupLicenseCheck = async () => {
+            const overlay = document.getElementById('loading-overlay');
+            const message = document.getElementById('loading-message');
+            message.innerText = 'लाइसेंस की जांच हो रही है...';
+            
+            try {
+                // 1. Check license status (This should be the very first call)
+                const licenseResponse = await fetchApi('/api/license-check');
+                AppState.isLicensed = licenseResponse.isLicensed;
+
+                if (AppState.isLicensed) {
+                    // 2. If licensed, fetch dashboard data immediately
+                    message.innerText = 'डैशबोर्ड डेटा लोड हो रहा है...';
+                    const data = await fetchApi('/api/admin-data');
+                    AppState.stats = data.stats || {};
+                    AppState.sales = data.sales || [];
+                    AppState.customers = data.customers || [];
+                    AppState.stock = data.stock || [];
+                    AppState.lowStock = data.lowStock || [];
+                    renderDashboard(); // Render the initial dashboard
+
+                    // Set initial view to dashboard
+                    AppState.currentView = 'dashboard';
+                    document.getElementById('dashboard').classList.add('active');
+                } else {
+                    // Show message but don't stop the app. User needs to login.
+                    showMessage('लाइसेंस की आवश्यकता है', 'एप्लिकेशन का उपयोग करने के लिए आपको एडमिन के रूप में लॉगिन करना होगा और लाइसेंस प्राप्त करना होगा।');
+                    AppState.currentView = 'dashboard';
+                    document.getElementById('dashboard').classList.add('active'); 
+                }
+            } catch (error) {
+                showMessage('सर्वर कनेक्शन त्रुटि', `सर्वर से कनेक्ट नहीं हो सका: ${error.message}`);
+                console.error("Initial Check Error:", error);
+            } finally {
+                overlay.classList.add('hidden');
+                setupNavigation();
+                setupForms(); // Setup form listeners after initial load
+            }
+        };
+
+        const setupAdminLogin = () => {
+            const loginModal = new bootstrap.Modal(document.getElementById('adminLoginModal'));
+            document.getElementById('admin-login-btn').addEventListener('click', () => {
+                document.getElementById('admin-password').value = '';
+                document.getElementById('admin-login-message').innerText = '';
+                loginModal.show();
+            });
+
+            document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = document.getElementById('admin-password').value;
+                const messageElement = document.getElementById('admin-login-message');
+                messageElement.innerText = 'लॉगिन हो रहा है...';
+                
+                try {
+                    const response = await fetchApi('/api/admin-login', {
+                        method: 'POST',
+                        body: { password }
+                    });
+
+                    if (response.success) {
+                        AppState.isLicensed = true;
+                        loginModal.hide();
+                        showMessage('सफलता', 'एडमिन लॉगिन सफल। अब आप सभी सुविधाओं का उपयोग कर सकते हैं।');
+                        // Re-trigger dashboard load to refresh data
+                        document.querySelector('[data-view="dashboard"]').click();
                     } else {
-                        row.removeAttribute('data-stock-id');
-                        row.removeAttribute('data-purchase-price');
+                        messageElement.innerText = response.message || 'लॉगिन विफल।';
+                    }
+                } catch (error) {
+                    messageElement.innerText = error.message;
+                }
+            });
+        };
+
+        // --- DASHBOARD RENDERING ---
+        let salesChartInstance = null;
+        const renderDashboard = () => {
+            
+            // Update cards
+            document.getElementById('total-sales-revenue').innerText = formatCurrency(AppState.stats.totalSalesRevenue || 0);
+            document.getElementById('total-stock-value').innerText = formatCurrency(AppState.stats.stockValue || 0);
+            document.getElementById('total-customers').innerText = AppState.customers.length.toString();
+            document.getElementById('low-stock-count').innerText = AppState.lowStock.length.toString();
+
+            // Render Low Stock Table
+            const lowStockBody = document.getElementById('low-stock-table-body');
+            lowStockBody.innerHTML = '';
+            if (AppState.lowStock.length === 0) {
+                lowStockBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">कोई कम स्टॉक आइटम नहीं</td></tr>';
+            } else {
+                AppState.lowStock.forEach(item => {
+                    lowStockBody.innerHTML += `
+                        <tr>
+                            <td>${item.SKU}</td>
+                            <td>${item['Item Name']}</td>
+                            <td><span class="badge bg-danger">${item.Quantity}</span></td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Render Recent Sales Table
+            const recentSalesBody = document.getElementById('recent-sales-table-body');
+            recentSalesBody.innerHTML = '';
+            if (AppState.sales.length === 0) {
+                recentSalesBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">कोई बिक्री नहीं</td></tr>';
+            } else {
+                AppState.sales.slice(0, 10).forEach(sale => { // Show top 10 recent sales
+                    recentSalesBody.innerHTML += `
+                        <tr>
+                            <td>${sale['Invoice Number']}</td>
+                            <td>${sale['Customer Name']}</td>
+                            <td>${formatCurrency(sale['Total Amount'])}</td>
+                            <td>${new Date(sale.Date).toLocaleDateString('hi-IN')}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Render Recent Customers Table
+            const recentCustomersBody = document.getElementById('recent-customers-table-body');
+            recentCustomersBody.innerHTML = '';
+            if (AppState.customers.length === 0) {
+                recentCustomersBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">कोई ग्राहक नहीं</td></tr>';
+            } else {
+                AppState.customers.slice(0, 10).forEach(customer => { // Show top 10 recent customers
+                    recentCustomersBody.innerHTML += `
+                        <tr>
+                            <td>${customer.Name}</td>
+                            <td>${customer.Phone}</td>
+                            <td>${new Date(customer['Date Added']).toLocaleDateString('hi-IN')}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Render Sales Chart
+            const chartData = AppState.sales.reduce((acc, sale) => {
+                // Group sales by date
+                const date = new Date(sale.Date).toLocaleDateString('en-CA'); // YYYY-MM-DD for consistent grouping
+                acc[date] = (acc[date] || 0) + parseFloat(sale['Total Amount']);
+                return acc;
+            }, {});
+
+            // Generate labels and data for the last 30 days
+            const last30Days = Array.from({ length: 30 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                return d.toLocaleDateString('en-CA');
+            }).reverse();
+
+            const salesValues = last30Days.map(date => chartData[date] || 0);
+            const salesLabels = last30Days.map(date => new Date(date).toLocaleDateString('hi-IN', { month: 'short', day: 'numeric' }));
+
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            if (salesChartInstance) {
+                salesChartInstance.destroy(); // Destroy previous instance
+            }
+            salesChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: salesLabels,
+                    datasets: [{
+                        label: 'दैनिक बिक्री (₹)',
+                        data: salesValues,
+                        backgroundColor: '#0d6efd',
+                        borderColor: '#0b5ed7',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
                     }
                 }
-                updateInvoicePreview();
             });
-        });
-        updateInvoicePreview();
-    };
+        };
 
-    const updateInvoicePreview = () => {
-        const preview = document.getElementById('invoice-preview');
-        // Save settings from fields
-        AppState.settings.shopName = document.getElementById('shopName').value;
-        AppState.settings.shopContact = document.getElementById('shopContact').value;
-        AppState.settings.shopAddress = document.getElementById('shopAddress').value;
-        AppState.settings.shopGstin = document.getElementById('shopGstin').value;
-        saveLocalData('settings', AppState.settings);
 
-        const customerName = document.getElementById('customerName').value || 'ग्राहक';
-        
-        invoiceItems = [];
-        let subTotal = 0, totalGst = 0, totalCOGS = 0;
-        
-        document.querySelectorAll('.item-row').forEach(row => {
-            const name = row.querySelector('.item-name').value;
-            const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-            const price = parseFloat(row.querySelector('.item-price').value) || 0;
-            const stockId = row.getAttribute('data-stock-id');
-            const purchasePrice = parseFloat(row.getAttribute('data-purchase-price')) || 0;
+        // --- STOCK RENDERING ---
+        const renderStockTable = () => {
+            const tableBody = document.getElementById('stock-table-body');
+            tableBody.innerHTML = '';
 
-            if (name && qty > 0 && price > 0) {
-                const itemTotal = qty * price;
-                const gstAmount = itemTotal * GST_RATE;
-                const totalWithGst = itemTotal + gstAmount;
-
-                const itemData = { 
-                    id: stockId, // Required for stock update
-                    name, 
-                    qty, 
-                    price, 
-                    total: itemTotal, 
-                    gst: gstAmount,
-                    totalWithGst: totalWithGst,
-                    purchasePrice: purchasePrice // Required for COGS calculation
-                };
-                invoiceItems.push(itemData);
-                subTotal += itemTotal;
-                totalGst += gstAmount;
-                totalCOGS += qty * purchasePrice;
+            if (AppState.stock.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">कोई स्टॉक आइटम नहीं मिला</td></tr>';
+                return;
             }
-        });
 
-        const grandTotal = subTotal + totalGst;
-        const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+            AppState.stock.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.SKU}</td>
+                    <td>${item['Item Name']}</td>
+                    <td><span class="badge ${item.Quantity <= 10 ? 'bg-danger' : 'bg-success'}">${item.Quantity}</span></td>
+                    <td>${item.Unit}</td>
+                    <td>${formatCurrency(item['Purchase Price'])}</td>
+                    <td>${formatCurrency(item['Sale Price'])}</td>
+                    <td>${item.GST}%</td>
+                    <td>
+                        <!-- Edit button functionality is typically more complex, leaving it as a placeholder -->
+                        <button class="btn btn-sm btn-info edit-stock-btn" data-sku="${item.SKU}" disabled title="एडिट फ़ंक्शन अभी लागू नहीं है"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger delete-stock-btn" data-sku="${item.SKU}"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
 
-        let itemsHtml = invoiceItems.map((item, index) => `
-            <tr>
-                <td>${index + 1}. ${item.name}</td>
-                <td>${item.qty}</td>
-                <td>${formatCurrency(item.price)}</td>
-                <td>${formatCurrency(item.total)}</td>
-                <td>${formatCurrency(item.gst)}</td>
-                <td>${formatCurrency(item.totalWithGst)}</td>
-            </tr>`).join('');
+            // Add listeners for delete
+            document.querySelectorAll('.delete-stock-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const sku = e.currentTarget.getAttribute('data-sku');
+                    showMessage('पुष्टि करें', `क्या आप SKU: <b>${sku}</b> को हटाना चाहते हैं? यह स्टॉक, बिक्री और खरीद को प्रभावित कर सकता है।`, true, () => deleteStock(sku));
+                });
+            });
+        };
+
+        const deleteStock = async (sku) => {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-message').innerText = `स्टॉक आइटम ${sku} हटा रहा है...`;
+            try {
+                const response = await fetchApi(`/api/stock/${sku}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('सफलता', response.message);
+                
+                // Update AppState and re-render
+                AppState.stock = AppState.stock.filter(item => item.SKU !== sku);
+                renderStockTable();
+
+            } catch (error) {
+                showMessage('त्रुटि', `स्टॉक आइटम हटाने में विफल: ${error.message}`);
+            } finally {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        };
+
+
+        // --- SALES (POS) RENDERING & LOGIC ---
+        const posState = {
+            cart: [],
+        };
+
+        const updatePosTotals = () => {
+            let subtotal = 0;
+            let gstAmount = 0;
+            let totalAmount = 0;
+
+            posState.cart.forEach(item => {
+                const itemTotal = item.SalePrice * item.Quantity;
+                const itemGst = itemTotal * (item.GST / 100);
+                
+                subtotal += itemTotal;
+                gstAmount += itemGst;
+                totalAmount += itemTotal + itemGst;
+            });
+
+            document.getElementById('pos-subtotal').innerText = formatCurrency(subtotal);
+            document.getElementById('pos-gst-amount').innerText = formatCurrency(gstAmount);
+            document.getElementById('pos-total-amount').innerText = formatCurrency(totalAmount);
+        };
+
+        const renderPosCart = () => {
+            const cartBody = document.getElementById('pos-cart-body');
+            cartBody.innerHTML = '';
+
+            if (posState.cart.length === 0) {
+                cartBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">कार्ट खाली है।</td></tr>';
+            } else {
+                posState.cart.forEach((item, index) => {
+                    const taxable = item.SalePrice * item.Quantity;
+                    const gstVal = taxable * (item.GST / 100);
+                    const total = taxable + gstVal;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.ItemName}</td>
+                        <td><input type="number" class="form-control form-control-sm pos-qty-input" data-index="${index}" value="${item.Quantity}" min="1" max="${item.AvailableQuantity}"></td>
+                        <td>${formatCurrency(item.SalePrice)}</td>
+                        <td>${item.GST}%</td>
+                        <td class="fw-bold">${formatCurrency(total)}</td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-index="${index}"><i class="fas fa-times"></i></button></td>
+                    `;
+                    cartBody.appendChild(row);
+                });
+            }
+
+            updatePosTotals();
+
+            // Add listeners for cart quantity change
+            document.querySelectorAll('.pos-qty-input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    const newQty = parseInt(e.target.value);
+                    const maxQty = parseInt(e.target.getAttribute('max'));
+                    
+                    if (newQty > 0 && newQty <= maxQty) {
+                        posState.cart[index].Quantity = newQty;
+                    } else if (newQty > maxQty) {
+                        posState.cart[index].Quantity = maxQty;
+                        e.target.value = maxQty;
+                        showMessage('स्टॉक चेतावनी', `मात्रा उपलब्ध स्टॉक (${maxQty}) से अधिक नहीं हो सकती।`);
+                    } else {
+                        posState.cart[index].Quantity = 1;
+                        e.target.value = 1;
+                    }
+                    renderPosCart();
+                });
+            });
+
+            // Add listeners for removing item from cart
+            document.querySelectorAll('.remove-item-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.getAttribute('data-index'));
+                    posState.cart.splice(index, 1);
+                    renderPosCart();
+                });
+            });
+        };
+
+        const setupPosSearch = () => {
+            const searchInput = document.getElementById('pos-item-search');
+            const resultsList = document.getElementById('pos-search-results');
+
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().trim();
+                resultsList.innerHTML = '';
+                if (query.length < 2) {
+                    resultsList.style.display = 'none';
+                    return;
+                }
+
+                const filteredStock = AppState.stock.filter(item =>
+                    item['Item Name'].toLowerCase().includes(query) || 
+                    item.SKU.toLowerCase().includes(query)
+                ).slice(0, 5);
+
+                if (filteredStock.length > 0) {
+                    filteredStock.forEach(item => {
+                        const li = document.createElement('li');
+                        li.classList.add('list-group-item', 'list-group-item-action', 'p-2');
+                        li.innerHTML = `
+                            <div><strong>${item['Item Name']}</strong> (${item.SKU})</div>
+                            <small class="text-muted">स्टॉक: ${item.Quantity} | दर: ${formatCurrency(item['Sale Price'])}</small>
+                        `;
+                        li.addEventListener('click', () => {
+                            addItemToCart(item);
+                            searchInput.value = '';
+                            resultsList.style.display = 'none';
+                        });
+                        resultsList.appendChild(li);
+                    });
+                    resultsList.style.display = 'block';
+                } else {
+                    resultsList.innerHTML = `<li class="list-group-item text-muted p-2">कोई आइटम नहीं मिला</li>`;
+                    resultsList.style.display = 'block';
+                }
+            });
+
+            // Hide results when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !resultsList.contains(e.target)) {
+                    resultsList.style.display = 'none';
+                }
+            });
+        };
+
+        const addItemToCart = (item) => {
+            const existingItem = posState.cart.find(cartItem => cartItem.SKU === item.SKU);
+
+            if (existingItem) {
+                if (existingItem.Quantity < item.Quantity) {
+                    existingItem.Quantity++;
+                } else {
+                    showMessage('स्टॉक सीमा', 'इस आइटम का स्टॉक खत्म हो गया है या आप पहले ही अधिकतम उपलब्ध मात्रा जोड़ चुके हैं।');
+                }
+            } else {
+                if (item.Quantity > 0) {
+                    posState.cart.push({
+                        SKU: item.SKU,
+                        ItemName: item['Item Name'],
+                        SalePrice: parseFloat(item['Sale Price']),
+                        GST: parseFloat(item.GST),
+                        Quantity: 1,
+                        AvailableQuantity: parseInt(item.Quantity)
+                    });
+                } else {
+                    showMessage('स्टॉक खाली', 'यह आइटम स्टॉक में उपलब्ध नहीं है।');
+                }
+            }
+            renderPosCart();
+        };
+
+        const renderSalesTable = () => {
+            const tableBody = document.getElementById('sales-table-body');
+            tableBody.innerHTML = '';
+
+            if (AppState.sales.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">कोई बिक्री रिकॉर्ड नहीं।</td></tr>';
+                return;
+            }
+
+            AppState.sales.forEach(sale => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${sale['Invoice Number']}</td>
+                    <td>${sale['Customer Name']}</td>
+                    <td>${formatCurrency(sale['Total Amount'])}</td>
+                    <td>${new Date(sale.Date).toLocaleDateString('hi-IN')}</td>
+                    <td>
+                        <!-- View button is a placeholder -->
+                        <button class="btn btn-sm btn-secondary view-sale-btn" data-invoice="${sale['Invoice Number']}" disabled title="व्यू फ़ंक्शन अभी लागू नहीं है"><i class="fas fa-eye"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        };
         
-        preview.innerHTML = `
-            <div class="invoice-header">
-                <div class="shop-details">
-                    <h3>${AppState.settings.shopName}</h3>
-                    <p>${AppState.settings.shopAddress}<br>संपर्क: ${AppState.settings.shopContact}<br>GSTIN: ${AppState.settings.shopGstin}</p>
-                </div>
-                <div>${AppState.settings.qrCodeImage ? `<img src="${AppState.settings.qrCodeImage}" alt="QR Code" style="max-width:100px;">` : ''}</div>
-            </div>
-            <h4 class="text-center bg-light p-2 mb-3">TAX INVOICE</h4>
-            <div class="row customer-details mb-3">
-                <div class="col-6"><strong>Bill To:</strong><br>${customerName}<br>${document.getElementById('customerAddress').value}<br>फोन: ${document.getElementById('customerContact').value}</div>
-                <div class="col-6 text-end"><strong>Invoice No:</strong> ${invoiceNumber}<br><strong>Date:</strong> ${new Date().toLocaleDateString('hi-IN')}</div>
-            </div>
-            <table class="table invoice-table table-bordered table-sm">
-                <thead><tr><th>#</th><th style="width:25%;">आइटम</th><th>मात्रा</th><th>दर (Excl. GST)</th><th>कुल (Excl. GST)</th><th>GST (${GST_RATE * 100}%)</th><th>Grand Total</th></tr></thead>
-                <tbody>${itemsHtml || '<tr><td colspan="7" class="text-center">कोई आइटम नहीं</td></tr>'}</tbody>
-            </table>
-            <div class="invoice-footer d-flex justify-content-end mt-4">
-                <table class="table totals-table w-50 table-sm table-borderless">
-                    <tr><th>Sub Total (Excl. GST):</th><td class="text-end">${formatCurrency(subTotal)}</td></tr>
-                    <tr><th>Total GST:</th><td class="text-end">${formatCurrency(totalGst)}</td></tr>
-                    <tr class="table-primary"><th><strong>Grand Total:</strong></th><td class="text-end"><strong>${formatCurrency(grandTotal)}</strong></td></tr>
-                </table>
-            </div>
-            <div class="mt-4 text-center border-top pt-2"><small>यह एक कंप्यूटर जनित इनवॉइस है।</small></div>
-            `;
+        const completeSale = async () => {
+            if (posState.cart.length === 0) {
+                showMessage('त्रुटि', 'कृपया कार्ट में आइटम जोड़ें।');
+                return;
+            }
+
+            const customerName = document.getElementById('pos-customer').value.trim() || 'अनाम ग्राहक';
+            const paymentMethod = document.getElementById('pos-payment-method').value;
             
-        // Save current totals for sale recording
-        preview.setAttribute('data-subtotal', subTotal.toFixed(2));
-        preview.setAttribute('data-total-gst', totalGst.toFixed(2));
-        preview.setAttribute('data-grand-total', grandTotal.toFixed(2));
-        preview.setAttribute('data-total-cogs', totalCOGS.toFixed(2));
-        preview.setAttribute('data-invoice-number', invoiceNumber);
-    };
+            let totalAmount = 0;
+            let totalTaxable = 0;
+            let totalTax = 0;
 
-    const recordSale = async () => {
-        if (!AppState.isLicensed) return DOM.licenseModal.show();
-        if (invoiceItems.length === 0) {
-            showToast("रिकॉर्ड करने के लिए कोई आइटम नहीं है।", "error");
-            return;
-        }
+            const saleItems = posState.cart.map(item => {
+                const taxable = item.SalePrice * item.Quantity;
+                const tax = taxable * (item.GST / 100);
+                totalTaxable += taxable;
+                totalTax += tax;
+                totalAmount += taxable + tax;
+                
+                // Find the internal ID (necessary for the backend update)
+                const stockItem = AppState.stock.find(s => s.SKU === item.SKU);
 
-        if (invoiceItems.some(item => !item.id)) {
-            showToast("कुछ आइटम स्टॉक में नहीं हैं। कृपया उन्हें स्टॉक में जोड़ें।", "error");
-            return;
-        }
-        
-        const preview = document.getElementById('invoice-preview');
-        const subTotal = parseFloat(preview.getAttribute('data-subtotal'));
-        const totalGst = parseFloat(preview.getAttribute('data-total-gst'));
-        const totalCOGS = parseFloat(preview.getAttribute('data-total-cogs'));
-        const invoiceNumber = preview.getAttribute('data-invoice-number');
+                return {
+                    id: stockItem?.ID, // Get internal ID from stock
+                    SKU: item.SKU,
+                    name: item.ItemName,
+                    quantity: item.Quantity,
+                    price: item.SalePrice,
+                    gst: item.GST,
+                    taxableAmount: taxable,
+                    taxAmount: tax,
+                    total: taxable + tax
+                };
+            });
 
-        const saleData = {
-            invoice_number: invoiceNumber,
-            total_amount: subTotal, // Revenue before tax
-            total_tax: totalGst,
-            total_cogs: totalCOGS,
-            items: invoiceItems.map(item => ({
-                id: item.id,
-                quantity: item.qty,
-                sale_price: item.price,
-                purchase_price: item.purchasePrice
-            }))
+            if (saleItems.some(item => !item.id)) {
+                showMessage('त्रुटि', 'कार्ट में एक या एक से अधिक आइटम का स्टॉक आईडी नहीं मिल सका। कृपया स्टॉक डेटा को ताज़ा करें।');
+                return;
+            }
+            
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-message').innerText = 'बिक्री रिकॉर्ड की जा रही है...';
+
+            try {
+                const response = await fetchApi('/api/sales', {
+                    method: 'POST',
+                    body: {
+                        customerName,
+                        paymentMethod,
+                        totalAmount,
+                        totalTax,
+                        items: saleItems
+                    }
+                });
+
+                showMessage('सफलता', `बिक्री सफलतापूर्वक रिकॉर्ड की गई! चालान नं.: <b>${response.invoiceNumber}</b>. कुल राशि: ${formatCurrency(totalAmount)}`);
+                
+                // Reset POS state
+                posState.cart = [];
+                document.getElementById('pos-customer').value = '';
+                renderPosCart();
+
+                // Refresh sales and stock data
+                document.getElementById('refresh-sales-btn').click(); 
+                document.querySelector('[data-view="stock"]').click(); // Force stock refresh for updated quantities
+
+            } catch (error) {
+                showMessage('बिक्री त्रुटि', `बिक्री दर्ज करने में विफल: ${error.message}`);
+            } finally {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        };
+
+
+        // --- PURCHASES RENDERING & LOGIC ---
+        const renderPurchasesTable = () => {
+            const tableBody = document.getElementById('purchases-table-body');
+            tableBody.innerHTML = '';
+
+            if (AppState.purchases.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">कोई खरीद रिकॉर्ड नहीं मिला</td></tr>';
+                return;
+            }
+
+            AppState.purchases.forEach(purchase => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${purchase['Invoice Number']}</td>
+                    <td>${purchase['Supplier Name']}</td>
+                    <td>${purchase['Item Name']} (${purchase.SKU})</td>
+                    <td>${purchase.Quantity}</td>
+                    <td>${formatCurrency(purchase['Total Amount'])}</td>
+                    <td>${new Date(purchase.Date).toLocaleDateString('hi-IN')}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger delete-purchase-btn" data-id="${purchase.ID}"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Add listeners for delete
+            document.querySelectorAll('.delete-purchase-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.currentTarget.getAttribute('data-id');
+                    showMessage('पुष्टि करें', `क्या आप इस खरीद रिकॉर्ड को हटाना चाहते हैं? यह स्टॉक को कम करेगा।`, true, () => deletePurchase(id));
+                });
+            });
+        };
+
+        const deletePurchase = async (id) => {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-message').innerText = 'खरीद रिकॉर्ड हटा रहा है...';
+            try {
+                const response = await fetchApi(`/api/purchases/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('सफलता', response.message);
+                
+                // Update AppState and re-render
+                AppState.purchases = AppState.purchases.filter(p => p.ID !== parseInt(id));
+                renderPurchasesTable();
+                document.querySelector('[data-view="stock"]').click(); // Force stock refresh
+
+            } catch (error) {
+                showMessage('त्रुटि', `खरीद रिकॉर्ड हटाने में विफल: ${error.message}`);
+            } finally {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        };
+
+
+        // --- CRM RENDERING & LOGIC ---
+        const renderCrmTable = () => {
+            const tableBody = document.getElementById('crm-table-body');
+            tableBody.innerHTML = '';
+
+            if (AppState.customers.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">कोई ग्राहक नहीं मिला</td></tr>';
+                return;
+            }
+
+            AppState.customers.forEach(customer => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${customer.Name}</td>
+                    <td>${customer.Phone}</td>
+                    <td>${customer.Email || 'N/A'}</td>
+                    <td>${customer.Address || 'N/A'}</td>
+                    <td>${new Date(customer['Date Added']).toLocaleDateString('hi-IN')}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger delete-customer-btn" data-id="${customer.ID}"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Add listeners for delete
+            document.querySelectorAll('.delete-customer-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.currentTarget.getAttribute('data-id');
+                    showMessage('पुष्टि करें', `क्या आप ग्राहक ID: ${id} को हटाना चाहते हैं?`, true, () => deleteCustomer(id));
+                });
+            });
+        };
+
+        const deleteCustomer = async (id) => {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-message').innerText = 'ग्राहक हटा रहा है...';
+            try {
+                const response = await fetchApi(`/api/customers/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('सफलता', response.message);
+                
+                // Update AppState and re-render
+                AppState.customers = AppState.customers.filter(c => c.ID !== parseInt(id));
+                renderCrmTable();
+
+            } catch (error) {
+                showMessage('त्रुटि', `ग्राहक हटाने में विफल: ${error.message}`);
+            } finally {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        };
+
+
+        // --- EXPENSES RENDERING & LOGIC ---
+        const renderExpensesTable = () => {
+            const tableBody = document.getElementById('expenses-table-body');
+            tableBody.innerHTML = '';
+
+            if (AppState.expenses.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">कोई खर्च रिकॉर्ड नहीं मिला</td></tr>';
+                return;
+            }
+
+            AppState.expenses.forEach(expense => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(expense.Date).toLocaleDateString('hi-IN')}</td>
+                    <td><span class="badge bg-secondary">${expense.Category}</span></td>
+                    <td>${expense.Description}</td>
+                    <td>${formatCurrency(expense.Amount)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger delete-expense-btn" data-id="${expense.ID}"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Add listeners for delete
+            document.querySelectorAll('.delete-expense-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const id = e.currentTarget.getAttribute('data-id');
+                    showMessage('पुष्टि करें', `क्या आप इस खर्च रिकॉर्ड को हटाना चाहते हैं?`, true, () => deleteExpense(id));
+                });
+            });
+        };
+
+        const deleteExpense = async (id) => {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-message').innerText = 'खर्च रिकॉर्ड हटा रहा है...';
+            try {
+                const response = await fetchApi(`/api/expenses/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage('सफलता', response.message);
+                
+                // Update AppState and re-render
+                AppState.expenses = AppState.expenses.filter(e => e.ID !== parseInt(id));
+                renderExpensesTable();
+
+            } catch (error) {
+                showMessage('त्रुटि', `खर्च रिकॉर्ड हटाने में विफल: ${error.message}`);
+            } finally {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
         };
         
-        const data = await fetchAPI('/sales', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(saleData)
-        });
+        // --- REPORTS LOGIC (API Data) ---
+        const renderReports = () => {
+            // Data is fetched and stored in AppState.stats by setupNavigation
+            const { totalSalesRevenue, totalTaxCollected, totalCOGS, grossProfit, totalExpenses, netProfit, stockValue, totalAssets, totalLiabilities } = AppState.stats;
+            
+            // P&L
+            document.getElementById('report-total-sales-rev').innerText = formatCurrency(totalSalesRevenue || 0);
+            document.getElementById('report-total-gst').innerText = formatCurrency(totalTaxCollected || 0);
+            document.getElementById('report-total-cogs').innerText = `- ${formatCurrency(totalCOGS || 0)}`;
+            document.getElementById('report-gross-profit').innerText = formatCurrency(grossProfit || 0);
+            document.getElementById('report-total-expenses').innerText = `- ${formatCurrency(totalExpenses || 0)}`;
+            document.getElementById('report-net-profit').innerText = formatCurrency(netProfit || 0);
 
-        if (data && data.success) {
-            showToast("बिक्री सफलतापूर्वक रिकॉर्ड की गई! स्टॉक अपडेट हो गया है।", "success");
-            clearBill(false); // Clear the form but no confirmation
-            await loadDashboardStats(); // Refresh stats after sale
-        } else {
-            showToast(data.message || "बिक्री रिकॉर्ड करने में विफल।", "error");
-        }
-    };
-
-    const downloadInvoicePDF = () => {
-        const invoiceElement = document.getElementById('invoice-preview');
-        html2canvas(invoiceElement, { scale: 2 }).then(canvas => {
-            const imgData = canvas.toDataURL('image/png');
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
-            pdf.save(`invoice-${Date.now()}.pdf`);
-        });
-    };
-
-    const clearBill = (confirm = true) => {
-        if (!confirm || window.confirm("क्या आप वाकई बिल साफ़ करना चाहते हैं?")) {
-            invoiceItems = [];
-            document.getElementById('items-container').innerHTML = '';
-            document.getElementById('customerName').value = '';
-            document.getElementById('customerContact').value = '';
-            document.getElementById('customerAddress').value = '';
-            addInvoiceItemRow();
-            updateInvoicePreview();
-        }
-    };
-
-    // --- STOCK LOGIC (API INTEGRATION) ---
-    const renderStockTable = () => {
-        const tbody = document.getElementById('stock-table-body');
-        tbody.innerHTML = AppState.stock.map(item => `
-            <tr>
-                <td>${item.id}</td><td>${item.sku}</td><td>${item.name}</td><td>${formatCurrency(item.purchasePrice)}</td><td>${formatCurrency(item.salePrice)}</td>
-                <td class="fw-bold ${item.quantity <= 10 ? 'text-danger' : ''}">${item.quantity}</td>
-                <td><button class="btn btn-sm btn-danger" onclick="deleteStockItem('${item.id}')"><i class="fas fa-trash"></i></button></td>
-            </tr>`).join('');
-    };
-
-    const openStockModal = (id = null) => {
-        const form = document.getElementById('stock-form');
-        form.reset();
-        document.getElementById('stock-id').value = '';
-        if (id) {
-            // Edit logic here (not implemented for simplicity)
-        }
-        document.getElementById('save-stock-btn').onclick = saveStockItem;
-        DOM.stockModal.show();
-    };
-
-    const saveStockItem = async () => {
-        const name = document.getElementById('stock-item-name').value;
-        const sku = document.getElementById('stock-sku').value;
-        const quantity = parseFloat(document.getElementById('stock-quantity').value);
-        const purchase_price = parseFloat(document.getElementById('stock-purchase-price').value);
-        const sale_price = parseFloat(document.getElementById('stock-sale-price').value);
-        
-        if(!name || !quantity || !purchase_price || !sale_price) {
-            alert("कृपया सभी * चिह्नित फ़ील्ड भरें।"); return;
-        }
-
-        const data = await fetchAPI('/stock', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, sku, purchase_price, sale_price, quantity })
-        });
-
-        if (data) {
-            showToast("स्टॉक आइटम सफलतापूर्वक जोड़ा गया।", "success");
-            await loadStock();
-            renderStockTable();
-            DOM.stockModal.hide();
-        }
-    };
-
-    window.deleteStockItem = (id) => { // Global function for inline onclick
-        // Deletion logic would require a DELETE API endpoint (Not implemented in server.js)
-        showToast("डिलीट फ़ीचर के लिए सर्वर एंडपॉइंट लागू नहीं है।", "info");
-    };
-
-    // --- CRM LOGIC (Local Storage) ---
-    const renderCrmTable = () => {
-        const tbody = document.getElementById('crm-table-body');
-        tbody.innerHTML = AppState.customers.map(c => `
-            <tr><td>${c.name}</td><td>${c.phone}</td><td>${c.address}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="deleteCrmItem('${c.id}')"><i class="fas fa-trash"></i></button></td></tr>`).join('');
-    };
-
-    const openCrmModal = () => {
-        document.getElementById('crm-form').reset();
-        document.getElementById('save-crm-btn').onclick = saveCrmItem;
-        DOM.crmModal.show();
-    };
-
-    const saveCrmItem = () => {
-        const newItem = {
-            id: 'C' + Date.now(),
-            name: document.getElementById('crm-name').value,
-            phone: document.getElementById('crm-phone').value,
-            address: document.getElementById('crm-address').value,
+            // Balance Sheet
+            document.getElementById('report-stock-value').innerText = formatCurrency(stockValue || 0);
+            document.getElementById('report-total-assets').innerText = formatCurrency(totalAssets || 0);
+            document.getElementById('report-gst-payable').innerText = formatCurrency(totalTaxCollected || 0); // Simplified: GST Collected = Payable
+            document.getElementById('report-total-liabilities').innerText = formatCurrency(totalLiabilities || 0);
         };
-        if(!newItem.name) { alert("कृपया ग्राहक का नाम भरें।"); return; }
-        AppState.customers.push(newItem);
-        saveLocalData('customers', AppState.customers);
-        renderCrmTable();
-        DOM.crmModal.hide();
-    };
-    
-    window.deleteCrmItem = (id) => {
-        if(confirm("क्या आप वाकई इस ग्राहक को हटाना चाहते हैं?")){
-            AppState.customers = AppState.customers.filter(c => c.id !== id);
-            saveLocalData('customers', AppState.customers);
-            renderCrmTable();
-        }
-    };
-    
-    // --- REPORTS LOGIC (API Data) ---
-    const renderReports = () => {
-        // Data is fetched and stored in AppState.stats by setupNavigation
-        const { totalSalesRevenue, totalTaxCollected, totalCOGS, grossProfit, stockValue } = AppState.stats;
-        
-        // P&L
-        document.getElementById('report-total-sales-rev').innerText = formatCurrency(totalSalesRevenue || 0);
-        document.getElementById('report-total-gst').innerText = formatCurrency(totalTaxCollected || 0);
-        document.getElementById('report-total-cogs').innerText = `- ${formatCurrency(totalCOGS || 0)}`;
-        document.getElementById('report-gross-profit').innerText = formatCurrency(grossProfit || 0);
-        document.getElementById('report-net-profit').innerText = formatCurrency(grossProfit || 0); // Net Profit = Gross Profit for now
 
-        // Balance Sheet
-        document.getElementById('report-stock-value').innerText = formatCurrency(stockValue || 0);
-        document.getElementById('report-total-assets').innerText = formatCurrency(stockValue || 0);
-        document.getElementById('report-gst-payable').innerText = formatCurrency(totalTaxCollected || 0);
-    };
 
-    // --- CASH FLOW LOGIC ---
-    const renderCashFlow = () => {
-        // Rendered by template
-    };
+        // --- FORM SUBMISSION HANDLERS ---
+        const setupForms = () => {
+            // Stock Form
+            document.getElementById('add-stock-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const newStock = {
+                    SKU: form['stock-sku'].value.toUpperCase(),
+                    'Item Name': form['stock-name'].value,
+                    Quantity: parseInt(form['stock-quantity'].value),
+                    Unit: form['stock-unit'].value,
+                    'Purchase Price': parseFloat(form['stock-purchase-price'].value),
+                    'Sale Price': parseFloat(form['stock-sale-price'].value),
+                    GST: parseFloat(form['stock-gst'].value),
+                };
 
-    // --- INITIAL APP LOAD ---
-    setupLicenseCheck(); // Start with license check
-});
-</script>
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('loading-message').innerText = 'स्टॉक जोड़ रहा है...';
 
+                try {
+                    const response = await fetchApi('/api/stock', {
+                        method: 'POST',
+                        body: newStock
+                    });
+
+                    showMessage('सफलता', response.message);
+                    form.reset();
+                    document.getElementById('stock-unit').value = 'Pcs'; // Reset default unit
+                    
+                    // Update AppState and re-render
+                    // Assuming the API returns the added item with its details (including DB ID if needed)
+                    AppState.stock.push(response.item);
+                    renderStockTable();
+
+                } catch (error) {
+                    showMessage('स्टॉक त्रुटि', `स्टॉक जोड़ने में विफल: ${error.message}`);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            });
+
+            // POS Complete Sale Button
+            document.getElementById('complete-sale-btn').addEventListener('click', () => {
+                 showMessage('बिक्री पूरी करें', `क्या आप ${document.getElementById('pos-total-amount').innerText} की बिक्री पूरी करना चाहते हैं?`, true, completeSale);
+            });
+            
+            // POS Item Search setup
+            setupPosSearch();
+
+            // Refresh Sales Button
+            document.getElementById('refresh-sales-btn').addEventListener('click', async () => {
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('loading-message').innerText = 'बिक्री डेटा ताज़ा हो रहा है...';
+                try {
+                    const salesData = await fetchApi('/api/sales');
+                    AppState.sales = salesData;
+                    renderSalesTable();
+                    showMessage('सफलता', 'बिक्री डेटा सफलतापूर्वक ताज़ा किया गया।');
+                } catch (error) {
+                    showMessage('त्रुटि', `बिक्री डेटा ताज़ा करने में विफल: ${error.message}`);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            });
+
+
+            // Purchase Form
+            document.getElementById('add-purchase-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const newPurchase = {
+                    'Invoice Number': form['purchase-invoice'].value,
+                    'Supplier Name': form['purchase-supplier'].value,
+                    Date: form['purchase-date'].value,
+                    SKU: form['purchase-item-sku'].value.toUpperCase(),
+                    'Item Name': form['purchase-item-name'].value,
+                    Quantity: parseInt(form['purchase-quantity'].value),
+                    'Purchase Price': parseFloat(form['purchase-price'].value),
+                    GST: parseFloat(form['purchase-gst'].value),
+                    'Total Amount': parseFloat(form['purchase-total-amount'].value),
+                };
+
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('loading-message').innerText = 'खरीद दर्ज कर रहा है...';
+
+                try {
+                    const response = await fetchApi('/api/purchases', {
+                        method: 'POST',
+                        body: newPurchase
+                    });
+
+                    showMessage('सफलता', response.message);
+                    form.reset();
+                    setTodayDate(); // Reset date fields
+                    
+                    // Update AppState and re-render
+                    AppState.purchases.unshift(response.purchase); // Add to beginning
+                    renderPurchasesTable();
+                    document.querySelector('[data-view="stock"]').click(); // Force stock refresh
+
+                } catch (error) {
+                    showMessage('खरीद त्रुटि', `खरीद दर्ज करने में विफल: ${error.message}`);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            });
+
+            // CRM Form
+            document.getElementById('add-customer-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const newCustomer = {
+                    Name: form['customer-name'].value,
+                    Phone: form['customer-phone'].value,
+                    Email: form['customer-email'].value,
+                    Address: form['customer-address'].value,
+                };
+
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('loading-message').innerText = 'ग्राहक जोड़ रहा है...';
+
+                try {
+                    const response = await fetchApi('/api/customers', {
+                        method: 'POST',
+                        body: newCustomer
+                    });
+
+                    showMessage('सफलता', response.message);
+                    form.reset();
+                    
+                    // Update AppState and re-render
+                    AppState.customers.unshift(response.customer); // Add to beginning
+                    renderCrmTable();
+
+                } catch (error) {
+                    showMessage('CRM त्रुटि', `ग्राहक जोड़ने में विफल: ${error.message}`);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            });
+
+            // Expense Form
+            document.getElementById('add-expense-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const newExpense = {
+                    Date: form['expense-date'].value,
+                    Category: form['expense-category'].value,
+                    Description: form['expense-description'].value,
+                    Amount: parseFloat(form['expense-amount'].value),
+                };
+
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('loading-message').innerText = 'खर्च दर्ज कर रहा है...';
+
+                try {
+                    const response = await fetchApi('/api/expenses', {
+                        method: 'POST',
+                        body: newExpense
+                    });
+
+                    showMessage('सफलता', response.message);
+                    form.reset();
+                    setTodayDate(); // Reset date fields
+                    document.getElementById('expense-category').value = ''; // Reset category
+                    
+                    // Update AppState and re-render
+                    AppState.expenses.unshift(response.expense); // Add to beginning
+                    renderExpensesTable();
+
+                } catch (error) {
+                    showMessage('खर्च त्रुटि', `खर्च दर्ज करने में विफल: ${error.message}`);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            });
+
+            // Report Generation Button
+            document.getElementById('generate-report-btn').addEventListener('click', async () => {
+                const startDate = document.getElementById('report-start-date').value;
+                const endDate = document.getElementById('report-end-date').value;
+                
+                if (!startDate || !endDate) {
+                    showMessage('त्रुटि', 'कृपया रिपोर्ट जनरेट करने के लिए प्रारंभ और समाप्ति तिथि दोनों चुनें।');
+                    return;
+                }
+
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('loading-message').innerText = 'रिपोर्ट जनरेट हो रही है...';
+
+                try {
+                    // Fetch reports data based on date range
+                    const data = await fetchApi(`/api/reports?startDate=${startDate}&endDate=${endDate}`);
+                    AppState.stats = data;
+                    AppState.expenses = data.expenses || [];
+                    
+                    // Calculate totals from fetched data
+                    const totalExpenses = AppState.expenses.reduce((sum, e) => sum + parseFloat(e.Amount), 0);
+                    const grossProfit = (AppState.stats.totalSalesRevenue || 0) - (AppState.stats.totalCOGS || 0);
+                    const netProfit = grossProfit - totalExpenses;
+                    
+                    // Update AppState for rendering
+                    AppState.stats.grossProfit = grossProfit;
+                    AppState.stats.totalExpenses = totalExpenses;
+                    AppState.stats.netProfit = netProfit;
+                    AppState.stats.totalAssets = (AppState.stats.stockValue || 0); // Simplified
+                    AppState.stats.totalLiabilities = (AppState.stats.totalTaxCollected || 0); // Simplified
+
+                    renderReports();
+                    
+                    showMessage('सफलता', `रिपोर्ट ${startDate} से ${endDate} तक जनरेट की गई।`);
+
+                } catch (error) {
+                    showMessage('रिपोर्ट त्रुटि', `रिपोर्ट जनरेट करने में विफल: ${error.message}`);
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            });
+            
+            setupAdminLogin();
+        };
+
+        // --- INITIAL APP LOAD ---
+        window.onload = function () {
+            setupLicenseCheck(); // Start with license check and initial data load
+        };
+
+    </script>
 </body>
 </html>
