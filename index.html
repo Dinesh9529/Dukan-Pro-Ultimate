@@ -44,21 +44,20 @@
         <main id="main-content">
             <header class="header-bar no-print">
                 <div class="d-flex justify-content-between align-items-center w-100">
-                    <h1 class="mb-0 h4 text-white" id="header-title">📊 डैशबोर्ड</h1>
-                    <div id="welcome-user" class="text-white fw-bold"></div>
+                    <h1 class="mb-0 h4" id="header-title">📊 डैशबोर्ड</h1>
+                    <div id="welcome-user" class="fw-bold"></div>
                 </div>
             </header>
-            <div id="expiry-notification-bar" class="alert mb-0 text-center fw-bold no-print" style="display: none; border-radius: 0;"></div>
             
             <div class="container-fluid mt-4">
                 <div class="tab-content" id="myTabContent">
                     
                     <div class="tab-pane fade show active" id="dashboard-pane" role="tabpanel">
-                         <div class="row g-4">
-                            <div class="col-md-3"><div class="card p-3 text-center stat-card bg-success text-white"><h5>कुल बिक्री</h5><h3 id="dash-total-sales">₹0</h3></div></div>
-                            <div class="col-md-3"><div class="card p-3 text-center stat-card bg-warning text-dark"><h5>कुल खरीद</h5><h3 id="dash-total-purchases">₹0</h3></div></div>
-                            <div class="col-md-3"><div class="card p-3 text-center stat-card bg-danger text-white"><h5>कुल खर्चे</h5><h3 id="dash-total-expenses">₹0</h3></div></div>
-                            <div class="col-md-3"><div class="card p-3 text-center stat-card bg-info text-white"><h5>शुद्ध लाभ</h5><h3 id="dash-net-profit">₹0</h3></div></div>
+                        <div class="row g-4">
+                            <div class="col-lg-3 col-md-6"><div class="card p-3 text-center stat-card bg-success text-white"><h5>कुल बिक्री</h5><h3 id="dash-total-sales">₹0</h3></div></div>
+                            <div class="col-lg-3 col-md-6"><div class="card p-3 text-center stat-card bg-warning text-dark"><h5>कुल खरीद</h5><h3 id="dash-total-purchases">₹0</h3></div></div>
+                            <div class="col-lg-3 col-md-6"><div class="card p-3 text-center stat-card bg-danger text-white"><h5>कुल खर्चे</h5><h3 id="dash-total-expenses">₹0</h3></div></div>
+                            <div class="col-lg-3 col-md-6"><div class="card p-3 text-center stat-card bg-info text-white"><h5>शुद्ध लाभ</h5><h3 id="dash-net-profit">₹0</h3></div></div>
                         </div>
                     </div>
 
@@ -69,8 +68,10 @@
                                     <h5><i class="fas fa-store me-2"></i>बिलिंग विवरण</h5>
                                     <div class="row g-3 mt-2">
                                         <div class="col-md-6"><label class="form-label">Shop Name</label><input type="text" class="form-control" id="shopName" value="Digital Store"></div>
-                                        <div class="col-md-6"><label class="form-label">GSTIN</label><input type="text" class="form-control" id="shopGstin" placeholder="Optional"></div>
-                                        <div class="col-12"><label class="form-label">Address</label><input type="text" class="form-control" id="shopAddress" value="Jaipur, Rajasthan"></div>
+                                        <div class="col-md-6"><label class="form-label">GSTIN</label><input type="text" class="form-control" id="shopGstin" placeholder="24ABCDE1234F1Z5"></div>
+                                        <div class="col-12"><label class="form-label">Address</label><input type="text" class="form-control" id="shopAddress" value="Station Road, Jaipur"></div>
+                                        <div class="col-md-6"><label class="form-label">Shop Logo</label><input type="file" id="shopLogo" class="form-control" accept="image/*"></div>
+                                        <div class="col-md-6"><label class="form-label">Payment QR</label><input type="file" id="qrCode" class="form-control" accept="image/*"></div>
                                         <hr>
                                         <div class="col-md-6"><label class="form-label">Invoice No.</label><input type="text" class="form-control" id="invoice-number" value="INV-0001"></div>
                                         <div class="col-md-6"><label class="form-label">Customer</label><input type="text" class="form-control" id="customer-name" list="customer-list" placeholder="Search or Add Customer"><datalist id="customer-list"></datalist></div>
@@ -80,11 +81,9 @@
                                     <div id="items-container" class="mt-2"></div>
                                     <button class="btn btn-outline-primary btn-sm mt-3" onclick="addItemRow()"><i class="fas fa-plus me-2"></i>नया आइटम जोड़ें</button>
                                     <hr class="my-4">
-                                    <h5><i class="fa-solid fa-money-bill-wave me-2"></i>भुगतान (Payment)</h5>
-                                     <div class="row g-3">
-                                        <div class="col-md-4"><label>कुल भुगतान</label><input type="number" id="amount-paid" class="form-control" value="0"></div>
-                                        <div class="col-md-4"><label>बकाया राशि</label><h4 id="balance-due" class="mt-2 text-danger">₹0.00</h4></div>
-                                        <div class="col-md-4"><label>Grand Total</label><h4 id="final-total" class="mt-2 text-success">₹0.00</h4></div>
+                                     <div class="col-12 mt-2">
+                                         <label class="form-label">Notes / Terms</label>
+                                         <textarea id="notes" class="form-control" rows="2">बिक्री का सामान वापस नहीं लिया जाएगा।</textarea>
                                      </div>
                                 </div>
                             </div>
@@ -93,7 +92,7 @@
                                     <div class="d-flex flex-wrap gap-2 mb-3 no-print">
                                         <button class="btn btn-success" onclick="logAndClearInvoice()"><i class="fas fa-save me-1"></i>Save & New</button>
                                         <button class="btn btn-secondary" onclick="printInvoice()"><i class="fas fa-print me-2"></i>Print</button>
-                                        <button class="btn btn-info text-white" id="download-pdf-btn" onclick="downloadInvoice()"><i class="fas fa-download me-2"></i>Download PDF</button>
+                                        <button class="btn btn-info text-white" id="download-pdf-btn"><i class="fas fa-download me-2"></i>Download PDF</button>
                                         <button class="btn btn-danger" onclick="clearBill()"><i class="fas fa-eraser me-1"></i>Clear Bill</button>
                                     </div>
                                     <div id="invoice-preview-container"><div id="invoice-preview" class="card card-body"></div></div>
@@ -101,138 +100,74 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="tab-pane fade" id="stock-pane" role="tabpanel">
-                         <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5>मौजूदा स्टॉक</h5>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal"><i class="fas fa-plus me-1"></i>नया आइटम जोड़ें</button>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead><tr><th>SKU</th><th>आइटम</th><th>खरीद मूल्य</th><th>बिक्री मूल्य</th><th>मात्रा</th><th>पिछला अपडेट</th></tr></thead>
-                                        <tbody id="stock-table-body"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="tab-pane fade" id="purchase-pane" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header"><h5>नई खरीद की एंट्री करें</h5></div>
-                            <div class="card-body">
-                                <form id="purchase-form">
-                                    <div class="row g-3">
-                                        <div class="col-md-6"><label class="form-label">आइटम का नाम</label><input type="text" id="purchase-item-name" class="form-control" required list="stock-item-list"><datalist id="stock-item-list"></datalist></div>
-                                        <div class="col-md-6"><label class="form-label">SKU (यदि नया है)</label><input type="text" id="purchase-item-sku" class="form-control"></div>
-                                        <div class="col-md-4"><label class="form-label">मात्रा</label><input type="number" id="purchase-quantity" class="form-control" required min="1"></div>
-                                        <div class="col-md-4"><label class="form-label">प्रति आइटम खरीद मूल्य</label><input type="number" id="purchase-price" class="form-control" required min="0"></div>
-                                        <div class="col-md-4"><label class="form-label">सप्लायर</label><input type="text" id="purchase-supplier" class="form-control"></div>
-                                        <div class="col-12 mt-4"><button type="submit" class="btn btn-success w-100">खरीद जोड़ें</button></div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="tab-pane fade" id="crm-pane" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5>ग्राहक सूची</h5>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCustomerModal"><i class="fas fa-user-plus me-1"></i>नया ग्राहक जोड़ें</button>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead><tr><th>ID</th><th>नाम</th><th>फोन</th><th>पता</th></tr></thead>
-                                        <tbody id="customer-table-body"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="tab-pane fade" id="expenses-pane" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5>खर्चों का रिकॉर्ड</h5>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExpenseModal"><i class="fas fa-plus me-1"></i>नया खर्चा जोड़ें</button>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead><tr><th>तारीख</th><th>कैटेगरी</th><th>राशि</th><th>विवरण</th></tr></thead>
-                                        <tbody id="expense-table-body"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     
-                    <div class="tab-pane fade" id="reports-pane" role="tabpanel">
-                         <div class="card">
-                            <div class="card-header"><h5>रिपोर्ट्स</h5></div>
-                            <div class="card-body">
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-md-3"><label>रिपोर्ट प्रकार</label><select id="report-type" class="form-select"><option value="sales">सेल्स रिपोर्ट</option><option value="expenses">खर्च रिपोर्ट</option></select></div>
-                                    <div class="col-md-3"><label>से</label><input type="date" id="report-from-date" class="form-control"></div>
-                                    <div class="col-md-3"><label>तक</label><input type="date" id="report-to-date" class="form-control"></div>
-                                    <div class="col-md-3"><button id="generate-report-btn" class="btn btn-primary w-100">रिपोर्ट बनाएं</button></div>
-                                </div>
-                                <hr>
-                                <h5 id="report-title" class="mt-4">रिपोर्ट परिणाम</h5>
-                                <div id="report-output" class="table-responsive"></div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="tab-pane fade" id="stock-pane" role="tabpanel"></div>
+                    <div class="tab-pane fade" id="purchase-pane" role="tabpanel"></div>
+                    <div class="tab-pane fade" id="crm-pane" role="tabpanel"></div>
+                    <div class="tab-pane fade" id="expenses-pane" role="tabpanel"></div>
+                    <div class="tab-pane fade" id="reports-pane" role="tabpanel"></div>
+
                 </div>
             </div>
         </main>
     </div>
     
-    <div class="modal fade" id="addStockModal" tabindex="-1">
-        <div class="modal-dialog"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">स्टॉक जोड़ें/अपडेट करें</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body">
-                <form id="add-stock-form">
-                    <div class="mb-3"><label>SKU</label><input type="text" id="stock-sku" class="form-control" required></div>
-                    <div class="mb-3"><label>आइटम का नाम</label><input type="text" id="stock-item-name" class="form-control" required></div>
-                    <div class="mb-3"><label>खरीद मूल्य</label><input type="number" id="stock-purchase-price" class="form-control" required></div>
-                    <div class="mb-3"><label>बिक्री मूल्य</label><input type="number" id="stock-sale-price" class="form-control" required></div>
-                    <div class="mb-3"><label>मात्रा</label><input type="number" id="stock-quantity" class="form-control" required></div>
-                    <button type="submit" class="btn btn-primary w-100">स्टॉक सेव करें</button>
-                </form>
+    <template id="invoice-template">
+        <div class="invoice-container">
+            <div class="invoice-header">
+                <div class="shop-details">
+                    <img id="logo-preview" class="logo-placeholder" style="max-height: 60px; display: none;">
+                    <h3 id="inv-shop-name"></h3>
+                    <p id="inv-shop-address"></p>
+                    <p><strong>GSTIN:</strong> <span id="inv-shop-gstin"></span></p>
+                </div>
+                <div class="invoice-meta text-end">
+                    <h2>टैक्स इनवॉइस</h2>
+                    <p><strong>इनवॉइस नं:</strong> <span id="inv-number"></span></p>
+                    <p><strong>दिनांक:</strong> <span id="inv-date"></span></p>
+                </div>
             </div>
-        </div></div>
-    </div>
-    <div class="modal fade" id="addExpenseModal" tabindex="-1">
-         <div class="modal-dialog"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">नया खर्चा जोड़ें</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body">
-                <form id="add-expense-form">
-                    <div class="mb-3"><label>कैटेगरी</label><input type="text" id="expense-category" class="form-control" required></div>
-                    <div class="mb-3"><label>राशि</label><input type="number" id="expense-amount" class="form-control" required></div>
-                    <div class="mb-3"><label>विवरण</label><textarea id="expense-description" class="form-control"></textarea></div>
-                    <button type="submit" class="btn btn-primary w-100">खर्चा जोड़ें</button>
-                </form>
+            <div class="customer-details">
+                <h6 class="text-primary">बिल टू (Bill To)</h6>
+                <p><strong>नाम:</strong> <span id="inv-customer-name"></span></p>
             </div>
-        </div></div>
-    </div>
-     <div class="modal fade" id="addCustomerModal" tabindex="-1">
-        <div class="modal-dialog"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">नया ग्राहक जोड़ें</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body">
-                <form id="add-customer-form">
-                    <div class="mb-3"><label>नाम</label><input type="text" id="customer-form-name" class="form-control" required></div>
-                    <div class="mb-3"><label>फोन</label><input type="text" id="customer-form-contact" class="form-control"></div>
-                    <div class="mb-3"><label>पता</label><textarea id="customer-form-address" class="form-control"></textarea></div>
-                    <button type="submit" class="btn btn-primary w-100">ग्राहक जोड़ें</button>
-                </form>
+            <table class="invoice-table mt-4">
+                <thead><tr><th>#</th><th>आइटम</th><th>HSN</th><th>मात्रा</th><th>मूल्य</th><th>GST</th><th>कुल</th></tr></thead>
+                <tbody id="inv-item-list"></tbody>
+            </table>
+            <div class="invoice-summary row mt-4">
+                <div class="col-7">
+                    <div class="summary-box"><p>कुल शब्दों में: <strong id="amount-in-words"></strong></p></div>
+                    <div class="notes-box mt-3">
+                        <h6>नियम एवं शर्तें</h6>
+                        <p id="inv-notes"></p>
+                    </div>
+                </div>
+                <div class="col-5">
+                    <table class="table table-sm text-end summary-table">
+                        <tbody>
+                            <tr><td>उप-कुल:</td><td><span id="inv-sub-total"></span></td></tr>
+                            <tr><td>CGST:</td><td><span id="inv-cgst"></span></td></tr>
+                            <tr><td>SGST:</td><td><span id="inv-sgst"></span></td></tr>
+                            <tr class="table-primary fw-bold"><td>कुल देय राशि:</td><td><span id="inv-grand-total"></span></td></tr>
+                            <tr><td>कुल भुगतान:</td><td><span id="inv-paid"></span></td></tr>
+                            <tr class="text-danger fw-bold"><td>बकाया राशि:</td><td><span id="inv-due"></span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div></div>
-    </div>
+            <div class="invoice-footer">
+                <div class="qr-box">
+                    <p class="fw-bold mb-1">UPI भुगतान के लिए स्कैन करें:</p>
+                    <img id="qr-preview" class="qr-placeholder" style="max-width: 120px; display: none;">
+                </div>
+                <div class="signature">
+                    <p class="fw-bold mb-0">अधिकृत हस्ताक्षरकर्ता</p>
+                    <p>(<span id="inv-shop-signature"></span> के लिए)</p>
+                </div>
+            </div>
+        </div>
+    </template>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
