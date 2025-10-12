@@ -3,6 +3,7 @@
  * FINAL & COMPLETE VERSION - Saare features (Sales, Stock, Purchases, Expenses, CRM) shamil hain.
  * Database: PostgreSQL
  * CORRECTED VERSION - Added missing DELETE and Reports endpoints.
+ * FIX: License check logic updated to decrypt the key before lookup.
  */
 import express from 'express';
 import pg from 'pg'; // PostgreSQL Client
@@ -146,7 +147,7 @@ async function initializeDatabase() {
 }
 
 // ===================================
-//              API ENDPOINTS
+//             API ENDPOINTS
 // ===================================
 
 // --- 1. System & Authentication ---
@@ -158,9 +159,20 @@ app.post('/api/check-license', async (req, res) => {
         return res.status(400).json({ isValid: false, message: 'License key is required.' });
     }
     
-    // In a real app, you would decrypt the key or look it up directly.
-    // For this app's logic, we assume the key provided is the plain text key.
-    const keyToLookup = licenseKey;
+    // 1. Decrypt the incoming licenseKey
+    const decryptedData = decryptLicense(licenseKey);
+
+    if (!decryptedData) {
+        return res.status(401).json({ isValid: false, message: 'Invalid license key format or secret mismatch.' });
+    }
+
+    // 2. Extract the actual unique ID (the key stored in DB)
+    const parts = decryptedData.split('|');
+    if (parts.length !== 2) {
+        return res.status(401).json({ isValid: false, message: 'Invalid decrypted data format.' });
+    }
+    
+    const keyToLookup = parts[0]; // This is the DUKAN-XXXXXX unique ID
 
     try {
         const result = await pool.query(
@@ -169,7 +181,7 @@ app.post('/api/check-license', async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            return res.status(401).json({ isValid: false, message: 'License not found.' });
+            return res.status(401).json({ isValid: false, message: 'License not found in database.' });
         }
 
         const dbExpiryDate = new Date(result.rows[0]["Expiry Date"]);
@@ -536,4 +548,3 @@ async function startServer() {
 }
 
 startServer();
-
