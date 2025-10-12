@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 🚨 ENVIRONMENT VARIABLES: Render पर इन्हें सेट करना ज़रूरी है।
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password123'; 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Dkc@#9529561113@abc'; 
 const DATABASE_URL = process.env.DATABASE_URL;
 
 // यदि DATABASE_URL सेट नहीं है, तो तुरंत क्रैश करें।
@@ -234,3 +234,4 @@ process.on('SIGINT', async () => {
     console.log('PostgreSQL pool disconnected.');
     process.exit(0);
 });
+
