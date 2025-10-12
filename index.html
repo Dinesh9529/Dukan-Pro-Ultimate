@@ -255,9 +255,8 @@
 <body>
 
     <script>
-        // Check for global variables and initialize constants
-        // For local testing, use 'http://localhost:3000'.
-        // For your deployed version, change this to 'https://dukan-pro-ultimate.onrender.com'.
+        // --- CONFIGURATION ---
+        // 🚨 IMPORTANT: If you change your Render URL, update this constant.
         const __backend_url = 'https://dukan-pro-ultimate.onrender.com';
         const AppState = {
             currentView: 'dashboard',
@@ -339,7 +338,7 @@
             <h3 class="mb-4 text-white text-shadow"><i class="fas fa-store me-2"></i>Dukan Pro</h3>
             <ul class="nav flex-column mb-auto" id="sidebar-nav">
                 <li class="nav-item">
-                    <a href="#" class="nav-link active" data-view="dashboard">
+                    <a href="#" class="nav-link" data-view="dashboard">
                         <i class="fas fa-home"></i> डैशबोर्ड
                     </a>
                 </li>
@@ -354,7 +353,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link" data-view="invoice-generator">
+                    <a href="#" class="nav-link active" data-view="invoice-generator">
                         <i class="fas fa-file-invoice"></i> इनवॉइस जनरेटर Pro
                     </a>
                 </li>
@@ -388,7 +387,7 @@
     </nav>
 
     <div id="main-content" class="main-content locked">
-        <section id="dashboard" class="section active">
+        <section id="dashboard" class="section">
             <h2 class="mb-4 text-primary">डैशबोर्ड</h2>
             <div class="row g-4">
                 <div class="col-md-6 col-lg-3">
@@ -671,7 +670,7 @@
             </div>
         </section>
         
-        <section id="invoice-generator" class="section">
+        <section id="invoice-generator" class="section active">
             <h2 class="mb-4 text-primary">🇮🇳 India's Best Invoice Generator Pro</h2>
             <div class="row g-4">
                 <div class="col-lg-5 no-print">
@@ -1059,11 +1058,6 @@
             renderView('invoice-generator'); // Show the new invoice generator by default after unlock
         };
 
-        // --- LICENSE & ADMIN LOGIC (ORIGINAL) ---
-        // ... (validateLicense, initializeApp, etc. remains the same)
-        // Note: The original Dukan Pro code's `validateLicense` is kept for the licenseModal.
-        // For simplicity, assuming the original Dukan Pro license check is functional.
-        
         // --- NEW INVOICE GENERATOR PRO FUNCTIONS ---
 
         /**
@@ -1208,24 +1202,25 @@
             `;
         }
         
-        // Function to save invoice data to your SQL backend
+        /**
+         * Saves invoice data to the SQL backend via API.
+         */
         async function saveInvoiceToSQL(invoiceData) {
             if (invoiceData.items.length === 0) {
                 showMessage('त्रुटि', 'चालान सेव करने के लिए कृपया आइटम जोड़ें।', 'danger');
                 return false;
             }
             try {
-                // Assuming your Dukan Pro backend has an endpoint for saving invoices
+                // This calls your backend POST /api/save-invoice route
                 const response = await fetchApi('/api/save-invoice', {
                     method: 'POST',
                     body: invoiceData 
-                }, 'चालान डेटा सेव हो रहा है...');
+                }, 'चालान डेटा SQL में सेव हो रहा है...');
                 
                 if (response.success) {
                     return true;
                 } else {
-                    // If backend sends an error, show it
-                    showMessage('त्रुटि', `चालान सेव नहीं हुआ: ${response.message}`, 'danger');
+                    showMessage('त्रुटि', `चालान सेव नहीं हुआ: ${response.message || 'अज्ञात सर्वर त्रुटि'}`, 'danger');
                     return false;
                 }
             } catch (error) {
@@ -1260,7 +1255,6 @@
                 // 3. Download PDF
                 downloadInvoicePDF();
             }
-            // saveInvoiceToSQL already handles error message if save fails.
         }
 
         function downloadInvoicePDF() {
@@ -1303,14 +1297,6 @@
 
         // Dukan Pro Initialization
         window.onload = function() {
-            // ... (The original Dukan Pro window.onload logic)
-            // Initial render of the new invoice preview
-            if(document.getElementById('invoice-preview')) {
-                 updateInvoicePreview();
-                 initializeQRUpload();
-            }
-        
-            // Existing Dukan Pro license validation logic
             const licenseModal = new bootstrap.Modal(document.getElementById('licenseModal'));
             const adminLoginModal = new bootstrap.Modal(document.getElementById('adminLoginModal'));
 
@@ -1318,7 +1304,8 @@
                 const savedKey = localStorage.getItem("licenseKey");
                 if (savedKey) {
                     try {
-                        const response = await fetchApi(`/validate-key?key=${encodeURIComponent(savedKey)}`, {}, 'लाइसेंस जांचा जा रहा है...');
+                        // 🚨 API route updated to /api/validate-key for 404 fix
+                        const response = await fetchApi(`/api/validate-key?key=${encodeURIComponent(savedKey)}`, {}, 'लाइसेंस जांचा जा रहा है...');
                         if (response.valid) {
                             unlockApplication();
                             return;
@@ -1326,7 +1313,7 @@
                         localStorage.removeItem("licenseKey");
                     } catch (err) {
                         console.error("License validation error on load:", err);
-                        // Show license modal if validation fails or server is unreachable
+                        // Fallback to showing license modal
                     }
                 }
                 licenseModal.show();
@@ -1340,7 +1327,8 @@
                 submitBtn.disabled = true; licenseMsg.innerText = "सत्यापित हो रहा है..."; licenseMsg.className = "text-muted small mt-2";
                 
                 try {
-                    const response = await fetchApi(`/validate-key?key=${encodeURIComponent(key)}`);
+                    // 🚨 API route updated to /api/validate-key for 404 fix
+                    const response = await fetchApi(`/api/validate-key?key=${encodeURIComponent(key)}`);
                     if (response.valid) {
                         localStorage.setItem("licenseKey", key);
                         licenseModal.hide();
@@ -1375,7 +1363,6 @@
 
             // Admin Login Logic
             const openAdminModal = () => {
-                // Clear any license messages before showing admin login
                 document.getElementById("license-message").innerText = '';
                 if(licenseModal._isShown) licenseModal.hide(); // Hide license modal if open
                 document.getElementById('admin-password').value = '';
