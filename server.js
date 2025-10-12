@@ -228,3 +228,4 @@ process.on('SIGINT', async () => {
     console.log('PostgreSQL pool disconnected.');
     process.exit(0);
 });
+
