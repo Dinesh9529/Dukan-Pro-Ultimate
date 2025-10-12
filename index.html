@@ -1100,15 +1100,19 @@ function setupStockTab() {
 }
 // --- END STOCK TAB LOGIC ---
 
-        const unlockApplication = () => {
-            AppState.isLicensed = true;
-            document.getElementById('sidebar').classList.remove('locked');
-            document.getElementById('main-content').classList.remove('locked');
-            document.getElementById('menu-toggle').classList.remove('locked');
-            // Initial data fetch and rendering
-            // fetchDataAndRenderDashboard(); // Dukan Pro's original logic
-            renderView('invoice-generator'); // Show the new invoice generator by default after unlock
-        };
+    const unlockApplication = () => {
+    AppState.isLicensed = true;
+    document.getElementById('sidebar').classList.remove('locked');
+    document.getElementById('main-content').classList.remove('locked');
+    document.getElementById('menu-toggle').classList.remove('locked');
+    
+    // Initial data fetch and rendering
+    // fetchDataAndRenderDashboard(); // Dukan Pro's original logic
+    renderView('invoice-generator'); // Show the new invoice generator by default after unlock
+    
+    // 🔴 FIX: स्टॉक फॉर्म लॉजिक को शुरू करें
+    setupStockTab(); 
+};
 
         // --- NEW INVOICE GENERATOR PRO FUNCTIONS ---
 
@@ -1450,4 +1454,5 @@ function setupStockTab() {
     </script>
 </body>
 </html>
+
 
