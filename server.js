@@ -1,8 +1,9 @@
 /*
  * Node.js Server for Dukan Pro Business Suite (PostgreSQL Backend)
  * FINAL & COMPLETE VERSION - Includes all features (Sales, Stock, Purchases, Expenses, CRM)
- * Database: PostgreSQL
- * FIX: Added robust database connection handling (client.connect/release) to prevent 500 errors.
+ * FIXES: 
+ * 1. SyntaxError: Unexpected end of input (Fixed by careful bracket checking).
+ * 2. Status 500 & Database Pool Exhaustion (Fixed by implementing client.release() in a finally block for ALL endpoints).
  */
 import express from 'express';
 import pg from 'pg'; // PostgreSQL Client
@@ -38,6 +39,9 @@ const LICENSES_TABLE_NAME = 'Licenses';
 const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/dukanprodb',
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 10, // Max clients in the pool
+    idleTimeoutMillis: 30000, // Close idle clients after 30s
+    connectionTimeoutMillis: 2000, // Give up after 2s of connection waiting
 });
 
 // --- Utility Functions ---
@@ -68,8 +72,9 @@ function hashPassword(password) {
 
 // --- Database Initialization ---
 async function initializeDatabase() {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN');
 
         // Tables creation queries (unchanged, using double quotes for case-sensitivity)
@@ -116,7 +121,7 @@ async function initializeDatabase() {
         await client.query('COMMIT');
         console.log("Database tables initialized successfully.");
 
-        // Insert a default license for testing if none exists (FIX: Using client.query)
+        // Insert a default license for testing if none exists
         const licenseCheck = await client.query(`SELECT COUNT(*) FROM "${LICENSES_TABLE_NAME}"`);
         if (licenseCheck.rows[0].count == 0) {
             console.log("Inserting default license for testing purposes.");
@@ -130,11 +135,11 @@ async function initializeDatabase() {
             console.log("Default license inserted.");
         }
     } catch (err) {
-        await client.query('ROLLBACK');
+        if (client) await client.query('ROLLBACK');
         console.error("Database initialization failed:", err);
         throw err;
     } finally {
-        client.release();
+        if (client) client.release();
     }
 }
 
@@ -144,35 +149,27 @@ async function initializeDatabase() {
 
 // --- 1. System & Authentication ---
 
-// License Check Endpoint (FIX: Added try...catch...finally)
+// License Check Endpoint 
 app.post('/api/check-license', async (req, res) => {
     const { licenseKey } = req.body;
-    if (!licenseKey) {
-        return res.status(400).json({ isValid: false, message: 'License key is required.' });
-    }
+    if (!licenseKey) return res.status(400).json({ isValid: false, message: 'License key is required.' });
     
     const decryptedData = decryptLicense(licenseKey);
-
-    if (!decryptedData) {
-        return res.status(401).json({ isValid: false, message: 'Invalid license key format or secret mismatch.' });
-    }
+    if (!decryptedData) return res.status(401).json({ isValid: false, message: 'Invalid license key format or secret mismatch.' });
 
     const parts = decryptedData.split('|');
-    if (parts.length !== 2) {
-        return res.status(401).json({ isValid: false, message: 'Invalid decrypted data format.' });
-    }
+    if (parts.length !== 2) return res.status(401).json({ isValid: false, message: 'Invalid decrypted data format.' });
     
     const keyToLookup = parts[0]; 
-    const client = await pool.connect(); // FIX: Connect client
+    let client;
     try {
+        client = await pool.connect(); 
         const result = await client.query(
             `SELECT "Expiry Date", "Status" FROM "${LICENSES_TABLE_NAME}" WHERE "License Key" = $1`,
             [keyToLookup]
         );
 
-        if (result.rows.length === 0) {
-            return res.status(401).json({ isValid: false, message: 'License not found in database.' });
-        }
+        if (result.rows.length === 0) return res.status(401).json({ isValid: false, message: 'License not found in database.' });
 
         const dbExpiryDate = new Date(result.rows[0]["Expiry Date"]);
         const status = result.rows[0]["Status"];
@@ -185,37 +182,31 @@ app.post('/api/check-license', async (req, res) => {
         return res.json({ isValid: true, message: 'License is valid!', expiryDate: dbExpiryDate.toISOString().split('T')[0] });
 
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/check-license:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/check-license:", error.message, error.stack); 
         return res.status(500).json({ isValid: false, message: `Server error during license check: ${error.message}` });
     } finally {
-        client.release(); // FIX: Release client
+        if (client) client.release(); 
     }
 });
 
-// License Registration Endpoint (FIX: Added try...catch...finally)
+// License Registration Endpoint 
 app.post('/api/register-license', async (req, res) => {
     const { encryptedKey, issuedTo } = req.body;
     
-    if (!encryptedKey || !issuedTo) {
-        return res.status(400).json({ success: false, message: 'Encrypted Key and Issued To details are required.' });
-    }
+    if (!encryptedKey || !issuedTo) return res.status(400).json({ success: false, message: 'Encrypted Key and Issued To details are required.' });
 
     const decryptedData = decryptLicense(encryptedKey);
-
-    if (!decryptedData) {
-        return res.status(401).json({ success: false, message: 'Invalid encrypted key or secret mismatch.' });
-    }
+    if (!decryptedData) return res.status(401).json({ success: false, message: 'Invalid encrypted key or secret mismatch.' });
 
     const parts = decryptedData.split('|');
-    if (parts.length !== 2) {
-        return res.status(401).json({ success: false, message: 'Invalid decrypted data format.' });
-    }
+    if (parts.length !== 2) return res.status(401).json({ success: false, message: 'Invalid decrypted data format.' });
     
     const licenseKey = parts[0]; 
     const expiryDateISO = parts[1];
-    const client = await pool.connect(); // FIX: Connect client
+    let client;
     
     try {
+        client = await pool.connect();
         const dbExpiryDate = new Date(expiryDateISO).toISOString().split('T')[0];
         const dbIssuedDate = new Date().toISOString().split('T')[0];
 
@@ -236,14 +227,14 @@ app.post('/api/register-license', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/register-license:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/register-license:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to register license: ${error.message}` });
     } finally {
-        client.release(); // FIX: Release client
+        if (client) client.release(); 
     }
 });
 
-// Admin Login Endpoint (No DB interaction needed, so no pool fix)
+// Admin Login Endpoint (No DB interaction needed)
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
     const hashedPassword = hashPassword(password);
@@ -260,7 +251,7 @@ app.post('/api/admin-login', (req, res) => {
 
 // --- 2. Sales Management ---
 
-// Record Sale (Already uses client.connect/release) - Added detailed logging
+// Record Sale 
 app.post('/api/record-sale', async (req, res) => {
     const { invoiceNumber, customerName, items, totalAmount, gstAmount } = req.body;
     if (!invoiceNumber || !customerName || !items || !totalAmount || !gstAmount || !items.length) {
@@ -268,8 +259,9 @@ app.post('/api/record-sale', async (req, res) => {
     }
 
     const itemsJson = JSON.stringify(items);
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN');
 
         const saleQuery = `INSERT INTO "${SALES_TABLE_NAME}" ("Invoice Number", "Customer Name", "Items Sold", "Total Amount", "GST Amount") VALUES ($1, $2, $3, $4, $5);`;
@@ -283,6 +275,7 @@ app.post('/api/record-sale', async (req, res) => {
             }
         }
         
+        // Ensure customer exists
         const existingCustomer = await client.query(`SELECT "ID" FROM "${CUSTOMERS_TABLE_NAME}" WHERE "Customer Name" = $1;`, [customerName]);
         if (existingCustomer.rows.length === 0) {
             await client.query(`INSERT INTO "${CUSTOMERS_TABLE_NAME}" ("Customer Name") VALUES ($1);`, [customerName]);
@@ -291,32 +284,33 @@ app.post('/api/record-sale', async (req, res) => {
         await client.query('COMMIT');
         res.status(201).json({ success: true, message: 'Sale recorded successfully!', invoiceNumber });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("CRITICAL ERROR IN /api/record-sale:", error.message, error.stack); // FIX: Detailed logging
+        if (client) await client.query('ROLLBACK');
+        console.error("ERROR IN /api/record-sale:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to record sale: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Get Sales (FIX: Added try...catch...finally)
+// Get Sales 
 app.get('/api/sales', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const result = await client.query(`SELECT * FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC, "Invoice Number" DESC`);
         res.json(result.rows);
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/sales:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/sales:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch sales data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
 
 // --- 3. Purchases Management ---
 
-// Record Purchase (Already uses client.connect/release) - Added detailed logging
+// Record Purchase 
 app.post('/api/record-purchase', async (req, res) => {
     const { billNumber, supplierName, items, totalCost } = req.body;
     if (!billNumber || !items || !totalCost || !items.length) {
@@ -324,8 +318,9 @@ app.post('/api/record-purchase', async (req, res) => {
     }
 
     const itemsJson = JSON.stringify(items);
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN');
         const purchaseQuery = `INSERT INTO "${PURCHASES_TABLE_NAME}" ("Bill Number", "Supplier Name", "Items Purchased", "Total Cost") VALUES ($1, $2, $3, $4) RETURNING *;`;
         const purchaseResult = await client.query(purchaseQuery, [billNumber, supplierName, itemsJson, totalCost]);
@@ -341,33 +336,35 @@ app.post('/api/record-purchase', async (req, res) => {
         await client.query('COMMIT');
         res.status(201).json({ success: true, message: 'Purchase recorded!', purchase: purchaseResult.rows[0] });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("CRITICAL ERROR IN /api/record-purchase:", error.message, error.stack); // FIX: Detailed logging
+        if (client) await client.query('ROLLBACK');
+        console.error("ERROR IN /api/record-purchase:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to record purchase: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Get Purchases (FIX: Added try...catch...finally)
+// Get Purchases 
 app.get('/api/purchases', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const result = await client.query(`SELECT * FROM "${PURCHASES_TABLE_NAME}" ORDER BY "Date" DESC`);
         res.json(result.rows);
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/purchases:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/purchases:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch purchases data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Delete Purchase (Already uses client.connect/release) - Added detailed logging
+// Delete Purchase 
 app.delete('/api/purchases/:id', async (req, res) => {
     const { id } = req.params;
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN');
         const purchase = await client.query(`SELECT "Items Purchased" FROM "${PURCHASES_TABLE_NAME}" WHERE "ID" = $1`, [id]);
         if (purchase.rows.length === 0) throw new Error("Purchase record not found.");
@@ -381,89 +378,94 @@ app.delete('/api/purchases/:id', async (req, res) => {
         await client.query('COMMIT');
         res.json({ success: true, message: 'Purchase record deleted and stock reversed.' });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("CRITICAL ERROR IN /api/purchases/:id:", error.message, error.stack); // FIX: Detailed logging
+        if (client) await client.query('ROLLBACK');
+        console.error("ERROR IN /api/purchases/:id:", error.message, error.stack); 
         res.status(500).json({ success: false, message: error.message });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
 
 // --- 4. Expenses Management ---
 
-// Record Expense (FIX: Added try...catch...finally)
+// Record Expense 
 app.post('/api/record-expense', async (req, res) => {
     const { category, description, amount, date } = req.body;
     if (!category || amount === undefined || !date) {
         return res.status(400).json({ success: false, message: 'Category, Amount, and Date are required.' });
     }
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const query = `INSERT INTO "${EXPENSES_TABLE_NAME}" ("Category", "Description", "Amount", "Date") VALUES ($1, $2, $3, $4) RETURNING *;`;
         const result = await client.query(query, [category, description, amount, date]);
         res.status(201).json({ success: true, expense: result.rows[0] });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/record-expense:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/record-expense:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to record expense: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Get Expenses (FIX: Added try...catch...finally)
+// Get Expenses 
 app.get('/api/expenses', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const result = await client.query(`SELECT * FROM "${EXPENSES_TABLE_NAME}" ORDER BY "Date" DESC`);
         res.json(result.rows);
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/expenses:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/expenses:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch expenses data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Delete Expense (FIX: Added try...catch...finally)
+// Delete Expense 
 app.delete('/api/expenses/:id', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query(`DELETE FROM "${EXPENSES_TABLE_NAME}" WHERE "ID" = $1`, [req.params.id]);
         res.json({ success: true, message: 'Expense deleted successfully.' });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/expenses/:id:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/expenses/:id:", error.message, error.stack); 
         res.status(500).json({ success: false, message: error.message });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
 
 // --- 5. Stock & Inventory ---
 
-// Get Stock (FIX: Added try...catch...finally)
+// Get Stock 
 app.get('/api/stock', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const result = await client.query(`SELECT *, "Selling Price" as "Sale Price", "GST Rate" as "GST" FROM "${STOCK_TABLE_NAME}" ORDER BY "Item Name" ASC`);
         res.json(result.rows);
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/stock:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/stock:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch stock data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Add/Update Stock (FIX: Added try...catch...finally)
+// Add/Update Stock 
 app.post('/api/stock', async (req, res) => {
     const { SKU, "Item Name": itemName, Quantity, "Purchase Price": purchasePrice, "Sale Price": sellingPrice, GST: gstRate } = req.body;
     if (!SKU || !itemName || Quantity === undefined || purchasePrice === undefined || sellingPrice === undefined || gstRate === undefined) {
         return res.status(400).json({ success: false, message: 'Missing required stock item details.' });
     }
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const query = `
             INSERT INTO "${STOCK_TABLE_NAME}" ("SKU", "Item Name", "Quantity", "Purchase Price", "Selling Price", "GST Rate")
             VALUES ($1, $2, $3, $4, $5, $6)
@@ -476,90 +478,95 @@ app.post('/api/stock', async (req, res) => {
         const result = await client.query(query, [SKU, itemName, Quantity, purchasePrice, sellingPrice, gstRate]);
         res.status(201).json({ success: true, message: 'Stock item added/updated successfully!', item: result.rows[0] });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/stock POST:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/stock POST:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to add/update stock item: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Delete Stock (FIX: Added try...catch...finally)
+// Delete Stock 
 app.delete('/api/stock/:sku', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const result = await client.query(`DELETE FROM "${STOCK_TABLE_NAME}" WHERE "SKU" = $1`, [req.params.sku]);
         if (result.rowCount === 0) return res.status(404).json({ success: false, message: 'SKU not found.' });
         res.json({ success: true, message: 'Stock item deleted successfully.' });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/stock DELETE:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/stock DELETE:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Deletion failed. This item might be linked to sales records. Error: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
 
 // --- 6. CRM (Customers) ---
 
-// Get Customers (FIX: Added try...catch...finally)
+// Get Customers 
 app.get('/api/customers', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const result = await client.query(`SELECT "ID", "Customer Name" as "Name", "Phone", '' as "Email", "Address", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC`);
         res.json(result.rows);
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/customers:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/customers:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch customer data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Add Customer (FIX: Added try...catch...finally)
+// Add Customer 
 app.post('/api/customers', async (req, res) => {
     const { Name, Phone, Address } = req.body;
     if (!Name) return res.status(400).json({ success: false, message: 'Customer name is required.' });
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const query = `INSERT INTO "${CUSTOMERS_TABLE_NAME}" ("Customer Name", "Phone", "Address") VALUES ($1, $2, $3) RETURNING "ID", "Customer Name" as "Name", "Phone", "Address", "Date Added";`;
         const result = await client.query(query, [Name, Phone, Address]);
         res.status(201).json({ success: true, message: 'Customer added!', customer: result.rows[0] });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/customers POST:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/customers POST:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to add customer: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Delete Customer (FIX: Added try...catch...finally)
+// Delete Customer 
 app.delete('/api/customers/:id', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query(`DELETE FROM "${CUSTOMERS_TABLE_NAME}" WHERE "ID" = $1`, [req.params.id]);
         res.json({ success: true, message: 'Customer deleted successfully.' });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/customers DELETE:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/customers DELETE:", error.message, error.stack); 
         res.status(500).json({ success: false, message: error.message });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
 
 // --- 7. Dashboard & Reporting ---
 
-// Comprehensive Dashboard Stats (FIX: Added client.connect/release and using client.query)
+// Comprehensive Dashboard Stats 
 app.get('/api/dashboard-stats', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}"`;
         const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}"`;
         const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}"`;
-        const stockValueQuery = `SELECT SUM("Purchase Price" * "Quantity") as stock_value FROM "${STOCK_TABLE_NAME}"`;
+        const stockValueQuery = `SELECT COALESCE(SUM("Purchase Price" * "Quantity"), 0) as stock_value FROM "${STOCK_TABLE_NAME}"`;
         
         const [salesRes, purchasesRes, expensesRes, stockValueRes] = await Promise.all([
-            client.query(salesQuery), client.query(purchasesCostQuery), client.query(expensesQuery), client.query(stockValueQuery) // FIX: Using client.query
+            client.query(salesQuery), client.query(purchasesCostQuery), client.query(expensesQuery), client.query(stockValueQuery)
         ]);
 
         const totalSalesRevenue = parseFloat(salesRes.rows[0].total_sales) || 0;
@@ -575,28 +582,29 @@ app.get('/api/dashboard-stats', async (req, res) => {
             totalAssets: stockValue, totalLiabilities: totalTaxCollected 
         });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/dashboard-stats:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/dashboard-stats:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch dashboard stats: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Reports Endpoint with Date Filtering (FIX: Added client.connect/release and using client.query)
+// Reports Endpoint with Date Filtering 
 app.get('/api/reports', async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ message: 'Start and end dates are required.' });
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
         const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
         const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
-        const stockValueQuery = `SELECT SUM("Purchase Price" * "Quantity") as stock_value FROM "${STOCK_TABLE_NAME}"`;
+        const stockValueQuery = `SELECT COALESCE(SUM("Purchase Price" * "Quantity"), 0) as stock_value FROM "${STOCK_TABLE_NAME}"`;
         
         const [salesRes, purchasesRes, expensesRes, stockValueRes, expensesListRes] = await Promise.all([
-            client.query(salesQuery, [startDate, endDate]), client.query(purchasesCostQuery, [startDate, endDate]), // FIX: Using client.query
+            client.query(salesQuery, [startDate, endDate]), client.query(purchasesCostQuery, [startDate, endDate]),
             client.query(expensesQuery, [startDate, endDate]), client.query(stockValueQuery),
-            client.query(`SELECT * FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`, [startDate, endDate])
+            client.query(`SELECT * FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2 ORDER BY "Date" DESC`, [startDate, endDate])
         ]);
 
         const totalSalesRevenue = parseFloat(salesRes.rows[0].total_sales) || 0;
@@ -612,26 +620,27 @@ app.get('/api/reports', async (req, res) => {
             totalAssets: stockValue, totalLiabilities: totalTaxCollected, expenses: expensesListRes.rows
         });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/reports:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/reports:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch report data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
-// Admin Overview (FIX: Added client.connect/release and using client.query)
+// Admin Overview 
 app.get('/api/admin-overview', async (req, res) => {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         const customers = await client.query(`SELECT "ID", "Customer Name" as "Name", "Phone", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC LIMIT 5`);
         const sales = await client.query(`SELECT "Invoice Number", "Customer Name", "Total Amount", "Date" FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC, "Invoice Number" DESC LIMIT 5`);
         const lowStock = await client.query(`SELECT "SKU", "Item Name", "Quantity" FROM "${STOCK_TABLE_NAME}" WHERE "Quantity" <= 10 ORDER BY "Quantity" ASC`);
         res.json({ customers: customers.rows, sales: sales.rows, lowStock: lowStock.rows });
     } catch (error) {
-        console.error("CRITICAL ERROR IN /api/admin-overview:", error.message, error.stack); // FIX: Detailed logging
+        console.error("ERROR IN /api/admin-overview:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to fetch admin data: ${error.message}` });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
 
@@ -640,11 +649,14 @@ app.get('/api/admin-overview', async (req, res) => {
 async function startServer() {
     try {
         await initializeDatabase();
+        // The process.env.PORT is crucial for Render
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}. Open index.html in your browser.`);
         });
     } catch (err) {
         console.error("Server failed to start due to DB error:", err);
+        // If DB initialization fails, exit the process so Render can retry
+        process.exit(1);
     }
 }
 
