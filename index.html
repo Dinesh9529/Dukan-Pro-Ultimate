@@ -1048,6 +1048,58 @@
             // Add similar logic for other views here
         };
 
+// --- NEW: STOCK TAB LOGIC ---
+function setupStockTab() {
+    const stockForm = document.getElementById('add-stock-form');
+    const stockTableBody = document.getElementById('stock-table-body');
+    
+    // यदि फॉर्म मौजूद है, तो लिसनर जोड़ें
+    if (stockForm) {
+        stockForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = stockForm.querySelector('button[type="submit"]');
+            const formElements = stockForm.elements;
+
+            // फॉर्म डेटा इकट्ठा करें
+            const data = {
+                SKU: formElements['stock-sku'].value,
+                'Item Name': formElements['stock-name'].value,
+                Quantity: parseFloat(formElements['stock-quantity'].value) || 0,
+                Unit: formElements['stock-unit'].value,
+                'Purchase Price': parseFloat(formElements['stock-purchase-price'].value) || 0,
+                'Sale Price': parseFloat(formElements['stock-sale-price'].value) || 0,
+                GST: parseFloat(formElements['stock-gst'].value) || 0,
+            };
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> स्टॉक जोड़ रहा है...`;
+
+            try {
+                // 🔴 API call to save stock
+                const response = await fetchApi('/api/stock', { 
+                    method: 'POST', 
+                    body: data 
+                }, 'स्टॉक सेव किया जा रहा है...');
+
+                if (response.success) {
+                    showMessage('सफलता', `स्टॉक आइटम ${data['Item Name']} सफलतापूर्वक जोड़ा गया।`, 'success');
+                    stockForm.reset(); // फॉर्म को रीसेट करें
+                    // Fetch and render stock list here (or after unlock)
+                } else {
+                    throw new Error(response.message || 'स्टॉक जोड़ने में विफलता।');
+                }
+            } catch (error) {
+                // फॉर्म में मैसेज दिखाने के लिए कोई dedicated element नहीं है, इसलिए टोस्ट का उपयोग करें
+                showMessage('त्रुटि', `स्टॉक सेव एरर: ${error.message}`, 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'स्टॉक में आइटम जोड़ें';
+            }
+        });
+    }
+}
+// --- END STOCK TAB LOGIC ---
+
         const unlockApplication = () => {
             AppState.isLicensed = true;
             document.getElementById('sidebar').classList.remove('locked');
@@ -1398,3 +1450,4 @@
     </script>
 </body>
 </html>
+
