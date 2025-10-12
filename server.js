@@ -9,6 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 🚨 ENVIRONMENT VARIABLES: Render पर इन्हें सेट करना ज़रूरी है।
+// (ADMIN_PASSWORD आपका कस्टम मान है)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Dkc@#9529561113@abc'; 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -44,7 +45,7 @@ async function setupDatabase() {
     try {
         const client = await pool.connect();
 
-        // 1. Core Licenses Table (CLEANED SQL)
+        // 1. Core Licenses Table
         await client.query(`
             CREATE TABLE IF NOT EXISTS licenses (
                 key TEXT PRIMARY KEY, 
@@ -54,7 +55,7 @@ async function setupDatabase() {
         `);
         console.log("✅ Licenses table created/ready (PostgreSQL).");
 
-        // Testing: Insert dummy valid key (CLEANED SQL)
+        // Testing: Insert dummy valid key
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1); 
         await client.query(`
@@ -62,7 +63,7 @@ async function setupDatabase() {
             ON CONFLICT (key) DO NOTHING;
         `, ['398844dc1396accf5e8379d8014eebaf:632a0f5b9015ecf744f8e265580e14d44acde25d51376b8b608d503b9c43b801dab098d802949854b8479c5e9d9c1f02', tomorrow.toISOString().split('T')[0], 'Active']);
 
-        // 2. Invoice Generator Pro Table (CLEANED SQL)
+        // 2. Invoice Generator Pro Table
         await client.query(`
             CREATE TABLE IF NOT EXISTS invoices (
                 id SERIAL PRIMARY KEY,
@@ -77,10 +78,24 @@ async function setupDatabase() {
         `);
         console.log("✅ Invoices table created/ready (PostgreSQL).");
         
+        // 🔴 NEW: 3. Stock Management Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS stock (
+                sku TEXT PRIMARY KEY, 
+                item_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 0,
+                unit TEXT,
+                purchase_price REAL NOT NULL DEFAULT 0.0,
+                sale_price REAL NOT NULL DEFAULT 0.0,
+                gst REAL DEFAULT 0.0,
+                last_updated TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log("✅ Stock table created/ready (PostgreSQL).");
+
         client.release();
         
     } catch (err) {
-        // यह यहाँ पकड़ेगा अगर DATABASE_URL गलत है या SSL काम नहीं कर रहा है।
         console.error('❌ Database setup error:', err);
         process.exit(1);
     }
@@ -88,7 +103,8 @@ async function setupDatabase() {
 
 // --- Middleware Setup ---
 app.use(cors()); 
-app.use(express.json());
+// 🔴 FIX 413 Error: Request body size limit increased to 50MB
+app.use(express.json({ limit: '50mb' }));
 
 // --- API Routes ---
 
@@ -128,7 +144,6 @@ app.post('/api/save-invoice', async (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing essential invoice data (Number or Total).' });
     }
 
-    // CLEANED SQL
     const sql = `
         INSERT INTO invoices (invoice_number, customer_name, customer_contact, shop_name, grand_total, invoice_data) 
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -156,7 +171,55 @@ app.post('/api/save-invoice', async (req, res) => {
     }
 });
 
-// 3. Admin Login API
+// 🔴 NEW: 3. Add Stock Item API
+app.post('/api/stock', async (req, res) => {
+    // Keys match form input names from the index.html logic
+    const { SKU, 'Item Name': itemName, Quantity, Unit, 'Purchase Price': purchasePrice, 'Sale Price': salePrice, GST } = req.body;
+
+    // Basic validation
+    if (!SKU || !itemName || typeof Quantity !== 'number' || Quantity < 0 || typeof purchasePrice !== 'number' || typeof salePrice !== 'number') {
+        return res.status(400).json({ success: false, message: 'Missing or invalid required stock data.' });
+    }
+
+    const sql = `
+        INSERT INTO stock (sku, item_name, quantity, unit, purchase_price, sale_price, gst, last_updated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (sku) 
+        DO UPDATE SET
+            // यदि SKU पहले से है, तो मात्रा को जोड़ें (stock.quantity + EXCLUDED.quantity)
+            quantity = stock.quantity + EXCLUDED.quantity, 
+            unit = EXCLUDED.unit,
+            // अन्य विवरण (जैसे मूल्य) नए इनपुट से अपडेट करें
+            item_name = EXCLUDED.item_name,
+            purchase_price = EXCLUDED.purchase_price, 
+            sale_price = EXCLUDED.sale_price,
+            gst = EXCLUDED.gst,
+            last_updated = NOW()
+        RETURNING *;
+    `;
+
+    try {
+        const result = await pool.query(sql, [SKU, itemName, Quantity, Unit || 'Pcs', purchasePrice, salePrice, GST || 0]);
+        
+        // Return the saved item data
+        const item = {
+            SKU: result.rows[0].sku,
+            'Item Name': result.rows[0].item_name,
+            Quantity: result.rows[0].quantity,
+            Unit: result.rows[0].unit,
+            'Purchase Price': result.rows[0].purchase_price,
+            'Sale Price': result.rows[0].sale_price,
+            GST: result.rows[0].gst
+        };
+        res.json({ success: true, message: 'Stock updated/added successfully.', item });
+    } catch (err) {
+        console.error("Error adding/updating stock:", err.message);
+        return res.status(500).json({ success: false, message: 'Database error while updating stock.' });
+    }
+});
+
+
+// 4. Admin Login API
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
 
@@ -167,7 +230,7 @@ app.post('/api/admin-login', (req, res) => {
     }
 });
 
-// 4. Generate Key API
+// 5. Generate Key API
 app.post('/api/generate-key', async (req, res) => {
     const { password, days } = req.body;
 
@@ -210,9 +273,9 @@ app.post('/api/generate-key', async (req, res) => {
 });
 
 
-// 5. Basic Root URL response
+// 6. Basic Root URL response
 app.get('/', (req, res) => {
-    res.send('Dukan Pro Ultimate Backend is running! API Routes: /api/validate-key, /api/save-invoice, /api/admin-login, /api/generate-key');
+    res.send('Dukan Pro Ultimate Backend is running! API Routes: /api/validate-key, /api/save-invoice, /api/stock, /api/admin-login, /api/generate-key');
 });
 
 // --- Server Start ---
@@ -234,4 +297,3 @@ process.on('SIGINT', async () => {
     console.log('PostgreSQL pool disconnected.');
     process.exit(0);
 });
-
