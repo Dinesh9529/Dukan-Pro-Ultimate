@@ -1,27 +1,26 @@
-const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const cors = require('cors');
-const bodyParser = require('body-parser');
+      import express from 'express';
+import { verbose } from 'sqlite3'; // 'sqlite3' को 'import' करें
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🚨 सुरक्षा नोट: इसे हमेशा Render या किसी होस्टिंग प्लेटफ़ॉर्म पर Environment Variable (ENV) में सेट करें।
-// अगर ENV में नहीं मिला, तो यह डिफ़ॉल्ट रूप से 'password123' का उपयोग करेगा।
+// 🚨 ADMIN PASSWORD: इसे Render पर Environment Variable (ENV) में सेट करें।
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password123'; 
 
 // --- Middleware Setup ---
 app.use(cors()); 
-app.use(bodyParser.json());
+app.use(express.json()); // JSON बॉडी पार्स करने के लिए
+// Note: अब 'body-parser' की आवश्यकता नहीं है।
 
 // --- Database Setup (SQLite) ---
-const db = new sqlite3.Database('./dukanpro.db', (err) => {
+const db = new verbose().Database('./dukanpro.db', (err) => {
     if (err) {
         console.error('❌ Error opening database ' + err.message);
     } else {
         console.log('✅ Connected to the SQLite database.');
         
-        // 1. Core Licenses Table
+        // 1. Core Licenses Table (Dukan Pro License Check)
         db.run(`CREATE TABLE IF NOT EXISTS licenses (
             key TEXT PRIMARY KEY, 
             valid_until DATE, 
@@ -30,15 +29,15 @@ const db = new sqlite3.Database('./dukanpro.db', (err) => {
             if (err) console.error("Error creating licenses table:", err);
             else {
                 console.log("Licenses table created/ready.");
-                // 💡 टेस्ट के लिए एक डमी वैलिड की डालें: '398844dc1396accf5e8379d8014eebaf:632a0f5b9015ecf744f8e265580e14d44acde25d51376b8b608d503b9c43b801dab098d802949854b8479c5e9d9c1f02'
+                // टेस्टिंग के लिए डमी वैलिड की (कल तक वैध)
                 const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1); // 1 day validity for test
+                tomorrow.setDate(tomorrow.getDate() + 1); 
                 db.run("INSERT OR IGNORE INTO licenses (key, valid_until, status) VALUES (?, ?, ?)", 
                     ['398844dc1396accf5e8379d8014eebaf:632a0f5b9015ecf744f8e265580e14d44acde25d51376b8b608d503b9c43b801dab098d802949854b8479c5e9d9c1f02', tomorrow.toISOString().split('T')[0], 'Active']);
             }
         });
 
-        // 2. NEW Invoice Generator Pro Table
+        // 2. NEW Invoice Generator Pro Table (For SQL Saving)
         db.run(`CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             invoice_number TEXT UNIQUE,
@@ -46,20 +45,20 @@ const db = new sqlite3.Database('./dukanpro.db', (err) => {
             customer_contact TEXT,
             shop_name TEXT,
             grand_total REAL,
-            invoice_data TEXT,  /* Storing entire JSON as TEXT */
+            invoice_data TEXT,  
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`, (err) => {
             if (err) console.error("Error creating invoices table:", err);
             else console.log("Invoices table created/ready.");
         });
 
-        // 3. Add other Dukan Pro tables here (stock, sales, customers, etc.) if needed.
+        // 3. (Optional) Add your other Dukan Pro tables here (stock, sales, customers, etc.)
     }
 });
 
 // --- API Routes ---
 
-// 1. License Validation API (NEW)
+// 1. License Validation API (NEW ROUTE)
 app.get('/api/validate-key', (req, res) => {
     const key = req.query.key;
     if (!key) {
@@ -75,7 +74,6 @@ app.get('/api/validate-key', (req, res) => {
         if (row && row.status === 'Active' && new Date(row.valid_until) >= new Date()) {
             res.json({ valid: true, message: 'License is valid.' });
         } else {
-            // Check status for specific message
             let message = 'Invalid or expired license key.';
             if (row && row.status !== 'Active') {
                  message = 'License is suspended or terminated.';
@@ -85,11 +83,8 @@ app.get('/api/validate-key', (req, res) => {
     });
 });
 
-// 2. Save Invoice API (NEW)
+// 2. Save Invoice API (NEW ROUTE for SQL Saving)
 app.post('/api/save-invoice', (req, res) => {
-    // Note: The index.html now sends the Authorization Bearer token, but we are not enforcing it here
-    // for simplicity. In a real app, you would validate the license/user token here.
-    
     const invoiceData = req.body;
     const { invoiceNumber, customerName, customerContact, shopName, grandTotal } = invoiceData;
 
@@ -107,7 +102,7 @@ app.post('/api/save-invoice', (req, res) => {
         customerContact || 'N/A',
         shopName || 'N/A',
         grandTotal,
-        JSON.stringify(invoiceData) // Save the entire object as JSON string
+        JSON.stringify(invoiceData) 
     ], function(err) {
         if (err) {
             if (err.message.includes('UNIQUE constraint failed')) {
@@ -120,20 +115,19 @@ app.post('/api/save-invoice', (req, res) => {
     });
 });
 
-// 3. Admin Login API (Existing Dukan Pro Logic)
+// 3. Admin Login API (EXISTING ROUTE)
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
 
     if (password === ADMIN_PASSWORD) {
         res.json({ success: true, message: 'Login successful' });
     } else {
-        // Correct status for unauthorized access
         res.status(401).json({ success: false, message: 'Incorrect admin password.' });
     }
 });
 
 
-// 4. Basic Root URL response (for checking server status on Render)
+// 4. Basic Root URL response
 app.get('/', (req, res) => {
     res.send('Dukan Pro Ultimate Backend is running! API Routes: /api/validate-key, /api/save-invoice, /api/admin-login');
 });
@@ -150,3 +144,4 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+  
