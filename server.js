@@ -556,3 +556,96 @@ app.get('/api/dashboard-stats', async (req, res) => {
         const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}"`;
         const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}"`;
         const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}"`;
+        const stockValueQuery = `SELECT SUM("Purchase Price" * "Quantity") as stock_value FROM "${STOCK_TABLE_NAME}"`;
+        
+        const [salesRes, purchasesRes, expensesRes, stockValueRes] = await Promise.all([
+            client.query(salesQuery), client.query(purchasesCostQuery), client.query(expensesQuery), client.query(stockValueQuery) // FIX: Using client.query
+        ]);
+
+        const totalSalesRevenue = parseFloat(salesRes.rows[0].total_sales) || 0;
+        const totalTaxCollected = parseFloat(salesRes.rows[0].total_tax) || 0;
+        const totalCOGS = parseFloat(purchasesRes.rows[0].total_cogs) || 0;
+        const totalExpenses = parseFloat(expensesRes.rows[0].total_expenses) || 0;
+        const stockValue = parseFloat(stockValueRes.rows[0].stock_value) || 0;
+        const grossProfit = totalSalesRevenue - totalCOGS;
+        const netProfit = grossProfit - totalExpenses;
+
+        res.json({
+            totalSalesRevenue, totalTaxCollected, totalCOGS, totalExpenses, grossProfit, netProfit, stockValue,
+            totalAssets: stockValue, totalLiabilities: totalTaxCollected 
+        });
+    } catch (error) {
+        console.error("CRITICAL ERROR IN /api/dashboard-stats:", error.message, error.stack); // FIX: Detailed logging
+        res.status(500).json({ success: false, message: `Failed to fetch dashboard stats: ${error.message}` });
+    } finally {
+        client.release();
+    }
+});
+
+// Reports Endpoint with Date Filtering (FIX: Added client.connect/release and using client.query)
+app.get('/api/reports', async (req, res) => {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).json({ message: 'Start and end dates are required.' });
+    const client = await pool.connect();
+    try {
+        const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
+        const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
+        const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
+        const stockValueQuery = `SELECT SUM("Purchase Price" * "Quantity") as stock_value FROM "${STOCK_TABLE_NAME}"`;
+        
+        const [salesRes, purchasesRes, expensesRes, stockValueRes, expensesListRes] = await Promise.all([
+            client.query(salesQuery, [startDate, endDate]), client.query(purchasesCostQuery, [startDate, endDate]), // FIX: Using client.query
+            client.query(expensesQuery, [startDate, endDate]), client.query(stockValueQuery),
+            client.query(`SELECT * FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`, [startDate, endDate])
+        ]);
+
+        const totalSalesRevenue = parseFloat(salesRes.rows[0].total_sales) || 0;
+        const totalTaxCollected = parseFloat(salesRes.rows[0].total_tax) || 0;
+        const totalCOGS = parseFloat(purchasesRes.rows[0].total_cogs) || 0;
+        const totalExpenses = parseFloat(expensesRes.rows[0].total_expenses) || 0;
+        const stockValue = parseFloat(stockValueRes.rows[0].stock_value) || 0;
+        const grossProfit = totalSalesRevenue - totalCOGS;
+        const netProfit = grossProfit - totalExpenses;
+        
+        res.json({
+            totalSalesRevenue, totalTaxCollected, totalCOGS, grossProfit, totalExpenses, netProfit, stockValue,
+            totalAssets: stockValue, totalLiabilities: totalTaxCollected, expenses: expensesListRes.rows
+        });
+    } catch (error) {
+        console.error("CRITICAL ERROR IN /api/reports:", error.message, error.stack); // FIX: Detailed logging
+        res.status(500).json({ success: false, message: `Failed to fetch report data: ${error.message}` });
+    } finally {
+        client.release();
+    }
+});
+
+// Admin Overview (FIX: Added client.connect/release and using client.query)
+app.get('/api/admin-overview', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const customers = await client.query(`SELECT "ID", "Customer Name" as "Name", "Phone", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC LIMIT 5`);
+        const sales = await client.query(`SELECT "Invoice Number", "Customer Name", "Total Amount", "Date" FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC, "Invoice Number" DESC LIMIT 5`);
+        const lowStock = await client.query(`SELECT "SKU", "Item Name", "Quantity" FROM "${STOCK_TABLE_NAME}" WHERE "Quantity" <= 10 ORDER BY "Quantity" ASC`);
+        res.json({ customers: customers.rows, sales: sales.rows, lowStock: lowStock.rows });
+    } catch (error) {
+        console.error("CRITICAL ERROR IN /api/admin-overview:", error.message, error.stack); // FIX: Detailed logging
+        res.status(500).json({ success: false, message: `Failed to fetch admin data: ${error.message}` });
+    } finally {
+        client.release();
+    }
+});
+
+
+// --- SERVER START ---
+async function startServer() {
+    try {
+        await initializeDatabase();
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}. Open index.html in your browser.`);
+        });
+    } catch (err) {
+        console.error("Server failed to start due to DB error:", err);
+    }
+}
+
+startServer();
