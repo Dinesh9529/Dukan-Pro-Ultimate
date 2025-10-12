@@ -199,7 +199,58 @@ app.post('/api/check-license', async (req, res) => {
         return res.status(500).json({ isValid: false, message: `Server error: ${error.message}` });
     }
 });
+// server.js mein, jahan aapke doosre endpoints hain, wahan yeh naya endpoint jodein:
 
+// --- [NEW] License Registration Endpoint (Admin Use) ---
+app.post('/api/register-license', async (req, res) => {
+    // 💡 Note: Production mein, is endpoint ko Admin Token ya Password se protect karna chahiye.
+    const { encryptedKey, issuedTo } = req.body;
+    
+    if (!encryptedKey || !issuedTo) {
+        return res.status(400).json({ success: false, message: 'Encrypted Key and Issued To details are required.' });
+    }
+
+    const decryptedData = decryptLicense(encryptedKey);
+
+    if (!decryptedData) {
+        return res.status(401).json({ success: false, message: 'Invalid encrypted key or secret mismatch.' });
+    }
+
+    // Decrypted data format: [UNIQUE_ID]|[EXPIRY_DATE_ISO]
+    const parts = decryptedData.split('|');
+    if (parts.length !== 2) {
+        return res.status(401).json({ success: false, message: 'Invalid decrypted data format.' });
+    }
+    
+    const licenseKey = parts[0]; // The Unique ID
+    const expiryDateISO = parts[1];
+    
+    try {
+        // Expiry Date ko database ke DATE format ke liye thoda adjust karna padega
+        const dbExpiryDate = new Date(expiryDateISO).toISOString().split('T')[0];
+        const dbIssuedDate = new Date().toISOString().split('T')[0];
+
+        const query = `
+            INSERT INTO "${LICENSES_TABLE_NAME}" ("License Key", "Issued Date", "Expiry Date", "Status", "Issued To")
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT ("License Key") DO UPDATE 
+            SET "Expiry Date" = EXCLUDED."Expiry Date", "Issued To" = EXCLUDED."Issued To", "Status" = 'Active';
+        `;
+        
+        await pool.query(query, [licenseKey, dbIssuedDate, dbExpiryDate, 'Active', issuedTo]);
+
+        res.status(201).json({ 
+            success: true, 
+            message: 'License registered/updated successfully!', 
+            licenseKey, 
+            expiryDate: dbExpiryDate 
+        });
+
+    } catch (error) {
+        console.error("Database error during license registration:", error);
+        res.status(500).json({ success: false, message: `Failed to register license: ${error.message}` });
+    }
+});
 // Admin Login Endpoint
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
@@ -548,3 +599,4 @@ async function startServer() {
 }
 
 startServer();
+
