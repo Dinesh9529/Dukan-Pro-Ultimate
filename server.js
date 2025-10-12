@@ -171,7 +171,7 @@ app.post('/api/save-invoice', async (req, res) => {
     }
 });
 
-// 🔴 NEW: 3. Add Stock Item API
+// 🔴 NEW: 3. Add Stock Item API (SQL comments FIXED)
 app.post('/api/stock', async (req, res) => {
     // Keys match form input names from the index.html logic
     const { SKU, 'Item Name': itemName, Quantity, Unit, 'Purchase Price': purchasePrice, 'Sale Price': salePrice, GST } = req.body;
@@ -186,10 +186,10 @@ app.post('/api/stock', async (req, res) => {
         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
         ON CONFLICT (sku) 
         DO UPDATE SET
-            // यदि SKU पहले से है, तो मात्रा को जोड़ें (stock.quantity + EXCLUDED.quantity)
+            -- यदि SKU पहले से है, तो मात्रा को जोड़ें (stock.quantity + EXCLUDED.quantity)
             quantity = stock.quantity + EXCLUDED.quantity, 
             unit = EXCLUDED.unit,
-            // अन्य विवरण (जैसे मूल्य) नए इनपुट से अपडेट करें
+            -- अन्य विवरण (जैसे मूल्य) नए इनपुट से अपडेट करें
             item_name = EXCLUDED.item_name,
             purchase_price = EXCLUDED.purchase_price, 
             sale_price = EXCLUDED.sale_price,
