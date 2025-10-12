@@ -1048,6 +1048,73 @@
             // Add similar logic for other views here
         };
 
+// --- NEW: FETCH AND RENDER STOCK LIST ---
+async function fetchAndRenderStockList() {
+    const tableBody = document.getElementById('stock-table-body');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = `<tr><td colspan="7" class="text-center">स्टॉक लोड हो रहा है...</td></tr>`;
+
+    try {
+        // 🔴 NEW API CALL: /api/stocks
+        const response = await fetchApi('/api/stocks', { method: 'GET' });
+
+        if (response.success && response.stocks.length > 0) {
+            tableBody.innerHTML = '';
+            response.stocks.forEach(item => {
+                const row = document.createElement('tr');
+                // यह सुनिश्चित करें कि आपके स्टॉक टेबल में 7 कॉलम हैं (SKU, Item Name, Quantity, Unit, P. Price, S. Price, GST)
+                row.innerHTML = `
+                    <td>${item.SKU}</td>
+                    <td>${item['Item Name']}</td>
+                    <td>${item.Quantity} ${item.Unit}</td>
+                    <td>₹${item['Purchase Price'].toFixed(2)}</td>
+                    <td>₹${item['Sale Price'].toFixed(2)}</td>
+                    <td>${item.GST}%</td>
+                    <td>${new Date(item['Last Updated']).toLocaleString()}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        } else {
+            tableBody.innerHTML = `<tr><td colspan="7" class="text-center">वर्तमान में कोई स्टॉक आइटम नहीं है।</td></tr>`;
+        }
+    } catch (error) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">स्टॉक लोड करने में त्रुटि: ${error.message}</td></tr>`;
+        console.error('Error in fetchAndRenderStockList:', error);
+    }
+}
+
+function setupStockTab() {
+    // ... (आपका मौजूदा कोड)
+
+    stockForm.addEventListener('submit', async (e) => {
+        // ... (आपका मौजूदा फॉर्म सबमिशन लॉजिक)
+        try {
+            // ... (API कॉल)
+
+            if (response.success) {
+                showMessage('सफलता', `स्टॉक आइटम ${data['Item Name']} सफलतापूर्वक जोड़ा गया/अपडेट किया गया।`, 'success');
+                stockForm.reset(); 
+                
+                // 🔴 FIX: स्टॉक जोड़ने के बाद लिस्ट को रीलोड करें
+                await fetchAndRenderStockList(); 
+
+            } else {
+                // ...
+            }
+        } catch (error) {
+           // ...
+        } finally {
+            // ...
+        }
+    });
+
+    // 🔴 FIX: जब स्टॉक टैब पहली बार खुलता है, तब भी लिस्ट को लोड करें
+    fetchAndRenderStockList();
+}
+
+
+        
 // --- NEW: STOCK TAB LOGIC ---
 function setupStockTab() {
     const stockForm = document.getElementById('add-stock-form');
@@ -1454,5 +1521,6 @@ function setupStockTab() {
     </script>
 </body>
 </html>
+
 
 
