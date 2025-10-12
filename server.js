@@ -218,8 +218,38 @@ app.post('/api/stock', async (req, res) => {
     }
 });
 
+// 🔴 NEW: 4. Get All Stock Items API
+app.get('/api/stocks', async (req, res) => {
+    try {
+        // सबसे हाल ही में अपडेट किए गए आइटम को पहले दिखाने के लिए ORDER BY का उपयोग करें
+        const sql = `
+            SELECT sku, item_name, quantity, unit, purchase_price, sale_price, gst, last_updated 
+            FROM stock 
+            ORDER BY last_updated DESC;
+        `;
+        const result = await pool.query(sql);
 
-// 4. Admin Login API
+        // आइटम डेटा को फ्रंटएंड के लिए उपयुक्त फॉर्मेट में भेजें
+        const stocks = result.rows.map(row => ({
+            SKU: row.sku,
+            'Item Name': row.item_name,
+            Quantity: row.quantity,
+            Unit: row.unit,
+            'Purchase Price': row.purchase_price,
+            'Sale Price': row.sale_price,
+            GST: row.gst,
+            'Last Updated': row.last_updated.toISOString()
+        }));
+        
+        res.json({ success: true, stocks });
+
+    } catch (err) {
+        console.error("Error fetching stocks:", err.message);
+        return res.status(500).json({ success: false, message: 'Database error while fetching stock list.' });
+    }
+});
+
+// 5. Admin Login API
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
 
@@ -230,7 +260,7 @@ app.post('/api/admin-login', (req, res) => {
     }
 });
 
-// 5. Generate Key API
+// 6. Generate Key API
 app.post('/api/generate-key', async (req, res) => {
     const { password, days } = req.body;
 
@@ -273,7 +303,7 @@ app.post('/api/generate-key', async (req, res) => {
 });
 
 
-// 6. Basic Root URL response
+// 7. Basic Root URL response
 app.get('/', (req, res) => {
     res.send('Dukan Pro Ultimate Backend is running! API Routes: /api/validate-key, /api/save-invoice, /api/stock, /api/admin-login, /api/generate-key');
 });
@@ -297,3 +327,4 @@ process.on('SIGINT', async () => {
     console.log('PostgreSQL pool disconnected.');
     process.exit(0);
 });
+
