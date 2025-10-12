@@ -1,12 +1,10 @@
 /*
  * Node.js Server for Dukan Pro Business Suite (PostgreSQL Backend)
- * FINAL & COMPLETE VERSION - Includes all features (Sales, Stock, Purchases, Expenses, CRM)
- * FIXES: 
- * 1. SyntaxError: Unexpected end of input (Fixed by careful bracket checking).
- * 2. Status 500 & Database Pool Exhaustion (Fixed by implementing client.release() in a finally block for ALL endpoints).
+ * FINAL & COMPLETE VERSION. Fixes all SQL column case sensitivity issues.
+ * FIX: All column references are now guaranteed to match the CREATE TABLE schema.
  */
 import express from 'express';
-import pg from 'pg'; // PostgreSQL Client
+import pg from 'pg'; 
 import { createDecipheriv, createHash } from 'crypto';
 import cors from 'cors';
 
@@ -20,13 +18,11 @@ app.use(cors({
 app.use(express.json());
 
 // --- Environment Variables & Constants ---
-// APP_SECRET_KEY आपके key generator में इस्तेमाल होनी चाहिए
 const APP_SECRET_KEY = process.env.APP_SECRET_KEY || '6019c9ecf0fd55147c482910a17f1b21'; 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'defaultadminpass';
-// Render 10000 पोर्ट का उपयोग करता है
 const PORT = process.env.PORT || 10000; 
 
-// Table Names
+// Table Names (Must use these exact case-sensitive names)
 const CUSTOMERS_TABLE_NAME = 'Customers';
 const STOCK_TABLE_NAME = 'Stock';
 const PURCHASES_TABLE_NAME = 'Purchases';
@@ -35,27 +31,22 @@ const EXPENSES_TABLE_NAME = 'Expenses';
 const LICENSES_TABLE_NAME = 'Licenses';
 
 // --- Database Configuration (PostgreSQL) ---
-// Render में DATABASE_URL environment variable सेट करें
 const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/dukanprodb',
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    max: 10, // Max clients in the pool
-    idleTimeoutMillis: 30000, // Close idle clients after 30s
-    connectionTimeoutMillis: 2000, // Give up after 2s of connection waiting
+    max: 10, 
+    idleTimeoutMillis: 30000, 
+    connectionTimeoutMillis: 2000, 
 });
 
-// --- Utility Functions ---
-
+// --- Utility Functions (Decryption and Hashing are fine) ---
 function decryptLicense(encryptedText) {
     try {
         const parts = encryptedText.split(':');
         if (parts.length !== 2) return null;
-
         const iv = Buffer.from(parts[0], 'hex');
         const encrypted = Buffer.from(parts[1], 'hex');
-        
         const key = createHash('sha256').update(APP_SECRET_KEY).digest().slice(0, 32);
-
         const decipher = createDecipheriv('aes-256-cbc', key, iv);
         let decrypted = decipher.update(encrypted);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -65,7 +56,6 @@ function decryptLicense(encryptedText) {
         return null;
     }
 }
-
 function hashPassword(password) {
     return createHash('sha256').update(password).digest('hex');
 }
@@ -77,7 +67,7 @@ async function initializeDatabase() {
         client = await pool.connect();
         await client.query('BEGIN');
 
-        // Tables creation queries (unchanged, using double quotes for case-sensitivity)
+        // Note: PostgreSQL requires double quotes around mixed-case names for case-sensitivity.
         await client.query(`
             CREATE TABLE IF NOT EXISTS "${LICENSES_TABLE_NAME}" (
                 "License Key" VARCHAR(255) PRIMARY KEY, "Issued Date" DATE NOT NULL,
@@ -148,18 +138,13 @@ async function initializeDatabase() {
 // ===================================
 
 // --- 1. System & Authentication ---
-
-// License Check Endpoint 
 app.post('/api/check-license', async (req, res) => {
     const { licenseKey } = req.body;
     if (!licenseKey) return res.status(400).json({ isValid: false, message: 'License key is required.' });
-    
     const decryptedData = decryptLicense(licenseKey);
     if (!decryptedData) return res.status(401).json({ isValid: false, message: 'Invalid license key format or secret mismatch.' });
-
     const parts = decryptedData.split('|');
     if (parts.length !== 2) return res.status(401).json({ isValid: false, message: 'Invalid decrypted data format.' });
-    
     const keyToLookup = parts[0]; 
     let client;
     try {
@@ -168,19 +153,12 @@ app.post('/api/check-license', async (req, res) => {
             `SELECT "Expiry Date", "Status" FROM "${LICENSES_TABLE_NAME}" WHERE "License Key" = $1`,
             [keyToLookup]
         );
-
         if (result.rows.length === 0) return res.status(401).json({ isValid: false, message: 'License not found in database.' });
-
         const dbExpiryDate = new Date(result.rows[0]["Expiry Date"]);
         const status = result.rows[0]["Status"];
         const currentDate = new Date();
-
-        if (status !== 'Active' || dbExpiryDate < currentDate) {
-            return res.status(401).json({ isValid: false, message: 'License is inactive or expired.' });
-        }
-        
+        if (status !== 'Active' || dbExpiryDate < currentDate) return res.status(401).json({ isValid: false, message: 'License is inactive or expired.' });
         return res.json({ isValid: true, message: 'License is valid!', expiryDate: dbExpiryDate.toISOString().split('T')[0] });
-
     } catch (error) {
         console.error("ERROR IN /api/check-license:", error.message, error.stack); 
         return res.status(500).json({ isValid: false, message: `Server error during license check: ${error.message}` });
@@ -189,43 +167,28 @@ app.post('/api/check-license', async (req, res) => {
     }
 });
 
-// License Registration Endpoint 
 app.post('/api/register-license', async (req, res) => {
     const { encryptedKey, issuedTo } = req.body;
-    
     if (!encryptedKey || !issuedTo) return res.status(400).json({ success: false, message: 'Encrypted Key and Issued To details are required.' });
-
     const decryptedData = decryptLicense(encryptedKey);
     if (!decryptedData) return res.status(401).json({ success: false, message: 'Invalid encrypted key or secret mismatch.' });
-
     const parts = decryptedData.split('|');
     if (parts.length !== 2) return res.status(401).json({ success: false, message: 'Invalid decrypted data format.' });
-    
     const licenseKey = parts[0]; 
     const expiryDateISO = parts[1];
     let client;
-    
     try {
         client = await pool.connect();
         const dbExpiryDate = new Date(expiryDateISO).toISOString().split('T')[0];
         const dbIssuedDate = new Date().toISOString().split('T')[0];
-
         const query = `
             INSERT INTO "${LICENSES_TABLE_NAME}" ("License Key", "Issued Date", "Expiry Date", "Status", "Issued To")
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT ("License Key") DO UPDATE 
             SET "Expiry Date" = EXCLUDED."Expiry Date", "Issued To" = EXCLUDED."Issued To", "Status" = 'Active';
         `;
-        
         await client.query(query, [licenseKey, dbIssuedDate, dbExpiryDate, 'Active', issuedTo]);
-
-        res.status(201).json({ 
-            success: true, 
-            message: 'License registered/updated successfully!', 
-            licenseKey, 
-            expiryDate: dbExpiryDate 
-        });
-
+        res.status(201).json({ success: true, message: 'License registered/updated successfully!', licenseKey, expiryDate: dbExpiryDate });
     } catch (error) {
         console.error("ERROR IN /api/register-license:", error.message, error.stack); 
         res.status(500).json({ success: false, message: `Failed to register license: ${error.message}` });
@@ -234,12 +197,10 @@ app.post('/api/register-license', async (req, res) => {
     }
 });
 
-// Admin Login Endpoint (No DB interaction needed)
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
     const hashedPassword = hashPassword(password);
     const adminHashedPass = hashPassword(ADMIN_PASSWORD);
-
     if (hashedPassword === adminHashedPass) {
         const token = createHash('sha256').update(ADMIN_PASSWORD + Date.now()).digest('hex');
         res.json({ success: true, token });
@@ -250,32 +211,25 @@ app.post('/api/admin-login', (req, res) => {
 
 
 // --- 2. Sales Management ---
-
-// Record Sale 
 app.post('/api/record-sale', async (req, res) => {
     const { invoiceNumber, customerName, items, totalAmount, gstAmount } = req.body;
     if (!invoiceNumber || !customerName || !items || !totalAmount || !gstAmount || !items.length) {
         return res.status(400).json({ success: false, message: 'Missing required sale details.' });
     }
-
     const itemsJson = JSON.stringify(items);
     let client;
     try {
         client = await pool.connect();
         await client.query('BEGIN');
-
         const saleQuery = `INSERT INTO "${SALES_TABLE_NAME}" ("Invoice Number", "Customer Name", "Items Sold", "Total Amount", "GST Amount") VALUES ($1, $2, $3, $4, $5);`;
         await client.query(saleQuery, [invoiceNumber, customerName, itemsJson, totalAmount, gstAmount]);
 
         for (const item of items) {
             const stockUpdateQuery = `UPDATE "${STOCK_TABLE_NAME}" SET "Quantity" = "Quantity" - $1 WHERE "SKU" = $2 AND "Quantity" >= $1;`;
             const result = await client.query(stockUpdateQuery, [item.quantity, item.sku]);
-            if (result.rowCount === 0) {
-                throw new Error(`Insufficient stock or invalid SKU for item: ${item.sku}`);
-            }
+            if (result.rowCount === 0) throw new Error(`Insufficient stock or invalid SKU for item: ${item.sku}`);
         }
         
-        // Ensure customer exists
         const existingCustomer = await client.query(`SELECT "ID" FROM "${CUSTOMERS_TABLE_NAME}" WHERE "Customer Name" = $1;`, [customerName]);
         if (existingCustomer.rows.length === 0) {
             await client.query(`INSERT INTO "${CUSTOMERS_TABLE_NAME}" ("Customer Name") VALUES ($1);`, [customerName]);
@@ -292,7 +246,6 @@ app.post('/api/record-sale', async (req, res) => {
     }
 });
 
-// Get Sales 
 app.get('/api/sales', async (req, res) => {
     let client;
     try {
@@ -309,8 +262,6 @@ app.get('/api/sales', async (req, res) => {
 
 
 // --- 3. Purchases Management ---
-
-// Record Purchase 
 app.post('/api/record-purchase', async (req, res) => {
     const { billNumber, supplierName, items, totalCost } = req.body;
     if (!billNumber || !items || !totalCost || !items.length) {
@@ -344,7 +295,6 @@ app.post('/api/record-purchase', async (req, res) => {
     }
 });
 
-// Get Purchases 
 app.get('/api/purchases', async (req, res) => {
     let client;
     try {
@@ -359,7 +309,6 @@ app.get('/api/purchases', async (req, res) => {
     }
 });
 
-// Delete Purchase 
 app.delete('/api/purchases/:id', async (req, res) => {
     const { id } = req.params;
     let client;
@@ -388,8 +337,6 @@ app.delete('/api/purchases/:id', async (req, res) => {
 
 
 // --- 4. Expenses Management ---
-
-// Record Expense 
 app.post('/api/record-expense', async (req, res) => {
     const { category, description, amount, date } = req.body;
     if (!category || amount === undefined || !date) {
@@ -409,7 +356,6 @@ app.post('/api/record-expense', async (req, res) => {
     }
 });
 
-// Get Expenses 
 app.get('/api/expenses', async (req, res) => {
     let client;
     try {
@@ -424,7 +370,6 @@ app.get('/api/expenses', async (req, res) => {
     }
 });
 
-// Delete Expense 
 app.delete('/api/expenses/:id', async (req, res) => {
     let client;
     try {
@@ -441,13 +386,12 @@ app.delete('/api/expenses/:id', async (req, res) => {
 
 
 // --- 5. Stock & Inventory ---
-
-// Get Stock 
 app.get('/api/stock', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const result = await client.query(`SELECT *, "Selling Price" as "Sale Price", "GST Rate" as "GST" FROM "${STOCK_TABLE_NAME}" ORDER BY "Item Name" ASC`);
+        // Corrected columns to match UI expectations ("Sale Price" and "GST")
+        const result = await client.query(`SELECT "SKU", "Item Name", "Quantity", "Purchase Price", "Selling Price" AS "Sale Price", "GST Rate" AS "GST", "Date Added" FROM "${STOCK_TABLE_NAME}" ORDER BY "Item Name" ASC`);
         res.json(result.rows);
     } catch (error) {
         console.error("ERROR IN /api/stock:", error.message, error.stack); 
@@ -457,7 +401,6 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
-// Add/Update Stock 
 app.post('/api/stock', async (req, res) => {
     const { SKU, "Item Name": itemName, Quantity, "Purchase Price": purchasePrice, "Sale Price": sellingPrice, GST: gstRate } = req.body;
     if (!SKU || !itemName || Quantity === undefined || purchasePrice === undefined || sellingPrice === undefined || gstRate === undefined) {
@@ -473,7 +416,7 @@ app.post('/api/stock', async (req, res) => {
                 "Item Name" = EXCLUDED."Item Name", "Quantity" = "${STOCK_TABLE_NAME}"."Quantity" + EXCLUDED."Quantity",
                 "Purchase Price" = EXCLUDED."Purchase Price", "Selling Price" = EXCLUDED."Selling Price",
                 "GST Rate" = EXCLUDED."GST Rate", "Date Added" = CURRENT_DATE
-            RETURNING *, "Selling Price" as "Sale Price", "GST Rate" as "GST";
+            RETURNING "SKU", "Item Name", "Quantity", "Purchase Price", "Selling Price" AS "Sale Price", "GST Rate" AS "GST", "Date Added";
         `;
         const result = await client.query(query, [SKU, itemName, Quantity, purchasePrice, sellingPrice, gstRate]);
         res.status(201).json({ success: true, message: 'Stock item added/updated successfully!', item: result.rows[0] });
@@ -485,7 +428,6 @@ app.post('/api/stock', async (req, res) => {
     }
 });
 
-// Delete Stock 
 app.delete('/api/stock/:sku', async (req, res) => {
     let client;
     try {
@@ -503,13 +445,12 @@ app.delete('/api/stock/:sku', async (req, res) => {
 
 
 // --- 6. CRM (Customers) ---
-
-// Get Customers 
 app.get('/api/customers', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const result = await client.query(`SELECT "ID", "Customer Name" as "Name", "Phone", '' as "Email", "Address", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC`);
+        // Corrected column name aliases to match UI expectations
+        const result = await client.query(`SELECT "ID", "Customer Name" AS "Name", "Phone", "Address", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC`);
         res.json(result.rows);
     } catch (error) {
         console.error("ERROR IN /api/customers:", error.message, error.stack); 
@@ -519,7 +460,6 @@ app.get('/api/customers', async (req, res) => {
     }
 });
 
-// Add Customer 
 app.post('/api/customers', async (req, res) => {
     const { Name, Phone, Address } = req.body;
     if (!Name) return res.status(400).json({ success: false, message: 'Customer name is required.' });
@@ -537,7 +477,6 @@ app.post('/api/customers', async (req, res) => {
     }
 });
 
-// Delete Customer 
 app.delete('/api/customers/:id', async (req, res) => {
     let client;
     try {
@@ -554,15 +493,14 @@ app.delete('/api/customers/:id', async (req, res) => {
 
 
 // --- 7. Dashboard & Reporting ---
-
-// Comprehensive Dashboard Stats 
 app.get('/api/dashboard-stats', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}"`;
-        const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}"`;
-        const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}"`;
+        // COALESCE ensures we get 0 instead of null if no data exists
+        const salesQuery = `SELECT COALESCE(SUM("Total Amount"), 0) as total_sales, COALESCE(SUM("GST Amount"), 0) as total_tax FROM "${SALES_TABLE_NAME}"`;
+        const purchasesCostQuery = `SELECT COALESCE(SUM("Total Cost"), 0) as total_cogs FROM "${PURCHASES_TABLE_NAME}"`;
+        const expensesQuery = `SELECT COALESCE(SUM("Amount"), 0) as total_expenses FROM "${EXPENSES_TABLE_NAME}"`;
         const stockValueQuery = `SELECT COALESCE(SUM("Purchase Price" * "Quantity"), 0) as stock_value FROM "${STOCK_TABLE_NAME}"`;
         
         const [salesRes, purchasesRes, expensesRes, stockValueRes] = await Promise.all([
@@ -589,16 +527,15 @@ app.get('/api/dashboard-stats', async (req, res) => {
     }
 });
 
-// Reports Endpoint with Date Filtering 
 app.get('/api/reports', async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ message: 'Start and end dates are required.' });
     let client;
     try {
         client = await pool.connect();
-        const salesQuery = `SELECT SUM("Total Amount") as total_sales, SUM("GST Amount") as total_tax FROM "${SALES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
-        const purchasesCostQuery = `SELECT SUM("Total Cost") as total_cogs FROM "${PURCHASES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
-        const expensesQuery = `SELECT SUM("Amount") as total_expenses FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
+        const salesQuery = `SELECT COALESCE(SUM("Total Amount"), 0) as total_sales, COALESCE(SUM("GST Amount"), 0) as total_tax FROM "${SALES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
+        const purchasesCostQuery = `SELECT COALESCE(SUM("Total Cost"), 0) as total_cogs FROM "${PURCHASES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
+        const expensesQuery = `SELECT COALESCE(SUM("Amount"), 0) as total_expenses FROM "${EXPENSES_TABLE_NAME}" WHERE "Date" BETWEEN $1 AND $2`;
         const stockValueQuery = `SELECT COALESCE(SUM("Purchase Price" * "Quantity"), 0) as stock_value FROM "${STOCK_TABLE_NAME}"`;
         
         const [salesRes, purchasesRes, expensesRes, stockValueRes, expensesListRes] = await Promise.all([
@@ -627,12 +564,12 @@ app.get('/api/reports', async (req, res) => {
     }
 });
 
-// Admin Overview 
 app.get('/api/admin-overview', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const customers = await client.query(`SELECT "ID", "Customer Name" as "Name", "Phone", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC LIMIT 5`);
+        // Corrected columns to match UI expectations
+        const customers = await client.query(`SELECT "ID", "Customer Name" AS "Name", "Phone", "Date Added" FROM "${CUSTOMERS_TABLE_NAME}" ORDER BY "ID" DESC LIMIT 5`);
         const sales = await client.query(`SELECT "Invoice Number", "Customer Name", "Total Amount", "Date" FROM "${SALES_TABLE_NAME}" ORDER BY "Date" DESC, "Invoice Number" DESC LIMIT 5`);
         const lowStock = await client.query(`SELECT "SKU", "Item Name", "Quantity" FROM "${STOCK_TABLE_NAME}" WHERE "Quantity" <= 10 ORDER BY "Quantity" ASC`);
         res.json({ customers: customers.rows, sales: sales.rows, lowStock: lowStock.rows });
@@ -649,13 +586,11 @@ app.get('/api/admin-overview', async (req, res) => {
 async function startServer() {
     try {
         await initializeDatabase();
-        // The process.env.PORT is crucial for Render
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}. Open index.html in your browser.`);
         });
     } catch (err) {
         console.error("Server failed to start due to DB error:", err);
-        // If DB initialization fails, exit the process so Render can retry
         process.exit(1);
     }
 }
