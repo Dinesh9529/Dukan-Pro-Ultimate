@@ -536,3 +536,4 @@ async function startServer() {
 }
 
 startServer();
+
