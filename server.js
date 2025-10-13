@@ -1,390 +1,430 @@
-import express from 'express';
-import cors from 'cors';
-import pg from 'pg'; 
-import crypto from 'crypto'; 
+// server.js (Dukan Pro - Ultimate Backend)
 
-const { Pool } = pg; 
+const express = require('express');
+const { Pool } = require('pg');
+const crypto = require('crypto');
+const cors = require('cors');
+require('dotenv').config(); // .env फ़ाइल से environment variables लोड करें
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_change_it'; // लाइसेंस एन्क्रिप्शन के लिए
 
-// 🚨 ENVIRONMENT VARIABLES: Render पर इन्हें सेट करना ज़रूरी है।
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Dkc@#9529561113@abc'; 
-const DATABASE_URL = process.env.DATABASE_URL;
+// --- Middlewares ---
+app.use(cors()); // CORS सक्षम करें
+app.use(express.json()); // JSON body पार्स करने के लिए
 
-if (!DATABASE_URL) {
-    console.error('❌ ERROR: DATABASE_URL environment variable is not set!');
-    process.exit(1);
-}
-
-// --- Utility Function ---
-function generateLicenseKey() {
-    const part1 = crypto.randomBytes(16).toString('hex');
-    const part2 = crypto.randomBytes(32).toString('hex');
-    return `${part1}:${part2}`;
-}
-
-// --- Database Setup (PostgreSQL) ---
+// --- Database Setup ---
 const pool = new Pool({
-    connectionString: DATABASE_URL,
-    ssl: { rejectUnauthorized: false } 
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Render के साथ SSL की आवश्यकता होती है
+    }
 });
 
-pool.on('error', (err, client) => {
-    console.error('❌ Unexpected error on idle client', err);
-    process.exit(-1);
-});
-
-// ... (setupDatabase फ़ंक्शन: इसमें कोई बदलाव नहीं है, यह स्टॉक और लाइसेंस टेबल बनाता है) ...
-async function setupDatabase() {
+/**
+ * सभी आवश्यक टेबल्स (8 टेबल्स) बनाता है।
+ * इसमें Licenses, Stock, Invoices, Customers, Purchases, Expenses शामिल हैं।
+ */
+async function createTables() {
     try {
-        const client = await pool.connect();
-
-        // 1. Core Licenses Table
-        await client.query(`
+        // 1. Licenses Table (लाइसेंस कुंजी संग्रहीत करने के लिए)
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS licenses (
-                key TEXT PRIMARY KEY, 
-                valid_until DATE, 
-                status TEXT
+                key_hash TEXT PRIMARY KEY,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                expiry_date TIMESTAMP WITH TIME ZONE,
+                is_trial BOOLEAN DEFAULT FALSE
             );
         `);
-        console.log("✅ Licenses table created/ready (PostgreSQL).");
+        console.log('✅ Licenses table created/ready (PostgreSQL).');
 
-        // Testing: Insert dummy valid key
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1); 
-        await client.query(`
-            INSERT INTO licenses (key, valid_until, status) VALUES ($1, $2, $3)
-            ON CONFLICT (key) DO NOTHING;
-        `, ['398844dc1396accf5e8379d8014eebaf:632a0f5b9015ecf744f8e265580e14d44acde25d51376b8b608d503b9c43b801dab098d802949854b8479c5e9d9c1f02', tomorrow.toISOString().split('T')[0], 'Active']);
+        // 2. Stock Table (इन्वेंट्री)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS stock (
+                id SERIAL PRIMARY KEY,
+                sku TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                quantity NUMERIC NOT NULL,
+                unit TEXT,
+                purchase_price NUMERIC NOT NULL,
+                sale_price NUMERIC NOT NULL,
+                gst NUMERIC DEFAULT 0,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Stock table created/ready (PostgreSQL).');
+        
+        // 3. Customers Table (ग्राहक)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS customers (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                phone TEXT UNIQUE,
+                email TEXT UNIQUE,
+                address TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Customers table created/ready (PostgreSQL).');
 
-        // 2. Invoice Generator Pro Table
-        await client.query(`
+        // 4. Invoices Table (बिक्री/Sales)
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS invoices (
                 id SERIAL PRIMARY KEY,
-                invoice_number TEXT UNIQUE,
-                customer_name TEXT,
-                customer_contact TEXT,
-                shop_name TEXT,
-                grand_total REAL,
-                invoice_data TEXT,  
-                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                customer_id INTEGER REFERENCES customers(id),
+                total_amount NUMERIC NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log("✅ Invoices table created/ready (PostgreSQL).");
-        
-        // 3. Stock Management Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS stock (
-                sku TEXT PRIMARY KEY, 
-                item_name TEXT NOT NULL,
-                quantity INTEGER NOT NULL DEFAULT 0,
-                unit TEXT,
-                purchase_price REAL NOT NULL DEFAULT 0.0,
-                sale_price REAL NOT NULL DEFAULT 0.0,
-                gst REAL DEFAULT 0.0,
-                last_updated TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log("✅ Stock table created/ready (PostgreSQL).");
+        console.log('✅ Invoices table created/ready (PostgreSQL).');
 
-        client.release();
+        // 5. Invoice Items Table (इनवॉइस में बेचे गए आइटम)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id SERIAL PRIMARY KEY,
+                invoice_id INTEGER REFERENCES invoices(id),
+                item_name TEXT NOT NULL,
+                quantity NUMERIC NOT NULL,
+                sale_price NUMERIC NOT NULL
+            );
+        `);
+        console.log('✅ Invoice Items table created/ready (PostgreSQL).');
         
+        // 6. Purchases Table (खरीद/Purchases)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS purchases (
+                id SERIAL PRIMARY KEY,
+                supplier_name TEXT,
+                item_details TEXT NOT NULL,
+                total_cost NUMERIC NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Purchases table created/ready (PostgreSQL).');
+        
+        // 7. Expenses Table (खर्च/Expenses)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY,
+                description TEXT NOT NULL,
+                category TEXT,
+                amount NUMERIC NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Expenses table created/ready (PostgreSQL).');
+
     } catch (err) {
-        console.error('❌ Database setup error:', err);
-        process.exit(1);
+        console.error('Error creating database tables:', err.message);
+        process.exit(1); // यदि टेबल्स नहीं बन पाते हैं तो सर्वर बंद करें
     }
 }
 
+// --- License Utilities ---
 
-// --- Middleware Setup ---
-app.use(cors()); 
-app.use(express.json({ limit: '50mb' }));
+function encryptLicenseKey(key) {
+    const cipher = crypto.createCipher('aes-256-cbc', SECRET_KEY);
+    let encrypted = cipher.update(key, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
+function hashKey(key) {
+    return crypto.createHash('sha256').update(key).digest('hex');
+}
 
 // --- API Routes ---
 
-// 1. 🟢 UPDATED: License Validation API (Route name fixed to match front-end)
-app.get('/api/verify-license', async (req, res) => {
-    const key = req.query.key;
-    
-    // एडमिन एक्सेस टोकन को बिना डेटाबेस चेक के सीधे पास करें
-    if (key === 'ADMIN_ACCESS_TOKEN') {
-        return res.json({ valid: true, message: 'Admin access active.', valid_until: '2099-12-31', durationInDays: 9999 });
-    }
-
-    if (!key) {
-        return res.status(400).json({ valid: false, message: 'License key is required.' });
-    }
-
-    try {
-        const result = await pool.query("SELECT valid_until, status FROM licenses WHERE key = $1", [key]);
-        const row = result.rows[0];
-        const now = new Date();
-
-        if (row && row.status === 'Active' && new Date(row.valid_until) >= now) {
-            
-            // दिनों की अवधि की गणना करें (फ्रंट-एंड को इसकी आवश्यकता है)
-            const validUntilDate = new Date(row.valid_until);
-            const durationMs = validUntilDate.getTime() - now.getTime();
-            const durationInDays = Math.ceil(durationMs / (1000 * 60 * 60 * 24));
-            
-            res.json({ valid: true, message: 'License is valid.', valid_until: row.valid_until, durationInDays: durationInDays });
-        } else {
-            // ... (बाकी त्रुटि लॉजिक) ...
-            let message = 'Invalid or expired license key.';
-            // ...
-            res.status(401).json({ valid: false, message: message });
-        }
-    } catch (err) {
-        console.error("Database error during license check:", err.message);
-        return res.status(500).json({ valid: false, message: 'Internal server error.' });
-    }
-});
-
-// 2. Save Invoice API (कोई बदलाव नहीं)
-app.post('/api/save-invoice', async (req, res) => {
-    const invoiceData = req.body;
-    const { invoiceNumber, customerName, customerContact, shopName, grandTotal } = invoiceData;
-
-    // ... (आपका मौजूदा कोड) ...
-     if (!invoiceNumber || typeof grandTotal !== 'number' || grandTotal < 0) {
-        return res.status(400).json({ success: false, message: 'Missing essential invoice data (Number or Total).' });
-    }
-
-    const sql = `
-        INSERT INTO invoices (invoice_number, customer_name, customer_contact, shop_name, grand_total, invoice_data) 
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id;
-    `; 
-    
-    try {
-        const result = await pool.query(sql, [
-            invoiceNumber,
-            customerName || 'N/A',
-            customerContact || 'N/A',
-            shopName || 'N/A',
-            grandTotal,
-            JSON.stringify(invoiceData) 
-        ]);
-        
-        res.json({ success: true, message: 'Invoice saved successfully.', invoiceId: result.rows[0].id });
-    } catch (err) {
-        if (err.code === '23505') { 
-             return res.status(409).json({ success: false, message: 'Invoice with this number already exists.' });
-        }
-        console.error("Error saving invoice:", err.message);
-        return res.status(500).json({ success: false, message: 'Database error while saving invoice.' });
-    }
-});
-
-// 3. Add Stock Item API (कोई बदलाव नहीं)
-app.post('/api/stock', async (req, res) => {
-    // ... (आपका मौजूदा कोड) ...
-    const { SKU, 'Item Name': itemName, Quantity, Unit, 'Purchase Price': purchasePrice, 'Sale Price': salePrice, GST } = req.body;
-
-    // Basic validation
-    if (!SKU || !itemName || typeof Quantity !== 'number' || Quantity < 0 || typeof purchasePrice !== 'number' || typeof salePrice !== 'number') {
-        return res.status(400).json({ success: false, message: 'Missing or invalid required stock data.' });
-    }
-
-    const sql = `
-        INSERT INTO stock (sku, item_name, quantity, unit, purchase_price, sale_price, gst, last_updated)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        ON CONFLICT (sku) 
-        DO UPDATE SET
-            quantity = stock.quantity + EXCLUDED.quantity, 
-            unit = EXCLUDED.unit,
-            item_name = EXCLUDED.item_name,
-            purchase_price = EXCLUDED.purchase_price, 
-            sale_price = EXCLUDED.sale_price,
-            gst = EXCLUDED.gst,
-            last_updated = NOW()
-        RETURNING *;
-    `;
-
-    try {
-        const result = await pool.query(sql, [SKU, itemName, Quantity, Unit || 'Pcs', purchasePrice, salePrice, GST || 0]);
-        
-        const item = {
-            SKU: result.rows[0].sku,
-            'Item Name': result.rows[0].item_name,
-            Quantity: result.rows[0].quantity,
-            Unit: result.rows[0].unit,
-            'Purchase Price': result.rows[0].purchase_price,
-            'Sale Price': result.rows[0].sale_price,
-            GST: result.rows[0].gst
-        };
-        res.json({ success: true, message: 'Stock updated/added successfully.', item });
-    } catch (err) {
-        console.error("Error adding/updating stock:", err.message);
-        return res.status(500).json({ success: false, message: 'Database error while updating stock.' });
-    }
-});
-
-// 4. Get All Stock Items API (कोई बदलाव नहीं)
-app.get('/api/stocks', async (req, res) => {
-    // ... (आपका मौजूदा कोड) ...
-    try {
-        const sql = `
-            SELECT sku, item_name, quantity, unit, purchase_price, sale_price, gst, last_updated 
-            FROM stock 
-            ORDER BY last_updated DESC;
-        `;
-        const result = await pool.query(sql);
-
-        const stocks = result.rows.map(row => ({
-            SKU: row.sku,
-            'Item Name': row.item_name,
-            Quantity: row.quantity,
-            Unit: row.unit,
-            'Purchase Price': row.purchase_price,
-            'Sale Price': row.sale_price,
-            GST: row.gst,
-            'Last Updated': row.last_updated.toISOString()
-        }));
-        
-        res.json({ success: true, stocks });
-
-    } catch (err) {
-        console.error("Error fetching stocks:", err.message);
-        return res.status(500).json({ success: false, message: 'Database error while fetching stock list.' });
-    }
-});
-
-// 5. Admin Login API (कोई बदलाव नहीं)
-app.post('/api/admin-login', (req, res) => {
-    // ... (आपका मौजूदा कोड) ...
-    const { password } = req.body;
-
-    if (password === ADMIN_PASSWORD) {
-        res.json({ success: true, message: 'Login successful' });
-    } else {
-        res.status(401).json({ success: false, message: 'Incorrect admin password.' });
-    }
-});
-
-// 6. Generate Key API (कोई बदलाव नहीं)
+// 1. Generate License Key
 app.post('/api/generate-key', async (req, res) => {
-    // ... (आपका मौजूदा कोड) ...
-    const { password, days } = req.body;
-
-    // 1. Admin Password Check
-    if (password !== ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'Authorization failed. Incorrect admin password.' });
-    }
+    const { durationDays, isTrial } = req.body;
     
-    // 2. Days validation
-    if (!days || typeof days !== 'number' || days <= 0) {
-        return res.status(400).json({ success: false, message: 'Invalid or missing "days" duration.' });
-    }
+    // एक रैंडम Key जेनरेट करें
+    const rawKey = crypto.randomBytes(16).toString('hex');
+    
+    // एन्क्रिप्टेड key और hash तैयार करें
+    const encryptedKey = encryptLicenseKey(rawKey);
+    const keyHash = hashKey(rawKey);
+
+    // समाप्ति तिथि (Expiry Date) की गणना करें
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + (durationDays || 30)); // डिफ़ॉल्ट 30 दिन
 
     try {
-        const newKey = generateLicenseKey();
-        
-        // Calculate expiration date
-        const validUntil = new Date();
-        validUntil.setDate(validUntil.getDate() + days);
-        const expiryDate = validUntil.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-        // 3. Save key to database
-        const result = await pool.query(
-            "INSERT INTO licenses (key, valid_until, status) VALUES ($1, $2, 'Active') RETURNING key, valid_until",
-            [newKey, expiryDate]
+        await pool.query(
+            'INSERT INTO licenses (key_hash, expiry_date, is_trial) VALUES ($1, $2, $3)',
+            [keyHash, expiryDate, isTrial || false]
         );
         
-        res.json({ 
-            success: true, 
-            message: `${days}-day license key generated successfully.`,
-            key: result.rows[0].key,
-            valid_until: result.rows[0].valid_until,
-            duration_days: days
-        });
-
+        // यूज़र को केवल Raw Key दिखाएं (फ्रंट-एंड इसे एन्क्रिप्ट करेगा)
+        res.json({ success: true, key: rawKey, message: 'लाइसेंस कुंजी सफलतापूर्वक बनाई गई।' });
     } catch (err) {
-        console.error("Error generating or saving key:", err.message);
-        return res.status(500).json({ success: false, message: 'Database error during key generation.' });
+        console.error("Error generating key:", err.message);
+        res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डेटाबेस त्रुटि।' });
     }
 });
 
+// 2. Verify License Key (FIXED endpoint name)
+app.get('/api/verify-license', async (req, res) => {
+    const rawKey = req.query.key;
+    if (!rawKey) {
+        return res.status(400).json({ success: false, message: 'कुंजी आवश्यक है।' });
+    }
 
-// 7. 🟢 NEW: Dashboard Data API (जो 404 एरर दे रहा था)
+    const keyHash = hashKey(rawKey);
+
+    try {
+        const result = await pool.query('SELECT expiry_date, is_trial FROM licenses WHERE key_hash = $1', [keyHash]);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: false, valid: false, message: 'अमान्य लाइसेंस कुंजी।' });
+        }
+
+        const license = result.rows[0];
+        const expiryDate = new Date(license.expiry_date);
+        const now = new Date();
+        const isValid = expiryDate > now;
+
+        if (isValid) {
+            return res.json({
+                success: true,
+                valid: true,
+                isTrial: license.is_trial,
+                message: 'लाइसेंस सत्यापित और सक्रिय है।',
+                expiryDate: expiryDate.toISOString()
+            });
+        } else {
+            return res.json({ success: false, valid: false, message: 'लाइसेंस की समय सीमा समाप्त हो गई है।' });
+        }
+    } catch (err) {
+        console.error("Error verifying license:", err.message);
+        res.status(500).json({ success: false, message: 'सत्यापन विफल: सर्वर त्रुटि।' });
+    }
+});
+
+// 3. Admin Login (Placeholder for Admin Key Generation access)
+app.post('/api/admin-login', (req, res) => {
+    const { password } = req.body;
+    // Note: यहाँ एक सुरक्षित पासवर्ड हैशिंग विधि का उपयोग किया जाना चाहिए (जैसे bcrypt)
+    if (password === 'admin123') { // **सुरक्षा के लिए इसे बदलें**
+        return res.json({ success: true, message: 'एडमिन लॉगिन सफल।' });
+    } else {
+        return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
+    }
+});
+
+// 4. Stock Management - Add/Update (Simplistic Upsert)
+app.post('/api/stock', async (req, res) => {
+    const { sku, name, quantity, unit, purchase_price, sale_price, gst } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO stock (sku, name, quantity, unit, purchase_price, sale_price, gst)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (sku) DO UPDATE
+             SET 
+                quantity = stock.quantity + EXCLUDED.quantity, 
+                purchase_price = EXCLUDED.purchase_price,
+                sale_price = EXCLUDED.sale_price,
+                gst = EXCLUDED.gst,
+                updated_at = CURRENT_TIMESTAMP
+             RETURNING *;`,
+            [sku, name, quantity, unit, purchase_price, sale_price, gst]
+        );
+        res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक जोड़ा/अपडेट किया गया।' });
+    } catch (err) {
+        console.error("Error adding stock:", err.message);
+        res.status(500).json({ success: false, message: 'स्टॉक जोड़ने में विफल: ' + err.message });
+    }
+});
+
+// 5. Stock Management - Get All
+app.get('/api/stock', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM stock ORDER BY updated_at DESC');
+        res.json({ success: true, stock: result.rows });
+    } catch (err) {
+        console.error("Error fetching stock:", err.message);
+        res.status(500).json({ success: false, message: 'स्टॉक सूची प्राप्त करने में विफल।' });
+    }
+});
+
+// 6. Dashboard Data (Summary Metrics)
 app.get('/api/get-dashboard-data', async (req, res) => {
     try {
-        // A. Inventory Value Calculation
-        // इन्वेंट्री मूल्य = स्टॉक में Quantity * Purchase Price
-        const inventoryResult = await pool.query(`
-            SELECT 
-                COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value
-            FROM stock;
-        `);
-        const inventoryValue = inventoryResult.rows[0].inventory_value;
-
-        // B. Total Sales Calculation (मान लीजिए कि इनवॉइस में grand_total = बिक्री है)
-        const salesResult = await pool.query(`
-            SELECT 
-                COALESCE(SUM(grand_total), 0) AS total_sales
-            FROM invoices;
-        `);
-        const totalSales = salesResult.rows[0].total_sales;
+        const totalSalesResult = await pool.query('SELECT COALESCE(SUM(total_amount), 0) AS total_sales_revenue FROM invoices;');
+        const totalStockValueResult = await pool.query('SELECT COALESCE(SUM(quantity * purchase_price), 0) AS total_stock_value FROM stock;');
+        const totalCustomersResult = await pool.query('SELECT COUNT(*) AS total_customers FROM customers;');
+        const lowStockCountResult = await pool.query('SELECT COUNT(*) AS low_stock_count FROM stock WHERE quantity < 10;'); // 10 से कम को Low Stock माना गया
         
-        // C. Net Profit Calculation (इसे आपके विशिष्ट P&L लॉजिक के आधार पर विस्तृत करना होगा)
-        // फिलहाल यह केवल एक डमी मान है या साधारण गणना। 
-        // Note: सही लाभ गणना के लिए COGS (Cost of Goods Sold) लॉजिक चाहिए, जो बिक्री के दौरान स्टॉक से काटा जाता है।
-        // अभी के लिए, हम एक साधारण अनुमान लगाते हैं।
-        
-        // DUMMY PROFIT (Example: 20% of Sales)
-        // const totalProfit = totalSales * 0.20; 
-
-        // ROUGH PROFIT: (Sales Total) - (Total Purchase Value of ALL Stock) - This is inaccurate but better than nothing
-        // const totalPurchasedValueResult = await pool.query(`
-        //     SELECT COALESCE(SUM(quantity * purchase_price), 0) AS total_purchased_value
-        //     FROM stock;
-        // `);
-        // const totalPurchasedValue = totalPurchasedValueResult.rows[0].total_purchased_value;
-        // const totalProfit = totalSales - totalPurchasedValue;
-        
-        // 🔴 Temporary simple value:
-        const totalProfit = totalSales * 0.25; 
-
-        // 4. Send the calculated data to the front-end
         res.json({
             success: true,
-            data: {
-                totalSales: parseFloat(totalSales.toFixed(2)),
-                totalProfit: parseFloat(totalProfit.toFixed(2)),
-                inventoryValue: parseFloat(inventoryValue.toFixed(2)),
-                // अन्य डैशबोर्ड मेट्रिक्स यहाँ जोड़े जा सकते हैं
+            totalSalesRevenue: parseFloat(totalSalesResult.rows[0].total_sales_revenue),
+            totalStockValue: parseFloat(totalStockValueResult.rows[0].total_stock_value),
+            totalCustomers: parseInt(totalCustomersResult.rows[0].total_customers),
+            lowStockCount: parseInt(lowStockCountResult.rows[0].low_stock_count),
+        });
+    } catch (err) {
+        console.error("Error fetching dashboard data:", err.message);
+        res.status(500).json({ success: false, message: 'डैशबोर्ड डेटा लोड करने में विफल।' });
+    }
+});
+
+// 7. NEW API: Get Balance Sheet / Detailed Financials Data (MOST IMPORTANT FIX)
+app.get('/api/get-balance-sheet-data', async (req, res) => {
+    try {
+        // --- 1. Current Inventory Value (Asset) ---
+        const inventoryValueResult = await pool.query(`
+            SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value FROM stock;
+        `);
+        const currentInventoryValue = parseFloat(inventoryValueResult.rows[0].inventory_value);
+
+        // --- 2. Total Revenue (P&L) ---
+        const revenueResult = await pool.query(`
+            SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM invoices;
+        `);
+        const totalRevenue = parseFloat(revenueResult.rows[0].total_revenue);
+
+        // --- 3. Total Purchases (P&L Cost) ---
+        const purchasesResult = await pool.query(`
+            SELECT COALESCE(SUM(total_cost), 0) AS total_purchases FROM purchases;
+        `);
+        const totalPurchases = parseFloat(purchasesResult.rows[0].total_purchases);
+
+        // --- 4. Total Expenses (P&L Cost) ---
+        const expensesResult = await pool.query(`
+            SELECT COALESCE(SUM(amount), 0) AS total_expenses FROM expenses;
+        `);
+        const totalExpenses = parseFloat(expensesResult.rows[0].total_expenses);
+        
+        // --- 5. Calculation ---
+        const grossProfit = totalRevenue - totalPurchases;
+        const netProfit = grossProfit - totalExpenses;
+        const totalAssets = currentInventoryValue; // Simplistic: Inventory is the main asset
+        
+        res.json({
+            success: true,
+            balanceSheet: {
+                currentAssets: totalAssets,
+                // Liabilities और Equity के लिए यहां placeholders हैं, आप बाद में जोड़ सकते हैं
+                totalLiabilities: 0.00,
+                netWorth: totalAssets, // Simplistic
+            },
+            profitAndLoss: {
+                totalRevenue: totalRevenue,
+                totalPurchases: totalPurchases,
+                totalExpenses: totalExpenses,
+                grossProfit: grossProfit,
+                netProfit: netProfit
             }
         });
 
     } catch (err) {
-        console.error("Error fetching dashboard data:", err.message);
-        // सुनिश्चित करें कि यह 404 नहीं बल्कि 500 एरर हो
-        return res.status(500).json({ success: false, message: 'Failed to fetch dashboard data due to a database error.' });
+        console.error("Error fetching balance sheet data:", err.message);
+        return res.status(500).json({ success: false, message: 'विस्तृत वित्तीय डेटा प्राप्त करने में विफल।' });
     }
 });
 
 
-// 8. Basic Root URL response
-app.get('/', (req, res) => {
-    res.send('Dukan Pro Ultimate Backend is running! API Routes: /api/verify-license, /api/save-invoice, /api/stock, /api/admin-login, /api/generate-key, /api/get-dashboard-data');
+// --- CRM API Routes (New) ---
+
+// 8. Add Customer
+app.post('/api/customer', async (req, res) => {
+    const { name, phone, email, address } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO customers (name, phone, email, address) VALUES ($1, $2, $3, $4)`,
+            [name, phone, email, address]
+        );
+        res.json({ success: true, message: 'ग्राहक सफलतापूर्वक जोड़ा गया।' });
+    } catch (err) {
+        console.error("Error adding customer:", err.message);
+        res.status(500).json({ success: false, message: 'ग्राहक जोड़ने में विफल रहा।' });
+    }
 });
 
-// --- Server Start ---
-setupDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+// 9. Get Customers
+app.get('/api/customer', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM customers ORDER BY created_at DESC;`);
+        res.json({ success: true, customers: result.rows });
+    } catch (err) {
+        console.error("Error fetching customers:", err.message);
+        res.status(500).json({ success: false, message: 'ग्राहक सूची प्राप्त करने में विफल।' });
+    }
+});
+
+
+// --- Purchases API Routes (New) ---
+
+// 10. Add Purchase
+app.post('/api/purchase', async (req, res) => {
+    const { supplier_name, item_details, total_cost } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO purchases (supplier_name, item_details, total_cost) VALUES ($1, $2, $3)`,
+            [supplier_name, item_details, total_cost]
+        );
+        res.json({ success: true, message: 'खरीद सफलतापूर्वक दर्ज की गई।' });
+    } catch (err) {
+        console.error("Error adding purchase:", err.message);
+        res.status(500).json({ success: false, message: 'खरीद दर्ज करने में विफल रहा।' });
+    }
+});
+
+// 11. Get Purchases
+app.get('/api/purchase', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM purchases ORDER BY created_at DESC;`);
+        res.json({ success: true, purchases: result.rows });
+    } catch (err) {
+        console.error("Error fetching purchases:", err.message);
+        res.status(500).json({ success: false, message: 'खरीद सूची प्राप्त करने में विफल।' });
+    }
+});
+
+// --- Expenses API Routes (New) ---
+
+// 12. Add Expense
+app.post('/api/expense', async (req, res) => {
+    const { description, category, amount } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO expenses (description, category, amount) VALUES ($1, $2, $3)`,
+            [description, category, amount]
+        );
+        res.json({ success: true, message: 'खर्च सफलतापूर्वक दर्ज किया गया।' });
+    } catch (err) {
+        console.error("Error adding expense:", err.message);
+        res.status(500).json({ success: false, message: 'खर्च दर्ज करने में विफल रहा।' });
+    }
+});
+
+// 13. Get Expenses
+app.get('/api/expense', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM expenses ORDER BY created_at DESC;`);
+        res.json({ success: true, expenses: result.rows });
+    } catch (err) {
+        console.error("Error fetching expenses:", err.message);
+        res.status(500).json({ success: false, message: 'खर्च सूची प्राप्त करने में विफल।' });
+    }
+});
+
+
+// --- Server Initialization ---
+
+pool.connect()
+    .then(() => {
         console.log('PostgreSQL connection established.');
+        return createTables(); // टेबल्स बनाएं/चेक करें
+    })
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('Database connection failed:', err.message);
+        process.exit(1);
     });
-}).catch(err => {
-    console.error('Fatal error during application startup:', err.message);
-    process.exit(1);
-});
-
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('Server shutting down...');
-    await pool.end(); // सभी क्लाइंट कनेक्शन बंद करें
-    console.log('PostgreSQL pool disconnected.');
-    process.exit(0);
-});
