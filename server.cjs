@@ -428,3 +428,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
