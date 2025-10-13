@@ -1,4 +1,4 @@
-// server.js (Dukan Pro - Ultimate Backend)
+// server.cjs (Dukan Pro - Ultimate Backend)
 
 const express = require('express');
 const { Pool } = require('pg');
@@ -9,6 +9,12 @@ require('dotenv').config(); // .env फ़ाइल से environment variables
 const app = express();
 const PORT = process.env.PORT || 10000;
 const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_change_it'; // लाइसेंस एन्क्रिप्शन के लिए
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'default_admin_password_change_me'; // 🚨 Render Environment Variable से लें
+
+// --- Encryption Constants ---
+const IV_LENGTH = 16; // AES-256-CBC के लिए 16 बाइट्स (128 बिट्स)
+// SECRET_KEY को 32-बाइट (256 बिट्स) कुंजी में बदलें
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(SECRET_KEY).digest(); 
 
 // --- Middlewares ---
 app.use(cors()); // CORS सक्षम करें
@@ -24,7 +30,7 @@ const pool = new Pool({
 
 /**
  * सभी आवश्यक टेबल्स (8 टेबल्स) बनाता है।
- * इसमें Licenses, Stock, Invoices, Customers, Purchases, Expenses शामिल हैं।
+ * Licenses टेबल में कॉलम अब expiry_date है, जो पिछले कोड के साथ सुसंगत है।
  */
 async function createTables() {
     try {
@@ -121,13 +127,25 @@ async function createTables() {
     }
 }
 
-// --- License Utilities ---
+// --- License Utilities (FIXED) ---
 
-function encryptLicenseKey(key) {
-    const cipher = crypto.createCipher('aes-256-cbc', SECRET_KEY);
-    let encrypted = cipher.update(key, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
+/**
+ * @deprecated: यह फ़ंक्शन अब उपयोग में नहीं है क्योंकि generate-key केवल rawKey का उपयोग करता है।
+ * लेकिन यह crypto.createCipheriv का उपयोग करके एन्क्रिप्शन फ़ंक्शन को ठीक करता है।
+ */
+function encryptLicenseKey(text) {
+    try {
+        const iv = crypto.randomBytes(IV_LENGTH); // IV जेनरेट करें
+        // FIX: crypto.createCipher की जगह crypto.createCipheriv का उपयोग करें
+        const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        // एन्क्रिप्टेड डेटा के साथ IV को कॉलोन (:) से अलग करके रिटर्न करें
+        return iv.toString('hex') + ':' + encrypted;
+    } catch (e) {
+        console.error("License key encryption utility failed:", e.message);
+        return null;
+    }
 }
 
 function hashKey(key) {
@@ -136,36 +154,44 @@ function hashKey(key) {
 
 // --- API Routes ---
 
-// 1. Generate License Key
+// 1. Generate License Key (SECURITY FIX APPLIED)
 app.post('/api/generate-key', async (req, res) => {
-    const { durationDays, isTrial } = req.body;
+    const { password, days } = req.body;
     
+    // 🚨 सुरक्षा जाँच (Security Check)
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
+    }
+
     // एक रैंडम Key जेनरेट करें
     const rawKey = crypto.randomBytes(16).toString('hex');
-    
-    // एन्क्रिप्टेड key और hash तैयार करें
-    const encryptedKey = encryptLicenseKey(rawKey);
     const keyHash = hashKey(rawKey);
 
     // समाप्ति तिथि (Expiry Date) की गणना करें
     const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + (durationDays || 30)); // डिफ़ॉल्ट 30 दिन
+    expiryDate.setDate(expiryDate.getDate() + (days || 30)); // डिफ़ॉल्ट 30 दिन
 
     try {
         await pool.query(
             'INSERT INTO licenses (key_hash, expiry_date, is_trial) VALUES ($1, $2, $3)',
-            [keyHash, expiryDate, isTrial || false]
+            [keyHash, expiryDate, days === 5] // 5 दिन के लिए isTrial TRUE सेट करें
         );
         
-        // यूज़र को केवल Raw Key दिखाएं (फ्रंट-एंड इसे एन्क्रिप्ट करेगा)
-        res.json({ success: true, key: rawKey, message: 'लाइसेंस कुंजी सफलतापूर्वक बनाई गई।' });
+        // यूज़र को केवल Raw Key दिखाएं
+        res.json({ 
+            success: true, 
+            key: rawKey, 
+            message: 'लाइसेंस कुंजी सफलतापूर्वक बनाई गई।',
+            duration_days: days,
+            valid_until: expiryDate.toISOString() 
+        });
     } catch (err) {
         console.error("Error generating key:", err.message);
         res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डेटाबेस त्रुटि।' });
     }
 });
 
-// 2. Verify License Key (FIXED endpoint name)
+// 2. Verify License Key 
 app.get('/api/verify-license', async (req, res) => {
     const rawKey = req.query.key;
     if (!rawKey) {
@@ -175,6 +201,9 @@ app.get('/api/verify-license', async (req, res) => {
     const keyHash = hashKey(rawKey);
 
     try {
+        // नोट: यदि आपको 'column "expiry_date" does not exist' error आती है, 
+        // तो इसका मतलब है कि पुरानी टेबल में नाम अलग है। आपको मैन्युअल रूप से DB ठीक करना होगा
+        // या Render पर एक नया PostgreSQL डेटाबेस बनाना होगा।
         const result = await pool.query('SELECT expiry_date, is_trial FROM licenses WHERE key_hash = $1', [keyHash]);
         
         if (result.rows.length === 0) {
@@ -203,11 +232,11 @@ app.get('/api/verify-license', async (req, res) => {
     }
 });
 
-// 3. Admin Login (Placeholder for Admin Key Generation access)
+// 3. Admin Login (SECURITY FIX APPLIED)
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
-    // Note: यहाँ एक सुरक्षित पासवर्ड हैशिंग विधि का उपयोग किया जाना चाहिए (जैसे bcrypt)
-    if (password === 'admin123') { // **सुरक्षा के लिए इसे बदलें**
+    
+    if (password === ADMIN_PASSWORD) { 
         return res.json({ success: true, message: 'एडमिन लॉगिन सफल।' });
     } else {
         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
@@ -223,11 +252,11 @@ app.post('/api/stock', async (req, res) => {
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              ON CONFLICT (sku) DO UPDATE
              SET 
-                quantity = stock.quantity + EXCLUDED.quantity, 
-                purchase_price = EXCLUDED.purchase_price,
-                sale_price = EXCLUDED.sale_price,
-                gst = EXCLUDED.gst,
-                updated_at = CURRENT_TIMESTAMP
+                 quantity = stock.quantity + EXCLUDED.quantity, 
+                 purchase_price = EXCLUDED.purchase_price,
+                 sale_price = EXCLUDED.sale_price,
+                 gst = EXCLUDED.gst,
+                 updated_at = CURRENT_TIMESTAMP
              RETURNING *;`,
             [sku, name, quantity, unit, purchase_price, sale_price, gst]
         );
@@ -428,4 +457,3 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
-
