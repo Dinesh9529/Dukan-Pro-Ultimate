@@ -36,107 +36,112 @@ function hashKey(key) {
  * सभी आवश्यक टेबल्स (8 टेबल्स) बनाता है, पुराने टेबल्स को DROP करके स्कीमा Consistency सुनिश्चित करता है।
  * WARNING: इससे पुराने डेटाबेस का सारा डेटा डिलीट हो जाएगा!
  */
+/**
+ * सभी आवश्यक टेबल्स (7 टेबल्स) बनाता है, पुराने टेबल्स को DROP करके स्कीमा Consistency सुनिश्चित करता है।
+ * WARNING: इससे पुराने डेटाबेस का सारा डेटा डिलीट हो जाएगा!
+ * FIX: 'syntax error' को हल करने के लिए SQL strings को साफ किया गया है।
+ */
 async function createTables() {
-    try {
-        // DROP TABLES
-        await pool.query('DROP TABLE IF EXISTS invoice_items CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS invoices CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS customers CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS stock CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS purchases CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS expenses CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS licenses CASCADE;');
-        console.log('✅ Dropped existing tables (Schema Reset).');
+    const client = await pool.connect(); // एक ही कनेक्शन का उपयोग करें
+    try {
+        console.log('Attempting to reset schema...');
+        
+        // --- DROP TABLES ---
+        await client.query('DROP TABLE IF EXISTS invoice_items CASCADE;');
+        await client.query('DROP TABLE IF EXISTS invoices CASCADE;');
+        await client.query('DROP TABLE IF EXISTS customers CASCADE;');
+        await client.query('DROP TABLE IF EXISTS stock CASCADE;');
+        await client.query('DROP TABLE IF EXISTS purchases CASCADE;');
+        await client.query('DROP TABLE IF EXISTS expenses CASCADE;');
+        await client.query('DROP TABLE IF EXISTS licenses CASCADE;');
+        console.log('✅ Dropped existing tables (Schema Reset).');
 
+        // --- CREATE TABLES (Cleaned SQL Strings) ---
 
-        // 1. Licenses Table
-        await pool.query(`
-            CREATE TABLE licenses (
-                key_hash TEXT PRIMARY KEY,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                expiry_date TIMESTAMP WITH TIME ZONE,
-                is_trial BOOLEAN DEFAULT FALSE
-            );
-        `);
+        // 1. Licenses Table
+        await client.query(`
+CREATE TABLE licenses (
+    key_hash TEXT PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expiry_date TIMESTAMP WITH TIME ZONE,
+    is_trial BOOLEAN DEFAULT FALSE
+);`);
 
-        // 2. Stock Table
-        await pool.query(`
-            CREATE TABLE stock (
-                id SERIAL PRIMARY KEY,
-                sku TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                quantity NUMERIC NOT NULL,
-                unit TEXT,
-                purchase_price NUMERIC NOT NULL,
-                sale_price NUMERIC NOT NULL,
-                gst NUMERIC DEFAULT 0,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        // 3. Customers Table
-        await pool.query(`
-            CREATE TABLE customers (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                phone TEXT UNIQUE,
-                email TEXT UNIQUE,
-                address TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 2. Stock Table
+        await client.query(`
+CREATE TABLE stock (
+    id SERIAL PRIMARY KEY,
+    sku TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    unit TEXT,
+    purchase_price NUMERIC NOT NULL,
+    sale_price NUMERIC NOT NULL,
+    gst NUMERIC DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`);
+        
+        // 3. Customers Table
+        await client.query(`
+CREATE TABLE customers (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT UNIQUE,
+    email TEXT UNIQUE,
+    address TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`);
 
-        // 4. Invoices Table
-        await pool.query(`
-            CREATE TABLE invoices (
-                id SERIAL PRIMARY KEY,
-                customer_id INTEGER REFERENCES customers(id),
-                total_amount NUMERIC NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 4. Invoices Table
+        await client.query(`
+CREATE TABLE invoices (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    total_amount NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`);
 
-        // 5. Invoice Items Table
-        await pool.query(`
-            CREATE TABLE invoice_items (
-                id SERIAL PRIMARY KEY,
-                invoice_id INTEGER REFERENCES invoices(id),
-                item_name TEXT NOT NULL,
-                quantity NUMERIC NOT NULL,
-                sale_price NUMERIC NOT NULL,
-                sku TEXT -- SKU को जोड़ा गया ताकि स्टॉक अपडेट के लिए इसका उपयोग किया जा सके
-            );
-        `);
-        
-        // 6. Purchases Table
-        await pool.query(`
-            CREATE TABLE purchases (
-                id SERIAL PRIMARY KEY,
-                supplier_name TEXT,
-                item_details TEXT NOT NULL,
-                total_cost NUMERIC NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        // 7. Expenses Table
-        await pool.query(`
-            CREATE TABLE expenses (
-                id SERIAL PRIMARY KEY,
-                description TEXT NOT NULL,
-                category TEXT,
-                amount NUMERIC NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 5. Invoice Items Table
+        await client.query(`
+CREATE TABLE invoice_items (
+    id SERIAL PRIMARY KEY,
+    invoice_id INTEGER REFERENCES invoices(id),
+    item_name TEXT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    sale_price NUMERIC NOT NULL,
+    sku TEXT
+);`);
+        
+        // 6. Purchases Table
+        await client.query(`
+CREATE TABLE purchases (
+    id SERIAL PRIMARY KEY,
+    supplier_name TEXT,
+    item_details TEXT NOT NULL,
+    total_cost NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`);
+        
+        // 7. Expenses Table
+        await client.query(`
+CREATE TABLE expenses (
+    id SERIAL PRIMARY KEY,
+    description TEXT NOT NULL,
+    category TEXT,
+    amount NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`);
+
         console.log('✅ All 7 tables created successfully.');
-
-
-    } catch (err) {
-        console.error('Error creating database tables:', err.message);
-        process.exit(1);
-    }
+    } catch (err) {
+        // सुनिश्चित करें कि error को console.error में प्रिंट किया गया है
+        console.error('❌ Error creating database tables (FIXED):', err.message);
+        process.exit(1);
+    } finally {
+        client.release(); // कनेक्शन वापस पूल में जारी करें
+    }
 }
+
 
 // --- API Routes ---
 
@@ -456,3 +461,4 @@ pool.connect()
         console.error('Database connection failed or tables creation error:', err.message);
         process.exit(1);
     });
+
