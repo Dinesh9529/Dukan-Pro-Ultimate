@@ -270,23 +270,36 @@ app.get('/api/stock', async (req, res) => {
 });
 
 // 6. Dashboard Data (Summary Metrics)
+// server.cjs फ़ाइल में, /api/get-dashboard-data रूट को इस लॉजिक से बदलें
 app.get('/api/get-dashboard-data', async (req, res) => {
     try {
-        const totalSalesResult = await pool.query('SELECT COALESCE(SUM(total_amount), 0) AS total_sales_revenue FROM invoices;');
-        const totalStockValueResult = await pool.query('SELECT COALESCE(SUM(quantity * purchase_price), 0) AS total_stock_value FROM stock;');
-        const totalCustomersResult = await pool.query('SELECT COUNT(*) AS total_customers FROM customers;');
-        const lowStockCountResult = await pool.query('SELECT COUNT(*) AS low_stock_count FROM stock WHERE quantity < 10;'); // 10 से कम को Low Stock माना गया
+        const db = await openDb();
+
+        // 1. कुल बिक्री राजस्व (Total Sales Revenue)
+        const salesResult = await db.get("SELECT IFNULL(SUM(total_amount), 0) as value FROM sales");
+
+        // 2. कुल स्टॉक मूल्य (Total Stock Value)
+        // यह current stock की purchase_price * quantity का योग है
+        const stockValueResult = await db.get("SELECT IFNULL(SUM(purchase_price * quantity), 0) as value FROM stock");
         
+        // 3. कुल ग्राहक (Total Customers) - DISTINCT customer_id की गिनती
+        const customerResult = await db.get("SELECT COUNT(DISTINCT customer_id) as value FROM sales WHERE customer_id IS NOT NULL AND customer_id != ''");
+
+        // 4. कम स्टॉक आइटम (Low Stock Count) - मान लीजिए 10 से कम मात्रा
+        const lowStockResult = await db.get("SELECT COUNT(id) as value FROM stock WHERE quantity < 10");
+
+        // अंत में, सभी डेटा को client को भेजें
         res.json({
             success: true,
-            totalSalesRevenue: parseFloat(totalSalesResult.rows[0].total_sales_revenue),
-            totalStockValue: parseFloat(totalStockValueResult.rows[0].total_stock_value),
-            totalCustomers: parseInt(totalCustomersResult.rows[0].total_customers),
-            lowStockCount: parseInt(lowStockCountResult.rows[0].low_stock_count),
+            totalSalesRevenue: salesResult.value,
+            totalStockValue: stockValueResult.value,
+            totalCustomers: customerResult.value,
+            lowStockCount: lowStockResult.value
         });
-    } catch (err) {
-        console.error("Error fetching dashboard data:", err.message);
-        res.status(500).json({ success: false, message: 'डैशबोर्ड डेटा लोड करने में विफल।' });
+
+    } catch (error) {
+        console.error('डैशबोर्ड डेटा एरर:', error);
+        res.status(500).json({ success: false, message: 'डैशबोर्ड डेटा लोड नहीं किया जा सका।' });
     }
 });
 
@@ -448,3 +461,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
