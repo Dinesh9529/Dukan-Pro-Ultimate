@@ -2,10 +2,10 @@
   "name": "dukan-pro-server",
   "version": "1.0.0",
   "description": "Backend for Dukan Pro Business Suite (PostgreSQL)",
-  "main": "server.js",
+  "main": "server.cjs", 
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.cjs" 
   },
   "dependencies": {
     "cors": "^2.8.5",
