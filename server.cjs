@@ -269,36 +269,37 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
-// 6. Dashboard Data (Summary Metrics)
-// server.cjs फ़ाइल में, /api/get-dashboard-data रूट को इस लॉजिक से बदलें
+// 6. Dashboard Data (Summary Metrics) - PostgreSQL के लिए सुधारा गया
 app.get('/api/get-dashboard-data', async (req, res) => {
     try {
-        const db = await openDb();
-
-        // 1. कुल बिक्री राजस्व (Total Sales Revenue)
-        const salesResult = await db.get("SELECT IFNULL(SUM(total_amount), 0) as value FROM sales");
+        // 1. कुल बिक्री राजस्व (Total Sales Revenue) - Table name corrected to 'invoices'
+        // COALESCE(SUM(total_amount), 0) सुनिश्चित करता है कि खाली होने पर 0 आए
+        const salesResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS value FROM invoices");
+        const totalSalesRevenue = parseFloat(salesResult.rows[0].value);
 
         // 2. कुल स्टॉक मूल्य (Total Stock Value)
-        // यह current stock की purchase_price * quantity का योग है
-        const stockValueResult = await db.get("SELECT IFNULL(SUM(purchase_price * quantity), 0) as value FROM stock");
+        const stockValueResult = await pool.query("SELECT COALESCE(SUM(purchase_price * quantity), 0) AS value FROM stock");
+        const totalStockValue = parseFloat(stockValueResult.rows[0].value);
         
-        // 3. कुल ग्राहक (Total Customers) - DISTINCT customer_id की गिनती
-        const customerResult = await db.get("SELECT COUNT(DISTINCT customer_id) as value FROM sales WHERE customer_id IS NOT NULL AND customer_id != ''");
+        // 3. कुल ग्राहक (Total Customers) - Table name corrected to 'invoices'
+        const customerResult = await pool.query("SELECT COUNT(DISTINCT customer_id) AS value FROM invoices WHERE customer_id IS NOT NULL");
+        const totalCustomers = parseInt(customerResult.rows[0].value);
 
-        // 4. कम स्टॉक आइटम (Low Stock Count) - मान लीजिए 10 से कम मात्रा
-        const lowStockResult = await db.get("SELECT COUNT(id) as value FROM stock WHERE quantity < 10");
+        // 4. कम स्टॉक आइटम (Low Stock Count)
+        const lowStockResult = await pool.query("SELECT COUNT(id) AS value FROM stock WHERE quantity < 10");
+        const lowStockCount = parseInt(lowStockResult.rows[0].value);
 
         // अंत में, सभी डेटा को client को भेजें
         res.json({
             success: true,
-            totalSalesRevenue: salesResult.value,
-            totalStockValue: stockValueResult.value,
-            totalCustomers: customerResult.value,
-            lowStockCount: lowStockResult.value
+            totalSalesRevenue: totalSalesRevenue,
+            totalStockValue: totalStockValue,
+            totalCustomers: totalCustomers,
+            lowStockCount: lowStockCount
         });
 
     } catch (error) {
-        console.error('डैशबोर्ड डेटा एरर:', error);
+        console.error('डैशबोर्ड डेटा SQL/PostgreSQL एरर:', error.message);
         res.status(500).json({ success: false, message: 'डैशबोर्ड डेटा लोड नहीं किया जा सका।' });
     }
 });
@@ -461,4 +462,5 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
