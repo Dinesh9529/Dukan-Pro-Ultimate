@@ -8,46 +8,57 @@ require('dotenv').config(); // .env फ़ाइल से environment variables
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_change_it'; // लाइसेंस एन्क्रिप्शन के लिए
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'default_admin_password_change_me'; // 🚨 Render Environment Variable से लें
+const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_change_it'; 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'default_admin_password_change_me'; 
 
 // --- Encryption Constants ---
-const IV_LENGTH = 16; // AES-256-CBC के लिए 16 बाइट्स (128 बिट्स)
-// SECRET_KEY को 32-बाइट (256 बिट्स) कुंजी में बदलें
+const IV_LENGTH = 16;
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(SECRET_KEY).digest(); 
 
 // --- Middlewares ---
-app.use(cors()); // CORS सक्षम करें
-app.use(express.json()); // JSON body पार्स करने के लिए
+app.use(cors());
+app.use(express.json());
 
 // --- Database Setup ---
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false // Render के साथ SSL की आवश्यकता होती है
+        rejectUnauthorized: false
     }
 });
 
 /**
- * सभी आवश्यक टेबल्स (8 टेबल्स) बनाता है।
- * Licenses टेबल में कॉलम अब expiry_date है, जो पिछले कोड के साथ सुसंगत है।
+ * सभी आवश्यक टेबल्स (8 टेबल्स) बनाता है, पुराने टेबल्स को DROP करके स्कीमा Consistency सुनिश्चित करता है।
+ * WARNING: इससे पुराने डेटाबेस का सारा डेटा डिलीट हो जाएगा!
  */
 async function createTables() {
     try {
+        // 🚨 महत्वपूर्ण सुधार: पुराने स्कीमा को हटाने के लिए DROP TABLE का उपयोग करें
+        // इससे सुनिश्चित होगा कि कोड हमेशा सही कॉलम बनाए। (पुराना डेटा डिलीट हो जाएगा)
+        await pool.query('DROP TABLE IF EXISTS invoice_items CASCADE;');
+        await pool.query('DROP TABLE IF EXISTS invoices CASCADE;');
+        await pool.query('DROP TABLE IF EXISTS customers CASCADE;');
+        await pool.query('DROP TABLE IF EXISTS stock CASCADE;');
+        await pool.query('DROP TABLE IF EXISTS purchases CASCADE;');
+        await pool.query('DROP TABLE IF EXISTS expenses CASCADE;');
+        await pool.query('DROP TABLE IF EXISTS licenses CASCADE;'); // Licenses table को सबसे अंत में ड्रॉप करें (या शुरुआत में)
+        console.log('✅ Dropped existing tables (Schema Reset).');
+
+
         // 1. Licenses Table (लाइसेंस कुंजी संग्रहीत करने के लिए)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS licenses (
+            CREATE TABLE licenses (
                 key_hash TEXT PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 expiry_date TIMESTAMP WITH TIME ZONE,
                 is_trial BOOLEAN DEFAULT FALSE
             );
         `);
-        console.log('✅ Licenses table created/ready (PostgreSQL).');
+        console.log('✅ Licenses table created.');
 
         // 2. Stock Table (इन्वेंट्री)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS stock (
+            CREATE TABLE stock (
                 id SERIAL PRIMARY KEY,
                 sku TEXT UNIQUE NOT NULL,
                 name TEXT NOT NULL,
@@ -59,11 +70,11 @@ async function createTables() {
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Stock table created/ready (PostgreSQL).');
+        console.log('✅ Stock table created.');
         
         // 3. Customers Table (ग्राहक)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS customers (
+            CREATE TABLE customers (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 phone TEXT UNIQUE,
@@ -72,22 +83,22 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Customers table created/ready (PostgreSQL).');
+        console.log('✅ Customers table created.');
 
         // 4. Invoices Table (बिक्री/Sales)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS invoices (
+            CREATE TABLE invoices (
                 id SERIAL PRIMARY KEY,
                 customer_id INTEGER REFERENCES customers(id),
                 total_amount NUMERIC NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Invoices table created/ready (PostgreSQL).');
+        console.log('✅ Invoices table created.');
 
         // 5. Invoice Items Table (इनवॉइस में बेचे गए आइटम)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS invoice_items (
+            CREATE TABLE invoice_items (
                 id SERIAL PRIMARY KEY,
                 invoice_id INTEGER REFERENCES invoices(id),
                 item_name TEXT NOT NULL,
@@ -95,11 +106,11 @@ async function createTables() {
                 sale_price NUMERIC NOT NULL
             );
         `);
-        console.log('✅ Invoice Items table created/ready (PostgreSQL).');
+        console.log('✅ Invoice Items table created.');
         
         // 6. Purchases Table (खरीद/Purchases)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS purchases (
+            CREATE TABLE purchases (
                 id SERIAL PRIMARY KEY,
                 supplier_name TEXT,
                 item_details TEXT NOT NULL,
@@ -107,11 +118,11 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Purchases table created/ready (PostgreSQL).');
+        console.log('✅ Purchases table created.');
         
         // 7. Expenses Table (खर्च/Expenses)
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS expenses (
+            CREATE TABLE expenses (
                 id SERIAL PRIMARY KEY,
                 description TEXT NOT NULL,
                 category TEXT,
@@ -119,34 +130,15 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Expenses table created/ready (PostgreSQL).');
+        console.log('✅ Expenses table created.');
 
     } catch (err) {
         console.error('Error creating database tables:', err.message);
-        process.exit(1); // यदि टेबल्स नहीं बन पाते हैं तो सर्वर बंद करें
+        process.exit(1);
     }
 }
 
-// --- License Utilities (FIXED) ---
-
-/**
- * @deprecated: यह फ़ंक्शन अब उपयोग में नहीं है क्योंकि generate-key केवल rawKey का उपयोग करता है।
- * लेकिन यह crypto.createCipheriv का उपयोग करके एन्क्रिप्शन फ़ंक्शन को ठीक करता है।
- */
-function encryptLicenseKey(text) {
-    try {
-        const iv = crypto.randomBytes(IV_LENGTH); // IV जेनरेट करें
-        // FIX: crypto.createCipher की जगह crypto.createCipheriv का उपयोग करें
-        const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
-        let encrypted = cipher.update(text, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        // एन्क्रिप्टेड डेटा के साथ IV को कॉलोन (:) से अलग करके रिटर्न करें
-        return iv.toString('hex') + ':' + encrypted;
-    } catch (e) {
-        console.error("License key encryption utility failed:", e.message);
-        return null;
-    }
-}
+// --- License Utilities ---
 
 function hashKey(key) {
     return crypto.createHash('sha256').update(key).digest('hex');
@@ -154,7 +146,7 @@ function hashKey(key) {
 
 // --- API Routes ---
 
-// 1. Generate License Key (SECURITY FIX APPLIED)
+// 1. Generate License Key
 app.post('/api/generate-key', async (req, res) => {
     const { password, days } = req.body;
     
@@ -174,7 +166,7 @@ app.post('/api/generate-key', async (req, res) => {
     try {
         await pool.query(
             'INSERT INTO licenses (key_hash, expiry_date, is_trial) VALUES ($1, $2, $3)',
-            [keyHash, expiryDate, days === 5] // 5 दिन के लिए isTrial TRUE सेट करें
+            [keyHash, expiryDate, days === 5]
         );
         
         // यूज़र को केवल Raw Key दिखाएं
@@ -186,6 +178,7 @@ app.post('/api/generate-key', async (req, res) => {
             valid_until: expiryDate.toISOString() 
         });
     } catch (err) {
+        // यह catch ब्लॉक अब डेटाबेस त्रुटियों को तब पकड़ेगा जब स्कीमा ठीक होगा
         console.error("Error generating key:", err.message);
         res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डेटाबेस त्रुटि।' });
     }
@@ -201,9 +194,6 @@ app.get('/api/verify-license', async (req, res) => {
     const keyHash = hashKey(rawKey);
 
     try {
-        // नोट: यदि आपको 'column "expiry_date" does not exist' error आती है, 
-        // तो इसका मतलब है कि पुरानी टेबल में नाम अलग है। आपको मैन्युअल रूप से DB ठीक करना होगा
-        // या Render पर एक नया PostgreSQL डेटाबेस बनाना होगा।
         const result = await pool.query('SELECT expiry_date, is_trial FROM licenses WHERE key_hash = $1', [keyHash]);
         
         if (result.rows.length === 0) {
@@ -232,17 +222,18 @@ app.get('/api/verify-license', async (req, res) => {
     }
 });
 
-// 3. Admin Login (SECURITY FIX APPLIED)
+// 3. Admin Login
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
     
-    if (password === ADMIN_PASSWORD) { 
+    if (password === ADMIN_PASSWORD) {  
         return res.json({ success: true, message: 'एडमिन लॉगिन सफल।' });
     } else {
         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
     }
 });
 
+// (बाकी के API routes यहाँ जारी रहेंगे, क्योंकि उनमें कोई बदलाव नहीं है)
 // 4. Stock Management - Add/Update (Simplistic Upsert)
 app.post('/api/stock', async (req, res) => {
     const { sku, name, quantity, unit, purchase_price, sale_price, gst } = req.body;
@@ -299,7 +290,7 @@ app.get('/api/get-dashboard-data', async (req, res) => {
     }
 });
 
-// 7. NEW API: Get Balance Sheet / Detailed Financials Data (MOST IMPORTANT FIX)
+// 7. NEW API: Get Balance Sheet / Detailed Financials Data 
 app.get('/api/get-balance-sheet-data', async (req, res) => {
     try {
         // --- 1. Current Inventory Value (Asset) ---
@@ -446,7 +437,7 @@ app.get('/api/expense', async (req, res) => {
 pool.connect()
     .then(() => {
         console.log('PostgreSQL connection established.');
-        return createTables(); // टेबल्स बनाएं/चेक करें
+        return createTables(); // टेबल्स बनाएं/चेक करें (अब DROP करके)
     })
     .then(() => {
         app.listen(PORT, () => {
