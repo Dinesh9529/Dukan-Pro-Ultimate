@@ -284,7 +284,7 @@ app.get('/api/stock', async (req, res) => {
 });
 
 // 6. Dashboard Data (Summary Metrics) - PostgreSQL के लिए सुधारा गया
---- NEW API FOR DASHBOARD DETAILS --- ⭐
+//NEW API FOR DASHBOARD DETAILS 
 app.get('/api/dashboard-details', async (req, res) => {
 try {
 const lowStock = await pool.query('SELECT sku, name, quantity FROM stock WHERE quantity < 10 ORDER BY quantity ASC LIMIT 10');
@@ -481,5 +481,6 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
 
