@@ -43,105 +43,105 @@ const pool = new Pool({
 });
 
 /**
- * ✅ सुरक्षा सुधार: यह फ़ंक्शन अब 'DROP TABLE' का उपयोग नहीं करता है।
- * 'CREATE TABLE IF NOT EXISTS' का उपयोग करके, यह सुनिश्चित करता है कि डेटा हमेशा सुरक्षित रहे।
- */
+ * ✅ सुरक्षा सुधार: यह फ़ंक्शन अब 'DROP TABLE' का उपयोग नहीं करता है।
+ * 'CREATE TABLE IF NOT EXISTS' का उपयोग करके, यह सुनिश्चित करता है कि डेटा हमेशा सुरक्षित रहे।
+ * SQL सिंटैक्स त्रुटि से बचने के लिए इंडेंटेशन को साफ किया गया है।
+ */
 async function createTables() {
-    const client = await pool.connect(); // बेहतर कनेक्शन प्रबंधन के लिए
-    try {
-        console.log('Attempting to ensure all tables exist (Data is safe)...');
-        
-        // ❌ पुराने DROP TABLE कमांड्स को हटा दिया गया है।
+    const client = await pool.connect(); // बेहतर कनेक्शन प्रबंधन के लिए
+    try {
+        console.log('Attempting to ensure all tables exist (Data is safe)...');
+        
+        // 1. Licenses Table
+        await client.query(`
+CREATE TABLE IF NOT EXISTS licenses (
+    key_hash TEXT PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expiry_date TIMESTAMP WITH TIME ZONE,
+    is_trial BOOLEAN DEFAULT FALSE
+);
+        `);
 
-        // 1. Licenses Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS licenses (
-                key_hash TEXT PRIMARY KEY,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                expiry_date TIMESTAMP WITH TIME ZONE,
-                is_trial BOOLEAN DEFAULT FALSE
-            );
-        `);
+        // 2. Stock Table
+        await client.query(`
+CREATE TABLE IF NOT EXISTS stock (
+    id SERIAL PRIMARY KEY,
+    sku TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    unit TEXT,
+    purchase_price NUMERIC NOT NULL,
+    sale_price NUMERIC NOT NULL,
+    gst NUMERIC DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+        `);
+        
+        // 3. Customers Table
+        await client.query(`
+CREATE TABLE IF NOT EXISTS customers (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT UNIQUE,
+    email TEXT UNIQUE,
+    address TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+        `);
 
-        // 2. Stock Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS stock (
-                id SERIAL PRIMARY KEY,
-                sku TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                quantity NUMERIC NOT NULL,
-                unit TEXT,
-                purchase_price NUMERIC NOT NULL,
-                sale_price NUMERIC NOT NULL,
-                gst NUMERIC DEFAULT 0,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        // 3. Customers Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS customers (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                phone TEXT UNIQUE,
-                email TEXT UNIQUE,
-                address TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 4. Invoices Table
+        await client.query(`
+CREATE TABLE IF NOT EXISTS invoices (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    total_amount NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+        `);
 
-        // 4. Invoices Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS invoices (
-                id SERIAL PRIMARY KEY,
-                customer_id INTEGER REFERENCES customers(id),
-                total_amount NUMERIC NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 5. Invoice Items Table (ON DELETE CASCADE जोड़ा गया)
+        await client.query(`
+CREATE TABLE IF NOT EXISTS invoice_items (
+    id SERIAL PRIMARY KEY,
+    invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
+    item_name TEXT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    sale_price NUMERIC NOT NULL
+);
+        `);
+        
+        // 6. Purchases Table
+        await client.query(`
+CREATE TABLE IF NOT EXISTS purchases (
+    id SERIAL PRIMARY KEY,
+    supplier_name TEXT,
+    item_details TEXT NOT NULL,
+    total_cost NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+        `);
+        
+        // 7. Expenses Table
+        await client.query(`
+CREATE TABLE IF NOT EXISTS expenses (
+    id SERIAL PRIMARY KEY,
+    description TEXT NOT NULL,
+    category TEXT,
+    amount NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+        `);
+        
+        console.log('✅ All tables checked/created successfully (Data retained).');
 
-        // 5. Invoice Items Table (ON DELETE CASCADE जोड़ा गया)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS invoice_items (
-                id SERIAL PRIMARY KEY,
-                invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
-                item_name TEXT NOT NULL,
-                quantity NUMERIC NOT NULL,
-                sale_price NUMERIC NOT NULL
-            );
-        `);
-        
-        // 6. Purchases Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS purchases (
-                id SERIAL PRIMARY KEY,
-                supplier_name TEXT,
-                item_details TEXT NOT NULL,
-                total_cost NUMERIC NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        // 7. Expenses Table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS expenses (
-                id SERIAL PRIMARY KEY,
-                description TEXT NOT NULL,
-                category TEXT,
-                amount NUMERIC NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        
-        console.log('✅ All tables checked/created successfully (Data retained).');
-
-    } catch (err) {
-        console.error('❌ Error ensuring database tables:', err.message);
-        process.exit(1);
-    } finally {
-        client.release(); // कनेक्शन वापस पूल में जारी करें
-    }
+    } catch (err) {
+        console.error('❌ Error ensuring database tables:', err.message);
+        process.exit(1);
+    } finally {
+        client.release(); // कनेक्शन वापस पूल में जारी करें
+    }
 }
+
 
 // --- License Utilities ---
 
@@ -331,8 +331,6 @@ app.get('/api/get-dashboard-data', async (req, res) => {
     }
 });
 
-// server.cjs में यह कोड जोड़ें
-
 // 7. NEW: Get Low Stock Items List for Dashboard
 app.get('/api/get-low-stock-items', async (req, res) => {
     try {
@@ -490,8 +488,6 @@ app.post('/api/purchase', async (req, res) => {
         res.status(500).json({ success: false, message: 'खरीद दर्ज करने में विफल रहा।' });
     }
 });
-
-// server.cjs में यह नया कोड जोड़ें
 
 // 14. Get All Invoices (for Sales page)
 app.get('/api/invoices', async (req, res) => {
