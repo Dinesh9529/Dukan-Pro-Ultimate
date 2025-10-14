@@ -1,4 +1,4 @@
-// server.cjs (Dukan Pro - Ultimate Backend) - FINAL CLEANED VERSION
+// server.cjs (Dukan Pro - Ultimate Backend) - CRITICAL FINAL FIX
 
 const express = require('express');
 const { Pool } = require('pg');
@@ -32,19 +32,12 @@ async function createTables() {
     try {
         console.log('Attempting to ensure all tables exist...');
 
-        // 🚨 CRITICAL FIX: Temporary DROP TABLE command removed for stable deploy.
+        // 🚨 CRITICAL FIX APPLIED HERE: Using single-line string for the first query to prevent invisible space issues.
+        // 1. Licenses Table (CRITICAL FIX)
+        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
 
-        // 1. Licenses Table (Cleaned Syntax)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS licenses (
-                key_hash TEXT PRIMARY KEY,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                expiry_date TIMESTAMP WITH TIME ZONE,
-                is_trial BOOLEAN DEFAULT FALSE
-            );
-        `);
 
-        // 2. Stock Table (FIXED SCHEMA & Cleaned Syntax)
+        // 2. Stock Table (FIXED SCHEMA & Cleaned Syntax - अब यह बिना एरर के बन जाएगी)
         await client.query(`
             CREATE TABLE IF NOT EXISTS stock (
                 id SERIAL PRIMARY KEY,
