@@ -3,7 +3,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-const path = require('path'); // Node.js में path मॉड्यूल का उपयोग करें
+const path = require('path'); 
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -19,7 +19,7 @@ const pool = new Pool({
 // --- Table Creation Logic (टेबल निर्माण लॉजिक) ---
 async function createTables() {
     try {
-        // STOCK table - (IF NOT EXISTS ensures it only runs once)
+        // STOCK table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS stock (
                 id SERIAL PRIMARY KEY,
@@ -98,7 +98,7 @@ async function createTables() {
             );
         `);
         
-        // SETTINGS table (For Admin/License)
+        // SETTINGS table
          await pool.query(`
             CREATE TABLE IF NOT EXISTS settings (
                 key VARCHAR(50) UNIQUE NOT NULL,
@@ -111,24 +111,24 @@ async function createTables() {
         return true;
     } catch (error) {
         console.error("Error ensuring tables exist:", error.message);
-        throw error; // त्रुटि को आगे बढ़ाएं
+        throw error;
     }
 }
 
 
 // --- Middlewares (मिडिलवेयर्स) ---
 
-// सुरक्षित CORS लॉजिक
+// ✅ FINAL SECURE CORS FIX: यह null, undefined, और खाली स्ट्रिंग तीनों को अनुमति देता है
 app.use(cors({
     origin: (origin, callback) => {
-        // ALLOW: यदि Origin null है (लोकल फ़ाइल)
-        if (origin === null) {
+        // ALLOW: यदि Origin null, undefined है, या खाली स्ट्रिंग है (लोकल फ़ाइल)
+        if (origin === null || origin === undefined || origin === '') {
             callback(null, true); // ALLOW
             return;
         }
 
         // ALLOW: यदि Origin http या https से शुरू होता है (वेबसाइट्स)
-        if (origin && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+        if (origin.startsWith('http://') || origin.startsWith('https://')) {
             callback(null, true); // ALLOW
             return;
         }
@@ -140,7 +140,6 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
 
 // JSON बॉडी पार्सर
 app.use(express.json());
@@ -154,7 +153,7 @@ app.get('/api/get-dashboard-data', async (req, res) => {
         const totalStockValue = await pool.query('SELECT COALESCE(SUM(quantity * cost_price), 0) AS value FROM stock');
         const lowStockCount = await pool.query('SELECT COUNT(*) FROM stock WHERE quantity <= low_stock_threshold');
         
-        // हाल की बिक्री का डेटा (उदाहरण के लिए, पिछले 7 दिनों का)
+        // हाल की बिक्री का डेटा
         const recentSales = await pool.query(`
             SELECT 
                 DATE(created_at) as date, 
@@ -351,7 +350,7 @@ app.post('/api/admin-login', async (req, res) => {
 });
 
 
-// 13. Get All Invoices (for Sales page) - NEW
+// 13. Get All Invoices (for Sales page)
 app.get('/api/invoices', async (req, res) => {
     try {
         const result = await pool.query(`
@@ -372,7 +371,7 @@ app.get('/api/invoices', async (req, res) => {
     }
 });
 
-// 14. Create New Invoice (POS Sale) - NEW
+// 14. Create New Invoice (POS Sale)
 app.post('/api/invoices', async (req, res) => {
     const { customerName, items, totalAmount } = req.body;
     
@@ -452,4 +451,3 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1); // गंभीर त्रुटि पर बाहर निकलें
     });
-
