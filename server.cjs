@@ -478,7 +478,91 @@ app.post('/api/purchase', async (req, res) => {
     }
 });
 
-// 14. Get Purchases
+// server.cjs में यह नया कोड जोड़ें
+
+// 14. Get All Invoices (for Sales page)
+app.get('/api/invoices', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                i.id,
+                COALESCE(c.name, 'अनाम ग्राहक') as customer_name,
+                i.total_amount,
+                i.created_at
+            FROM invoices i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            ORDER BY i.created_at DESC
+            LIMIT 50; -- हाल के 50 चालान दिखाएं
+        `);
+        res.json({ success: true, invoices: result.rows });
+    } catch (err) {
+        console.error("Error fetching invoices:", err.message);
+        res.status(500).json({ success: false, message: 'चालान सूची प्राप्त करने में विफल।' });
+    }
+});
+
+// 15. Create New Invoice (POS Sale)
+app.post('/api/invoices', async (req, res) => {
+    const { customerName, items, totalAmount } = req.body;
+    
+    // इनपुट की जाँच करें
+    if (!Array.isArray(items) || items.length === 0 || !totalAmount) {
+        return res.status(400).json({ success: false, message: 'अमान्य अनुरोध: कार्ट में आइटम और कुल राशि आवश्यक है।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN'); // Transaction शुरू करें
+
+        let customerId = null;
+        if (customerName) {
+            // ग्राहक को खोजें या नया बनाएं
+            let customerRes = await client.query('SELECT id FROM customers WHERE name = $1', [customerName]);
+            if (customerRes.rows.length > 0) {
+                customerId = customerRes.rows[0].id;
+            } else {
+                let newCustomerRes = await client.query(
+                    'INSERT INTO customers (name) VALUES ($1) RETURNING id',
+                    [customerName]
+                );
+                customerId = newCustomerRes.rows[0].id;
+            }
+        }
+
+        // 1. Invoices टेबल में एंट्री करें
+        const invoiceRes = await client.query(
+            'INSERT INTO invoices (customer_id, total_amount) VALUES ($1, $2) RETURNING id',
+            [customerId, totalAmount]
+        );
+        const invoiceId = invoiceRes.rows[0].id;
+
+        // 2. हर आइटम के लिए, invoice_items में एंट्री करें और स्टॉक कम करें
+        for (const item of items) {
+            await client.query(
+                'INSERT INTO invoice_items (invoice_id, item_name, quantity, sale_price) VALUES ($1, $2, $3, $4)',
+                [invoiceId, item.name, item.quantity, item.sale_price]
+            );
+            
+            // 3. स्टॉक अपडेट करें
+            await client.query(
+                'UPDATE stock SET quantity = quantity - $1 WHERE sku = $2',
+                [item.quantity, item.sku]
+            );
+        }
+
+        await client.query('COMMIT'); // Transaction सफल, बदलाव सेव करें
+        res.status(201).json({ success: true, message: 'बिक्री सफलतापूर्वक पूरी हुई!', invoiceId: invoiceId });
+
+    } catch (err) {
+        await client.query('ROLLBACK'); // अगर कोई त्रुटि हो तो सभी बदलाव वापस लें
+        console.error("Error creating invoice:", err.message);
+        res.status(500).json({ success: false, message: 'बिक्री पूरी करने में विफल: ' + err.message });
+    } finally {
+        client.release(); // कनेक्शन को वापस पूल में भेजें
+    }
+});
+
+// 16. Get Purchases
 app.get('/api/purchase', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM purchases ORDER BY created_at DESC;`);
@@ -491,7 +575,7 @@ app.get('/api/purchase', async (req, res) => {
 
 // --- Expenses API Routes (New) ---
 
-// 15. Add Expense
+// 17. Add Expense
 app.post('/api/expense', async (req, res) => {
     const { description, category, amount } = req.body;
     // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
@@ -515,7 +599,7 @@ app.post('/api/expense', async (req, res) => {
     }
 });
 
-// 16. Get Expenses
+// 18. Get Expenses
 app.get('/api/expense', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM expenses ORDER BY created_at DESC;`);
@@ -543,6 +627,7 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
 
 
