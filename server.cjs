@@ -120,24 +120,8 @@ async function createTables() {
 
 // ✅ FINAL SECURE CORS FIX: यह null, undefined, और खाली स्ट्रिंग तीनों को अनुमति देता है
 app.use(cors({
-    origin: (origin, callback) => {
-        // ALLOW: यदि Origin null, undefined है, या खाली स्ट्रिंग है (लोकल फ़ाइल)
-        if (origin === null || origin === undefined || origin === '') {
-            callback(null, true); // ALLOW
-            return;
-        }
-
-        // ALLOW: यदि Origin http या https से शुरू होता है (वेबसाइट्स)
-        if (origin.startsWith('http://') || origin.startsWith('https://')) {
-            callback(null, true); // ALLOW
-            return;
-        }
-
-        // DENY: अन्य सभी मामलों में ब्लॉक करें
-        console.error(`Error: Not allowed by CORS. Origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'), false); // DENY
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    origin: '*', // यह सभी origins (स्थानीय फाइल, वेब) को अनुमति देता है।
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // OPTIONS (Preflight) को भी अनुमति दें।
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -451,3 +435,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1); // गंभीर त्रुटि पर बाहर निकलें
     });
+
