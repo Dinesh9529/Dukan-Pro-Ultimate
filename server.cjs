@@ -623,18 +623,20 @@ app.get('/api/expense', async (req, res) => {
 // --- Server Initialization ---
 
 pool.connect()
-    .then(() => {
-        console.log('PostgreSQL connection established.');
-        return createTables(); // ✅ अब यह डेटा को बरकरार रखेगा
-    })
-    .then(() => {
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    })
-    .catch(err => {
-        console.error('Database connection failed:', err.message);
-        process.exit(1);
+    .then(() => {
+        console.log('PostgreSQL connection established.');
+        return createTables();
+    })
+    .then(() => {
+        // ✅ महत्वपूर्ण सुधार: अब IP एड्रेस 0.0.0.0 को स्पष्ट रूप से जोड़ें
+        app.listen(PORT, '0.0.0.0', () => { 
+            console.log(`Server is running on port ${PORT} at 0.0.0.0`);
+        });
+    })
+    .catch(err => {
+        console.error('Database connection failed:', err.message);
+        process.exit(1);
 
-    });
+    });
+
 
