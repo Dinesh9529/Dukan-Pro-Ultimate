@@ -1,4 +1,4 @@
-// server.cjs (Dukan Pro - Ultimate Backend) - CRITICAL FINAL FIX (All SQL commands in single quotes)
+// server.cjs (Dukan Pro - Ultimate Backend) - FINAL FIX (All SQL queries cleaned)
 
 const express = require('express');
 const { Pool } = require('pg');
@@ -32,25 +32,26 @@ async function createTables() {
     try {
         console.log('Attempting to ensure all tables exist...');
 
-        // 1. Licenses Table (CRITICAL FIX: Single-line string)
+        // CRITICAL FIX: All CREATE TABLE queries in single-line string to prevent invisible space issues.
+        // 1. Licenses Table
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
 
-        // 2. Stock Table (Single-line string)
+        // 2. Stock Table
         await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, sku TEXT UNIQUE NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC, category TEXT, gst NUMERIC DEFAULT 0, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         
-        // 3. Customers Table (Single-line string)
+        // 3. Customers Table
         await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, phone TEXT UNIQUE, email TEXT UNIQUE, address TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // 4. Invoices Table (Single-line string)
+        // 4. Invoices Table
         await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), total_amount NUMERIC NOT NULL, total_cost NUMERIC, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // 5. Invoice Items Table (Single-line string)
+        // 5. Invoice Items Table
         await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC);');
         
-        // 6. Purchases Table (Single-line string)
+        // 6. Purchases Table
         await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, supplier_name TEXT, item_details TEXT NOT NULL, total_cost NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         
-        // 7. Expenses Table (Single-line string)
+        // 7. Expenses Table
         await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         
         console.log('✅ All tables checked/created successfully.');
@@ -160,7 +161,7 @@ app.post('/api/admin-login', (req, res) => {
     }
 });
 
-// 4. Stock Management - Add/Update
+// 4. Stock Management - Add/Update (FIXED)
 app.post('/api/stock', async (req, res) => {
     const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category } = req.body;
     
@@ -179,19 +180,9 @@ app.post('/api/stock', async (req, res) => {
     }
 
     try {
+        // CRITICAL FIX: Compressed ON CONFLICT query to a single line template literal
         const result = await pool.query(
-            `INSERT INTO stock (sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (sku) DO UPDATE
-             SET 
-                 quantity = stock.quantity + EXCLUDED.quantity, 
-                 purchase_price = EXCLUDED.purchase_price,
-                 sale_price = EXCLUDED.sale_price,
-                 gst = EXCLUDED.gst,
-                   cost_price = EXCLUDED.cost_price,
-                   category = EXCLUDED.category,
-                 updated_at = CURRENT_TIMESTAMP
-             RETURNING *;`,
+            `INSERT INTO stock (sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (sku) DO UPDATE SET quantity = stock.quantity + EXCLUDED.quantity, purchase_price = EXCLUDED.purchase_price, sale_price = EXCLUDED.sale_price, gst = EXCLUDED.gst, cost_price = EXCLUDED.cost_price, category = EXCLUDED.category, updated_at = CURRENT_TIMESTAMP RETURNING *;`,
             [sku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category]
         );
         res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक जोड़ा/अपडेट किया गया।' });
@@ -252,20 +243,11 @@ app.get('/api/get-low-stock-items', async (req, res) => {
     }
 });
 
-// 8. Get Recent Sales for Dashboard
+// 8. Get Recent Sales for Dashboard (FIXED)
 app.get('/api/get-recent-sales', async (req, res) => {
     try {
-        const result = await pool.query(`
-            SELECT 
-                i.id AS invoice_id, 
-                COALESCE(c.name, 'अनाम ग्राहक') AS customer_name, 
-                i.total_amount, 
-                i.created_at 
-            FROM invoices i
-            LEFT JOIN customers c ON i.customer_id = c.id
-            ORDER BY i.created_at DESC 
-            LIMIT 5
-        `);
+        // CRITICAL FIX: Converted to single-line string to avoid invisible character issue
+        const result = await pool.query("SELECT i.id AS invoice_id, COALESCE(c.name, 'अनाम ग्राहक') AS customer_name, i.total_amount, i.created_at FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id ORDER BY i.created_at DESC LIMIT 5");
         res.json({ success: true, sales: result.rows });
     } catch (error) {
         console.error('Recent sales SQL/PostgreSQL एरर:', error.message);
@@ -284,27 +266,20 @@ app.get('/api/get-recent-customers', async (req, res) => {
     }
 });
 
-// 10. Get Balance Sheet / Detailed Financials Data 
+// 10. Get Balance Sheet / Detailed Financials Data (FIXED)
 app.get('/api/get-balance-sheet-data', async (req, res) => {
     try {
-        const inventoryValueResult = await pool.query(`
-            SELECT COALESCE(SUM(quantity * cost_price), 0) AS inventory_value FROM stock;
-        `);
+        // CRITICAL FIX: Converted multi-line queries to single-line
+        const inventoryValueResult = await pool.query("SELECT COALESCE(SUM(quantity * cost_price), 0) AS inventory_value FROM stock;");
         const currentInventoryValue = parseFloat(inventoryValueResult.rows[0].inventory_value);
 
-        const revenueResult = await pool.query(`
-            SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM invoices;
-        `);
+        const revenueResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM invoices;");
         const totalRevenue = parseFloat(revenueResult.rows[0].total_revenue);
 
-        const purchasesResult = await pool.query(`
-            SELECT COALESCE(SUM(total_cost), 0) AS total_purchases FROM purchases;
-        `);
+        const purchasesResult = await pool.query("SELECT COALESCE(SUM(total_cost), 0) AS total_purchases FROM purchases;");
         const totalPurchases = parseFloat(purchasesResult.rows[0].total_purchases);
 
-        const expensesResult = await pool.query(`
-            SELECT COALESCE(SUM(amount), 0) AS total_expenses FROM expenses;
-        `);
+        const expensesResult = await pool.query("SELECT COALESCE(SUM(amount), 0) AS total_expenses FROM expenses;");
         const totalExpenses = parseFloat(expensesResult.rows[0].total_expenses);
         
         const grossProfit = totalRevenue - totalPurchases;
@@ -441,18 +416,11 @@ app.get('/api/expense', async (req, res) => {
 
 // --- SALES / INVOICES API Routes ---
 
-// 17. Get Invoices/Sales List (Resolves 404 for /api/invoices)
+// 17. Get Invoices/Sales List (FIXED)
 app.get('/api/invoices', async (req, res) => {
     try {
-        const result = await pool.query(`
-            SELECT 
-                i.id, i.total_amount, i.created_at, 
-                COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name
-            FROM invoices i
-            LEFT JOIN customers c ON i.customer_id = c.id
-            ORDER BY i.created_at DESC
-            LIMIT 50
-        `);
+        // CRITICAL FIX: Converted multi-line query to single-line
+        const result = await pool.query("SELECT i.id, i.total_amount, i.created_at, COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id ORDER BY i.created_at DESC LIMIT 50");
         res.json({ success: true, sales: result.rows, message: "चालान सफलतापूर्वक लोड किए गए।" });
     } catch (error) {
         console.error("Error fetching invoices:", error.message);
