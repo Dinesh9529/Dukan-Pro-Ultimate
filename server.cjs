@@ -28,42 +28,43 @@ const pool = new Pool({
 });
 
 async function createTables() {
-    const client = await pool.connect();
-    try {
-        console.log('Attempting to ensure all tables exist...');
+    const client = await pool.connect();
+    try {
+        console.log('Attempting to ensure all tables and columns exist...');
 
-        // CRITICAL FIX: All CREATE TABLE queries in single-line string to prevent invisible space issues.
-        // 1. Licenses Table
-        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
+        // 1. Licenses Table
+        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
 
         // 2. Stock Table
-        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, sku TEXT UNIQUE NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC, category TEXT, gst NUMERIC DEFAULT 0, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
-        
-        // 3. Customers Table
-        await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, phone TEXT UNIQUE, email TEXT UNIQUE, address TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, sku TEXT UNIQUE NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC, category TEXT, gst NUMERIC DEFAULT 0, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        
+        // 3. Customers Table
+        await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, phone TEXT UNIQUE, email TEXT UNIQUE, address TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // 4. Invoices Table
-        await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), total_amount NUMERIC NOT NULL, total_cost NUMERIC, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        // 4. Invoices Table
+        await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), total_amount NUMERIC NOT NULL, total_cost NUMERIC, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // 5. Invoice Items Table
-        await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC);');
-        
-        // 6. Purchases Table
-        await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, supplier_name TEXT, item_details TEXT NOT NULL, total_cost NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
-        
-        // 7. Expenses Table
-        await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
-        
-        console.log('✅ All tables checked/created successfully.');
+        // 5. Invoice Items Table
+        await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC);');
+        
+        // --- FINAL FIX: Add the missing 'item_sku' column if it doesn't exist ---
+        await client.query('ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS item_sku TEXT;');
 
-    } catch (err) {
-        console.error('❌ Error ensuring database tables:', err.message);
-        process.exit(1);
-    } finally {
-        client.release();
-    }
+        // 6. Purchases Table
+        await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, supplier_name TEXT, item_details TEXT NOT NULL, total_cost NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        
+        // 7. Expenses Table
+        await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        
+        console.log('✅ All tables and columns checked/created successfully.');
+
+    } catch (err) {
+        console.error('❌ Error ensuring database schema:', err.message);
+        process.exit(1);
+    } finally {
+        client.release();
+    }
 }
-
 // --- License Utilities ---
 
 function hashKey(key) {
@@ -522,4 +523,5 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
