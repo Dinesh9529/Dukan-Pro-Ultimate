@@ -1,4 +1,4 @@
-// server.cjs (Dukan Pro - Ultimate Backend) - FIXED VERSION
+// server.cjs (Dukan Pro - Ultimate Backend) - FINAL CLEANED VERSION
 
 const express = require('express');
 const { Pool } = require('pg');
@@ -28,16 +28,13 @@ const pool = new Pool({
 });
 
 async function createTables() {
-    const client = await pool.connect(); // बेहतर कनेक्शन प्रबंधन के लिए
+    const client = await pool.connect();
     try {
-        console.log('Attempting to ensure all tables exist (Data is safe)...');
+        console.log('Attempting to ensure all tables exist...');
 
-        // 🚨 FIX 1A (TEMPORARY): यह लाइन स्कीमा त्रुटियों को ठीक करने के लिए 
-        // पुराने 'stock' टेबल को हटा देगी। (सावधान: मौजूदा स्टॉक डेटा हट जाएगा!)
-        await client.query('DROP TABLE IF EXISTS stock CASCADE;');
-        console.log('🔥 Temporary FIX: Old stock table dropped to allow schema update.');
+        // 🚨 CRITICAL FIX: Temporary DROP TABLE command removed for stable deploy.
 
-        // 1. Licenses Table
+        // 1. Licenses Table (Cleaned Syntax)
         await client.query(`
             CREATE TABLE IF NOT EXISTS licenses (
                 key_hash TEXT PRIMARY KEY,
@@ -47,7 +44,7 @@ async function createTables() {
             );
         `);
 
-        // 2. Stock Table (FIXED SCHEMA)
+        // 2. Stock Table (FIXED SCHEMA & Cleaned Syntax)
         await client.query(`
             CREATE TABLE IF NOT EXISTS stock (
                 id SERIAL PRIMARY KEY,
@@ -57,8 +54,8 @@ async function createTables() {
                 unit TEXT,
                 purchase_price NUMERIC NOT NULL,
                 sale_price NUMERIC NOT NULL,
-                cost_price NUMERIC,      -- 👈 FIX 1B: डैशबोर्ड एरर को ठीक करने के लिए जोड़ा गया
-                category TEXT,           -- 👈 FIX 1C: स्टॉक ऐड एरर को ठीक करने के लिए जोड़ा गया
+                cost_price NUMERIC, 
+                category TEXT,           
                 gst NUMERIC DEFAULT 0,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
@@ -82,21 +79,21 @@ async function createTables() {
                 id SERIAL PRIMARY KEY,
                 customer_id INTEGER REFERENCES customers(id),
                 total_amount NUMERIC NOT NULL,
-                total_cost NUMERIC, -- बेचे गए माल की कुल लागत (Total Cost of Goods Sold)
+                total_cost NUMERIC,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
 
-        // 5. Invoice Items Table (ON DELETE CASCADE जोड़ा गया)
+        // 5. Invoice Items Table
         await client.query(`
             CREATE TABLE IF NOT EXISTS invoice_items (
                 id SERIAL PRIMARY KEY,
                 invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
                 item_name TEXT NOT NULL,
-                item_sku TEXT, -- POS के लिए महत्वपूर्ण
+                item_sku TEXT, 
                 quantity NUMERIC NOT NULL,
                 sale_price NUMERIC NOT NULL,
-                purchase_price NUMERIC -- लाभ मार्जिन गणना के लिए
+                purchase_price NUMERIC 
             );
         `);
         
@@ -122,13 +119,13 @@ async function createTables() {
             );
         `);
         
-        console.log('✅ All tables checked/created successfully (Data retained).');
+        console.log('✅ All tables checked/created successfully.');
 
     } catch (err) {
         console.error('❌ Error ensuring database tables:', err.message);
         process.exit(1);
     } finally {
-        client.release(); // कनेक्शन वापस पूल में जारी करें
+        client.release();
     }
 }
 
@@ -229,7 +226,7 @@ app.post('/api/admin-login', (req, res) => {
     }
 });
 
-// 4. Stock Management - Add/Update (Simplistic Upsert)
+// 4. Stock Management - Add/Update
 app.post('/api/stock', async (req, res) => {
     const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category } = req.body;
     
@@ -241,7 +238,7 @@ app.post('/api/stock', async (req, res) => {
     const safePurchasePrice = parseFloat(purchase_price);
     const safeSalePrice = parseFloat(sale_price);
     const safeGst = parseFloat(gst || 0);
-    const safeCostPrice = parseFloat(cost_price || safePurchasePrice); // अगर cost_price नहीं दिया गया है, तो purchase_price का उपयोग करें
+    const safeCostPrice = parseFloat(cost_price || safePurchasePrice); 
 
     if (isNaN(safeQuantity) || isNaN(safePurchasePrice) || isNaN(safeSalePrice)) {
         return res.status(400).json({ success: false, message: 'मात्रा, खरीद मूल्य और बिक्री मूल्य मान्य संख्याएँ होनी चाहिए।' });
@@ -281,22 +278,18 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
-// 6. Dashboard Data (Summary Metrics) - (cost_price का उपयोग करके ठीक किया गया)
+// 6. Dashboard Data (Summary Metrics) 
 app.get('/api/get-dashboard-data', async (req, res) => {
     try {
-        // 1. कुल बिक्री राजस्व (Total Sales Revenue)
         const salesResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS value FROM invoices");
         const totalSalesRevenue = parseFloat(salesResult.rows[0].value);
 
-        // 2. कुल स्टॉक मूल्य (Total Stock Value) - अब cost_price कॉलम का उपयोग करता है
         const stockValueResult = await pool.query("SELECT COALESCE(SUM(cost_price * quantity), 0) AS value FROM stock");
         const totalStockValue = parseFloat(stockValueResult.rows[0].value);
         
-        // 3. कुल ग्राहक (Total Customers)
         const customerResult = await pool.query("SELECT COUNT(DISTINCT id) AS value FROM customers");
         const totalCustomers = parseInt(customerResult.rows[0].value);
 
-        // 4. कम स्टॉक आइटम (Low Stock Count)
         const lowStockResult = await pool.query("SELECT COUNT(id) AS value FROM stock WHERE quantity < 10");
         const lowStockCount = parseInt(lowStockResult.rows[0].value);
 
@@ -512,7 +505,7 @@ app.get('/api/expense', async (req, res) => {
 });
 
 
-// --- SALES / INVOICES API Routes (FIX 3: Bikri POS Endpoints) ---
+// --- SALES / INVOICES API Routes ---
 
 // 17. Get Invoices/Sales List (Resolves 404 for /api/invoices)
 app.get('/api/invoices', async (req, res) => {
@@ -547,7 +540,7 @@ app.post('/api/invoices', async (req, res) => {
         await client.query('BEGIN'); // Transaction Start
         
         const safeTotalAmount = parseFloat(total_amount);
-        let calculatedTotalCost = 0; // COGS के लिए
+        let calculatedTotalCost = 0;
         
         // 1. Create the Invoice header
         const invoiceResult = await client.query(
@@ -556,29 +549,28 @@ app.post('/api/invoices', async (req, res) => {
         );
         const invoiceId = invoiceResult.rows[0].id;
         
-        // 2. Insert Invoice Items and Update Stock (Iterate through items)
+        // 2. Insert Invoice Items and Update Stock 
         for (const item of items) {
             const safeQuantity = parseFloat(item.quantity);
             const safeSalePrice = parseFloat(item.sale_price);
             const safePurchasePrice = parseFloat(item.purchase_price);
 
-            // A. Update total cost of goods sold (COGS)
             calculatedTotalCost += safeQuantity * safePurchasePrice;
 
-            // B. Insert into invoice_items
+            // Insert into invoice_items
             await client.query(
                 `INSERT INTO invoice_items (invoice_id, item_name, item_sku, quantity, sale_price, purchase_price) VALUES ($1, $2, $3, $4, $5, $6)`,
                 [invoiceId, item.name, item.sku, safeQuantity, safeSalePrice, safePurchasePrice]
             );
             
-            // C. Decrease Stock Quantity 
+            // Decrease Stock Quantity 
             await client.query(
                 `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2`,
                 [safeQuantity, item.sku]
             );
         }
 
-        // 3. Update Invoice with total_cost (Gross Profit Calculation)
+        // 3. Update Invoice with total_cost
         await client.query(
             `UPDATE invoices SET total_cost = $1 WHERE id = $2`,
             [calculatedTotalCost, invoiceId]
@@ -602,7 +594,7 @@ app.post('/api/invoices', async (req, res) => {
 pool.connect()
     .then(() => {
         console.log('PostgreSQL connection established.');
-        return createTables(); // ✅ अब यह डेटा को बरकरार रखेगा
+        return createTables(); 
     })
     .then(() => {
         app.listen(PORT, '0.0.0.0', () => {
