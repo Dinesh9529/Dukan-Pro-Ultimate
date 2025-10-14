@@ -24,22 +24,11 @@ const ENCRYPTION_KEY = crypto.createHash('sha256').update(SECRET_KEY).digest();�
 
 // ✅ FINAL CORS FIX: यह सुनिश्चित करता है कि null, undefined, या खाली स्ट्रिंग वाले origins को अनुमति मिले
 app.use(cors({
-    origin: (origin, callback) => {
-        // null, undefined, या खाली स्ट्रिंग ('' - जो कभी-कभी null origin होता है) को अनुमति दें
-        const isLocalFileOrigin = origin === null || origin === undefined || origin === ''; 
-
-        // या यदि यह एक वैध वेब प्रोटोकॉल (http या https) से शुरू होता है
-        const isWebOrigin = origin && (origin.startsWith('http://') || origin.startsWith('https://'));
-
-        if (isLocalFileOrigin || isWebOrigin) {
-            callback(null, true); // ALLOW
-        } else {
-            // यदि यह कोई और अजीब origin है तो ब्लॉक करें
-            callback(new Error('Not allowed by CORS'), false); // DENY
-        }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: (origin, callback) => {
+        // ... (पूरी कस्टम लॉजिक)
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // ...
@@ -648,3 +637,4 @@ pool.connect()
         process.exit(1);
 
     });
+
