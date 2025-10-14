@@ -121,22 +121,26 @@ async function createTables() {
 // सुरक्षित CORS लॉजिक
 app.use(cors({
     origin: (origin, callback) => {
-        // null, undefined, या खाली स्ट्रिंग (स्थानीय फ़ाइलें या कुछ ऐप्स) को अनुमति दें
-        const isLocalFileOrigin = origin === null || origin === undefined || origin === ''; 
-        // वैध वेब Origins (http:// या https://) को अनुमति दें
-        const isWebOrigin = origin && (origin.startsWith('http://') || origin.startsWith('https://'));
-
-        if (isLocalFileOrigin || isWebOrigin) {
+        // ALLOW: यदि Origin null है (लोकल फ़ाइल)
+        if (origin === null) {
             callback(null, true); // ALLOW
-        } else {
-            // यदि यह कोई और अजीब origin है तो ब्लॉक करें
-            console.error(`Error: Not allowed by CORS. Origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'), false); // DENY
+            return;
         }
+
+        // ALLOW: यदि Origin http या https से शुरू होता है (वेबसाइट्स)
+        if (origin && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+            callback(null, true); // ALLOW
+            return;
+        }
+
+        // DENY: अन्य सभी मामलों में ब्लॉक करें
+        console.error(`Error: Not allowed by CORS. Origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'), false); // DENY
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 
 // JSON बॉडी पार्सर
 app.use(express.json());
@@ -448,3 +452,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1); // गंभीर त्रुटि पर बाहर निकलें
     });
+
