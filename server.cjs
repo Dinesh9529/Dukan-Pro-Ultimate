@@ -284,21 +284,38 @@ app.get('/api/stock', async (req, res) => {
 });
 
 // 6. Dashboard Data (Summary Metrics) - PostgreSQL के लिए सुधारा गया
-//NEW API FOR DASHBOARD DETAILS 
-app.get('/api/dashboard-details', async (req, res) => {
-try {
-const lowStock = await pool.query('SELECT sku, name, quantity FROM stock WHERE quantity < 10 ORDER BY quantity ASC LIMIT 10');
-const recentSales = await pool.query('SELECT i.id, c.name as customer_name, i.total_amount, i.created_at FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id ORDER BY i.created_at DESC LIMIT 10');
-const recentCustomers = await pool.query('SELECT name, phone, created_at FROM customers ORDER BY created_at DESC LIMIT 10');
-res.json({
-success: true,
-lowStock: lowStock.rows,
-recentSales: recentSales.rows,
-recentCustomers: recentCustomers.rows
-});
-} catch (error) {
-res.status(500).json({ success: false, message: 'डैशबोर्ड विवरण लोड करने में विफल।' });
-}
+app.get('/api/get-dashboard-data', async (req, res) => {
+    try {
+        // 1. कुल बिक्री राजस्व (Total Sales Revenue) - Table name corrected to 'invoices'
+        // COALESCE(SUM(total_amount), 0) सुनिश्चित करता है कि खाली होने पर 0 आए
+        const salesResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS value FROM invoices");
+        const totalSalesRevenue = parseFloat(salesResult.rows[0].value);
+
+        // 2. कुल स्टॉक मूल्य (Total Stock Value)
+        const stockValueResult = await pool.query("SELECT COALESCE(SUM(purchase_price * quantity), 0) AS value FROM stock");
+        const totalStockValue = parseFloat(stockValueResult.rows[0].value);
+        
+        // 3. कुल ग्राहक (Total Customers) - Table name corrected to 'invoices'
+        const customerResult = await pool.query("SELECT COUNT(DISTINCT customer_id) AS value FROM invoices WHERE customer_id IS NOT NULL");
+        const totalCustomers = parseInt(customerResult.rows[0].value);
+
+        // 4. कम स्टॉक आइटम (Low Stock Count)
+        const lowStockResult = await pool.query("SELECT COUNT(id) AS value FROM stock WHERE quantity < 10");
+        const lowStockCount = parseInt(lowStockResult.rows[0].value);
+
+        // अंत में, सभी डेटा को client को भेजें
+        res.json({
+            success: true,
+            totalSalesRevenue: totalSalesRevenue,
+            totalStockValue: totalStockValue,
+            totalCustomers: totalCustomers,
+            lowStockCount: lowStockCount
+        });
+
+    } catch (error) {
+        console.error('डैशबोर्ड डेटा SQL/PostgreSQL एरर:', error.message);
+        res.status(500).json({ success: false, message: 'डैशबोर्ड डेटा लोड नहीं किया जा सका।' });
+    }
 });
 
 // 7. NEW API: Get Balance Sheet / Detailed Financials Data 
@@ -481,6 +498,7 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
 
 
