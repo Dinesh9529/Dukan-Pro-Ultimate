@@ -4,10 +4,12 @@ const express = require('express');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const cors = require('cors');
+// सुरक्षा के लिए 'helmet' को जोड़ना एक अच्छा अभ्यास है, लेकिन हमने इसे minimal रखने के लिए छोड़ दिया है
 require('dotenv').config(); // .env फ़ाइल से environment variables लोड करें
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+// 🚨 सुरक्षा सुविधा: यह सुनिश्चित करें कि आप .env में इन मानों को बदल दें
 const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key_change_it'; 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'default_admin_password_change_me'; 
 
@@ -28,37 +30,29 @@ const pool = new Pool({
 });
 
 /**
- * सभी आवश्यक टेबल्स (8 टेबल्स) बनाता है, पुराने टेबल्स को DROP करके स्कीमा Consistency सुनिश्चित करता है।
- * WARNING: इससे पुराने डेटाबेस का सारा डेटा डिलीट हो जाएगा!
+ * ✅ सुरक्षा सुधार: यह फ़ंक्शन अब 'DROP TABLE' का उपयोग नहीं करता है।
+ * 'CREATE TABLE IF NOT EXISTS' का उपयोग करके, यह सुनिश्चित करता है कि डेटा हमेशा सुरक्षित रहे।
  */
 async function createTables() {
+    const client = await pool.connect(); // बेहतर कनेक्शन प्रबंधन के लिए
     try {
-        // 🚨 महत्वपूर्ण सुधार: पुराने स्कीमा को हटाने के लिए DROP TABLE का उपयोग करें
-        // इससे सुनिश्चित होगा कि कोड हमेशा सही कॉलम बनाए। (पुराना डेटा डिलीट हो जाएगा)
-        await pool.query('DROP TABLE IF EXISTS invoice_items CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS invoices CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS customers CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS stock CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS purchases CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS expenses CASCADE;');
-        await pool.query('DROP TABLE IF EXISTS licenses CASCADE;'); // Licenses table को सबसे अंत में ड्रॉप करें (या शुरुआत में)
-        console.log('✅ Dropped existing tables (Schema Reset).');
+        console.log('Attempting to ensure all tables exist (Data is safe)...');
+        
+        // ❌ पुराने DROP TABLE कमांड्स को हटा दिया गया है।
 
-
-        // 1. Licenses Table (लाइसेंस कुंजी संग्रहीत करने के लिए)
-        await pool.query(`
-            CREATE TABLE licenses (
+        // 1. Licenses Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS licenses (
                 key_hash TEXT PRIMARY KEY,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 expiry_date TIMESTAMP WITH TIME ZONE,
                 is_trial BOOLEAN DEFAULT FALSE
             );
         `);
-        console.log('✅ Licenses table created.');
 
-        // 2. Stock Table (इन्वेंट्री)
-        await pool.query(`
-            CREATE TABLE stock (
+        // 2. Stock Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS stock (
                 id SERIAL PRIMARY KEY,
                 sku TEXT UNIQUE NOT NULL,
                 name TEXT NOT NULL,
@@ -70,11 +64,10 @@ async function createTables() {
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Stock table created.');
         
-        // 3. Customers Table (ग्राहक)
-        await pool.query(`
-            CREATE TABLE customers (
+        // 3. Customers Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS customers (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 phone TEXT UNIQUE,
@@ -83,34 +76,31 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Customers table created.');
 
-        // 4. Invoices Table (बिक्री/Sales)
-        await pool.query(`
-            CREATE TABLE invoices (
+        // 4. Invoices Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS invoices (
                 id SERIAL PRIMARY KEY,
                 customer_id INTEGER REFERENCES customers(id),
                 total_amount NUMERIC NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Invoices table created.');
 
-        // 5. Invoice Items Table (इनवॉइस में बेचे गए आइटम)
-        await pool.query(`
-            CREATE TABLE invoice_items (
+        // 5. Invoice Items Table (ON DELETE CASCADE जोड़ा गया)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS invoice_items (
                 id SERIAL PRIMARY KEY,
-                invoice_id INTEGER REFERENCES invoices(id),
+                invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
                 item_name TEXT NOT NULL,
                 quantity NUMERIC NOT NULL,
                 sale_price NUMERIC NOT NULL
             );
         `);
-        console.log('✅ Invoice Items table created.');
         
-        // 6. Purchases Table (खरीद/Purchases)
-        await pool.query(`
-            CREATE TABLE purchases (
+        // 6. Purchases Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS purchases (
                 id SERIAL PRIMARY KEY,
                 supplier_name TEXT,
                 item_details TEXT NOT NULL,
@@ -118,11 +108,10 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Purchases table created.');
         
-        // 7. Expenses Table (खर्च/Expenses)
-        await pool.query(`
-            CREATE TABLE expenses (
+        // 7. Expenses Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS expenses (
                 id SERIAL PRIMARY KEY,
                 description TEXT NOT NULL,
                 category TEXT,
@@ -130,11 +119,14 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log('✅ Expenses table created.');
+        
+        console.log('✅ All tables checked/created successfully (Data retained).');
 
     } catch (err) {
-        console.error('Error creating database tables:', err.message);
+        console.error('❌ Error ensuring database tables:', err.message);
         process.exit(1);
+    } finally {
+        client.release(); // कनेक्शन वापस पूल में जारी करें
     }
 }
 
@@ -150,9 +142,12 @@ function hashKey(key) {
 app.post('/api/generate-key', async (req, res) => {
     const { password, days } = req.body;
     
-    // 🚨 सुरक्षा जाँच (Security Check)
+    // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
     if (password !== ADMIN_PASSWORD) {
         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
+    }
+    if (typeof days !== 'number' || days < 1) {
+         return res.status(400).json({ success: false, message: 'दिनों की संख्या मान्य होनी चाहिए।' });
     }
 
     // एक रैंडम Key जेनरेट करें
@@ -161,7 +156,7 @@ app.post('/api/generate-key', async (req, res) => {
 
     // समाप्ति तिथि (Expiry Date) की गणना करें
     const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + (days || 30)); // डिफ़ॉल्ट 30 दिन
+    expiryDate.setDate(expiryDate.getDate() + days); // 'days' का उपयोग करें
 
     try {
         await pool.query(
@@ -178,7 +173,6 @@ app.post('/api/generate-key', async (req, res) => {
             valid_until: expiryDate.toISOString() 
         });
     } catch (err) {
-        // यह catch ब्लॉक अब डेटाबेस त्रुटियों को तब पकड़ेगा जब स्कीमा ठीक होगा
         console.error("Error generating key:", err.message);
         res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डेटाबेस त्रुटि।' });
     }
@@ -226,6 +220,11 @@ app.get('/api/verify-license', async (req, res) => {
 app.post('/api/admin-login', (req, res) => {
     const { password } = req.body;
     
+    // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
+    if (!password) {
+        return res.status(400).json({ success: false, message: 'पासवर्ड आवश्यक है।' });
+    }
+
     if (password === ADMIN_PASSWORD) {  
         return res.json({ success: true, message: 'एडमिन लॉगिन सफल।' });
     } else {
@@ -233,10 +232,25 @@ app.post('/api/admin-login', (req, res) => {
     }
 });
 
-// (बाकी के API routes यहाँ जारी रहेंगे, क्योंकि उनमें कोई बदलाव नहीं है)
 // 4. Stock Management - Add/Update (Simplistic Upsert)
 app.post('/api/stock', async (req, res) => {
     const { sku, name, quantity, unit, purchase_price, sale_price, gst } = req.body;
+    
+    // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन और सैनिटाइजेशन (Input Validation & Sanitization)
+    if (!sku || !name || typeof quantity === 'undefined' || typeof purchase_price === 'undefined' || typeof sale_price === 'undefined') {
+        return res.status(400).json({ success: false, message: 'SKU, नाम, मात्रा, खरीद मूल्य और बिक्री मूल्य आवश्यक हैं।' });
+    }
+    
+    // स्ट्रिंग इनपुट से बचने के लिए पार्सिंग
+    const safeQuantity = parseFloat(quantity);
+    const safePurchasePrice = parseFloat(purchase_price);
+    const safeSalePrice = parseFloat(sale_price);
+    const safeGst = parseFloat(gst || 0);
+
+    if (isNaN(safeQuantity) || isNaN(safePurchasePrice) || isNaN(safeSalePrice)) {
+        return res.status(400).json({ success: false, message: 'मात्रा, खरीद मूल्य और बिक्री मूल्य मान्य संख्याएँ होनी चाहिए।' });
+    }
+
     try {
         const result = await pool.query(
             `INSERT INTO stock (sku, name, quantity, unit, purchase_price, sale_price, gst)
@@ -249,7 +263,7 @@ app.post('/api/stock', async (req, res) => {
                  gst = EXCLUDED.gst,
                  updated_at = CURRENT_TIMESTAMP
              RETURNING *;`,
-            [sku, name, quantity, unit, purchase_price, sale_price, gst]
+            [sku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst]
         );
         res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक जोड़ा/अपडेट किया गया।' });
     } catch (err) {
@@ -272,8 +286,7 @@ app.get('/api/stock', async (req, res) => {
 // 6. Dashboard Data (Summary Metrics) - PostgreSQL के लिए सुधारा गया
 app.get('/api/get-dashboard-data', async (req, res) => {
     try {
-        // 1. कुल बिक्री राजस्व (Total Sales Revenue) - Table name corrected to 'invoices'
-        // COALESCE(SUM(total_amount), 0) सुनिश्चित करता है कि खाली होने पर 0 आए
+        // 1. कुल बिक्री राजस्व (Total Sales Revenue)
         const salesResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS value FROM invoices");
         const totalSalesRevenue = parseFloat(salesResult.rows[0].value);
 
@@ -281,7 +294,7 @@ app.get('/api/get-dashboard-data', async (req, res) => {
         const stockValueResult = await pool.query("SELECT COALESCE(SUM(purchase_price * quantity), 0) AS value FROM stock");
         const totalStockValue = parseFloat(stockValueResult.rows[0].value);
         
-        // 3. कुल ग्राहक (Total Customers) - Table name corrected to 'invoices'
+        // 3. कुल ग्राहक (Total Customers)
         const customerResult = await pool.query("SELECT COUNT(DISTINCT customer_id) AS value FROM invoices WHERE customer_id IS NOT NULL");
         const totalCustomers = parseInt(customerResult.rows[0].value);
 
@@ -365,6 +378,10 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
 // 8. Add Customer
 app.post('/api/customer', async (req, res) => {
     const { name, phone, email, address } = req.body;
+    // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
+    if (!name) {
+        return res.status(400).json({ success: false, message: 'ग्राहक का नाम आवश्यक है।' });
+    }
     try {
         await pool.query(
             `INSERT INTO customers (name, phone, email, address) VALUES ($1, $2, $3, $4)`,
@@ -394,10 +411,19 @@ app.get('/api/customer', async (req, res) => {
 // 10. Add Purchase
 app.post('/api/purchase', async (req, res) => {
     const { supplier_name, item_details, total_cost } = req.body;
+    // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
+    if (!item_details || typeof total_cost === 'undefined') {
+        return res.status(400).json({ success: false, message: 'खरीद विवरण और कुल लागत आवश्यक हैं।' });
+    }
+    const safeTotalCost = parseFloat(total_cost);
+    if (isNaN(safeTotalCost) || safeTotalCost <= 0) {
+        return res.status(400).json({ success: false, message: 'कुल लागत एक मान्य संख्या होनी चाहिए।' });
+    }
+
     try {
         await pool.query(
             `INSERT INTO purchases (supplier_name, item_details, total_cost) VALUES ($1, $2, $3)`,
-            [supplier_name, item_details, total_cost]
+            [supplier_name, item_details, safeTotalCost]
         );
         res.json({ success: true, message: 'खरीद सफलतापूर्वक दर्ज की गई।' });
     } catch (err) {
@@ -422,10 +448,19 @@ app.get('/api/purchase', async (req, res) => {
 // 12. Add Expense
 app.post('/api/expense', async (req, res) => {
     const { description, category, amount } = req.body;
+    // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
+    if (!description || typeof amount === 'undefined') {
+        return res.status(400).json({ success: false, message: 'विवरण और राशि आवश्यक हैं।' });
+    }
+    const safeAmount = parseFloat(amount);
+    if (isNaN(safeAmount) || safeAmount <= 0) {
+        return res.status(400).json({ success: false, message: 'राशि एक मान्य संख्या होनी चाहिए।' });
+    }
+
     try {
         await pool.query(
             `INSERT INTO expenses (description, category, amount) VALUES ($1, $2, $3)`,
-            [description, category, amount]
+            [description, category, safeAmount]
         );
         res.json({ success: true, message: 'खर्च सफलतापूर्वक दर्ज किया गया।' });
     } catch (err) {
@@ -451,7 +486,7 @@ app.get('/api/expense', async (req, res) => {
 pool.connect()
     .then(() => {
         console.log('PostgreSQL connection established.');
-        return createTables(); // टेबल्स बनाएं/चेक करें (अब DROP करके)
+        return createTables(); // ✅ अब यह डेटा को बरकरार रखेगा
     })
     .then(() => {
         app.listen(PORT, () => {
@@ -462,4 +497,3 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
-
