@@ -19,19 +19,30 @@ const ENCRYPTION_KEY = crypto.createHash('sha256').update(SECRET_KEY).digest();�
 
 // --- Middlewares ---
 // ✅ CORS त्रुटि को ठीक करने के लिए संशोधित किया गया: यह null origin की अनुमति देता है
+// --- Middlewares ---
+// ...
+
+// ✅ FINAL CORS FIX: यह सुनिश्चित करता है कि null, undefined, या खाली स्ट्रिंग वाले origins को अनुमति मिले
 app.use(cors({
     origin: (origin, callback) => {
-        // null (स्थानीय फ़ाइलें) या किसी भी वैध origin की अनुमति दें
-        if (origin === null || !origin || origin.startsWith('http')) { 
-            callback(null, true);
+        // null, undefined, या खाली स्ट्रिंग ('' - जो कभी-कभी null origin होता है) को अनुमति दें
+        const isLocalFileOrigin = origin === null || origin === undefined || origin === ''; 
+
+        // या यदि यह एक वैध वेब प्रोटोकॉल (http या https) से शुरू होता है
+        const isWebOrigin = origin && (origin.startsWith('http://') || origin.startsWith('https://'));
+
+        if (isLocalFileOrigin || isWebOrigin) {
+            callback(null, true); // ALLOW
         } else {
-            // प्रोडक्शन में, आप केवल विशिष्ट URLs की अनुमति दे सकते हैं।
-            callback(new Error('Not allowed by CORS'), false);
+            // यदि यह कोई और अजीब origin है तो ब्लॉक करें
+            callback(new Error('Not allowed by CORS'), false); // DENY
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// ...
 app.use(express.json());
 
 // --- Database Setup ---
@@ -635,4 +646,5 @@ pool.connect()
     .catch(err => {
         console.error('Database connection failed:', err.message);
         process.exit(1);
+
     });
