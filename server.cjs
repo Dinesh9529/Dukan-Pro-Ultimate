@@ -318,7 +318,52 @@ app.get('/api/get-dashboard-data', async (req, res) => {
     }
 });
 
-// 7. NEW API: Get Balance Sheet / Detailed Financials Data 
+// server.cjs में यह कोड जोड़ें
+
+// 7. NEW: Get Low Stock Items List for Dashboard
+app.get('/api/get-low-stock-items', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT sku, name, quantity FROM stock WHERE quantity < 10 ORDER BY quantity ASC");
+        res.json({ success: true, items: result.rows });
+    } catch (error) {
+        console.error('Low stock items SQL/PostgreSQL एरर:', error.message);
+        res.status(500).json({ success: false, message: 'कम स्टॉक वाले आइटम लोड नहीं किए जा सके।' });
+    }
+});
+
+// 8. NEW: Get Recent Sales for Dashboard
+app.get('/api/get-recent-sales', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                i.id AS invoice_id, 
+                COALESCE(c.name, 'अनाम ग्राहक') AS customer_name, 
+                i.total_amount, 
+                i.created_at 
+            FROM invoices i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            ORDER BY i.created_at DESC 
+            LIMIT 5
+        `);
+        res.json({ success: true, sales: result.rows });
+    } catch (error) {
+        console.error('Recent sales SQL/PostgreSQL एरर:', error.message);
+        res.status(500).json({ success: false, message: 'हाल की बिक्री लोड नहीं की जा सकी।' });
+    }
+});
+
+// 9. NEW: Get Recent Customers for Dashboard
+app.get('/api/get-recent-customers', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT name, phone, created_at FROM customers ORDER BY created_at DESC LIMIT 5");
+        res.json({ success: true, customers: result.rows });
+    } catch (error) {
+        console.error('Recent customers SQL/PostgreSQL एरर:', error.message);
+        res.status(500).json({ success: false, message: 'हाल के ग्राहक लोड नहीं किए जा सके।' });
+    }
+});
+
+// 10. NEW API: Get Balance Sheet / Detailed Financials Data 
 app.get('/api/get-balance-sheet-data', async (req, res) => {
     try {
         // --- 1. Current Inventory Value (Asset) ---
@@ -376,7 +421,7 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
 
 // --- CRM API Routes (New) ---
 
-// 8. Add Customer
+// 11. Add Customer
 app.post('/api/customer', async (req, res) => {
     const { name, phone, email, address } = req.body;
     // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
@@ -395,7 +440,7 @@ app.post('/api/customer', async (req, res) => {
     }
 });
 
-// 9. Get Customers
+// 12. Get Customers
 app.get('/api/customer', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM customers ORDER BY created_at DESC;`);
@@ -409,7 +454,7 @@ app.get('/api/customer', async (req, res) => {
 
 // --- Purchases API Routes (New) ---
 
-// 10. Add Purchase
+// 13. Add Purchase
 app.post('/api/purchase', async (req, res) => {
     const { supplier_name, item_details, total_cost } = req.body;
     // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
@@ -433,7 +478,7 @@ app.post('/api/purchase', async (req, res) => {
     }
 });
 
-// 11. Get Purchases
+// 14. Get Purchases
 app.get('/api/purchase', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM purchases ORDER BY created_at DESC;`);
@@ -446,7 +491,7 @@ app.get('/api/purchase', async (req, res) => {
 
 // --- Expenses API Routes (New) ---
 
-// 12. Add Expense
+// 15. Add Expense
 app.post('/api/expense', async (req, res) => {
     const { description, category, amount } = req.body;
     // 🚨 सुरक्षा सुविधा: इनपुट सत्यापन
@@ -470,7 +515,7 @@ app.post('/api/expense', async (req, res) => {
     }
 });
 
-// 13. Get Expenses
+// 16. Get Expenses
 app.get('/api/expense', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM expenses ORDER BY created_at DESC;`);
@@ -498,6 +543,7 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
 
 
