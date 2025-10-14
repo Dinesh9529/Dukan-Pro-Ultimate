@@ -428,11 +428,13 @@ app.get('/api/invoices', async (req, res) => {
     }
 });
 
-// 18. Process New Sale / Create Invoice (Core POS Logic)
+// 18. Process New Sale / Create Invoice (Core POS Logic) - FINAL CORRECTED VERSION
 app.post('/api/invoices', async (req, res) => {
-    const { customer_id, total_amount, items } = req.body; 
+    // FIX: Expecting customerName, total_amount, and sale_items from the front-end
+    const { customerName, total_amount, sale_items } = req.body; 
     
-    if (!total_amount || !items || items.length === 0) {
+    // Validation check
+    if (!total_amount || !sale_items || sale_items.length === 0) {
         return res.status(400).json({ success: false, message: 'कुल राशि और बिक्री आइटम आवश्यक हैं।' });
     }
 
@@ -441,18 +443,31 @@ app.post('/api/invoices', async (req, res) => {
     try {
         await client.query('BEGIN'); // Transaction Start
         
+        let customerId = null;
+
+        // Handle customer: Find existing or create a new one
+        if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
+            const customerResult = await client.query('SELECT id FROM customers WHERE name = $1', [customerName.trim()]);
+            if (customerResult.rows.length > 0) {
+                customerId = customerResult.rows[0].id;
+            } else {
+                const newCustomerResult = await client.query('INSERT INTO customers (name) VALUES ($1) RETURNING id', [customerName.trim()]);
+                customerId = newCustomerResult.rows[0].id;
+            }
+        }
+        
         const safeTotalAmount = parseFloat(total_amount);
         let calculatedTotalCost = 0;
         
-        // 1. Create the Invoice header
+        // 1. Create the Invoice header with the correct customerId
         const invoiceResult = await client.query(
             `INSERT INTO invoices (customer_id, total_amount) VALUES ($1, $2) RETURNING id`,
-            [customer_id || null, safeTotalAmount]
+            [customerId, safeTotalAmount]
         );
         const invoiceId = invoiceResult.rows[0].id;
         
         // 2. Insert Invoice Items and Update Stock 
-        for (const item of items) {
+        for (const item of sale_items) {
             const safeQuantity = parseFloat(item.quantity);
             const safeSalePrice = parseFloat(item.sale_price);
             const safePurchasePrice = parseFloat(item.purchase_price);
@@ -507,3 +522,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
