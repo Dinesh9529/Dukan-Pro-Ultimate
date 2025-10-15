@@ -205,7 +205,29 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
-// 6. Dashboard Data (Summary Metrics) 
+// 6. Stock Management - Search Items (THE MISSING ROUTE)
+app.get('/api/search-items', async (req, res) => {
+    const query = req.query.query;
+    
+    if (!query || query.length < 2) {
+        return res.json({ success: true, data: [] }); // कम से कम 2 अक्षर चाहिए
+    }
+
+    try {
+        const result = await pool.query(
+            // नाम (name) या SKU के आधार पर खोजें
+            'SELECT sku, name AS item_name, quantity, unit, sale_price, purchase_price, id FROM stock WHERE name ILIKE $1 OR sku ILIKE $1 LIMIT 50', 
+            [`%${query}%`]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error("Error searching stock items:", err.message);
+        res.status(500).json({ success: false, message: 'आइटम खोजने में विफल: ' + err.message });
+    }
+});
+
+
+// 7. Dashboard Data (Summary Metrics) 
 app.get('/api/get-dashboard-data', async (req, res) => {
     try {
         const salesResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS value FROM invoices");
@@ -234,7 +256,7 @@ app.get('/api/get-dashboard-data', async (req, res) => {
     }
 });
 
-// 7. Get Low Stock Items List for Dashboard
+// 8. Get Low Stock Items List for Dashboard
 app.get('/api/get-low-stock-items', async (req, res) => {
     try {
         const result = await pool.query("SELECT sku, name, quantity FROM stock WHERE quantity < 10 ORDER BY quantity ASC");
@@ -245,7 +267,7 @@ app.get('/api/get-low-stock-items', async (req, res) => {
     }
 });
 
-// 8. Get Recent Sales for Dashboard
+// 9. Get Recent Sales for Dashboard
 app.get('/api/get-recent-sales', async (req, res) => {
     try {
         const result = await pool.query("SELECT i.id AS invoice_id, COALESCE(c.name, 'अनाम ग्राहक') AS customer_name, i.total_amount, i.created_at FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id ORDER BY i.created_at DESC LIMIT 50");
@@ -256,7 +278,7 @@ app.get('/api/get-recent-sales', async (req, res) => {
     }
 });
 
-// 9. Get Recent Customers for Dashboard
+// 10. Get Recent Customers for Dashboard
 app.get('/api/get-recent-customers', async (req, res) => {
     try {
         const result = await pool.query("SELECT name, phone, created_at FROM customers ORDER BY created_at DESC LIMIT 5");
@@ -267,7 +289,7 @@ app.get('/api/get-recent-customers', async (req, res) => {
     }
 });
 
-// 10. Get Balance Sheet / Detailed Financials Data (FIXED)
+// 11. Get Balance Sheet / Detailed Financials Data (FIXED)
 app.get('/api/get-balance-sheet-data', async (req, res) => {
     try {
         const revenueResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM invoices;");
@@ -300,7 +322,7 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
 
 // --- CRM API Routes ---
 
-// 11. Add Customer
+// 12. Add Customer
 app.post('/api/customer', async (req, res) => {
     const { name, phone, email, address } = req.body;
     if (!name) {
@@ -318,7 +340,7 @@ app.post('/api/customer', async (req, res) => {
     }
 });
 
-// 12. Get Customers
+// 13. Get Customers
 app.get('/api/customer', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM customers ORDER BY created_at DESC;`);
@@ -332,7 +354,7 @@ app.get('/api/customer', async (req, res) => {
 
 // --- Purchases API Routes ---
 
-// 13. Add Purchase
+// 14. Add Purchase
 app.post('/api/purchase', async (req, res) => {
     const { supplier_name, item_details, total_cost } = req.body;
     if (!item_details || typeof total_cost === 'undefined') {
@@ -355,7 +377,7 @@ app.post('/api/purchase', async (req, res) => {
     }
 });
 
-// 14. Get Purchases
+// 15. Get Purchases
 app.get('/api/purchase', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM purchases ORDER BY created_at DESC;`);
@@ -368,7 +390,7 @@ app.get('/api/purchase', async (req, res) => {
 
 // --- Expenses API Routes ---
 
-// 15. Add Expense
+// 16. Add Expense
 app.post('/api/expense', async (req, res) => {
     const { description, category, amount } = req.body;
     if (!description || typeof amount === 'undefined') {
@@ -391,7 +413,7 @@ app.post('/api/expense', async (req, res) => {
     }
 });
 
-// 16. Get Expenses
+// 17. Get Expenses
 app.get('/api/expense', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM expenses ORDER BY created_at DESC;`);
@@ -405,7 +427,7 @@ app.get('/api/expense', async (req, res) => {
 
 // --- SALES / INVOICES API Routes ---
 
-// 17. Get Invoices/Sales List
+// 18. Get Invoices/Sales List
 app.get('/api/invoices', async (req, res) => {
     try {
         const result = await pool.query("SELECT i.id, i.total_amount, i.created_at, COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id ORDER BY i.created_at DESC LIMIT 50");
@@ -416,7 +438,7 @@ app.get('/api/invoices', async (req, res) => {
     }
 });
 
-// 18. Process New Sale / Create Invoice (Core POS Logic) - CORRECTED
+// 19. Process New Sale / Create Invoice (Core POS Logic) - CORRECTED
 app.post('/api/invoices', async (req, res) => {
     const { customerName, total_amount, sale_items } = req.body; 
     
@@ -574,4 +596,5 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
