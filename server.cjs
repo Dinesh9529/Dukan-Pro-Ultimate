@@ -289,17 +289,17 @@ app.get('/api/get-recent-customers', async (req, res) => {
     }
 });
 
-// 11. Get Balance Sheet / Detailed Financials Data (CORRECTED)
+// 11. Get Balance Sheet / Detailed Financials Data (FINAL CORRECTED)
 app.get('/api/get-balance-sheet-data', async (req, res) => {
     try {
         // --- 1. P&L Calculations (Owner's Equity के लिए आवश्यक) ---
 
-        // A. Total Sales Revenue (कुल राजस्व)
-        const revenueResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM invoices;");
+        // A. Total Sales Revenue (कुल राजस्व) - FIX: Explicitly CAST to NUMERIC
+        const revenueResult = await pool.query("SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) AS total_revenue FROM invoices;");
         const totalRevenue = parseFloat(revenueResult.rows[0].total_revenue);
 
-        // B. Total Cost of Goods Sold (COGS - बेचे गए माल की कुल लागत)
-        const cogsResult = await pool.query("SELECT COALESCE(SUM(total_cost), 0) AS total_cogs FROM invoices;");
+        // B. Total Cost of Goods Sold (COGS - बेचे गए माल की कुल लागत) - FIX: Explicitly CAST to NUMERIC
+        const cogsResult = await pool.query("SELECT COALESCE(SUM(CAST(total_cost AS NUMERIC)), 0) AS total_cogs FROM invoices;");
         const totalCOGS = parseFloat(cogsResult.rows[0].total_cogs);
 
         // C. Total Expenses (कुल खर्च)
@@ -312,49 +312,46 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
         // --- 2. Balance Sheet Calculations ---
 
         // D. Stock Value (Asset - परिसंपत्ति)
-        const stockValueResult = await pool.query("SELECT COALESCE(SUM(purchase_price * quantity), 0) AS value FROM stock;");
+        // FIX: Ensure correct data types are used for multiplication
+        const stockValueResult = await pool.query("SELECT COALESCE(SUM(CAST(purchase_price AS NUMERIC) * CAST(quantity AS NUMERIC)), 0) AS value FROM stock;");
         const stockValue = parseFloat(stockValueResult.rows[0].value);
 
-        // E. GST Payable (Liability - देनदारी) - Output GST collected on Sales
-        // यह बेची गई वस्तु की स्टॉक GST दर के आधार पर गणना करता है।
+        // E. GST Payable (Liability - देनदारी) 
+        // FIX: Ensure all calculation parts are CASTed to NUMERIC
         const gstResult = await pool.query(
-            // item_sku के माध्यम से stock टेबल से item की GST दर को निकालता है
-            `SELECT COALESCE(SUM(ii.quantity * ii.sale_price * (s.gst / 100.0)), 0) AS gst_collected
+            `SELECT COALESCE(SUM(CAST(ii.quantity AS NUMERIC) * CAST(ii.sale_price AS NUMERIC) * (CAST(s.gst AS NUMERIC) / 100.0)), 0) AS gst_collected
              FROM invoice_items ii
              JOIN stock s ON ii.item_sku = s.sku;`
         );
         const gstPayable = parseFloat(gstResult.rows[0].gst_collected);
 
-        // F. Vendors Payable (Liability - देनदारी) - (वर्तमान DB में ट्रैक नहीं किया गया)
+        // F. Vendors Payable, G. Owner's Equity, H. Total Liabilities
         const vendorsPayable = 0.00;
-
-        // G. Owner's Equity (Equity - इक्विटी) - (शुद्ध लाभ को मालिक की इक्विटी माना गया)
         const ownerEquity = netProfit; 
-
-        // H. Total Liabilities (कुल देनदारियां)
         const totalLiabilities = gstPayable + vendorsPayable;
 
-        // I. Total Assets (कुल परिसंपत्तियां) - (सरलीकरण के लिए, केवल स्टॉक मूल्य)
-        const totalAssets = stockValue;
+        // I. Total Assets (सरलीकरण के लिए, केवल स्टॉक मूल्य)
+        // NOTE: A proper balance sheet would also track cash/bank balance. Here, we add net profit as cash.
+        const totalAssets = stockValue + (netProfit > 0 ? netProfit : 0); // स्टॉक मूल्य + शुद्ध लाभ (मानकर कि यह कैश में है)
 
-        // J. Total Liabilities and Equity (कुल देनदारियां और इक्विटी)
+        // J. Total Liabilities and Equity 
         const totalLiabilitiesAndEquity = totalLiabilities + ownerEquity;
 
         res.json({
             success: true,
             data: {
-                // Balance Sheet Items (The core fix)
-                gstPayable: gstPayable.toFixed(2), // GST जमा करने योग्य
-                vendorsPayable: vendorsPayable.toFixed(2), // वेंडर को देय
-                ownerEquity: ownerEquity.toFixed(2), // मालिक की इक्विटी
-                stockValue: stockValue.toFixed(2), // स्टॉक का मूल्य
+                // Balance Sheet Items
+                gstPayable: gstPayable.toFixed(2), 
+                vendorsPayable: vendorsPayable.toFixed(2), 
+                ownerEquity: ownerEquity.toFixed(2), 
+                stockValue: stockValue.toFixed(2), 
                 
                 // Summary Totals
                 totalLiabilities: totalLiabilities.toFixed(2), 
-                totalAssets: totalAssets.toFixed(2), // कुल परिसंपत्तियां
-                totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2), // कुल देनदारियां और इक्विटी
+                totalAssets: totalAssets.toFixed(2), 
+                totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2), 
                 
-                // P&L Summary (Context के लिए)
+                // P&L Summary (CONTEXT के लिए)
                 netProfit: netProfit.toFixed(2),
                 totalRevenue: totalRevenue.toFixed(2),
                 totalExpenses: totalExpenses.toFixed(2),
@@ -645,3 +642,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
