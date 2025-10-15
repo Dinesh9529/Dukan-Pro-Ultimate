@@ -330,26 +330,29 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
         const ownerEquity = netProfit; 
         const totalLiabilities = gstPayable + vendorsPayable;
 
-        // I. Total Assets (सरलीकरण के लिए, केवल स्टॉक मूल्य)
-        // NOTE: A proper balance sheet would also track cash/bank balance. Here, we add net profit as cash.
-        const totalAssets = stockValue + (netProfit > 0 ? netProfit : 0); // स्टॉक मूल्य + शुद्ध लाभ (मानकर कि यह कैश में है)
+      // I. Total Assets (कुल परिसंपत्तियां) - FIXED: Cash/Bank Balance (Net Profit) included
+// Net Profit को Cash Balance मान लिया गया है।
+// यदि Net Loss है, तो Cash Assets 0 हो जाते हैं।
+const cashBalance = netProfit; 
 
-        // J. Total Liabilities and Equity 
-        const totalLiabilitiesAndEquity = totalLiabilities + ownerEquity;
+// Assets = Stock Value + Cash Balance (Net Profit)
+const totalAssets = stockValue + cashBalance; // यह Total LiabilitiesAndEquity के बराबर होना चाहिए
 
-        res.json({
-            success: true,
-            data: {
-                // Balance Sheet Items
-                gstPayable: gstPayable.toFixed(2), 
-                vendorsPayable: vendorsPayable.toFixed(2), 
-                ownerEquity: ownerEquity.toFixed(2), 
-                stockValue: stockValue.toFixed(2), 
-                
-                // Summary Totals
-                totalLiabilities: totalLiabilities.toFixed(2), 
-                totalAssets: totalAssets.toFixed(2), 
-                totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2), 
+// J. Total Liabilities and Equity (कुल देनदारियां और इक्विटी)
+const totalLiabilitiesAndEquity = totalLiabilities + ownerEquity; // ownerEquity = netProfit
+
+// ...
+res.json({
+    success: true,
+    data: {
+        // ... (पुराना डेटा)
+        stockValue: stockValue.toFixed(2), // <--- यह यहाँ है
+        cashBalance: cashBalance.toFixed(2), // <--- यह नया है (Net Profit)
+        
+        // Summary Totals
+        totalLiabilities: totalLiabilities.toFixed(2), 
+        totalAssets: totalAssets.toFixed(2), // <--- यह अब सही तरह से कैलकुलेट हुआ
+        totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2), 
                 
                 // P&L Summary (CONTEXT के लिए)
                 netProfit: netProfit.toFixed(2),
@@ -642,4 +645,5 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
