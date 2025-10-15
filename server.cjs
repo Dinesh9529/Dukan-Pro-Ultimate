@@ -43,6 +43,7 @@ async function createTables() {
 
         // 4. Invoices Table
         await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), total_amount NUMERIC NOT NULL, total_cost NUMERIC, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS total_cost NUMERIC;'); 
 
         // 5. Invoice Items Table
         await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL);');
@@ -573,3 +574,4 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
