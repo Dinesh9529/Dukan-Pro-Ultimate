@@ -226,6 +226,32 @@ app.get('/api/search-items', async (req, res) => {
     }
 });
 
+// --- NEW ROUTE: Get Single Stock Item by SKU (Hybrid Billing के लिए आवश्यक) ---
+// 6.5. Stock Management - Get Single Item by SKU
+app.get('/api/get-stock-item/:sku', async (req, res) => {
+    try {
+        const { sku } = req.params;
+        
+        // stock table से नाम, बिक्री मूल्य (sale_price) और GST fetch करें
+        const result = await pool.query('SELECT name, sale_price, gst AS gst_rate FROM stock WHERE sku = $1', [sku]);
+        
+        if (result.rows.length > 0) {
+            // Item details सफलतापूर्वक मिला
+            res.json({ success: true, data: result.rows[0] });
+        } else {
+            // Item नहीं मिला
+            res.status(404).json({ success: false, message: 'SKU स्टॉक में नहीं मिला।' });
+        }
+    } catch (error) {
+        console.error("Error fetching single stock item:", error.message);
+        res.status(500).json({ success: false, message: 'स्टॉक आइटम प्राप्त करने में विफल।' });
+    }
+});
+
+
+
+
+
 
 // 7. Dashboard Data (Summary Metrics) 
 app.get('/api/get-dashboard-data', async (req, res) => {
@@ -647,6 +673,7 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
 
 
