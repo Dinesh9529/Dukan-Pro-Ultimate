@@ -1,16 +1,17 @@
 {
-  "name": "dukan-pro-server",
+  "name": "dukan-pro-ultimate",
   "version": "1.0.0",
-  "description": "Backend for Dukan Pro Business Suite (PostgreSQL)",
-  "main": "server.cjs", 
-  "type": "module",
+  "description": "Admin and POS system.",
+  "main": "server.cjs",
   "scripts": {
-    "start": "node server.cjs" 
+    "start": "node server.cjs"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "pg": "^8.12.0",
-    "dotenv": "^16.4.5"
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2" // <--- अब यह यहाँ है
+    //... (अन्य dependencies)
+  },
+  "devDependencies": {
+    //...
   }
 }
