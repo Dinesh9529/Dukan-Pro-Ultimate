@@ -13,6 +13,7 @@ const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
+app.use(express.json());
 const PORT = process.env.PORT || 10000;
 const SECRET_KEY = process.env.SECRET_KEY || 'a_very_strong_secret_key_for_hashing'; // Must be secure!
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'); // Stronger JWT Secret
@@ -1083,4 +1084,5 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
