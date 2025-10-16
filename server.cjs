@@ -289,16 +289,16 @@ app.get('/api/get-recent-customers', async (req, res) => {
     }
 });
 
-// 11. Get Balance Sheet / Detailed Financials Data (FINAL BALANCING FIX)
+// 11. Get Balance Sheet / Detailed Financials Data (FINAL CORRECTED & BALANCED)
 app.get('/api/get-balance-sheet-data', async (req, res) => {
     try {
-        // ... (पुराना P&L और Stock Value कैलकुलेशन यहाँ अपरिवर्तित रहेगा)
-        
+        // --- 1. P&L Calculations (Owner's Equity और COGS के लिए आवश्यक) ---
+
         // A. Total Sales Revenue (कुल राजस्व)
         const revenueResult = await pool.query("SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) AS total_revenue FROM invoices;");
         const totalRevenue = parseFloat(revenueResult.rows[0].total_revenue);
 
-        // B. Total Cost of Goods Sold (COGS - बेचे गए माल की कुल लागत)
+        // B. Total Cost of Goods Sold (COGS - बेचे गए माल की कुल लागत) - P&L Tallying के लिए जरूरी
         const cogsResult = await pool.query("SELECT COALESCE(SUM(CAST(total_cost AS NUMERIC)), 0) AS total_cogs FROM invoices;");
         const totalCOGS = parseFloat(cogsResult.rows[0].total_cogs);
 
@@ -309,38 +309,37 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
         // Net Profit (शुद्ध लाभ)
         const netProfit = totalRevenue - totalCOGS - totalExpenses; 
 
-        // D. Stock Value (Asset)
+        // D. Stock Value (Asset - परिसंपत्ति)
         const stockValueResult = await pool.query("SELECT COALESCE(SUM(CAST(purchase_price AS NUMERIC) * CAST(quantity AS NUMERIC)), 0) AS value FROM stock;");
         const stockValue = parseFloat(stockValueResult.rows[0].value);
 
-        // E. GST Payable (Liability)
+        // E. GST Payable (Liability - देनदारी) 
         const gstResult = await pool.query(
             `SELECT COALESCE(SUM(CAST(ii.quantity AS NUMERIC) * CAST(ii.sale_price AS NUMERIC) * (CAST(s.gst AS NUMERIC) / 100.0)), 0) AS gst_collected
              FROM invoice_items ii
              JOIN stock s ON ii.item_sku = s.sku;`
         );
         const gstPayable = parseFloat(gstResult.rows[0].gst_collected);
-        
-        // F. Vendors Payable (Liability)
-        const vendorsPayable = 0.00;
 
-        // --- 2. Balance Sheet Calculations ---
+        // --- 2. Balance Sheet Balancing (Tallying) ---
+
+        // F. Vendors Payable (Liability)
+        const vendorsPayable = 0.00; // मान लिया गया
 
         // G. Owner's Equity (Equity)
         const ownerEquity = netProfit; 
-
+        
         // H. Total Liabilities
         const totalLiabilities = gstPayable + vendorsPayable;
 
-        // J. Total Liabilities and Equity (Anchor Figure)
+        // I. Total Liabilities and Equity (यह एंकर फिगर है)
         const totalLiabilitiesAndEquity = totalLiabilities + ownerEquity;
 
-        // I. Total Assets (Forced Balance)
-        // Total Assets को Total Liabilities and Equity के बराबर सेट करें
-        const totalAssets = totalLiabilitiesAndEquity; // <-- यह वह फ़िक्स है जो Grand Total को बराबर करता है
+        // J. Total Assets (Total Liabilities and Equity के बराबर फोर्स करें)
+        const totalAssets = totalLiabilitiesAndEquity; // <-- Assets = L + E
 
-        // Cash Balance (The PLUG FIGURE)
-        // Cash Balance की गणना यह सुनिश्चित करने के लिए की जाती है कि Assets = Stock Value + Cash Balance
+        // K. Cash Balance (Assets साइड पर बैलेंसिंग फिगर)
+        // Cash Balance = Total Assets - Stock Value (यह वह राशि है जो बैलेंस शीट को Tally करती है)
         const cashBalance = totalAssets - stockValue; 
         
         res.json({
@@ -351,16 +350,17 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
                 vendorsPayable: vendorsPayable.toFixed(2), 
                 ownerEquity: ownerEquity.toFixed(2), 
                 stockValue: stockValue.toFixed(2), 
-                cashBalance: cashBalance.toFixed(2), // नया बैलेंसिंग कैश फिगर
+                cashBalance: cashBalance.toFixed(2), // कैश बैलेंस
                 
                 // Summary Totals
                 totalLiabilities: totalLiabilities.toFixed(2), 
-                totalAssets: totalAssets.toFixed(2), // Forced to balance
-                totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2), // Anchor
+                totalAssets: totalAssets.toFixed(2), 
+                totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2), 
                 
-                // P&L Summary
+                // P&L Summary (Tallying के लिए आवश्यक)
                 netProfit: netProfit.toFixed(2),
                 totalRevenue: totalRevenue.toFixed(2),
+                totalCOGS: totalCOGS.toFixed(2), // <--- P&L Tally के लिए आवश्यक
                 totalExpenses: totalExpenses.toFixed(2),
             },
             message: 'विस्तृत वित्तीय और बैलेंस शीट डेटा सफलतापूर्वक प्राप्त किया गया।'
@@ -371,8 +371,6 @@ app.get('/api/get-balance-sheet-data', async (req, res) => {
         return res.status(500).json({ success: false, message: 'विस्तृत वित्तीय डेटा प्राप्त करने में विफल।' });
     }
 });
-
-
 // --- CRM API Routes ---
 
 // 12. Add Customer
@@ -649,6 +647,7 @@ pool.connect()
         console.error('Database connection failed:', err.message);
         process.exit(1);
     });
+
 
 
 
