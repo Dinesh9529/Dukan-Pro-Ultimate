@@ -239,7 +239,8 @@ app.get('/api/verify-license', async (req, res) => {
 });
 
 // 3. User Registration (Creates a new shop and the first ADMIN user)
-app.post('/api/register', async (req, res) => {
+// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/auth/register' में बदला गया ***
+app.post('/api/auth/register', async (req, res) => { 
     const { shopName, name, email, password } = req.body;
     if (!shopName || !name || !email || !password) {
         return res.status(400).json({ success: false, message: 'सभी फ़ील्ड (शॉप का नाम, आपका नाम, ईमेल, पासवर्ड) आवश्यक हैं।' });
@@ -247,29 +248,29 @@ app.post('/api/register', async (req, res) => {
 
     const client = await pool.connect();
     try {
-        await client.query('BEGIN'); // Start Transaction
+        await client.query('BEGIN'); // लेन-देन शुरू करें
 
-        // 1. Create the new Shop/Tenant
+        // 1. नई शॉप/टेनेंट बनाएं
         const shopResult = await client.query(
             'INSERT INTO shops (shop_name) VALUES ($1) RETURNING id',
             [shopName]
         );
         const shopId = shopResult.rows[0].id;
 
-        // 2. Hash the password
+        // 2. पासवर्ड को हैश करें (hashPassword फंक्शन उपलब्ध माना गया है)
         const hashedPassword = await hashPassword(password);
 
-        // 3. Create the first user (Owner/Admin)
+        // 3. पहले उपयोगकर्ता (मालिक/एडमिन) को बनाएं
         const userResult = await client.query(
             'INSERT INTO users (shop_id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, shop_id, email, name, role',
             [shopId, email, hashedPassword, name, 'ADMIN']
         );
         const user = userResult.rows[0];
 
-        // 4. Generate JWT
+        // 4. JWT टोकन जनरेट करें (generateToken फंक्शन उपलब्ध माना गया है)
         const token = generateToken(user);
         
-        await client.query('COMMIT'); // Commit Transaction
+        await client.query('COMMIT'); // लेन-देन पूरा करें
         
         res.json({ 
             success: true, 
@@ -279,7 +280,7 @@ app.post('/api/register', async (req, res) => {
         });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // Rollback on error
+        await client.query('ROLLBACK'); // गलती होने पर रोलबैक करें
         console.error("Error registering user/shop:", err.message);
         if (err.constraint === 'users_email_key') {
             return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है।' });
@@ -291,14 +292,15 @@ app.post('/api/register', async (req, res) => {
 });
 
 // 4. User Login (Authenticates and returns JWT)
-app.post('/api/login', async (req, res) => {
+// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/auth/login' में बदला गया ***
+app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं।' });
     }
 
     try {
-        // Fetch user data including shop name
+        // शॉप का नाम सहित उपयोगकर्ता डेटा लाएँ
         const result = await pool.query('SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1', [email]);
         
         if (result.rows.length === 0) {
@@ -306,13 +308,14 @@ app.post('/api/login', async (req, res) => {
         }
 
         const user = result.rows[0];
-        const isMatch = await bcrypt.compare(password, user.password_hash);
+        // पासवर्ड की तुलना करें (bcrypt.compare उपलब्ध माना गया है)
+        const isMatch = await bcrypt.compare(password, user.password_hash); 
 
         if (!isMatch) {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
         }
 
-        // Generate JWT
+        // JWT टोकन जनरेट करें
         const token = generateToken(user);
 
         res.json({ 
@@ -1080,3 +1083,4 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
