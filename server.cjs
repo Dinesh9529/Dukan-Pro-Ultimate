@@ -245,8 +245,8 @@ app.get('/api/verify-license', async (req, res) => {
 });
 
 // 3. User Registration (Creates a new shop and the first ADMIN user)
-// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/auth/register' में बदला गया ***
-app.post('/api/auth/register', async (req, res) => { 
+// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/register' में बदला गया ***
+app.post('/api/register', async (req, res) => { 
     const { shopName, name, email, password } = req.body;
     if (!shopName || !name || !email || !password) {
         return res.status(400).json({ success: false, message: 'सभी फ़ील्ड (शॉप का नाम, आपका नाम, ईमेल, पासवर्ड) आवश्यक हैं।' });
@@ -298,8 +298,8 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // 4. User Login (Authenticates and returns JWT)
-// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/auth/login' में बदला गया ***
-app.post('/api/auth/login', async (req, res) => {
+// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/login' में बदला गया ***
+app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं।' });
@@ -1078,7 +1078,7 @@ app.get('/', (req, res) => {
 createTables().then(() => {
     app.listen(PORT, () => {
         console.log(`\n🎉 Server is running securely on port ${PORT}`);
-        console.log(`🌐 API Endpoint: http://localhost:${PORT}`);
+        console.log(`🌐 API Endpoint: https://dukan-pro-ultimate.onrender.com:${PORT}`);
         console.log('--------------------------------------------------');
         console.log('🔒 Authentication: JWT is required for all data routes.');
         console.log('🔑 Multi-tenancy: All data is scoped by shop_id.\n');
@@ -1089,6 +1089,7 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
