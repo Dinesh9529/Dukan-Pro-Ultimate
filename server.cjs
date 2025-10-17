@@ -271,30 +271,32 @@ app.post('/api/register', async (req, res) => {
         );
         const shopId = shopResult.rows[0].id; // `shops` टेबल में ID को 'id' कहा गया है।
 
-        // 3. पासवर्ड को हैश करें (hashPassword फंक्शन उपलब्ध माना गया है)
-        // **यहां आपको bcrypt का उपयोग करना चाहिए यदि hashPassword फ़ंक्शन मौजूद नहीं है**
+        // 3. पासवर्ड को हैश करें
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
         // 4. पहले उपयोगकर्ता (मालिक/एडमिन) को बनाएं
+        // 🚀 **सुधार: status कॉलम को 'active' पर सेट करें**
         const userInsertQuery = `
-            INSERT INTO users (shop_id, email, password_hash, name, role) 
-            VALUES ($1, $2, $3, $4, $5) 
-            RETURNING id, shop_id, email, name, role
+            INSERT INTO users (shop_id, email, password_hash, name, role, status) 
+            VALUES ($1, $2, $3, $4, $5, 'active') 
+            RETURNING id, shop_id, email, name, role, status
         `;
+        // 'status' को 'active' पर सेट करने के लिए, हमने उसे ऊपर query में hardcode किया है।
+        // हमें 5 से 6 पैरामीटर भेजने होंगे।
         const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, 'ADMIN']);
         const user = userResult.rows[0];
 
-        // 5. JWT टोकन जनरेट करें (generateToken फंक्शन उपलब्ध माना गया है)
-        // **लॉगिन के लिए shopName को user ऑब्जेक्ट में जोड़ें**
+        // 5. JWT टोकन जनरेट करें 
         const tokenUser = { 
             id: user.id, 
             email: user.email, 
             shopId: user.shop_id, 
             name: user.name, 
             role: user.role, 
-            shopName: shopName // ShopName जोड़ना
+            shopName: shopName, // ShopName जोड़ना
+            status: user.status // स्टेटस को टोकन में शामिल करना
         };
-        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' }); // generateToken की जगह सीधे JWT उपयोग
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT'); // लेन-देन पूरा करें
         
@@ -317,55 +319,6 @@ app.post('/api/register', async (req, res) => {
         client.release();
     }
 });
-
-// 4. User Login (Authenticates and returns JWT) - FIX
-app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं।' });
-    }
-
-    try {
-        // FIX: सुनिश्चित करें कि `shops` टेबल में ID को 'id' कहा गया है
-        const result = await pool.query('SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1', [email]);
-        
-        if (result.rows.length === 0) {
-            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
-        }
-
-        const user = result.rows[0];
-        // पासवर्ड की तुलना करें (bcrypt.compare उपलब्ध माना गया है)
-        // FIX: पासवर्ड हैश फ़ील्ड का नाम 'password_hash' होना चाहिए
-        const isMatch = await bcrypt.compare(password, user.password_hash); 
-
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
-        }
-
-        // JWT टोकन जनरेट करें
-        const tokenUser = { 
-            id: user.id, 
-            email: user.email, 
-            shopId: user.shop_id, 
-            name: user.name, 
-            role: user.role, 
-            shopName: user.shop_name 
-        };
-        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' }); // generateToken की जगह सीधे JWT उपयोग
-
-        res.json({ 
-            success: true, 
-            message: 'लॉगिन सफल।',
-            token: token,
-            user: tokenUser
-        });
-
-    } catch (err) {
-        console.error("Error logging in:", err.message);
-        res.status(500).json({ success: false, message: 'लॉगिन विफल: ' + err.message });
-    }
-});
-
 // -----------------------------------------------------------------------------
 // IV. MULTI-TENANT SHOP DATA ROUTES (PROTECTED & SCOPED)
 // -----------------------------------------------------------------------------
@@ -1111,6 +1064,7 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
