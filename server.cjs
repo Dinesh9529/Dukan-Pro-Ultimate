@@ -245,51 +245,72 @@ app.get('/api/verify-license', async (req, res) => {
 });
 
 // 3. User Registration (Creates a new shop and the first ADMIN user)
-// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/register' में बदला गया ***
-app.post('/api/register', async (req, res) => { 
+app.post('/api/register', async (req, res) => {
     const { shopName, name, email, password } = req.body;
+    
+    // इनपुट सत्यापन (Input Validation)
     if (!shopName || !name || !email || !password) {
         return res.status(400).json({ success: false, message: 'सभी फ़ील्ड (शॉप का नाम, आपका नाम, ईमेल, पासवर्ड) आवश्यक हैं।' });
     }
 
     const client = await pool.connect();
     try {
-        await client.query('BEGIN'); // लेन-देन शुरू करें
+        await client.query('BEGIN'); // लेन-देन शुरू करें (Start Transaction)
 
-        // 1. नई शॉप/टेनेंट बनाएं
+        // 1. ईमेल डुप्लीकेसी की जाँच करें (Check for Email Duplicacy FIRST)
+        const existingUser = await client.query('SELECT id FROM users WHERE email = $1', [email]);
+        if (existingUser.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है। कृपया लॉगिन करें।' });
+        }
+
+        // 2. नई शॉप/टेनेंट बनाएं
         const shopResult = await client.query(
             'INSERT INTO shops (shop_name) VALUES ($1) RETURNING id',
             [shopName]
         );
-        const shopId = shopResult.rows[0].id;
+        const shopId = shopResult.rows[0].id; // `shops` टेबल में ID को 'id' कहा गया है।
 
-        // 2. पासवर्ड को हैश करें (hashPassword फंक्शन उपलब्ध माना गया है)
-        const hashedPassword = await hashPassword(password);
+        // 3. पासवर्ड को हैश करें (hashPassword फंक्शन उपलब्ध माना गया है)
+        // **यहां आपको bcrypt का उपयोग करना चाहिए यदि hashPassword फ़ंक्शन मौजूद नहीं है**
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // 3. पहले उपयोगकर्ता (मालिक/एडमिन) को बनाएं
-        const userResult = await client.query(
-            'INSERT INTO users (shop_id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, shop_id, email, name, role',
-            [shopId, email, hashedPassword, name, 'ADMIN']
-        );
+        // 4. पहले उपयोगकर्ता (मालिक/एडमिन) को बनाएं
+        const userInsertQuery = `
+            INSERT INTO users (shop_id, email, password_hash, name, role) 
+            VALUES ($1, $2, $3, $4, $5) 
+            RETURNING id, shop_id, email, name, role
+        `;
+        const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, 'ADMIN']);
         const user = userResult.rows[0];
 
-        // 4. JWT टोकन जनरेट करें (generateToken फंक्शन उपलब्ध माना गया है)
-        const token = generateToken(user);
-        
+        // 5. JWT टोकन जनरेट करें (generateToken फंक्शन उपलब्ध माना गया है)
+        // **लॉगिन के लिए shopName को user ऑब्जेक्ट में जोड़ें**
+        const tokenUser = { 
+            id: user.id, 
+            email: user.email, 
+            shopId: user.shop_id, 
+            name: user.name, 
+            role: user.role, 
+            shopName: shopName // ShopName जोड़ना
+        };
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' }); // generateToken की जगह सीधे JWT उपयोग
+
         await client.query('COMMIT'); // लेन-देन पूरा करें
         
         res.json({ 
             success: true, 
             message: 'शॉप और एडमिन अकाउंट सफलतापूर्वक बनाया गया।',
             token: token,
-            user: { id: user.id, email: user.email, shopId: user.shop_id, name: user.name, role: user.role }
+            user: tokenUser
         });
 
     } catch (err) {
         await client.query('ROLLBACK'); // गलती होने पर रोलबैक करें
         console.error("Error registering user/shop:", err.message);
-        if (err.constraint === 'users_email_key') {
-            return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है।' });
+        // यदि कोई अन्य constraint त्रुटि होती है
+        if (err.constraint) {
+             return res.status(500).json({ success: false, message: 'रजिस्ट्रेशन विफल: डेटाबेस त्रुटि (' + err.constraint + ')' });
         }
         res.status(500).json({ success: false, message: 'रजिस्ट्रेशन विफल: ' + err.message });
     } finally {
@@ -297,8 +318,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// 4. User Login (Authenticates and returns JWT)
-// *** FIX: क्लाइंट-साइड से मैच करने के लिए रूट को '/api/login' में बदला गया ***
+// 4. User Login (Authenticates and returns JWT) - FIX
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -306,7 +326,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // शॉप का नाम सहित उपयोगकर्ता डेटा लाएँ
+        // FIX: सुनिश्चित करें कि `shops` टेबल में ID को 'id' कहा गया है
         const result = await pool.query('SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1', [email]);
         
         if (result.rows.length === 0) {
@@ -315,6 +335,7 @@ app.post('/api/login', async (req, res) => {
 
         const user = result.rows[0];
         // पासवर्ड की तुलना करें (bcrypt.compare उपलब्ध माना गया है)
+        // FIX: पासवर्ड हैश फ़ील्ड का नाम 'password_hash' होना चाहिए
         const isMatch = await bcrypt.compare(password, user.password_hash); 
 
         if (!isMatch) {
@@ -322,20 +343,21 @@ app.post('/api/login', async (req, res) => {
         }
 
         // JWT टोकन जनरेट करें
-        const token = generateToken(user);
+        const tokenUser = { 
+            id: user.id, 
+            email: user.email, 
+            shopId: user.shop_id, 
+            name: user.name, 
+            role: user.role, 
+            shopName: user.shop_name 
+        };
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' }); // generateToken की जगह सीधे JWT उपयोग
 
         res.json({ 
             success: true, 
             message: 'लॉगिन सफल।',
             token: token,
-            user: { 
-                id: user.id, 
-                email: user.email, 
-                shopId: user.shop_id, 
-                name: user.name, 
-                role: user.role, 
-                shopName: user.shop_name 
-            }
+            user: tokenUser
         });
 
     } catch (err) {
@@ -1089,6 +1111,7 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
