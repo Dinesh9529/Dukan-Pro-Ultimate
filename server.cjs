@@ -24,7 +24,6 @@ const ENCRYPTION_KEY = crypto.createHash('sha256').update(SECRET_KEY).digest();
 const SALT_ROUNDS = 10; // 🔒 Bcrypt salt rounds for password hashing
 
 // --- Middlewares ---
-const cors = require('cors');
 app.use(cors({
     origin: '*', // सभी ऑरिजिन को अनुमति दें (डिबगिंग के लिए)
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -1090,6 +1089,7 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
