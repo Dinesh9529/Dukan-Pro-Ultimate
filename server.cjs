@@ -319,6 +319,68 @@ app.post('/api/register', async (req, res) => {
         client.release();
     }
 });
+
+
+// 4. User Login (Authenticates and returns JWT)
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    
+    // इनपुट सत्यापन
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं।' });
+    }
+
+    try {
+        // डेटाबेस से यूज़र और शॉप का नाम एक साथ फ़ेच करें
+        // u.*: users टेबल के सभी कॉलम (जैसे id, password_hash, role, status)
+        // s.shop_name: shops टेबल से शॉप का नाम
+        const result = await pool.query(
+            'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1', 
+            [email]
+        );
+        
+        if (result.rows.length === 0) {
+            console.log(`DEBUG LOGIN: User not found for email: ${email}`); 
+            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
+        }
+
+        const user = result.rows[0];
+        
+        // पासवर्ड की तुलना करें (Bcrypt)
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        console.log(`DEBUG LOGIN: Password Match? ${isMatch}`); 
+
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
+        }
+
+        // JWT टोकन के लिए पेलोड बनाएं
+        const tokenUser = { 
+            id: user.id, 
+            email: user.email, 
+            shopId: user.shop_id, 
+            name: user.name, 
+            role: user.role, 
+            shopName: user.shop_name,
+            status: user.status // क्लाइंट-साइड सत्यापन के लिए आवश्यक
+        };
+        
+        // JWT टोकन जनरेट करें
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+
+        res.json({ 
+            success: true, 
+            message: 'लॉगिन सफल।',
+            token: token,
+            user: tokenUser
+        });
+
+    } catch (err) {
+        console.error("Error logging in:", err.message);
+        res.status(500).json({ success: false, message: 'लॉगिन विफल: ' + err.message });
+    }
+});
+
 // -----------------------------------------------------------------------------
 // IV. MULTI-TENANT SHOP DATA ROUTES (PROTECTED & SCOPED)
 // -----------------------------------------------------------------------------
@@ -1064,6 +1126,7 @@ createTables().then(() => {
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
