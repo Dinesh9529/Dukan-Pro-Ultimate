@@ -839,8 +839,7 @@ app.post('/api/purchase', authenticateJWT, checkRole('MANAGER'), async (req, res
             `INSERT INTO purchases (shop_id, supplier_name, item_details, total_cost) VALUES ($1, $2, $3, $4)`,
             [shopId, supplier_name, JSON.stringify(item_details), safeTotalCost] // Store item_details as JSON string
         );
-        res.json({ success: true, message: 'खरीद सफलतापूर्वक दर्ज की 
-गई।' });
+        res.json({ success: true, message: 'खरीद सफलतापूर्वक दर्ज की गई।' });
     } catch (err) {
         console.error("Error adding purchase:", err.message);
 res.status(500).json({ success: false, message: 'खरीद जोड़ने में विफल: ' + err.message });
@@ -1170,6 +1169,7 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
