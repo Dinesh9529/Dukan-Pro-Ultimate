@@ -1206,6 +1206,87 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
         client.release();
     }
 });
+
+// [ server.cjs में यह नया सेक्शन जोड़ें ]
+
+// -----------------------------------------------------------------------------
+// V. ADMIN PANEL API ROUTES (GLOBAL ADMIN ONLY)
+// -----------------------------------------------------------------------------
+// (यह 'ADMIN' रोल वाले यूज़र्स को सभी शॉप्स का डेटा देखने की अनुमति देता है)
+
+// 12.1 Get All Users (Global)
+app.get('/api/admin/all-users', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, shop_id, name, email, role, status FROM users ORDER BY shop_id, id');
+        res.json({ success: true, users: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'सभी यूज़र्स को लाने में विफल: ' + err.message });
+    }
+});
+
+// 12.2 Get All Shops (Global)
+app.get('/api/admin/shops', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, shop_name, created_at FROM shops ORDER BY id');
+        res.json({ success: true, shops: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'सभी शॉप्स को लाने में विफल: ' + err.message });
+    }
+});
+
+// 12.3 Get All Licenses (Global)
+app.get('/api/admin/licenses', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+    try {
+        // (FIX) customer_details को JSONB से चुनें
+        const result = await pool.query('SELECT key_hash, user_id, expiry_date, is_trial, customer_details FROM licenses ORDER BY created_at DESC');
+        res.json({ success: true, licenses: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'सभी लाइसेंस को लाने में विफल: ' + err.message });
+    }
+});
+
+// 12.4 Update User Status/Role (Global)
+app.put('/api/admin/user-status/:userId', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+    const { userId } = req.params;
+    const { name, role, status } = req.body;
+    
+    // एडमिन को खुद को डिसेबल करने से रोकें
+    if (parseInt(userId) === req.user.id && status === 'disabled') {
+        return res.status(403).json({ success: false, message: 'आप खुद को अक्षम (disable) नहीं कर सकते।' });
+    }
+
+    try {
+        await pool.query(
+            'UPDATE users SET name = $1, role = $2, status = $3 WHERE id = $4',
+            [name, role, status, userId]
+        );
+        res.json({ success: true, message: 'यूज़र सफलतापूर्वक अपडेट किया गया।' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'यूज़र अपडेट करने में विफल: ' + err.message });
+    }
+});
+
+// 12.5 Full Database Backup (Global)
+app.get('/api/admin/backup-all', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const tables = ['shops', 'users', 'licenses', 'stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
+        const backupData = {};
+        for (const table of tables) {
+            const result = await client.query(`SELECT * FROM ${table}`);
+            backupData[table] = result.rows;
+        }
+        res.json({ success: true, backupData: backupData });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'डेटाबेस बैकअप विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
+
+
 // 11.2 Get Sales by Day (Line Chart Data)
 app.get('/api/dashboard/sales-by-day', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
@@ -1326,6 +1407,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
