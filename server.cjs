@@ -347,17 +347,17 @@ app.post('/api/register', async (req, res) => {
 
 // [ server.cjs फ़ाइल में यह कोड बदलें ]
 
+// [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
+
 // 4. User Login (Authenticates and returns JWT)
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     
-    // इनपुट सत्यापन
     if (!email || !password) {
         return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं।' });
     }
 
     try {
-        // 🔑 Query now fetches all user columns, including license_expiry_date
         const result = await pool.query(
             'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1', 
             [email]
@@ -369,8 +369,6 @@ app.post('/api/login', async (req, res) => {
         }
 
         let user = result.rows[0];
-        
-        // 1. पासवर्ड की तुलना करें (Bcrypt)
         const isMatch = await bcrypt.compare(password, user.password_hash);
         console.log(`DEBUG LOGIN: Password Match? ${isMatch}`); 
 
@@ -378,19 +376,14 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
         }
 
-        // 2. खाता सक्रियण (Auto-Activate on Password Match)
         if (user.status !== 'active') {
-             await pool.query(
-                'UPDATE users SET status = $1 WHERE id = $2',
-                ['active', user.id]
-             );
-             user.status = 'active'; // In-memory update
+             await pool.query('UPDATE users SET status = $1 WHERE id = $2', ['active', user.id]);
+             user.status = 'active';
              console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
         }
 
         // --- (FIXED LOGIC START) ---
-
-        // 3. टोकन पेलोड तैयार करें (लाइसेंस की परवाह किए बिना)
+        // 1. टोकन पेलोड तैयार करें (लाइसेंस की परवाह किए बिना)
         const tokenUser = { 
             id: user.id, 
             email: user.email, 
@@ -401,17 +394,16 @@ app.post('/api/login', async (req, res) => {
             licenseExpiryDate: user.license_expiry_date,
             status: user.status 
         };
-        // टोकन जनरेट करें
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
-        // 4. अब लाइसेंस की जाँच करें
+        // 2. अब लाइसेंस की जाँच करें
         const expiryDate = user.license_expiry_date ? new Date(user.license_expiry_date) : null;
         const currentDate = new Date();
         currentDate.setHours(0, 0, 0, 0);
         
         if (!expiryDate || expiryDate < currentDate) {
              console.log('DEBUG LOGIN: License is missing or expired. Requires key.');
-             // 5. (FIX) लाइसेंस समाप्त है, लेकिन फिर भी टोकन के साथ 200 OK भेजें
+             // 3. (FIX) लाइसेंस समाप्त है, लेकिन फिर भी टोकन के साथ 200 OK भेजें
              return res.json({ 
                  success: true, // लॉगिन सफल रहा
                  message: 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है। कृपया लाइसेंस कुंजी दर्ज करें।',
@@ -421,15 +413,14 @@ app.post('/api/login', async (req, res) => {
              });
         }
         
-        // 6. सफल लॉगिन (यदि लाइसेंस मान्य है)
+        // 4. सफल लॉगिन (यदि लाइसेंस मान्य है)
         res.json({ 
             success: true, 
             message: 'लॉगिन सफल।',
-            requiresLicense: false, // लाइसेंस की आवश्यकता नहीं है
+            requiresLicense: false,
             token: token,
             user: tokenUser
         });
-        
         // --- (FIXED LOGIC END) ---
 
     } catch (err) {
@@ -437,70 +428,73 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'लॉगिन विफल: ' + err.message });
     }
 });
-
+// [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
 // 5. License Activation Route (Securely update license expiry)
-// 🔑 Note: This route is protected and requires a valid JWT 
+// 🔑 (FIXED) यह रूट अब 'licenses' टेबल में असली (hashed) कीज़ की जाँच करेगा
 app.post('/api/activate-license', authenticateJWT, async (req, res) => {
-    // authenticateJWT मिडलवेयर से req.user प्राप्त करें
     const { licenseKey } = req.body;
     const userId = req.user.id; 
+    const shopId = req.user.shopId;
 
     if (!licenseKey) {
         return res.status(400).json({ success: false, message: 'लाइसेंस कुंजी आवश्यक है।' });
     }
-    
-    // 💡 यह डमी लाइसेंस कुंजी जाँच है
-    let daysToAdd = 0;
-    
-    if (licenseKey === '5D-TRIAL-KEY') {
-        daysToAdd = 5;
-    } else if (licenseKey === '30D-MONTHLY-KEY') {
-        daysToAdd = 30;
-    } else if (licenseKey === '182D-HALFYR-KEY') {
-        daysToAdd = 182;
-    } else if (licenseKey === '365D-YEARLY-KEY') {
-        daysToAdd = 365;
-    } else {
-        return res.status(400).json({ success: false, message: 'अमान्य लाइसेंस कुंजी।' });
-    }
-    
+
+    const keyHash = hashKey(licenseKey); // कुंजी को हैश करें
+    const client = await pool.connect();
+
     try {
-        // वर्तमान लाइसेंस समाप्ति तिथि (यदि कोई है) प्राप्त करें
-        const currentLicenseResult = await pool.query(
-            'SELECT license_expiry_date FROM users WHERE id = $1',
-            [userId]
+        await client.query('BEGIN');
+
+        // 1. देखें कि क्या कुंजी 'licenses' टेबल में मौजूद है
+        const licenseResult = await client.query(
+            'SELECT expiry_date, user_id FROM licenses WHERE key_hash = $1',
+            [keyHash]
         );
+
+        if (licenseResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'अमान्य लाइसेंस कुंजी।' });
+        }
+
+        const license = licenseResult.rows[0];
+        const newExpiryDate = new Date(license.expiry_date);
+        const now = new Date();
+
+        // 2. देखें कि क्या कुंजी पहले ही समाप्त हो चुकी है
+        if (newExpiryDate < now) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही समाप्त हो चुकी है।' });
+        }
         
-        const currentExpiryDate = currentLicenseResult.rows[0].license_expiry_date 
-                              ? new Date(currentLicenseResult.rows[0].license_expiry_date) 
-                              : new Date();
-        
-        // यदि वर्तमान समाप्ति तिथि आज से पहले की है, तो आज से शुरू करें; अन्यथा, वर्तमान समाप्ति तिथि से जोड़ें।
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0); 
-        
-        const startDate = (currentExpiryDate > currentDate) ? currentExpiryDate : currentDate;
-        
-        // नई समाप्ति तिथि की गणना करें
-        const newExpiryDate = new Date(startDate);
-        newExpiryDate.setDate(newExpiryDate.getDate() + daysToAdd);
-        
-        // DB को अपडेट करें
-        await pool.query(
+        // 3. देखें कि क्या कुंजी पहले ही किसी और यूज़र द्वारा उपयोग की जा चुकी है
+        // (नोट: यदि user_id NULL है, तो इसका उपयोग किया जा सकता है)
+        if (license.user_id && license.user_id !== userId) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही किसी अन्य खाते द्वारा उपयोग की जा चुकी है।' });
+        }
+
+        // 4. सब ठीक है! यूज़र की समाप्ति तिथि अपडेट करें
+        await client.query(
             'UPDATE users SET license_expiry_date = $1 WHERE id = $2',
             [newExpiryDate, userId]
         );
-        
-        // अपडेटेड यूज़र डेटा (शॉप का नाम सहित) को फिर से फ़ेच करें
-        const updatedUserResult = await pool.query(
+
+        // 5. कुंजी को "used" के रूप में चिह्नित करें (इसे इस यूज़र से लिंक करें)
+        await client.query(
+            'UPDATE licenses SET user_id = $1 WHERE key_hash = $2',
+            [userId, keyHash]
+        );
+
+        // 6. यूज़र का अपडेटेड डेटा (शॉप नाम सहित) पुनः प्राप्त करें
+        const updatedUserResult = await client.query(
             'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1', 
             [userId]
         );
-        
         const updatedUser = updatedUserResult.rows[0];
         
-        // नए लाइसेंस की अवधि के साथ JWT टोकन जनरेट करें और वापस भेजें
+        // 7. नया टोकन जनरेट करें और वापस भेजें
         const tokenUser = { 
             id: updatedUser.id, 
             email: updatedUser.email, 
@@ -513,22 +507,23 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
+        await client.query('COMMIT');
+        
         res.json({
             success: true,
-            message: `लाइसेंस ${daysToAdd} दिनों के लिए सफलतापूर्वक सक्रिय हो गया है।`,
+            message: `लाइसेंस सफलतापूर्वक सक्रिय हो गया है। नई समाप्ति तिथि: ${newExpiryDate.toLocaleDateString()}`,
             token: token,
             user: tokenUser
         });
 
     } catch (err) {
+        await client.query('ROLLBACK');
         console.error("License Activation Error:", err.message);
         res.status(500).json({ success: false, message: 'लाइसेंस सक्रियण विफल: ' + err.message });
+    } finally {
+        client.release();
     }
 });
-
-// -----------------------------------------------------------------------------
-// IV. MULTI-TENANT SHOP DATA ROUTES (PROTECTED & SCOPED)
-// -----------------------------------------------------------------------------
 
 // --- 6. User Management (Shop Admin Only) ---
 
@@ -1157,7 +1152,17 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
              WHERE shop_id = $1`,
             [shopId]
         );
+       // [ server.cjs में बदलें ]
         const stockData = stockValueResult.rows[0];
+        // ...
+        res.json({
+            // ...
+            summary: {
+                // ...
+                // FIX: .toFixed() को parseFloat() के बाद लगाएँ
+                currentStockValue: parseFloat(stockData.stock_value).toFixed(2)
+            },
+        });
         
         // 4. Calculate Profit
         const totalSales = parseFloat(salesData.total_sales);
@@ -1311,4 +1316,5 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
