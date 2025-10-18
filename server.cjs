@@ -345,6 +345,8 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// [ server.cjs फ़ाइल में यह कोड बदलें ]
+
 // 4. User Login (Authenticates and returns JWT)
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
@@ -377,7 +379,6 @@ app.post('/api/login', async (req, res) => {
         }
 
         // 2. खाता सक्रियण (Auto-Activate on Password Match)
-        // चूंकि आपको DB एक्सेस नहीं है, इसलिए हम पासवर्ड सही होने पर 'pending' को 'active' पर सेट करते हैं।
         if (user.status !== 'active') {
              await pool.query(
                 'UPDATE users SET status = $1 WHERE id = $2',
@@ -387,24 +388,9 @@ app.post('/api/login', async (req, res) => {
              console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
         }
 
-        // 🛑 3. लाइसेंस की जाँच (License Check)
-        const expiryDate = user.license_expiry_date ? new Date(user.license_expiry_date) : null;
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0); 
-        
-        // यदि समाप्ति तिथि NULL है OR यदि समाप्ति तिथि आज की तारीख से पहले की है (समाप्त हो गई है)
-        if (!expiryDate || expiryDate < currentDate) {
-             console.log('DEBUG LOGIN: License is missing or expired. Requires key.');
-             
-             // फ्रंटएंड को संकेत दें कि उसे लाइसेंस मॉडाल दिखाना चाहिए
-             return res.status(403).json({ 
-                 success: false, 
-                 message: 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है। कृपया लाइसेंस कुंजी दर्ज करें।',
-                 requiresLicense: true 
-             });
-        }
-        
-        // 4. सफल लॉगिन (यदि लाइसेंस मान्य है)
+        // --- (FIXED LOGIC START) ---
+
+        // 3. टोकन पेलोड तैयार करें (लाइसेंस की परवाह किए बिना)
         const tokenUser = { 
             id: user.id, 
             email: user.email, 
@@ -412,22 +398,46 @@ app.post('/api/login', async (req, res) => {
             name: user.name, 
             role: user.role, 
             shopName: user.shop_name,
-            licenseExpiryDate: user.license_expiry_date, // NEW: Include expiry date
+            licenseExpiryDate: user.license_expiry_date,
             status: user.status 
         };
+        // टोकन जनरेट करें
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+
+        // 4. अब लाइसेंस की जाँच करें
+        const expiryDate = user.license_expiry_date ? new Date(user.license_expiry_date) : null;
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
         
+        if (!expiryDate || expiryDate < currentDate) {
+             console.log('DEBUG LOGIN: License is missing or expired. Requires key.');
+             // 5. (FIX) लाइसेंस समाप्त है, लेकिन फिर भी टोकन के साथ 200 OK भेजें
+             return res.json({ 
+                 success: true, // लॉगिन सफल रहा
+                 message: 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है। कृपया लाइसेंस कुंजी दर्ज करें।',
+                 requiresLicense: true, // क्लाइंट को Modal दिखाने के लिए कहें
+                 token: token, // सक्रियण के लिए टोकन प्रदान करें
+                 user: tokenUser
+             });
+        }
+        
+        // 6. सफल लॉगिन (यदि लाइसेंस मान्य है)
         res.json({ 
             success: true, 
             message: 'लॉगिन सफल।',
+            requiresLicense: false, // लाइसेंस की आवश्यकता नहीं है
             token: token,
             user: tokenUser
         });
+        
+        // --- (FIXED LOGIC END) ---
+
     } catch (err) {
         console.error("Error logging in:", err.message);
         res.status(500).json({ success: false, message: 'लॉगिन विफल: ' + err.message });
     }
 });
+
 
 // 5. License Activation Route (Securely update license expiry)
 // 🔑 Note: This route is protected and requires a valid JWT 
@@ -982,6 +992,75 @@ app.post('/api/expenses', authenticateJWT, checkRole('MANAGER'), async (req, res
         res.status(500).json({ success: false, message: 'खर्च जोड़ने में विफल: ' + err.message });
     }
 });
+
+// [ server.cjs फ़ाइल में यह कोड जोड़ें ]
+
+// -----------------------------------------------------------------------------
+// 10.5. PURCHASE MANAGEMENT (NEW)
+// -----------------------------------------------------------------------------
+// (यह एक सरल कार्यान्वयन है। यह स्टॉक को स्वचालित रूप से अपडेट नहीं करता है।)
+
+// 10.5.1 Add New Purchase Record (SCOPED)
+app.post('/api/purchases', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    // 'created_at' को 'date' के रूप में स्वीकार करें, जैसा कि expenses करता है
+    const { supplier_name, item_details, total_cost, date } = req.body;
+    const shopId = req.shopId;
+
+    if (!supplier_name || !total_cost) {
+        return res.status(400).json({ success: false, message: 'आपूर्तिकर्ता (Supplier) का नाम और कुल लागत आवश्यक हैं।' });
+    }
+    
+    const safeTotalCost = parseFloat(total_cost);
+    if (isNaN(safeTotalCost) || safeTotalCost <= 0) {
+        return res.status(400).json({ success: false, message: 'लागत एक मान्य धनात्मक संख्या होनी चाहिए।' });
+    }
+    
+    const purchase_date = date && !isNaN(new Date(date)) ? new Date(date) : new Date();
+
+    try {
+        const result = await pool.query(
+            'INSERT INTO purchases (shop_id, supplier_name, item_details, total_cost, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [shopId, supplier_name, item_details || 'N/A', safeTotalCost, purchase_date]
+        );
+        res.json({ success: true, purchase: result.rows[0], message: 'खरीद सफलतापूर्वक जोड़ी गई।' });
+    } catch (err) {
+        console.error("Error adding purchase:", err.message);
+        res.status(500).json({ success: false, message: 'खरीद जोड़ने में विफल: ' + err.message });
+    }
+});
+
+// 10.5.2 Get All Purchases (SCOPED)
+app.get('/api/purchases', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    const shopId = req.shopId;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM purchases WHERE shop_id = $1 ORDER BY created_at DESC', 
+            [shopId]
+        );
+        res.json({ success: true, purchases: result.rows });
+    } catch (err) {
+        console.error("Error fetching purchases:", err.message);
+        res.status(500).json({ success: false, message: 'खरीद सूची प्राप्त करने में विफल।' });
+    }
+});
+
+// 10.5.3 Delete Purchase (SCOPED)
+app.delete('/api/purchases/:purchaseId', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+    const { purchaseId } = req.params;
+    const shopId = req.shopId;
+    try {
+        const result = await pool.query('DELETE FROM purchases WHERE id = $1 AND shop_id = $2', [purchaseId, shopId]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'खरीद रिकॉर्ड नहीं मिला या आपकी शॉप से संबंधित नहीं है।' });
+        }
+        res.json({ success: true, message: 'खरीद रिकॉर्ड सफलतापूर्वक डिलीट किया गया।' });
+    } catch (err) {
+        console.error("Error deleting purchase:", err.message);
+        res.status(500).json({ success: false, message: 'खरीद रिकॉर्ड डिलीट करने में विफल: ' + err.message });
+    }
+});
+
+
 // 10.2 Get All Expenses (SCOPED)
 app.get('/api/expenses', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
@@ -1232,3 +1311,4 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
