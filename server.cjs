@@ -82,7 +82,9 @@ async function createTables() {
         // END FIX 3 🛑
 
         // 1. Licenses Table (Global, checked before registration)
-        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
+       // [ server.cjs में बदलें ]//
+        // (FIX) यूज़र को लिंक करने के लिए 'user_id' और ग्राहक की जानकारी के लिए 'customer_details' जोड़ा गया //
+        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
 
         // --- Multi-tenant modification: Add shop_id to all data tables ---
         const dataTables = ['stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
@@ -191,24 +193,31 @@ const checkRole = (requiredRole) => (req, res, next) => {
 // -----------------------------------------------------------------------------
 
 // 🌟 FIX: This route is now /api/admin/generate-key and uses GLOBAL_ADMIN_PASSWORD
+// [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
+
 // 1. License Key Generation (Now accessible by global ADMIN password)
 app.post('/api/admin/generate-key', async (req, res) => {
-    const { adminPassword, days, customerName, customerMobile } = req.body; // customer info is optional
+    // (FIX) 'customerAddress' को जोड़ा गया
+    const { adminPassword, days, customerName, customerMobile, customerAddress } = req.body; 
 
-    // 1. Check Global Admin Password
     if (!process.env.GLOBAL_ADMIN_PASSWORD) {
         return res.status(500).json({ success: false, message: 'सर्वर पर GLOBAL_ADMIN_PASSWORD सेट नहीं है।' });
     }
     if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
+         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
     }
 
-    // 2. Validate Days
     if (typeof days !== 'number' || days < 1) {
         return res.status(400).json({ success: false, message: 'दिनों की संख्या मान्य होनी चाहिए।' });
     }
+    
+    // (FIX) ग्राहक विवरण को एक JSON ऑब्जेक्ट में सहेजें
+    const customer_details = {
+        name: customerName,
+        mobile: customerMobile,
+        address: customerAddress || 'N/A'
+    };
 
-    // 3. Generate Key
     const rawKey = `DUKANPRO-${crypto.randomBytes(16).toString('hex').toUpperCase()}`;
     const keyHash = hashKey(rawKey);
     const expiryDate = new Date();
@@ -216,8 +225,9 @@ app.post('/api/admin/generate-key', async (req, res) => {
 
     try {
         await pool.query(
-            'INSERT INTO licenses (key_hash, expiry_date, is_trial) VALUES ($1, $2, $3)',
-            [keyHash, expiryDate, days === 5]
+            // (FIX) 'customer_details' को JSONB के रूप में डालें
+            'INSERT INTO licenses (key_hash, expiry_date, is_trial, customer_details) VALUES ($1, $2, $3, $4)',
+            [keyHash, expiryDate, (days === 5), customer_details]
         );
         res.json({ 
             success: true, 
@@ -225,8 +235,8 @@ app.post('/api/admin/generate-key', async (req, res) => {
             message: 'लाइसेंस कुंजी सफलतापूर्वक बनाई गई।',
             duration_days: days,
             valid_until: expiryDate.toISOString(),
-            customer: customerName || 'N/A' // Return customer name for confirmation
-        });
+            customer: customerName || 'N/A'
+         });
     } catch (err) {
         console.error("Error generating key:", err.message);
         if (err.constraint === 'licenses_pkey') {
@@ -1316,5 +1326,6 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
