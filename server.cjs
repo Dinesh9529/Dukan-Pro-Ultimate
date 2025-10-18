@@ -1099,7 +1099,7 @@ res.status(500).json({ success: false, message: 'लाइसेंस अवध
 });
 // 12.4 SQL Console Execution (High-Risk Global Admin Tool)
 // ⚠️ यह टूल बहुत खतरनाक है!
-इसे केवल SELECT या सुरक्षित UPDATE/DELETE (WHERE क्लॉज़ के साथ) के लिए इस्तेमाल करें।
+// इसे केवल SELECT या सुरक्षित UPDATE/DELETE (WHERE क्लॉज़ के साथ) के लिए इस्तेमाल करें। //
 app.post('/api/admin/sql-console', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
     const { query } = req.body;
     
@@ -1168,6 +1168,7 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
