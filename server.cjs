@@ -918,9 +918,8 @@ app.get('/api/get-dashboard-data', authenticateJWT, async (req, res) => {
         const salesResult = await pool.query("SELECT COALESCE(SUM(total_amount), 0) AS value FROM invoices WHERE shop_id = $1", [shopId]);
         const totalSalesRevenue = parseFloat(salesResult.rows[0].value);
 
-        const stockValueResult = await pool.query("SELECT COALESCE(SUM(purchase_price * quantity), 
-0) AS value FROM stock WHERE shop_id = $1", [shopId]);
-        const totalStockValue = parseFloat(stockValueResult.rows[0].value);
+       const stockValueResult = await pool.query("SELECT COALESCE(SUM(purchase_price * quantity), 0) AS value FROM stock WHERE shop_id = $1", [shopId]);
+const totalStockValue = parseFloat(stockValueResult.rows[0].value);
         
         const customerResult = await pool.query("SELECT COUNT(DISTINCT id) AS value FROM customers WHERE shop_id = $1", [shopId]);
         const totalCustomers = parseInt(customerResult.rows[0].value);
@@ -1169,6 +1168,7 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
