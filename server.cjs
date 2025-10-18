@@ -737,8 +737,7 @@ app.get('/api/invoices', authenticateJWT, async (req, res) => {
     try {
         // 🔑 Query now includes WHERE i.shop_id = $1
         const result = await pool.query("SELECT i.id, i.total_amount, i.created_at, COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name, i.total_cost FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id WHERE i.shop_id = $1 ORDER BY i.created_at DESC LIMIT 100", [shopId]);
-        res.json({ success: true, sales: result.rows, message: "चालान सफलतापूर्वक लोड 
-किए गए।" });
+       res.json({ success: true, sales: result.rows, message: "चालान सफलतापूर्वक लोड किए गए।" });
     } catch (error) {
         console.error("Error fetching invoices list:", error.message);
         res.status(500).json({ success: false, message: 'चालान सूची प्राप्त करने में विफल।' });
@@ -1171,6 +1170,7 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
 
