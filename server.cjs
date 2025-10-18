@@ -54,8 +54,7 @@ async function createTables() {
         console.log('Attempting to ensure all tables and columns exist...');
 
         // 0. Shops / Tenant Table (Stores shop information)
-        await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
-
+       await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         // 0.5. Users Table (Stores login credentials and roles, linked to a shop)
         // 🛑 FIX 1: Removed 'status' and 'license_expiry_date' from here.
         // We ensure basic table exists and then use ALTER TABLE for missing columns.
@@ -1214,6 +1213,82 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
 // -----------------------------------------------------------------------------
 // (यह 'ADMIN' रोल वाले यूज़र्स को सभी शॉप्स का डेटा देखने की अनुमति देता है)
 
+// 11.5 Shop Settings (Logo/Name Update)
+app.post('/api/shop/settings', authenticateJWT, async (req, res) => {
+    const { shop_name, shop_logo } = req.body;
+    const shopId = req.shopId;
+    const userId = req.user.id;
+
+    if (!shop_name) {
+        return res.status(400).json({ success: false, message: 'शॉप का नाम खाली नहीं हो सकता।' });
+    }
+
+    try {
+        // शॉप का नाम और लोगो (Base64) अपडेट करें
+        await pool.query(
+            'UPDATE shops SET shop_name = $1, shop_logo = $2 WHERE id = $3',
+            [shop_name, shop_logo, shopId]
+        );
+
+        // यूज़र का डेटा पुनः प्राप्त करें (क्योंकि 'shopName' बदल गया होगा)
+        const updatedUserResult = await pool.query(
+            'SELECT u.*, s.shop_name, s.shop_logo FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1', 
+            [userId]
+        );
+        const updatedUser = updatedUserResult.rows[0];
+
+        // नया टोकन जनरेट करें जिसमें नया shopName और shopLogo हो
+        const tokenUser = { 
+            id: updatedUser.id, 
+            email: updatedUser.email, 
+            shopId: updatedUser.shop_id, 
+            name: updatedUser.name, 
+            role: updatedUser.role, 
+            shopName: updatedUser.shop_name, // (Updated)
+            shopLogo: updatedUser.shop_logo, // (Updated)
+            licenseExpiryDate: updatedUser.license_expiry_date,
+            status: updatedUser.status 
+        };
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+
+        res.json({
+            success: true,
+            message: 'शॉप सेटिंग्स सफलतापूर्वक अपडेट की गईं।',
+            token: token,
+            user: tokenUser
+        });
+
+    } catch (err) {
+        console.error("Error updating shop settings:", err.message);
+        res.status(500).json({ success: false, message: 'सेटिंग्स अपडेट करने में विफल: ' + err.message });
+    }
+});
+
+// 11.6 Shop-Specific Backup
+app.get('/api/backup', authenticateJWT, async (req, res) => {
+    const shopId = req.shopId;
+    const client = await pool.connect();
+    try {
+        const tables = ['stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
+        const backupData = {};
+        
+        for (const table of tables) {
+            const result = await client.query(`SELECT * FROM ${table} WHERE shop_id = $1`, [shopId]);
+            backupData[table] = result.rows;
+        }
+        
+        // शॉप की जानकारी भी शामिल करें
+        const shopResult = await client.query('SELECT * FROM shops WHERE id = $1', [shopId]);
+        backupData['shop_details'] = shopResult.rows;
+
+        res.json({ success: true, backupData: backupData });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'शॉप बैकअप विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
 // 12.1 Get All Users (Global)
 app.get('/api/admin/all-users', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
     try {
@@ -1407,6 +1482,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
