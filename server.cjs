@@ -400,7 +400,7 @@ res.status(500).json({ success: false, message: 'लॉगिन विफल: '
 
 // -----------------------------------------------------------------------------
 // IV.
-MULTI-TENANT SHOP DATA ROUTES (PROTECTED & SCOPED)
+// MULTI-TENANT SHOP DATA ROUTES (PROTECTED & SCOPED) //
 // -----------------------------------------------------------------------------
 
 // --- 5. User Management (Shop Admin Only) ---
@@ -1171,4 +1171,5 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
