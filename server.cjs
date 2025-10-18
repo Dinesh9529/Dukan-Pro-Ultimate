@@ -349,7 +349,7 @@ app.post('/api/login', async (req, res) => {
     try {
         // डेटाबेस से यूज़र और शॉप का नाम एक साथ फ़ेच करें
         // u.*: users टेबल के सभी 
-कॉलम (जैसे id, password_hash, role, status)
+// कॉलम (जैसे id, password_hash, role, status)
         // s.shop_name: shops टेबल से शॉप का नाम
         // 🌟 FIX: This query now correctly selects the 'status' column as part of 'u.*'
         const result = await pool.query(
@@ -1171,3 +1171,4 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
