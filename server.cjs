@@ -613,8 +613,8 @@ app.get('/api/search-items', authenticateJWT, async (req, res) => {
         res.json({ success: true, data: result.rows });
     } catch (err) {
         console.error("Error searching stock items:", err.message);
-        res.status(500).json({ success: false, message: 'आइटम खोजने में 
-विफल: ' + err.message });
+        // 🔑 FIX: Ensure the entire string is on one line and has no hidden characters
+        res.status(500).json({ success: false, message: 'आइटम खोजने में विफल: ' + err.message });
     }
 });
 
@@ -1171,5 +1171,6 @@ error);
 
 // End of Dukan Pro Server
 // Total lines: ~860
+
 
 
