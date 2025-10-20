@@ -111,8 +111,12 @@ async function createTables() {
         await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, supplier_name TEXT NOT NULL, item_details TEXT, total_cost NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         // 7. Expenses Table
         await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
-        console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
+        // 8. Daily Closings Table (NEW)
+        await client.query('CREATE TABLE IF NOT EXISTS daily_closings (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, closing_date DATE NOT NULL, total_sales NUMERIC DEFAULT 0, total_cogs NUMERIC DEFAULT 0, total_expenses NUMERIC DEFAULT 0, net_profit NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, closing_date));');
 
+        console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
+        
+    
     } catch (err) {
         console.error('❌ Error ensuring database schema:', err.message);
         process.exit(1);
@@ -1572,6 +1576,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
