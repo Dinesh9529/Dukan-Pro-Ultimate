@@ -1461,6 +1461,96 @@ app.post('/api/admin/sql-console', authenticateJWT, checkRole('ADMIN'), async (r
 });
 
 
+
+// -----------------------------------------------------------------------------
+// 13. DAILY CLOSING API (NEW)
+// -----------------------------------------------------------------------------
+
+// 13.1 Run Daily Closing (SCOPED & TRANSACTIONAL)
+app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    const shopId = req.shopId;
+    // आज की तारीख सर्वर टाइमज़ोन के अनुसार
+    const today = new Date().toISOString().split('T')[0];
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. जांचें कि क्या आज की क्लोजिंग पहले ही हो चुकी है
+        const checkResult = await client.query(
+            'SELECT id FROM daily_closings WHERE shop_id = $1 AND closing_date = $2',
+            [shopId, today]
+        );
+        
+        if (checkResult.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'आज की क्लोजिंग पहले ही रन हो चुकी है।' });
+        }
+
+        // 2. आज की बिक्री (Invoices) की गणना करें
+        const salesResult = await client.query(
+            `SELECT COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(total_cost), 0) AS cogs 
+             FROM invoices 
+             WHERE shop_id = $1 AND DATE(created_at) = $2`,
+            [shopId, today]
+        );
+        const { sales, cogs } = salesResult.rows[0];
+
+        // 3. आज के खर्च (Expenses) की गणना करें
+        const expensesResult = await client.query(
+            `SELECT COALESCE(SUM(amount), 0) AS expenses 
+             FROM expenses 
+             WHERE shop_id = $1 AND DATE(created_at) = $2`,
+            [shopId, today]
+        );
+        const { expenses } = expensesResult.rows[0];
+
+        // 4. शुद्ध लाभ (Net Profit) की गणना करें
+        const netProfit = parseFloat(sales) - parseFloat(cogs) - parseFloat(expenses);
+
+        // 5. क्लोजिंग रिपोर्ट सहेजें
+        await client.query(
+            `INSERT INTO daily_closings (shop_id, closing_date, total_sales, total_cogs, total_expenses, net_profit) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [shopId, today, parseFloat(sales), parseFloat(cogs), parseFloat(expenses), netProfit]
+        );
+
+        await client.query('COMMIT');
+        res.json({ 
+            success: true, 
+            message: `आज (${today}) की क्लोजिंग सफलतापूर्वक सहेज ली गई।`,
+            report: {
+                date: today,
+                sales,
+                cogs,
+                expenses,
+                netProfit
+            }
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error running daily closing:", err.message);
+        res.status(500).json({ success: false, message: 'क्लोजिंग रन करने में विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
+// 13.2 Get All Closing Reports (SCOPED)
+app.get('/api/closing/reports', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    const shopId = req.shopId;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM daily_closings WHERE shop_id = $1 ORDER BY closing_date DESC',
+            [shopId]
+        );
+        res.json({ success: true, reports: result.rows });
+    } catch (err) {
+        console.error("Error fetching closing reports:", err.message);
+        res.status(500).json({ success: false, message: 'रिपोर्ट्स लाने में विफल: ' + err.message });
+    }
+});
 // -----------------------------------------------------------------------------
 // VI. SERVER INITIALIZATION 
 // -----------------------------------------------------------------------------
@@ -1482,6 +1572,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
