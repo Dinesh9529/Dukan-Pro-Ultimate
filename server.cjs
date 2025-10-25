@@ -54,7 +54,7 @@ async function createTables() {
         console.log('Attempting to ensure all tables and columns exist...');
 
         // 0. Shops / Tenant Table (Stores shop information)
-       await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         // 0.5. Users Table (Stores login credentials and roles, linked to a shop)
         // 🛑 FIX 1: Removed 'status' and 'license_expiry_date' from here.
         // We ensure basic table exists and then use ALTER TABLE for missing columns.
@@ -81,7 +81,7 @@ async function createTables() {
         // END FIX 3 🛑
 
         // 1. Licenses Table (Global, checked before registration)
-       // [ server.cjs में बदलें ]//
+        // [ server.cjs में बदलें ]//
         // (FIX) यूज़र को लिंक करने के लिए 'user_id' और ग्राहक की जानकारी के लिए 'customer_details' जोड़ा गया //
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
         // 🛑 FIX 4: 'customer_details' कॉलम को सुरक्षित रूप से जोड़ें (आपकी त्रुटि को ठीक करता है)
@@ -121,6 +121,22 @@ async function createTables() {
         await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         // 8. Daily Closings Table (NEW)
         await client.query('CREATE TABLE IF NOT EXISTS daily_closings (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, closing_date DATE NOT NULL, total_sales NUMERIC DEFAULT 0, total_cogs NUMERIC DEFAULT 0, total_expenses NUMERIC DEFAULT 0, net_profit NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, closing_date));');
+
+        // --- START NEW UPDATES (नई अपडेट्स) ---
+
+        // 9. Categories Table (स्टॉक को ग्रुप करने के लिए)
+        await client.query('CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, name));');
+
+        // 10. Stock Table Update: last_sale_date कॉलम सुरक्षित रूप से जोड़ें (आखिरी बिक्री ट्रैक करने के लिए)
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'last_sale_date') THEN
+                    ALTER TABLE stock ADD COLUMN last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+                    -- console.log('✅ Added last_sale_date column to stock table.');
+                END IF;
+            END $$;
+        `);
+        // --- END NEW UPDATES (नई अपडेट्स समाप्त) ---
 
         console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
         
@@ -1576,6 +1592,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
