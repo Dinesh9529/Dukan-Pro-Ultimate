@@ -1175,8 +1175,8 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
         );
        // [ server.cjs में बदलें ]
         const stockData = stockValueResult.rows[0];
-        // ...
-        res.json({
+        
+        
             // ...
             summary: {
                 // ...
@@ -1205,7 +1205,7 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
                 grossProfit: parseFloat(grossProfit.toFixed(2)),
                 totalExpenses: parseFloat(totalExpenses.toFixed(2)),
                 netProfit: parseFloat(netProfit.toFixed(2)),
-                currentStockValue: parseFloat(stockData.stock_value.toFixed(2))
+                currentStockValue: parseFloat(stockData.stock_value.toFixed(2)
             },
             message: `पिछले ${daysInt} दिनों का सारांश सफलतापूर्वक प्राप्त हुआ।`
         });
@@ -1584,6 +1584,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
