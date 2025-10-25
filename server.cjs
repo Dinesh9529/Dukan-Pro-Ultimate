@@ -81,10 +81,22 @@ async function createTables() {
         // END FIX 3 🛑
 
         // 1. Licenses Table (Global, checked before registration)
-        // [ server.cjs में बदलें ]//
         // (FIX) यूज़र को लिंक करने के लिए 'user_id' और ग्राहक की जानकारी के लिए 'customer_details' जोड़ा गया //
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
-        // 🛑 FIX 4: 'customer_details' कॉलम को सुरक्षित रूप से जोड़ें (आपकी त्रुटि को ठीक करता है)
+        
+        // ✅ NEW FIX FOR USER_ID ERROR: 'user_id' कॉलम को सुरक्षित रूप से जोड़ें
+        // यह उन पुराने डेटाबेस को ठीक करता है जहां यह कॉलम शुरू में नहीं जोड़ा गया था।
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'user_id') THEN
+                    ALTER TABLE licenses ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses (user_id);
+                END IF;
+            END $$;
+        `);
+        // END NEW FIX ✅
+
+        // 🛑 FIX 4: 'customer_details' कॉलम को सुरक्षित रूप से जोड़ें (आपकी पिछली त्रुटि को ठीक करता है)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'customer_details') THEN
@@ -1592,6 +1604,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
