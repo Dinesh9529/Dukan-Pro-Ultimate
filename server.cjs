@@ -1173,17 +1173,7 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
              WHERE shop_id = $1`,
             [shopId]
         );
-       // [ server.cjs में बदलें ]
         const stockData = stockValueResult.rows[0];
-        
-        
-            // ...
-            summary: {
-                // ...
-                // FIX: .toFixed() को parseFloat() के बाद लगाएँ
-                currentStockValue: parseFloat(stockData.stock_value).toFixed(2)
-            },
-        });
         
         // 4. Calculate Profit
         const totalSales = parseFloat(salesData.total_sales);
@@ -1196,6 +1186,7 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
         const netProfit = grossProfit - totalExpenses;
 
 
+        // यह अंतिम और सही Response है
         res.json({
             success: true,
             days: daysInt,
@@ -1205,19 +1196,20 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (
                 grossProfit: parseFloat(grossProfit.toFixed(2)),
                 totalExpenses: parseFloat(totalExpenses.toFixed(2)),
                 netProfit: parseFloat(netProfit.toFixed(2)),
-                currentStockValue: parseFloat(stockData.stock_value.toFixed(2)
+                // FIX: .toFixed() को parseFloat() के बाहर ले जाया गया
+                currentStockValue: parseFloat(stockData.stock_value).toFixed(2)
             },
             message: `पिछले ${daysInt} दिनों का सारांश सफलतापूर्वक प्राप्त हुआ।`
         });
 
     } catch (err) {
         console.error("Error fetching dashboard summary:", err.message);
+        // सुनिश्चित करें कि error होने पर भी response एक ही बार जाए
         res.status(500).json({ success: false, message: 'सारांश प्राप्त करने में विफल: ' + err.message });
     } finally {
         client.release();
     }
 });
-
 // [ server.cjs में यह नया सेक्शन जोड़ें ]
 
 // -----------------------------------------------------------------------------
@@ -1584,6 +1576,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
