@@ -69,6 +69,11 @@ async function createTables() {
         `);
         // END FIX 2 🛑
 
+        // Safely add 'mobile' column if it doesn't exist
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN
+                    ALTER TABLE users ADD COLUMN mobile TEXT; -- Optional: ADD UNIQUE
+                END IF;                   
+
         // 🛑 FIX 3: Add license_expiry_date column safely
         await client.query(`
             DO $$ BEGIN
@@ -398,12 +403,15 @@ app.get('/api/verify-license', async (req, res) => {
 });
 // 3. User Registration (Creates a new shop and the first ADMIN user)
 app.post('/api/register', async (req, res) => {
-    const { shopName, name, email, password } = req.body;
+    const { shopName, name, email, mobile, password } = req.body;
 
-    // इनपुट सत्यापन (Input Validation)
-    if (!shopName || !name || !email || !password) {
-        return res.status(400).json({ success: false, message: 'सभी फ़ील्ड (शॉप का नाम, आपका नाम, ईमेल, पासवर्ड) आवश्यक हैं।' });
-    }
+   if (!shopName || !name || !email || !mobile || !password) { // <<< '!mobile' जोड़ा
+    return res.status(400).json({ success: false, message: 'सभी फ़ील्ड (शॉप का नाम, आपका नाम, ईमेल, मोबाइल, पासवर्ड) आवश्यक हैं.' }); // <<< मैसेज अपडेट किया
+}
+// (Optional) Add mobile format validation after this if needed
+if (!/^\d{10}$/.test(mobile)) {
+     return res.status(400).json({ success: false, message: 'कृपया मान्य 10 अंकों का मोबाइल नंबर डालें.' });
+}
 
     const client = await pool.connect();
     try {
@@ -426,17 +434,18 @@ app.post('/api/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
         // 4. पहले उपयोगकर्ता (मालिक/एडमिन) को बनाएं
         // 🚀 **सुधार: status कॉलम को 'active' पर सेट करें**
-        const userInsertQuery = `
-            INSERT INTO users (shop_id, email, password_hash, name, role, status)
-            VALUES ($1, $2, $3, $4, $5, 'active')
-            RETURNING id, shop_id, email, name, role, status
-        `;
-        const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, 'ADMIN']);
+       const userInsertQuery = `
+    INSERT INTO users (shop_id, email, password_hash, name, mobile, role, status) -- <<< 'mobile' जोड़ा
+    VALUES ($1, $2, $3, $4, $5, $6, 'active')  -- <<< '$5' (mobile) और '$6' (role) किया
+    RETURNING id, shop_id, email, name, mobile, role, status -- <<< 'mobile' जोड़ा
+`;
+        const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, mobile, 'ADMIN']); // <<< 'mobile' यहाँ जोड़ा
         const user = userResult.rows[0];
         // 5. JWT टोकन जनरेट करें
         const tokenUser = {
             id: user.id,
             email: user.email,
+            mobile: user.mobile,
             shopId: user.shop_id,
             name: user.name,
             role: user.role,
@@ -2062,3 +2071,4 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
