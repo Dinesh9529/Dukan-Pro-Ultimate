@@ -1677,6 +1677,7 @@ await client.query('COMMIT');
                 netProfit
             }
         });
+         }
 } catch (err) {
         await client.query('ROLLBACK');
         console.error("Error running daily closing:", err.message);
@@ -2134,6 +2135,7 @@ createTables().then(() => {
 error.message);
     process.exit(1);
 });
+
 
 
 
