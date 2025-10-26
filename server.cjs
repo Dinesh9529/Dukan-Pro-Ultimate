@@ -1,4 +1,4 @@
-// server.cjs (Dukan Pro - Ultimate Backend) - MULTI-USER/SECURE VERSION (1174 LINES)
+ // server.cjs (Dukan Pro - Ultimate Backend) - MULTI-USER/SECURE VERSION (1174 LINES)
 // -----------------------------------------------------------------------------
 // यह कोड JWT, Bcrypt और PostgreSQL के साथ एक सुरक्षित और मल्टी-टेनेंट सर्वर लागू करता है।
 // सभी डेटा एक्सेस 'shop_id' द्वारा सीमित (scoped) है।
@@ -872,7 +872,7 @@ app.get('/api/search-items', authenticateJWT, async (req, res) => {
     } catch (err) {
         console.error("Error searching stock items:", err.message);
        res.status(500).json({ success: false, message: 'आइटम खोजने में विफल: ' + err.message });
-});
+
 
 // ------------------------------------------------------------------
 // --- 🚀 START: NEW COMMENT (आपकी आवश्यकता के अनुसार) ---
@@ -2136,5 +2136,6 @@ createTables().then(() => {
 error.message);
     process.exit(1);
 });
+
 
 
