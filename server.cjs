@@ -1636,7 +1636,7 @@ await client.query(
         if (checkResult.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(400).json({ success: false, message: 'आज की क्लोजिंग पहले ही रन हो चुकी है।' });
-        }
+        
 
         // 2. आज की बिक्री (Invoices) की गणना करें
         const salesResult = await client.query(
@@ -2134,6 +2134,7 @@ createTables().then(() => {
 error.message);
     process.exit(1);
 });
+
 
 
 
