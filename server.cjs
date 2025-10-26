@@ -54,61 +54,76 @@ async function createTables() {
         console.log('Attempting to ensure all tables and columns exist...');
         // 0. Shops / Tenant Table (Stores shop information)
         await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+
+        // --- NEW: Add license_expiry_date to shops table safely ---
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN
+                    ALTER TABLE shops ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+                END IF;
+            END $$;
+        `);
+        // --- END NEW ---
+
         // 0.5. Users Table (Stores login credentials and roles, linked to a shop)
-        // 🛑 FIX 1: Removed 'status' and 'license_expiry_date' from here.
-        // We ensure basic table exists and then use ALTER TABLE for missing columns.
+        // Ensure base table exists
         await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
-        // 🛑 FIX 2: Add 'status' column safely (Fixes the current error)
-     // --- Users Table Creation and Modifications ---
-await client.query(`
-    DO $$
-    BEGIN
 
-        -- Safely add 'status' column
-        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN
-            ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled'));
-        END IF;
+        // --- Users Table Modifications (status and mobile only) ---
+        await client.query(`
+            DO $$
+            BEGIN
+                -- Safely add 'status' column
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN
+                    ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled'));
+                END IF;
 
-        -- Safely add 'mobile' column <<<< CORRECTED PLACEMENT
-        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN
-            ALTER TABLE users ADD COLUMN mobile TEXT; -- Optional: ADD UNIQUE
-        END IF;
+                -- Safely add 'mobile' column
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN
+                    ALTER TABLE users ADD COLUMN mobile TEXT; -- Optional: ADD UNIQUE
+                END IF;
 
-        -- Safely add 'license_expiry_date' column
-        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'license_expiry_date') THEN
-            ALTER TABLE users ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
-        END IF;
+                -- REMOVED: license_expiry_date is no longer added to users table
 
-    END
-    $$;
-`);
-// --- End Users Table Modifications ---
+            END
+            $$;
+        `);
+        // --- End Users Table Modifications ---
+
         // 1. Licenses Table (Global, checked before registration)
         // (FIX) यूज़र को लिंक करने के लिए 'user_id' और ग्राहक की जानकारी के लिए 'customer_details' जोड़ा गया //
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
-        // ✅ NEW FIX FOR USER_ID ERROR: 'user_id' कॉलम को सुरक्षित रूप से जोड़ें
-        // यह उन पुराने डेटाबेस को ठीक करता है जहां यह कॉलम शुरू में नहीं जोड़ा गया था।
+
+        // Add user_id safely (existing fix)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'user_id') THEN
                     ALTER TABLE licenses ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-
-     CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses (user_id);
+                    CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses (user_id);
                 END IF;
             END $$;
         `);
-        // END NEW FIX ✅
 
-        // 🛑 FIX 4: 'customer_details' कॉलम को सुरक्षित रूप से जोड़ें (आपकी पिछली त्रुटि को ठीक करता है)
+        // Add customer_details safely (existing fix)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'customer_details') THEN
-
-          ALTER TABLE licenses ADD COLUMN customer_details JSONB;
+                    ALTER TABLE licenses ADD COLUMN customer_details JSONB;
                 END IF;
             END $$;
         `);
-        // END FIX 5 🛑
+
+        // --- NEW: Add shop_id to licenses table safely ---
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'shop_id') THEN
+                    ALTER TABLE licenses ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_licenses_shop_id ON licenses (shop_id);
+                END IF;
+            END $$;
+        `);
+        // --- END NEW ---
+
         // --- Multi-tenant modification: Add shop_id to all data tables ---
         const dataTables = ['stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
         for (const table of dataTables) {
@@ -116,44 +131,107 @@ await client.query(`
             await client.query(`
                 DO $$ BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = '${table}') AND attname = 'shop_id') THEN
-
-                      ALTER TABLE ${table} ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE;
+                        ALTER TABLE ${table} ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE;
                         CREATE INDEX IF NOT EXISTS idx_${table}_shop_id ON ${table} (shop_id);
                     END IF;
-
-  END $$;
+                END $$;
             `);
         }
 
         // 2. Stock Table (Now scoped by shop_id)
-        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, sku TEXT NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC DEFAULT 0, category TEXT, gst NUMERIC DEFAULT 0, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, sku));');
+        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, sku TEXT NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC DEFAULT 0, category TEXT, gst NUMERIC DEFAULT 0, hsn_code TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL, UNIQUE (shop_id, sku));'); // Added hsn_code and last_sale_date here directly for potentially new tables
+        // Add last_sale_date and hsn_code safely for existing tables (redundant if table is new, but safe)
+        await client.query(`
+             DO $$ BEGIN
+                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'last_sale_date') THEN
+                     ALTER TABLE stock ADD COLUMN last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+                 END IF;
+                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'hsn_code') THEN
+                     ALTER TABLE stock ADD COLUMN hsn_code TEXT;
+                 END IF;
+             END $$;
+         `);
+
         // 3. Customers Table
-        await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, gstin TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);'); // Added gstin here
+        // Add gstin safely for existing tables
+         await client.query(`
+             DO $$ BEGIN
+                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'customers') AND attname = 'gstin') THEN
+                     ALTER TABLE customers ADD COLUMN gstin TEXT;
+                 END IF;
+             END $$;
+         `);
+
         // 4. Invoices/Sales Table
         await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL, total_amount NUMERIC NOT NULL, total_cost NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+
         // 5. Invoice Items (Items sold in a sale)
-        await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC);');
+        await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);'); // Added gst fields
+         // Add gst fields safely for existing tables
+         await client.query(`
+             DO $$ BEGIN
+                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
+                     ALTER TABLE invoice_items ADD COLUMN gst_rate NUMERIC DEFAULT 0;
+                 END IF;
+                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_amount') THEN
+                     ALTER TABLE invoice_items ADD COLUMN gst_amount NUMERIC DEFAULT 0;
+                 END IF;
+             END $$;
+         `);
+
         // 6. Purchases Table (Stock Inflow)
-        await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, supplier_name TEXT NOT NULL, item_details TEXT, total_cost NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, supplier_name TEXT NOT NULL, item_details TEXT, total_cost NUMERIC NOT NULL, gst_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);'); // Added gst_details
+         // Add gst_details safely for existing tables
+         await client.query(`
+             DO $$ BEGIN
+                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'purchases') AND attname = 'gst_details') THEN
+                     ALTER TABLE purchases ADD COLUMN gst_details JSONB;
+                 END IF;
+             END $$;
+         `);
+
         // 7. Expenses Table
         await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+
         // 8. Daily Closings Table (NEW)
         await client.query('CREATE TABLE IF NOT EXISTS daily_closings (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, closing_date DATE NOT NULL, total_sales NUMERIC DEFAULT 0, total_cogs NUMERIC DEFAULT 0, total_expenses NUMERIC DEFAULT 0, net_profit NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, closing_date));');
-        // --- START NEW UPDATES (नई अपडेट्स) ---
 
-        // 9. Categories Table (स्टॉक को ग्रुप करने के लिए)
+        // 9. Categories Table (NEW)
         await client.query('CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, name));');
-        // 10. Stock Table Update: last_sale_date कॉलम सुरक्षित रूप से जोड़ें (आखिरी बिक्री ट्रैक करने के लिए)
+
+        // 10. Company Profile Table (NEW)
         await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'last_sale_date') THEN
-                    ALTER TABLE stock
-ADD COLUMN last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
-                    -- console.log('✅ Added last_sale_date column to stock table.');
-                END IF;
-            END $$;
+            CREATE TABLE IF NOT EXISTS company_profile (
+                shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE,
+                legal_name TEXT,
+                gstin TEXT,
+                address TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
         `);
-        // --- END NEW UPDATES (नई अपडेट्स समाप्त) ---
+
+        // 11. Renewal Requests Table (NEW)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS renewal_requests (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id),
+                user_email TEXT,
+                message TEXT,
+                requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        console.log('✅ All tables and columns (including shop_id and license logic changes) checked/created successfully.');
+    } catch (err) {
+        console.error('❌ Error ensuring database schema:', err.message);
+        process.exit(1); // Exit if schema setup fails
+    } finally {
+        if (client) { // Ensure client exists before releasing
+           client.release();
+        }
+    }
+}        // --- END NEW UPDATES (नई अपडेट्स समाप्त) ---
 
         // ------------------------------------------------------------------
         // --- 🚀 START: NEW SCHEMA ADDITIONS (आपकी नई आवश्यकताओं के लिए) ---
@@ -478,178 +556,222 @@ if (!/^\d{10}$/.test(mobile)) {
 
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// 4. User Login (Authenticates and returns JWT)
+// // 4. User Login (Authenticates and returns JWT) - UPDATED FOR SHOP-BASED LICENSE
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-        return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं।' });
+        return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं.' });
     }
 
     try {
+        // --- Step 1: Fetch User and Shop Name (No change here) ---
         const result = await pool.query(
-          'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
+            'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
             [email]
         );
 
         if (result.rows.length === 0) {
             console.log(`DEBUG LOGIN: User not found for email: ${email}`);
-            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
+            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        let user = result.rows[0];
+        let user = result.rows[0]; // Contains user data including shop_id and shop_name
+
+        // --- Step 2: Check Password (No change here) ---
         const isMatch = await bcrypt.compare(password, user.password_hash);
         console.log(`DEBUG LOGIN: Password Match? ${isMatch}`);
 
         if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड।' });
+            return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
+        // --- Step 3: Check/Update User Status (Optional - No change here) ---
         if (user.status !== 'active') {
              await pool.query('UPDATE users SET status = $1 WHERE id = $2', ['active', user.id]);
-             user.status = 'active';
+             user.status = 'active'; // Update local variable too
              console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
         }
 
-        // --- (FIXED LOGIC START) ---
-        // 1. टोकन पेलोड तैयार करें (लाइसेंस की परवाह किए बिना)
+        // --- Step 4: Fetch SHOP's License Expiry Date <<< NEW LOGIC >>> ---
+        const shopLicenseResult = await pool.query(
+            'SELECT license_expiry_date FROM shops WHERE id = $1',
+            [user.shop_id] // Use shop_id from the user data fetched in Step 1
+        );
+        // Handle case where shop might not be found (though unlikely if user exists)
+        const shopExpiryDate = shopLicenseResult.rows.length > 0 ? shopLicenseResult.rows[0].license_expiry_date : null;
+        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate}`);
+
+
+        // --- Step 5: Prepare Token Payload (Using SHOP's expiry date) <<< UPDATED PAYLOAD >>> ---
         const tokenUser = {
             id: user.id,
             email: user.email,
             shopId: user.shop_id,
             name: user.name,
+            mobile: user.mobile, // Include mobile if you added it
             role: user.role,
             shopName: user.shop_name,
-            licenseExpiryDate: user.license_expiry_date,
+            licenseExpiryDate: shopExpiryDate, // <<< Use SHOP's expiry date
             status: user.status
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
-        // 2. अब लाइसेंस की जाँच करें
-        const expiryDate = user.license_expiry_date ? new Date(user.license_expiry_date) : null;
+        // --- Step 6: Check SHOP's License Expiry <<< UPDATED CHECK >>> ---
+        const expiryDate = shopExpiryDate ? new Date(shopExpiryDate) : null;
         const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0);
+        currentDate.setHours(0, 0, 0, 0); // Compare dates only, ignore time
+
         if (!expiryDate || expiryDate < currentDate) {
-             console.log('DEBUG LOGIN: License is missing or expired. Requires key.');
-             // 3. (FIX) लाइसेंस समाप्त है, लेकिन फिर भी टोकन के साथ 200 OK भेजें
-             return res.json({
-                 success: true, // लॉगिन सफल रहा
-                 message: 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है। कृपया लाइसेंस कुंजी दर्ज करें।',
-                 requiresLicense: true, // क्लाइंट को Modal दिखाने के लिए कहें
-                 token: token, // सक्रियण के लिए टोकन प्रदान करें
-                 user: tokenUser
-             });
+            console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} license is missing or expired. Requires key.`);
+            // License expired/missing for the SHOP, send requiresLicense: true
+            return res.json({
+                success: true, // Login itself is successful (user exists, password matches)
+                message: 'आपकी दुकान का लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया दुकान के एडमिन द्वारा लाइसेंस सक्रिय करें।', // Updated message
+                requiresLicense: true, // Tell client to show modal (only admin should activate)
+                token: token, // Send token so admin can activate if needed
+                user: tokenUser
+            });
         }
 
-        // 4. सफल लॉगिन (यदि लाइसेंस मान्य है)
+        // --- Step 7: Successful Login (Shop License is valid) ---
+        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} license is valid. Login successful for ${user.email}.`);
         res.json({
             success: true,
             message: 'लॉगिन सफल।',
-            requiresLicense: false,
+            requiresLicense: false, // License is okay, no modal needed
             token: token,
             user: tokenUser
        });
-        // --- (FIXED LOGIC END) ---
 
     } catch (err) {
-        console.error("Error logging in:", err.message);
-        res.status(500).json({ success: false, message: 'लॉगिन विफल: ' + err.message });
+        console.error("Error logging in:", err.message, err.stack); // Log stack trace for better debugging
+        res.status(500).json({ success: false, message: 'लॉगिन प्रक्रिया में सर्वर त्रुटि हुई: ' + err.message });
     }
 });
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// 5. License Activation Route (Securely update license expiry)
-// 🔑 (FIXED) यह रूट अब 'licenses' टेबल में असली (hashed) कीज़ की जाँच करेगा
+// 5. License Activation Route (Securely update license expiry) - UPDATED FOR SHOP-BASED LICENSE
 app.post('/api/activate-license', authenticateJWT, async (req, res) => {
     const { licenseKey } = req.body;
-    const userId = req.user.id;
-    const shopId = req.user.shopId;
+    // --- ROLE CHECK ADDED: Only Admin should activate ---
+    if (!req.user || req.user.role !== 'ADMIN') {
+        return res.status(403).json({ success: false, message: 'केवल दुकान का एडमिन ही लाइसेंस सक्रिय कर सकता है।' });
+    }
+    // --- END ROLE CHECK ---
+    const userId = req.user.id; // Keep user ID to mark who activated
+    const shopId = req.user.shopId; // Get shop ID from the authenticated user
 
     if (!licenseKey) {
-        return res.status(400).json({ success: false, message: 'लाइसेंस कुंजी आवश्यक है।' });
+        return res.status(400).json({ success: false, message: 'लाइसेंस कुंजी आवश्यक है.' });
     }
 
-    const keyHash = hashKey(licenseKey); // कुंजी को हैश करें
+    const keyHash = hashKey(licenseKey); // Hash the input key
     const client = await pool.connect();
 
     try {
-        await client.query('BEGIN');
+        await client.query('BEGIN'); // Start transaction
 
-        // 1. देखें कि क्या कुंजी 'licenses' टेबल में मौजूद है
+        // 1. Find the license key in the 'licenses' table and check its shop_id
         const licenseResult = await client.query(
-            'SELECT expiry_date, user_id FROM licenses WHERE key_hash = $1',
+            'SELECT expiry_date, user_id, shop_id FROM licenses WHERE key_hash = $1 FOR UPDATE', // Lock the row
             [keyHash]
         );
 
         if (licenseResult.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'अमान्य लाइसेंस कुंजी।' });
+            return res.status(400).json({ success: false, message: 'अमान्य लाइसेंस कुंजी.' });
         }
 
         const license = licenseResult.rows[0];
         const newExpiryDate = new Date(license.expiry_date);
         const now = new Date();
 
-        // 2. देखें कि क्या कुंजी पहले ही समाप्त हो चुकी है
+        // 2. Check if the key itself is expired
         if (newExpiryDate < now) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही समाप्त हो चुकी है।' });
+            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही समाप्त हो चुकी है.' });
         }
 
-        // 3. देखें कि क्या कुंजी पहले ही किसी और यूज़र द्वारा उपयोग की जा चुकी है
-        // (नोट: यदि user_id NULL है, तो इसका उपयोग किया जा सकता है)
-        if (license.user_id && license.user_id !== userId) {
+        // 3. Check if the key is already used by ANOTHER shop <<< MODIFIED CHECK >>>
+        // If license.shop_id exists and is different from the current user's shopId, it's used elsewhere.
+        if (license.shop_id && license.shop_id !== shopId) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही किसी अन्य खाते द्वारा उपयोग की जा चुकी है।' });
+            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही किसी अन्य दुकान द्वारा उपयोग की जा चुकी है.' });
+        }
+        // Note: We allow activating the same key again for the SAME shop (e.g., if admin reactivates),
+        // but we mainly care about preventing use across different shops.
+        // Also check user_id consistency if needed, but shop_id is primary now.
+
+        // 4. Update the SHOP's expiry date in the 'shops' table <<< MODIFIED UPDATE >>>
+        console.log(`DEBUG ACTIVATE: Updating shop ID ${shopId} expiry to ${newExpiryDate.toISOString()}`);
+        const updateShopResult = await client.query(
+            'UPDATE shops SET license_expiry_date = $1 WHERE id = $2',
+            [newExpiryDate, shopId]
+        );
+        if (updateShopResult.rowCount === 0) {
+             await client.query('ROLLBACK'); // Rollback if shop wasn't found
+             console.error(`License Activation Error: Shop ID ${shopId} not found.`);
+             return res.status(404).json({ success: false, message: 'सक्रियण विफल: संबंधित दुकान नहीं मिली.' });
         }
 
-        // 4. सब ठीक है!
-        //यूज़र की समाप्ति तिथि अपडेट करें
+
+        // 5. Mark the key as used by this user AND this shop in 'licenses' table <<< MODIFIED UPDATE >>>
+        console.log(`DEBUG ACTIVATE: Linking key ${keyHash} to user ID ${userId} and shop ID ${shopId}`);
         await client.query(
-            'UPDATE users SET license_expiry_date = $1 WHERE id = $2',
-            [newExpiryDate, userId]
+            'UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3', // Add shop_id assignment
+            [userId, shopId, keyHash] // Pass shopId as parameter
         );
-        // 5. कुंजी को "used" के रूप में चिह्नित करें (इसे इस यूज़र से लिंक करें)
-        await client.query(
-            'UPDATE licenses SET user_id = $1 WHERE key_hash = $2',
-            [userId, keyHash]
+
+        // --- Fetch updated data for the new token ---
+        // 6. Fetch updated SHOP expiry date (to be sure it's saved)
+        const updatedShopLicenseResult = await pool.query(
+           'SELECT license_expiry_date FROM shops WHERE id = $1',
+           [shopId]
         );
-        // 6. यूज़र का अपडेटेड डेटा (शॉप नाम सहित) पुनः प्राप्त करें
+        const updatedShopExpiryDate = updatedShopLicenseResult.rows[0].license_expiry_date;
+        console.log(`DEBUG ACTIVATE: Verified updated shop expiry: ${updatedShopExpiryDate}`);
+
+        // 7. Fetch user data again (shop_name needed for payload)
         const updatedUserResult = await client.query(
             'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
             [userId]
         );
         const updatedUser = updatedUserResult.rows[0];
 
-        // 7. नया टोकन जनरेट करें और वापस भेजें
+        // 8. Generate new token with the UPDATED SHOP expiry date <<< UPDATED PAYLOAD >>>
         const tokenUser = {
             id: updatedUser.id,
             email: updatedUser.email,
             shopId: updatedUser.shop_id,
             name: updatedUser.name,
+            mobile: updatedUser.mobile, // Include if added
             role: updatedUser.role,
             shopName: updatedUser.shop_name,
-            licenseExpiryDate: updatedUser.license_expiry_date,
+            licenseExpiryDate: updatedShopExpiryDate, // <<< Use UPDATED shop expiry date
             status: updatedUser.status
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
-        await client.query('COMMIT');
+        await client.query('COMMIT'); // Commit transaction
+        console.log(`DEBUG ACTIVATE: Shop ID ${shopId} successfully activated/renewed.`);
         res.json({
             success: true,
-            message: `लाइसेंस सफलतापूर्वक सक्रिय हो गया है। नई समाप्ति तिथि: ${newExpiryDate.toLocaleDateString()}`,
-            token: token,
-            user: tokenUser
+            message: `दुकान का लाइसेंस सफलतापूर्वक सक्रिय हो गया है। नई समाप्ति तिथि: ${newExpiryDate.toLocaleDateString()}`, // Updated message
+            token: token, // Send back new token with updated expiry
+            user: tokenUser // Send back potentially updated user info with new expiry
         });
+
     } catch (err) {
-        await client.query('ROLLBACK');
-        console.error("License Activation Error:", err.message);
+        await client.query('ROLLBACK'); // Rollback on any error
+        console.error("License Activation Error:", err.message, err.stack); // Log stack trace
         res.status(500).json({ success: false, message: 'लाइसेंस सक्रियण विफल: ' + err.message });
     } finally {
-        client.release();
+        if (client) {
+           client.release(); // Release client connection
+        }
     }
-});
-// --- 6. User Management (Shop Admin Only) ---
+});// --- 6. User Management (Shop Admin Only) ---
 
 // 6.1 Add New User to the Current Shop
 app.post('/api/users', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
@@ -2069,6 +2191,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
