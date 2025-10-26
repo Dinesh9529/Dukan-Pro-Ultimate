@@ -871,9 +871,7 @@ app.get('/api/search-items', authenticateJWT, async (req, res) => {
         res.json({ success: true, data: result.rows });
     } catch (err) {
         console.error("Error searching stock items:", err.message);
-        res.status(500).json({ success: false, message: 'आइटम खोजने में 
-विफल: ' + err.message });
-    }
+       res.status(500).json({ success: false, message: 'आइटम खोजने में विफल: ' + err.message });
 });
 
 // ------------------------------------------------------------------
@@ -2138,4 +2136,5 @@ createTables().then(() => {
 error.message);
     process.exit(1);
 });
+
 
