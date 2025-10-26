@@ -59,32 +59,41 @@ async function createTables() {
         // We ensure basic table exists and then use ALTER TABLE for missing columns.
         await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         // 🛑 FIX 2: Add 'status' column safely (Fixes the current error)
-        await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN
-                    ALTER TABLE users ADD COLUMN status TEXT DEFAULT
-'pending' CHECK (status IN ('active', 'pending', 'disabled'));
-                END IF;
-            END $$;
-        `);
-        // END FIX 2 🛑
+     // --- Users Table Creation and Modifications ---
+await client.query(`
+    DO $$
+    BEGIN
 
-        // Safely add 'mobile' column if it doesn't exist
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN
-                    ALTER TABLE users ADD COLUMN mobile TEXT; -- Optional: ADD UNIQUE
-                END IF;                   
+        -- Ensure base table exists first
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT DEFAULT 'CASHIER' CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER')),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
 
-        // 🛑 FIX 3: Add license_expiry_date column safely
-        await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'license_expiry_date') THEN
+        -- Safely add 'status' column
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN
+            ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled'));
+        END IF;
 
-        ALTER TABLE users ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
-                END IF;
-            END $$;
-        `);
-        // END FIX 3 🛑
+        -- Safely add 'mobile' column <<<< CORRECTED PLACEMENT
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN
+            ALTER TABLE users ADD COLUMN mobile TEXT; -- Optional: ADD UNIQUE
+        END IF;
 
+        -- Safely add 'license_expiry_date' column
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'license_expiry_date') THEN
+            ALTER TABLE users ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+        END IF;
+
+    END
+    $$;
+`);
+// --- End Users Table Modifications ---
         // 1. Licenses Table (Global, checked before registration)
         // (FIX) यूज़र को लिंक करने के लिए 'user_id' और ग्राहक की जानकारी के लिए 'customer_details' जोड़ा गया //
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
@@ -2071,4 +2080,5 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
