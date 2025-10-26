@@ -231,7 +231,9 @@ async function createTables() {
            client.release();
         }
     }
-}        // --- END NEW UPDATES (नई अपडेट्स समाप्त) ---
+}      
+
+// --- END NEW UPDATES (नई अपडेट्स समाप्त) ---
 
         // ------------------------------------------------------------------
         // --- 🚀 START: NEW SCHEMA ADDITIONS (आपकी नई आवश्यकताओं के लिए) ---
@@ -2191,6 +2193,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
