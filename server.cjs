@@ -615,7 +615,7 @@ return res.status(400).json({ success: false, message: 'यह लाइसे�
 }
 
         // 4. सब ठीक है!
-यूज़र की समाप्ति तिथि अपडेट करें
+//यूज़र की समाप्ति तिथि अपडेट करें
         await client.query(
             'UPDATE users SET license_expiry_date = $1 WHERE id = $2',
             [newExpiryDate, userId]
@@ -2138,3 +2138,4 @@ createTables().then(() => {
 error.message);
     process.exit(1);
 });
+
