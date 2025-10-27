@@ -210,15 +210,7 @@ async function createTables() {
 }
         
            
-    } catch (err) {
-        console.error('❌ Error ensuring database schema:', err.message, err.stack); // Added stack trace
-        process.exit(1); // Exit if schema setup fails
-    } finally {
-        if (client) { // Ensure client exists before releasing
-           client.release();
-        }
-    }
-} // <<< This is the correct end of the createTables function
+  
 // --- License Utilities ---
 function hashKey(key) {
     return crypto.createHash('sha256').update(key).digest('hex');
@@ -2097,6 +2089,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
