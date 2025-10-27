@@ -12,8 +12,9 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// JSON payload limit ko 10MB tak badhayein (logo ke liye)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 const PORT = process.env.PORT || 10000;
 const SECRET_KEY = process.env.SECRET_KEY ||
 'a_very_strong_secret_key_for_hashing'; // Must be secure!
@@ -2117,6 +2118,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
