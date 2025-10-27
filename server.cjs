@@ -55,7 +55,7 @@ async function createTables() {
         // 0. Shops / Tenant Table (Stores shop information)
         await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // --- NEW: Add license_expiry_date to shops table safely ---
+        // --- Add license_expiry_date to shops table safely ---
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN
@@ -63,71 +63,47 @@ async function createTables() {
                 END IF;
             END $$;
         `);
-        // --- END NEW ---
 
         // 0.5. Users Table (Stores login credentials and roles, linked to a shop)
-        // Ensure base table exists
         await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
         // --- Users Table Modifications (status and mobile only) ---
         await client.query(`
             DO $$
             BEGIN
-                -- Safely add 'status' column
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN
                     ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled'));
                 END IF;
-
-                -- Safely add 'mobile' column
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN
-                    ALTER TABLE users ADD COLUMN mobile TEXT; -- Optional: ADD UNIQUE
+                    ALTER TABLE users ADD COLUMN mobile TEXT;
                 END IF;
-
-                -- REMOVED: license_expiry_date is no longer added to users table
-
             END
             $$;
         `);
-        // --- End Users Table Modifications ---
 
-        // 1. Licenses Table (Global, checked before registration)
-        // (FIX) यूज़र को लिंक करने के लिए 'user_id' और ग्राहक की जानकारी के लिए 'customer_details' जोड़ा गया //
-        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
+        // 1. Licenses Table
+        await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);'); // Added shop_id here
 
-        // Add user_id safely (existing fix)
+        // Add user_id, customer_details, shop_id safely to licenses
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'user_id') THEN
                     ALTER TABLE licenses ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
                     CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses (user_id);
                 END IF;
-            END $$;
-        `);
-
-        // Add customer_details safely (existing fix)
-        await client.query(`
-            DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'customer_details') THEN
                     ALTER TABLE licenses ADD COLUMN customer_details JSONB;
                 END IF;
-            END $$;
-        `);
-
-        // --- NEW: Add shop_id to licenses table safely ---
-        await client.query(`
-            DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'shop_id') THEN
                     ALTER TABLE licenses ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL;
                     CREATE INDEX IF NOT EXISTS idx_licenses_shop_id ON licenses (shop_id);
                 END IF;
             END $$;
         `);
-        // --- END NEW ---
 
         // --- Multi-tenant modification: Add shop_id to all data tables ---
         const dataTables = ['stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
         for (const table of dataTables) {
-            // Safely add shop_id column if it doesn't exist
             await client.query(`
                 DO $$ BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = '${table}') AND attname = 'shop_id') THEN
@@ -138,181 +114,74 @@ async function createTables() {
             `);
         }
 
-        // 2. Stock Table (Now scoped by shop_id)
-        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, sku TEXT NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC DEFAULT 0, category TEXT, gst NUMERIC DEFAULT 0, hsn_code TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL, UNIQUE (shop_id, sku));'); // Added hsn_code and last_sale_date here directly for potentially new tables
-        // Add last_sale_date and hsn_code safely for existing tables (redundant if table is new, but safe)
-        await client.query(`
-             DO $$ BEGIN
-                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'last_sale_date') THEN
-                     ALTER TABLE stock ADD COLUMN last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL;
-                 END IF;
-                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'hsn_code') THEN
-                     ALTER TABLE stock ADD COLUMN hsn_code TEXT;
-                 END IF;
-             END $$;
-         `);
+        // 2. Stock Table
+        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, sku TEXT NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC DEFAULT 0, category TEXT, gst NUMERIC DEFAULT 0, hsn_code TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL, UNIQUE (shop_id, sku));');
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='stock') AND attname='last_sale_date') THEN ALTER TABLE stock ADD COLUMN last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='stock') AND attname='hsn_code') THEN ALTER TABLE stock ADD COLUMN hsn_code TEXT; END IF; END $$;`);
 
         // 3. Customers Table
-        await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, gstin TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);'); // Added gstin here
-        // Add gstin safely for existing tables
-         await client.query(`
-             DO $$ BEGIN
-                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'customers') AND attname = 'gstin') THEN
-                     ALTER TABLE customers ADD COLUMN gstin TEXT;
-                 END IF;
-             END $$;
-         `);
+        await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, gstin TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='customers') AND attname='gstin') THEN ALTER TABLE customers ADD COLUMN gstin TEXT; END IF; END $$;`);
 
         // 4. Invoices/Sales Table
         await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL, total_amount NUMERIC NOT NULL, total_cost NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // 5. Invoice Items (Items sold in a sale)
-        await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);'); // Added gst fields
-         // Add gst fields safely for existing tables
-         await client.query(`
-             DO $$ BEGIN
-                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
-                     ALTER TABLE invoice_items ADD COLUMN gst_rate NUMERIC DEFAULT 0;
-                 END IF;
-                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_amount') THEN
-                     ALTER TABLE invoice_items ADD COLUMN gst_amount NUMERIC DEFAULT 0;
-                 END IF;
-             END $$;
-         `);
+        // 5. Invoice Items
+        await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);');
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='gst_rate') THEN ALTER TABLE invoice_items ADD COLUMN gst_rate NUMERIC DEFAULT 0; END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='gst_amount') THEN ALTER TABLE invoice_items ADD COLUMN gst_amount NUMERIC DEFAULT 0; END IF; END $$;`);
 
-        // 6. Purchases Table (Stock Inflow)
-        await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, supplier_name TEXT NOT NULL, item_details TEXT, total_cost NUMERIC NOT NULL, gst_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);'); // Added gst_details
-         // Add gst_details safely for existing tables
-         await client.query(`
-             DO $$ BEGIN
-                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'purchases') AND attname = 'gst_details') THEN
-                     ALTER TABLE purchases ADD COLUMN gst_details JSONB;
-                 END IF;
-             END $$;
-         `);
+        // 6. Purchases Table
+        await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, supplier_name TEXT NOT NULL, item_details TEXT, total_cost NUMERIC NOT NULL, gst_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='purchases') AND attname='gst_details') THEN ALTER TABLE purchases ADD COLUMN gst_details JSONB; END IF; END $$;`);
 
         // 7. Expenses Table
         await client.query('CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, description TEXT NOT NULL, category TEXT, amount NUMERIC NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
 
-        // 8. Daily Closings Table (NEW)
+        // 8. Daily Closings Table
         await client.query('CREATE TABLE IF NOT EXISTS daily_closings (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, closing_date DATE NOT NULL, total_sales NUMERIC DEFAULT 0, total_cogs NUMERIC DEFAULT 0, total_expenses NUMERIC DEFAULT 0, net_profit NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, closing_date));');
 
-        // 9. Categories Table (NEW)
+        // 9. Categories Table
         await client.query('CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, name));');
 
-        // 10. Company Profile Table (NEW)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS company_profile (
-                shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE,
-                legal_name TEXT,
-                gstin TEXT,
-                address TEXT,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 10. Company Profile Table
+        await client.query(`CREATE TABLE IF NOT EXISTS company_profile (shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE, legal_name TEXT, gstin TEXT, address TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
-        // 11. Renewal Requests Table (NEW)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS renewal_requests (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id),
-                user_email TEXT,
-                message TEXT,
-                requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        // 11. Renewal Requests Table
+        await client.query(`CREATE TABLE IF NOT EXISTS renewal_requests (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), user_email TEXT, message TEXT, requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
-        console.log('✅ All tables and columns (including shop_id and license logic changes) checked/created successfully.');
+        // --- NEW SCHEMA ADDITIONS (MOVED HERE, INSIDE TRY BLOCK) ---
+        // (These were already added safely above using DO $$ blocks, keeping them here is redundant but safe)
+        // 1. GSTR और बेहतर रिपोर्टिंग के लिए स्टॉक में HSN कोड जोड़ना (Already handled above)
+        // await client.query(`DO $$ BEGIN IF NOT EXISTS (...) THEN ALTER TABLE stock ADD COLUMN hsn_code TEXT; END IF; END $$;`);
+
+        // 2. GSTR (B2B) के लिए ग्राहकों में GSTIN जोड़ना (Already handled above)
+        // await client.query(`DO $$ BEGIN IF NOT EXISTS (...) THEN ALTER TABLE customers ADD COLUMN gstin TEXT; END IF; END $$;`);
+
+        // 3. GSTR-1 रिपोर्टिंग के लिए Invoice Items में GST दरें जोड़ना (Already handled above)
+        // await client.query(`DO $$ BEGIN IF NOT EXISTS (...) THEN ALTER TABLE invoice_items ADD COLUMN gst_rate ... END IF; ... END $$;`);
+
+        // 4. GSTR-2 (Purchases) के लिए Purchases में GST विवरण जोड़ना (Already handled above)
+        // await client.query(`DO $$ BEGIN IF NOT EXISTS (...) THEN ALTER TABLE purchases ADD COLUMN gst_details JSONB; END IF; END $$;`);
+
+        // 5. GSTR रिपोर्टिंग के लिए शॉप की कंपनी प्रोफाइल (GSTIN, नाम) (Already handled above)
+        // await client.query(`CREATE TABLE IF NOT EXISTS company_profile (...)`);
+
+        // 6. लाइसेंस रिन्यूअल अनुरोधों को ट्रैक करने के लिए नई टेबल (Already handled above)
+        // await client.query(`CREATE TABLE IF NOT EXISTS renewal_requests (...)`);
+        // --- END MOVED SECTION ---
+
+        console.log('✅ All tables and columns checked/created successfully.'); // <<< This should be the last successful log inside try
+
     } catch (err) {
-        console.error('❌ Error ensuring database schema:', err.message);
+        console.error('❌ Error ensuring database schema:', err.message, err.stack); // Added stack trace
         process.exit(1); // Exit if schema setup fails
     } finally {
         if (client) { // Ensure client exists before releasing
            client.release();
         }
     }
-}      
+}
 
-// --- END NEW UPDATES (नई अपडेट्स समाप्त) ---
-
-        // ------------------------------------------------------------------
-        // --- 🚀 START: NEW SCHEMA ADDITIONS (आपकी नई आवश्यकताओं के लिए) ---
-        // --- (मौजूदा कोड को बदले बिना जोड़ा गया) ---
-        // ------------------------------------------------------------------
-
-       
-
-// 1. GSTR और बेहतर रिपोर्टिंग के लिए स्टॉक में HSN कोड जोड़ना
-
-
-        await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'hsn_code') THEN
-                    ALTER TABLE stock ADD COLUMN hsn_code TEXT;
-                END IF;
-            END $$;
-        `);
-
-        // 2. GSTR (B2B) के लिए ग्राहकों में GSTIN जोड़ना
-        await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'customers') AND attname = 'gstin') THEN
-                    ALTER TABLE customers ADD COLUMN gstin TEXT;
-                END IF;
-            END $$;
-        `);
-
-        // 3. GSTR-1 रिपोर्टिंग के लिए Invoice Items में GST दरें जोड़ना
-        // (नोट: सटीक रिपोर्टिंग के लिए POST /api/invoices को इन्हें सेव करने के लिए बदलना होगा,
-        // लेकिन "नो चेंज" नियम के कारण, हम मौजूदा कोड को नहीं बदल रहे हैं।)
-        await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
-                    ALTER TABLE invoice_items ADD COLUMN gst_rate NUMERIC DEFAULT 0;
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_amount') THEN
-                    ALTER TABLE invoice_items ADD COLUMN gst_amount NUMERIC DEFAULT 0;
-                END IF;
-            END $$;
-        `);
-
-        // 4. GSTR-2 (Purchases) के लिए Purchases में GST विवरण जोड़ना
-        await client.query(`
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'purchases') AND attname = 'gst_details') THEN
-                    ALTER TABLE purchases ADD COLUMN gst_details JSONB;
-                END IF;
-            END $$;
-        `);
-
-        // 5. GSTR रिपोर्टिंग के लिए शॉप की कंपनी प्रोफाइल (GSTIN, नाम)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS company_profile (
-                shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE,
-                legal_name TEXT,
-                gstin TEXT,
-                address TEXT,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // 6. लाइसेंस रिन्यूअल अनुरोधों को ट्रैक करने के लिए नई टेबल
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS renewal_requests (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id),
-                user_email TEXT,
-                message TEXT,
-                requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // ------------------------------------------------------------------
-        // --- 🚀 END: NEW SCHEMA ADDITIONS ---
-        // ------------------------------------------------------------------
-
-
-        console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
+console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
     } catch (err) {
         console.error('❌ Error ensuring database schema:', err.message);
         process.exit(1);
@@ -2197,6 +2066,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
