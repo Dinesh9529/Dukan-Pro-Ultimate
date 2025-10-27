@@ -170,24 +170,13 @@ async function createTables() {
         // --- END MOVED SECTION ---
 
         console.log('✅ All tables and columns checked/created successfully.'); // <<< This should be the last successful log inside try
-
-    } catch (err) {
+     } catch (err) {
         console.error('❌ Error ensuring database schema:', err.message, err.stack); // Added stack trace
         process.exit(1); // Exit if schema setup fails
     } finally {
         if (client) { // Ensure client exists before releasing
            client.release();
        
-    
-
-console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
-    } catch (err) {
-        console.error('❌ Error ensuring database schema:', err.message);
-        process.exit(1);
-    } finally {
-        client.release();
-    }
-}
 
 // --- License Utilities ---
 function hashKey(key) {
@@ -2065,6 +2054,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
