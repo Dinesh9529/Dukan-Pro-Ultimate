@@ -177,9 +177,8 @@ async function createTables() {
     } finally {
         if (client) { // Ensure client exists before releasing
            client.release();
-        }
-    }
-
+       
+    
 
 console.log('✅ All tables and columns (including shop_id) checked/created successfully.');
     } catch (err) {
@@ -2066,6 +2065,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
