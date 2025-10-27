@@ -2051,11 +2051,11 @@ createTables().then(() => {
         console.log('🔒 Authentication: JWT is required for all data routes.');
         console.log('🔑 Multi-tenancy: All data is scoped by shop_id.\n');
     });
-})
-    catch(error => {
+}).catch(error => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
