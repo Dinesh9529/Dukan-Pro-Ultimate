@@ -821,7 +821,7 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), async (req
 // --- 7. Stock Management ---
 
 // 7.1 Stock Management - Add/Update (SCOPED & Transactional)
-app.post('/api/stock', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
     const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category } = req.body;
     const shopId = req.shopId;
 
@@ -1504,7 +1504,7 @@ app.get('/api/admin/backup-all', authenticateJWT, checkRole('ADMIN'), async (req
     }
 });
 // 11.2 Get Sales by Day (Line Chart Data)
-app.get('/api/dashboard/sales-by-day', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+app.get('/api/dashboard/sales-by-day', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
     const shopId = req.shopId;
     const { days = 30 } = req.query; // Default to last 30 days
     const daysInt = parseInt(days);
@@ -2117,6 +2117,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
