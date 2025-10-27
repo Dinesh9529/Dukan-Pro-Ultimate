@@ -1284,7 +1284,7 @@ app.delete('/api/expenses/:expenseId', authenticateJWT, checkRole('ADMIN'), asyn
 // --- 11. Reporting and Dashboard (Admin/Manager) ---
 
 // 11.1 Get Dashboard Summary (Sales, Costs, Profit, Stock Value)
-app.get('/api/dashboard/summary', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+app.get('/api/dashboard/summary', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
     const shopId = req.shopId;
     const { days = 30 } = req.query; // Default to last 30 days
     const daysInt = parseInt(days);
@@ -2117,6 +2117,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
