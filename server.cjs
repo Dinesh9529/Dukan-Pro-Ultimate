@@ -123,23 +123,11 @@ async function createTables() {
         // 11. Renewal Requests Table
         await client.query(`CREATE TABLE IF NOT EXISTS renewal_requests (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), user_email TEXT, message TEXT, requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
-        console.log('✅ All tables and columns checked/created successfully.');
-
-    } catch (err) {
-        console.error('❌ Error ensuring database schema:', err.message, err.stack);
-        process.exit(1);
-    } finally {
-        if (client) {
-           client.release();
-        }
-    }
-}
-        
-        // --- MOVED SECTION (Now inside the try block) ---
+         // --- MOVED SECTION (Now inside the try block) ---
         // 1. GSTR और बेहतर रिपोर्टिंग के लिए स्टॉक में HSN कोड जोड़ना
         // (Note: This is redundant because it's already handled in the CREATE/ALTER logic for 'stock' table above, but it is safe to leave)
         // Fix for "await is only valid in async functions" SyntaxError
-(async () => {
+
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'hsn_code') THEN
@@ -180,7 +168,7 @@ async function createTables() {
                 END IF;
             END $$;
         `);
-    })();
+    
 
         // 5. GSTR रिपोर्टिंग के लिए शॉप की कंपनी प्रोफाइल (GSTIN, नाम)
         // (Note: This is redundant because it's already handled above, but it is safe to leave)
@@ -209,7 +197,19 @@ async function createTables() {
 
 
         console.log('✅ All tables and columns (including shop_id and license logic changes) checked/created successfully.'); // <<< This is now the last line inside the try block
-    
+       
+
+    } catch (err) {
+        console.error('❌ Error ensuring database schema:', err.message, err.stack);
+        process.exit(1);
+    } finally {
+        if (client) {
+           client.release();
+        }
+    }
+}
+        
+           
     } catch (err) {
         console.error('❌ Error ensuring database schema:', err.message, err.stack); // Added stack trace
         process.exit(1); // Exit if schema setup fails
@@ -2097,6 +2097,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
