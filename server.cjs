@@ -1983,6 +1983,7 @@ app.get('/api/reports/gstr3b', authenticateJWT, checkRole('MANAGER'), async (req
         message: "GSTR-3B सारांश",
         note: "यह सुविधा GSTR-1 और GSTR-2 रिपोर्टों पर निर्भर करती है। वर्तमान डेटा स्कीमा के साथ सटीक GSTR-3B संभव नहीं है."
     });
+});
 
 
 
@@ -2055,6 +2056,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
