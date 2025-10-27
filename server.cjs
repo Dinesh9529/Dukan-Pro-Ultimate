@@ -138,6 +138,8 @@ async function createTables() {
         // --- MOVED SECTION (Now inside the try block) ---
         // 1. GSTR और बेहतर रिपोर्टिंग के लिए स्टॉक में HSN कोड जोड़ना
         // (Note: This is redundant because it's already handled in the CREATE/ALTER logic for 'stock' table above, but it is safe to leave)
+        // Fix for "await is only valid in async functions" SyntaxError
+(async () => {
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'hsn_code') THEN
@@ -178,6 +180,7 @@ async function createTables() {
                 END IF;
             END $$;
         `);
+    })();
 
         // 5. GSTR रिपोर्टिंग के लिए शॉप की कंपनी प्रोफाइल (GSTIN, नाम)
         // (Note: This is redundant because it's already handled above, but it is safe to leave)
@@ -2094,6 +2097,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
