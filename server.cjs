@@ -13,6 +13,11 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
+// [ यह नया कोड यहाँ जोड़ें ]
+// --- 🚀 WEBSOCKET सेटअप START ---
+const http = require('http'); // 1. HTTP सर्वर की आवश्यकता
+const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर की आवश्यकता
+// --- 🚀 WEBSOCKET सेटअप END ---
 const app = express();
 // JSON payload limit ko 10MB tak badhayein (logo ke liye)
 app.use(express.json({ limit: '10mb' }));
@@ -2382,30 +2387,142 @@ app.post('/api/request-renewal', authenticateJWT, async (req, res) => {
 
 
 
+// [ यह नया कोड यहाँ पेस्ट करें ]
+
 // -----------------------------------------------------------------------------
-// VI. SERVER INITIALIZATION
+// VI. SERVER INITIALIZATION (WebSocket के साथ)
 // -----------------------------------------------------------------------------
 
 // Default route
 app.get('/', (req, res) => {
-    res.send('Dukan Pro Backend is Running. Use /api/login or /api/verify-license.');
+    res.send('Dukan Pro Backend (with WebSocket) is Running.');
 });
-            
+
+// --- 🚀 WEBSOCKET सर्वर लॉजिक START ---
+
+// 1. HTTP सर्वर बनाएँ और Express ऐप को उससे जोड़ें
+const server = http.createServer(app);
+
+// 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
+const wss = new WebSocketServer({ server });
+
+// 3. पेयरिंग के लिए कनेक्शन स्टोर करें
+const pairingMap = new Map(); // pairCode -> posSocket
+const scannerToPosMap = new Map(); // scannerSocket -> posSocket
+const posToScannerMap = new Map(); // posSocket -> scannerSocket
+
+function generatePairCode() {
+    // 6 अंकों का रैंडम कोड
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+wss.on('connection', (ws) => {
+    console.log('WebSocket Client Connected');
+
+    ws.on('message', (message) => {
+        let data;
+        try {
+            data = JSON.parse(message);
+        } catch (e) {
+            console.error('Invalid WebSocket message:', message);
+            return;
+        }
+
+        switch (data.type) {
+            // केस 1: POS (कंप्यूटर) रजिस्टर करता है
+            case 'REGISTER_POS':
+                try {
+                    // (वैकल्पिक: यहाँ टोकन को वेरिफाई करें, अभी के लिए हम भरोसा कर रहे हैं)
+                    const pairCode = generatePairCode();
+                    pairingMap.set(pairCode, ws); // कोड के साथ POS को मैप करें
+                    posToScannerMap.set(ws, null); // अभी कोई स्कैनर नहीं है
+                    console.log(`POS Registered. Pair Code: ${pairCode}`);
+                    ws.send(JSON.stringify({ type: 'PAIR_CODE_GENERATED', pairCode }));
+                } catch (e) {
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Authentication failed' }));
+                }
+                break;
+
+            // केस 2: मोबाइल स्कैनर रजिस्टर करता है
+            case 'REGISTER_SCANNER':
+                const posSocket = pairingMap.get(data.pairCode);
+                if (posSocket) {
+                    console.log('Scanner Paired successfully!');
+                    scannerToPosMap.set(ws, posSocket); // स्कैनर -> POS
+                    posToScannerMap.set(posSocket, ws); // POS -> स्कैनर
+                    pairingMap.delete(data.pairCode); // कोड का काम हो गया, उसे हटा दें
+
+                    // दोनों को बताएँ कि वे कनेक्ट हो गए हैं
+                    posSocket.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
+                    ws.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
+                } else {
+                    console.log('Scanner Pair Failed. Invalid code:', data.pairCode);
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Pair Code' }));
+                }
+                break;
+
+            // केस 3: मोबाइल स्कैनर ने एक SKU भेजा
+            case 'SCAN_SKU':
+                const pairedPosSocket = scannerToPosMap.get(ws);
+                if (pairedPosSocket) {
+                    console.log(`Relaying SKU ${data.sku} to paired POS`);
+                    // SKU को सीधे POS (कंप्यूटर) को भेजें
+                    pairedPosSocket.send(JSON.stringify({ type: 'SKU_SCANNED', sku: data.sku }));
+                } else {
+                    console.log('SKU received from unpaired scanner');
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Not Paired' }));
+                }
+                break;
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('WebSocket Client Disconnected');
+        
+        // मैप्स को साफ़ करें
+        if (posToScannerMap.has(ws)) {
+            // यह एक POS था जो डिस्कनेक्ट हुआ
+            const pairedScannerSocket = posToScannerMap.get(ws);
+            if (pairedScannerSocket) {
+                pairedScannerSocket.send(JSON.stringify({ type: 'POS_DISCONNECTED' }));
+                scannerToPosMap.delete(pairedScannerSocket);
+            }
+            posToScannerMap.delete(ws);
+        } else if (scannerToPosMap.has(ws)) {
+            // यह एक स्कैनर था जो डिस्कनेक्ट हुआ
+            const pairedPosSocket = scannerToPosMap.get(ws);
+            if (pairedPosSocket) {
+                pairedPosSocket.send(JSON.stringify({ type: 'SCANNER_DISCONNECTED' }));
+                posToScannerMap.set(pairedPosSocket, null);
+            }
+            scannerToPosMap.delete(ws);
+        }
+        // पेंडिंग pairCodes को भी साफ़ करें
+        pairingMap.forEach((socket, code) => {
+            if (socket === ws) {
+                pairingMap.delete(code);
+            }
+        });
+    });
+});
+// --- 🚀 WEBSOCKET सर्वर लॉजिक END ---
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
-    app.listen(PORT, () => {
+    // 4. app.listen की जगह server.listen का उपयोग करें
+    server.listen(PORT, () => {
         console.log(`\n🎉 Server is running securely on port ${PORT}`);
-        console.log(`🌐 API Endpoint: https://dukan-pro-ultimate.onrender.com:${PORT}`); // Corrected: Added PORT
+        console.log(`🌐 API Endpoint: https://dukan-pro-ultimate.onrender.com:${PORT}`); 
+        console.log('🚀 WebSocket Server is running on the same port.');
         console.log('--------------------------------------------------');
         console.log('🔒 Authentication: JWT is required for all data routes.');
         console.log('🔑 Multi-tenancy: All data is scoped by shop_id.\n');
     });
 }).catch(error => {
-    console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
+    console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
-
-
 
 
 
