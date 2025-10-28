@@ -1084,7 +1084,6 @@ app.get('/api/customers', authenticateJWT, async (req, res) => {
         console.error("Error fetching customers:", err.message);
         res.status(500).json({ success: false, message: 'ग्राहक सूची प्राप्त करने में विफल.' });
     }
-});
 
     // Check if customer already exists in this shop by name or phone
     try {
@@ -2127,6 +2126,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
