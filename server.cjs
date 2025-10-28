@@ -5,6 +5,8 @@
 // -----------------------------------------------------------------------------
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const cors = require('cors');
@@ -2093,8 +2095,7 @@ app.post('/api/request-renewal', authenticateJWT, async (req, res) => {
 // --- 16. MOBILE SCANNER ROUTE (NEW) ---
 // -----------------------------------------------------------------------------
 
-const fs = require('fs');
-const path = require('path');
+
 
 // यह रूट mobile_scanner.html फ़ाइल को परोसता है
 app.get('/mobile_scanner.html', (req, res) => {
@@ -2140,6 +2141,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
