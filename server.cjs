@@ -2084,7 +2084,8 @@ app.get('/api/shop/company-profile', authenticateJWT, checkRole('MANAGER'), asyn
     }
 });
 
-// 15.2 Simplified GSTR-1 (Sales) Report
+// [ server.cjs फ़ाइल में इस पूरे फ़ंक्शन को बदलें ]
+// 15.2 Tally-Style GSTR-1 (Sales) Report
 app.get('/api/reports/gstr1', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
     const { startDate, endDate } = req.query;
@@ -2093,61 +2094,94 @@ app.get('/api/reports/gstr1', authenticateJWT, checkRole('MANAGER'), async (req,
         return res.status(400).json({ success: false, message: 'StartDate और EndDate आवश्यक हैं.' });
     }
 
-    // (नोट: यह एक सरलीकृत रिपोर्ट है। यह 'invoice_items' को 'stock' से जोड़कर
-    // GST दर का "अनुमान" लगाती है, क्योंकि 'invoice_items' में GST डेटा सहेजा नहीं गया है।)
+    const client = await pool.connect();
     try {
-        const b2c_summary = await pool.query(
-            `SELECT
-                COALESCE(s.gst, 0) AS gst_rate,
-                SUM(ii.quantity * ii.sale_price) AS taxable_value
-             FROM invoice_items ii
-             JOIN invoices i ON ii.invoice_id = i.id
-             LEFT JOIN stock s ON ii.item_sku = s.sku AND s.shop_id = i.shop_id
-             WHERE i.shop_id = $1 AND i.created_at >= $2 AND i.created_at <= $3
-               AND (i.customer_id IS NULL OR (SELECT c.gstin FROM customers c WHERE c.id = i.customer_id) IS NULL)
-             GROUP BY s.gst`,
-            [shopId, startDate, endDate]
-        );
+        // --- 1. B2B (Business-to-Business) - Invoices grouped by GSTIN ---
+        // यह उन सभी बिक्रियों को लाता है जहाँ ग्राहक का GSTIN सेव किया गया था
+        const b2b_query = `
+            SELECT 
+                i.customer_gstin,
+                c.name AS customer_name,
+                i.id AS invoice_number,
+                i.created_at AS invoice_date,
+                SUM(ii.sale_price * ii.quantity) AS total_taxable_value,
+                SUM(ii.igst_amount) AS total_igst,
+                SUM(ii.cgst_amount) AS total_cgst,
+                SUM(ii.sgst_amount) AS total_sgst
+            FROM invoices i
+            JOIN invoice_items ii ON i.id = ii.invoice_id
+            LEFT JOIN customers c ON i.customer_id = c.id
+            WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3
+              AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''
+            GROUP BY i.customer_gstin, c.name, i.id, i.created_at
+            ORDER BY i.customer_gstin, i.created_at;
+        `;
+        const b2b_result = await client.query(b2b_query, [shopId, startDate, endDate]);
 
-        // (B2B के लिए, हमें ग्राहक के GSTIN की आवश्यकता होगी)
-        const b2b_summary = await pool.query(
-            `SELECT
-                c.gstin,
-                i.id as invoice_number,
-                i.created_at as invoice_date,
-                SUM(ii.quantity * ii.sale_price) AS taxable_value
-             FROM invoice_items ii
-             JOIN invoices i ON ii.invoice_id = i.id
-             JOIN customers c ON i.customer_id = c.id
-             WHERE i.shop_id = $1 AND i.created_at >= $2 AND i.created_at <= $3
-               AND c.gstin IS NOT NULL
-             GROUP BY c.gstin, i.id, i.created_at`,
-            [shopId, startDate, endDate]
-        );
+        // --- 2. B2C (Small - Business-to-Consumer) - Sales grouped by Rate and Place of Supply ---
+        // यह उन सभी बिक्रियों को लाता है जहाँ ग्राहक का GSTIN नहीं था
+        const b2c_query = `
+            SELECT 
+                i.place_of_supply,
+                ii.gst_rate,
+                SUM(ii.sale_price * ii.quantity) AS taxable_value,
+                SUM(ii.igst_amount) AS total_igst,
+                SUM(ii.cgst_amount) AS total_cgst,
+                SUM(ii.sgst_amount) AS total_sgst,
+                SUM(ii.gst_amount) AS total_tax
+            FROM invoices i
+            JOIN invoice_items ii ON i.id = ii.invoice_id
+            WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3
+              AND (i.customer_gstin IS NULL OR i.customer_gstin = '')
+            GROUP BY i.place_of_supply, ii.gst_rate
+            ORDER BY i.place_of_supply;
+        `;
+        const b2c_result = await client.query(b2c_query, [shopId, startDate, endDate]);
+
+        // --- 3. HSN/SAC Summary ---
+        // यह सभी बेची गई वस्तुओं को उनके HSN कोड के अनुसार ग्रुप करता है
+        const hsn_query = `
+            SELECT 
+                s.hsn_code,
+                ii.item_name,
+                s.unit,
+                ii.gst_rate,
+                SUM(ii.quantity) AS total_quantity,
+                SUM(ii.sale_price * ii.quantity) AS total_taxable_value,
+                SUM(ii.gst_amount) AS total_tax,
+                SUM(ii.igst_amount) AS total_igst,
+                SUM(ii.cgst_amount) AS total_cgst,
+                SUM(ii.sgst_amount) AS total_sgst
+            FROM invoice_items ii
+            JOIN invoices i ON ii.invoice_id = i.id
+            LEFT JOIN stock s ON ii.item_sku = s.sku AND s.shop_id = i.shop_id
+            WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3
+            GROUP BY s.hsn_code, ii.item_name, s.unit, ii.gst_rate
+            ORDER BY s.hsn_code;
+        `;
+        const hsn_result = await client.query(hsn_query, [shopId, startDate, endDate]);
 
         res.json({
             success: true,
             report: {
                 period: { start: startDate, end: endDate },
-                gstr1_summary: {
-                    b2c: b2c_summary.rows.map(row => ({
-                        gst_rate: parseFloat(row.gst_rate),
-                        taxable_value: parseFloat(row.taxable_value).toFixed(2),
-                        // (हम टैक्स की गणना नहीं कर सकते क्योंकि यह सहेजा नहीं गया है)
-                        tax_amount: 0
-                    })),
-                    b2b: b2b_summary.rows
-                },
-                note: "यह एक सरलीकृत GSTR-1 रिपोर्ट है। सटीक टैक्स राशि के लिए मौजूदा कोड में बदलाव की आवश्यकता है."
+                b2b: b2b_result.rows, // B2B इनवॉइस लिस्ट
+                b2c: b2c_result.rows, // B2C समरी (राज्य और रेट के अनुसार)
+                hsn_summary: hsn_result.rows // HSN समरी
             }
         });
+
     } catch (err) {
-        console.error("Error generating GSTR-1 report:", err.message);
-        res.status(500).json({ success: false, message: 'GSTR-1 रिपोर्ट बनाने में विफल: ' + err.message });
+        console.error("Error generating GSTR-1 Tally report:", err.message, err.stack);
+        res.status(500).json({ success: false, message: 'GSTR-1 Tally रिपोर्ट बनाने में विफल: ' + err.message });
+    } finally {
+        if (client) client.release();
     }
 });
 
-// 15.3 Simplified GSTR-2 (Purchases) Report (Placeholder)
+
+// [ server.cjs फ़ाइल में इस पूरे फ़ंक्शन को बदलें ]
+// 15.3 Tally-Style GSTR-2 (Purchases) Report
 app.get('/api/reports/gstr2', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
     const { startDate, endDate } = req.query;
@@ -2156,23 +2190,56 @@ app.get('/api/reports/gstr2', authenticateJWT, checkRole('MANAGER'), async (req,
         return res.status(400).json({ success: false, message: 'StartDate और EndDate आवश्यक हैं.' });
     }
 
-    // (नोट: 'purchases' टेबल में GST विवरण नहीं है, इसलिए यह केवल कुल खरीद दिखाएगा)
+    const client = await pool.connect();
     try {
-        const purchases = await pool.query(
-             'SELECT supplier_name, total_cost, created_at, gst_details FROM purchases WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3',
-            [shopId, startDate, endDate]
-        );
+        // --- 1. B2B (Purchases from Registered Suppliers) ---
+        // यह 'gst_details' वाले सभी परचेस को B2B मानता है
+        const b2b_query = `
+            SELECT 
+                id,
+                supplier_name,
+                total_cost,
+                created_at,
+                gst_details -- यह JSONB कॉलम है
+            FROM purchases 
+            WHERE shop_id = $1 AND created_at BETWEEN $2 AND $3
+              AND gst_details IS NOT NULL AND gst_details::text != '{}'
+            ORDER BY created_at;
+        `;
+        const b2b_result = await client.query(b2b_query, [shopId, startDate, endDate]);
+
+        // --- 2. ITC (Input Tax Credit) Summary ---
+        // यह JSONB कॉलम से टैक्स की गणना करता है
+        // (नोट: यह तभी काम करेगा जब gst_details में 'taxable_value', 'igst', 'cgst', 'sgst' हो)
+        const itc_query = `
+            SELECT 
+                SUM(COALESCE((gst_details->>'taxable_value')::numeric, 0)) AS total_taxable_value,
+                SUM(COALESCE((gst_details->>'igst')::numeric, 0)) AS total_igst,
+                SUM(COALESCE((gst_details->>'cgst')::numeric, 0)) AS total_cgst,
+                SUM(COALESCE((gst_details->>'sgst')::numeric, 0)) AS total_sgst
+            FROM purchases
+            WHERE shop_id = $1 AND created_at BETWEEN $2 AND $3
+              AND gst_details IS NOT NULL AND gst_details::text != '{}';
+        `;
+        const itc_result = await client.query(itc_query, [shopId, startDate, endDate]);
 
         res.json({
             success: true,
-            report: purchases.rows,
-             note: "यह एक सरलीकृत GSTR-2 रिपोर्ट है। 'purchases' टेबल में विस्तृत GST डेटा (gst_details) नहीं है."
+            report: {
+                period: { start: startDate, end: endDate },
+                b2b_purchases: b2b_result.rows, // B2B परचेस की लिस्ट
+                itc_summary: itc_result.rows[0] // कुल ITC समरी
+            }
         });
+
     } catch (err) {
-        console.error("Error generating GSTR-2 report:", err.message);
-        res.status(500).json({ success: false, message: 'GSTR-2 रिपोर्ट बनाने में विफल: ' + err.message });
+        console.error("Error generating GSTR-2 Tally report:", err.message, err.stack);
+        res.status(500).json({ success: false, message: 'GSTR-2 Tally रिपोर्ट बनाने में विफल: ' + err.message });
+    } finally {
+        if (client) client.release();
     }
 });
+
 
 // 15.4 Tally-Style GSTR-3B Summary
 app.get('/api/reports/gstr3b', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
@@ -2364,6 +2431,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
