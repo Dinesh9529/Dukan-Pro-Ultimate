@@ -6,169 +6,180 @@
     <title>Dukan Pro Mobile Scanner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f1f5f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            flex-direction: column;
-        }
-        #scanner-container {
-            width: 100%;
-            max-width: 400px;
-            position: relative;
-            border-radius: 1rem;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-        }
-        
-        /* 2. यह नया HTML एलिमेंट है जहाँ स्कैनर दिखेगा */
-        #qr-reader {
-            width: 100%;
-            background-color: #1e293b;
-        }
-        
-        /* स्कैनर के अंदर के वीडियो को सही से फिट करें */
-        #qr-reader video {
-            width: 100% !important;
-            height: auto !important;
-        }
-
-        .status-box {
-            padding: 1rem;
-            background-color: #1e293b;
-            text-align: center;
-        }
-        .scan-feedback {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #fbbf24; /* Yellow */
-            min-height: 1.5rem;
-        }
-        .token-status {
-            margin-top: 0.5rem;
-            padding: 0.5rem;
-            background-color: #334155;
-            border-radius: 0.5rem;
-            font-size: 0.9rem;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; flex-direction: column; }
+        #scanner-container { width: 100%; max-width: 400px; position: relative; border-radius: 1rem; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); }
+        #qr-reader { width: 100%; background-color: #1e293b; }
+        #qr-reader video { width: 100% !important; height: auto !important; }
+        .status-box { padding: 1.5rem; background-color: #1e293b; text-align: center; }
+        .scan-feedback { font-size: 1.1rem; font-weight: 600; color: #fbbf24; min-height: 1.5rem; }
+        .status-message { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; }
     </style>
 </head>
 <body>
 
     <div id="scanner-container">
         <div id="qr-reader"></div>
-        
         <div class="status-box">
+            <div id="status-message">कैमरा शुरू हो रहा है...</div>
             <div id="scan-feedback" class="scan-feedback">&nbsp;</div>
-            <div id="token-status" class="token-status text-gray-400">
-                टोकन प्राप्त हो रहा है...
-            </div>
         </div>
     </div>
 
-    <p class="mt-4 text-gray-400 text-sm">बारकोड को स्कैन एरिया के बीच में रखें।</p>
-
 <script>
     // --- CONFIGURATION ---
-    let html5QrCode;
-    let authData = {
-        token: null,
-        backendUrl: null,
-        shopId: null,
-        connected: false
+    const APP_STATE = {
+        PAIRING_QR: 'PAIRING_QR', // कंप्यूटर से पेयरिंग के लिए QR स्कैन
+        SCANNING_PRODUCTS: 'SCANNING_PRODUCTS', // प्रोडक्ट स्कैनिंग
+        LEGACY_POSTMESSAGE: 'LEGACY_POSTMESSAGE' // मोबाइल-ओनली मोड
     };
+    let currentState = null;
+    let html5QrCode;
+    let scannerSocket = null;
+    let lastScanTime = 0;
+    
+    // 1. बैकएंड URL (यह वही होना चाहिए जो आपके Multiuser.html में है)
+    const BACKEND_URL = 'https://dukan-pro-ultimate.onrender.com'; //
 
+    const statusMessage = document.getElementById('status-message');
     const scanFeedback = document.getElementById('scan-feedback');
-    const tokenStatus = document.getElementById('token-status');
-    let lastScanTime = 0; // स्कैन फ़्लडिंग को रोकने के लिए
 
-    function updateStatus(feedback = '', isConnected = false) {
+    function updateStatus(message, feedback = "") {
+        if (message) statusMessage.innerText = message;
+        if (feedback) scanFeedback.innerText = feedback;
+    }
+    
+    function flashFeedback(feedback) {
         scanFeedback.innerText = feedback;
-        if (isConnected) {
-            tokenStatus.classList.remove('bg-gray-700', 'text-gray-400');
-            tokenStatus.classList.add('bg-green-600', 'text-white');
-            tokenStatus.innerText = '✅ POS से जुड़ा हुआ';
+        setTimeout(() => {
+            if (currentState === APP_STATE.SCANNING_PRODUCTS || currentState === APP_STATE.LEGACY_POSTMESSAGE) {
+                scanFeedback.innerText = "प्रोडक्ट स्कैन करने के लिए तैयार...";
+            }
+        }, 2000);
+    }
+
+    // --- 🚀 हाइब्रिड लॉजिक ---
+
+    // 1. 'postMessage' लॉजिक (मोबाइल-ओनली के लिए)
+    function startLegacyMode() {
+        currentState = APP_STATE.LEGACY_POSTMESSAGE;
+        updateStatus("POS से कनेक्ट हो रहा है...");
+        
+        // टोकन के लिए अनुरोध करें
+        window.opener.postMessage({ type: 'REQUEST_AUTH' }, window.location.origin);
+
+        window.addEventListener('message', function(event) {
+            if (event.origin !== window.location.origin) return;
+            if (event.data && event.data.type === 'AUTH_TOKEN') {
+                updateStatus("✅ कनेक्टेड!", "प्रोडक्ट स्कैन करने के लिए तैयार...");
+                startCamera(onProductScan_Legacy); //
+            }
+        });
+    }
+    
+    function onProductScan_Legacy(decodedText, decodedResult) {
+        const now = Date.now();
+        if (now - lastScanTime < 3000) return;
+        lastScanTime = now;
+        
+        const sku = decodedText.trim();
+        flashFeedback(`स्कैन किया गया: ${sku}`);
+        
+        // SKU को 'postMessage' के ज़रिए वापस भेजें
+        window.opener.postMessage({ type: 'SCANNED_SKU', sku: sku }, window.location.origin);
+    }
+
+
+    // 2. 'WebSocket' लॉजिक (कंप्यूटर + मोबाइल के लिए)
+    
+    function startPairingMode() {
+        currentState = APP_STATE.PAIRING_QR;
+        updateStatus("POS से कनेक्ट करने के लिए QR कोड स्कैन करें...");
+        startCamera(onPairingScanSuccess);
+    }
+    
+    function connectWebSocket(pairCode) {
+        if (scannerSocket) scannerSocket.close();
+        const wsUrl = BACKEND_URL.replace('https', 'wss').replace('http', 'ws');
+        scannerSocket = new WebSocket(wsUrl);
+
+        scannerSocket.onopen = () => {
+            updateStatus("सर्वर से कनेक्ट हो रहा है...");
+            scannerSocket.send(JSON.stringify({ type: 'REGISTER_SCANNER', pairCode: pairCode }));
+        };
+
+        scannerSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'SCANNER_PAIRED') {
+                currentState = APP_STATE.SCANNING_PRODUCTS;
+                updateStatus("✅ कनेक्टेड!", "प्रोडक्ट स्कैन करने के लिए तैयार...");
+                startCamera(onProductScan_WebSocket); // प्रोडक्ट स्कैनिंग मोड
+            } else if (data.type === 'POS_DISCONNECTED') {
+                currentState = APP_STATE.PAIRING_QR;
+                updateStatus("POS डिस्कनेक्ट हो गया।", "फिर से कनेक्ट करने के लिए QR कोड स्कैन करें...");
+                startCamera(onPairingScanSuccess); // पेयरिंग मोड
+            } else if (data.type === 'ERROR') {
+                updateStatus("त्रुटि: " + data.message, "कृपया पुनः प्रयास करें।");
+                currentState = APP_STATE.PAIRING_QR;
+            }
+        };
+
+        scannerSocket.onclose = () => {
+            if (currentState !== APP_STATE.PAIRING_QR) {
+                updateStatus("कनेक्शन टूट गया।", "पुनः कनेक्ट करने के लिए QR कोड स्कैन करें...");
+                currentState = APP_STATE.PAIRING_QR;
+                startCamera(onPairingScanSuccess);
+            }
+        };
+    }
+
+    function onPairingScanSuccess(decodedText, decodedResult) {
+        const now = Date.now();
+        if (now - lastScanTime < 3000) return;
+        lastScanTime = now;
+        
+        if (/^\d{6}$/.test(decodedText)) { // मान लें कि पेयरिंग कोड 6 अंकों का है
+            updateStatus("पेयरिंग कोड मिला!", "POS से कनेक्ट किया जा रहा है...");
+            html5QrCode.stop().then(() => connectWebSocket(decodedText));
         } else {
-            tokenStatus.classList.remove('bg-green-600', 'text-white');
-            tokenStatus.classList.add('bg-gray-700', 'text-gray-400');
-            tokenStatus.innerText = 'टोकन प्राप्त हो रहा है...';
+            flashFeedback("यह पेयरिंग QR कोड नहीं है।");
         }
     }
 
-    // --- SCANNER LOGIC (पूरी तरह से नया) ---
-    function startScanner() {
-        if (!authData.token) {
-            updateStatus('त्रुटि: प्रमाणीकरण टोकन नहीं मिला।');
-            return;
+    function onProductScan_WebSocket(decodedText, decodedResult) {
+        const now = Date.now();
+        if (now - lastScanTime < 3000) return;
+        lastScanTime = now;
+
+        const sku = decodedText.trim();
+        flashFeedback(`स्कैन किया गया: ${sku}`);
+        
+        if (scannerSocket && scannerSocket.readyState === WebSocket.OPEN) {
+            scannerSocket.send(JSON.stringify({ type: 'SCAN_SKU', sku: sku }));
         }
+    }
 
+    // 3. मुख्य कैमरा फ़ंक्शन
+    function startCamera(onScanSuccessCallback) {
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop().catch(err => console.log("कैमरा रोकने में छोटी त्रुटि, अनदेखा करें।"));
+        }
+        
         html5QrCode = new Html5Qrcode("qr-reader");
-        updateStatus('कैमरा शुरू हो रहा है...');
 
-        // 1. सफल स्कैन पर चलने वाला फ़ंक्शन
-        const onScanSuccess = (decodedText, decodedResult) => {
-            const now = Date.now();
-            // 3 सेकंड के भीतर दोबारा स्कैन न करें
-            if (now - lastScanTime < 3000) {
-                return;
-            }
-            lastScanTime = now;
-
-            const sku = decodedText.trim();
-            updateStatus(`स्कैन किया गया: ${sku}`, true);
-            
-            // SKU को मुख्य POS विंडो पर भेजें
-            sendScannedSkuToPos(sku);
-            
-            // 3 सेकंड बाद स्कैन फ़ीडबैक साफ़ करें
-            setTimeout(() => {
-                if (authData.connected) {
-                    updateStatus('स्कैन करने के लिए तैयार...', true);
-                }
-            }, 3000);
-        };
-
-        // 2. विफल स्कैन पर (यह वैकल्पिक है, लेकिन अच्छा है)
-        const onScanFailure = (error) => {
-            // "No QR code found" एरर को नज़रअंदाज़ करें, यह सामान्य है
-            if (!error.includes("No QR code found")) {
-                console.warn(`स्कैन त्रुटि: ${error}`);
-            }
-        };
-
-        // 3. कैमरा शुरू करें
         Html5Qrcode.getCameras().then(devices => {
             if (devices && devices.length) {
-                // आमतौर पर पिछला कैमरा 'environment' होता है या लिस्ट में आखिर में होता है
-                let cameraId = devices[0].id; // डिफ़ॉल्ट
-                if (devices.length > 1) {
-                    const backCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
-                    if (backCamera) {
-                        cameraId = backCamera.id;
-                    } else {
-                        cameraId = devices[devices.length - 1].id; // आखिरी कैमरा चुनें
-                    }
-                }
+                let cameraId = devices.length > 1 
+                    ? (devices.find(d => d.label.toLowerCase().includes('back')) || devices[devices.length - 1]).id
+                    : devices[0].id;
                 
                 html5QrCode.start(
                     cameraId, 
-                    {
-                        fps: 10,    // स्कैनिंग स्पीड (फ्रेम प्रति सेकंड)
-                        qrbox: { width: 250, height: 150 }  // स्कैनिंग बॉक्स का आकार
-                    },
-                    onScanSuccess,
-                    onScanFailure
-                ).then(() => {
-                    updateStatus('स्कैन करने के लिए तैयार...', true);
-                }).catch(err => {
+                    { fps: 5, qrbox: { width: 250, height: 150 } },
+                    onScanSuccessCallback,
+                    (error) => { /* "No code found" को अनदेखा करें */ }
+                ).catch(err => {
                     updateStatus(`कैमरा शुरू करने में विफल: ${err}`);
                 });
 
@@ -180,56 +191,23 @@
         });
     }
 
-    // --- POSTMESSAGE LOGIC (यह हिस्सा नहीं बदला है) ---
-    
-    // 1. SKU को मुख्य POS विंडो पर भेजें
-    function sendScannedSkuToPos(sku) {
-        if (window.opener) {
-             window.opener.postMessage({
-                type: 'SCANNED_SKU',
-                sku: sku
-            }, window.location.origin);
-        } else {
-             updateStatus('त्रुटि: मुख्य POS से कनेक्शन नहीं मिला।', false);
-        }
-    }
-
-    // 2. मुख्य POS से टोकन प्राप्त करें
-    function requestTokenAndStart() {
-        if (window.opener) {
-            window.opener.postMessage({
-                type: 'REQUEST_AUTH'
-            }, window.location.origin);
-
-            window.addEventListener('message', function(event) {
-                if (event.origin !== window.location.origin) return;
-
-                if (event.data && event.data.type === 'AUTH_TOKEN') {
-                    authData.token = event.data.token;
-                    authData.backendUrl = event.data.backendUrl;
-                    authData.shopId = event.data.shopId;
-                    authData.connected = true;
-                    
-                    if (html5QrCode && html5QrCode.isScanning) {
-                         html5QrCode.stop();
-                    }
-                    startScanner();
-                }
-            });
-
-        } else {
-             updateStatus('त्रुटि: यह विंडो सीधे मुख्य POS से नहीं खुली है।', false);
-             scanFeedback.innerText = 'सुरक्षा कारणों से, कृपया मुख्य Dukan Pro POS स्क्रीन पर "मोबाइल स्कैनर खोलें" बटन का उपयोग करें।';
-        }
-    }
-
     // --- INITIALIZATION ---
     window.onload = function() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             updateStatus('त्रुटि: कैमरा सपोर्ट नहीं है।');
             return;
         }
-        requestTokenAndStart();
+
+        // 🚀 मुख्य हाइब्रिड राउटर
+        if (window.opener) {
+            // अगर यह 'window.open' से खुला है (मोबाइल-ओनली)
+            console.log("Legacy (postMessage) मोड शुरू हो रहा है।");
+            startLegacyMode();
+        } else {
+            // अगर यह सीधे URL से खुला है (कंप्यूटर + मोबाइल पेयरिंग)
+            console.log("WebSocket (Pairing) मोड शुरू हो रहा है।");
+            startPairingMode();
+        }
     };
     
 </script>
