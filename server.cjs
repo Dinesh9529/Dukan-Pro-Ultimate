@@ -2381,33 +2381,6 @@ app.post('/api/request-renewal', authenticateJWT, async (req, res) => {
 
 
 
-// -----------------------------------------------------------------------------
-// --- 16. MOBILE SCANNER ROUTE (NEW) ---
-// -----------------------------------------------------------------------------
-
-
-
-// यह रूट mobile_scanner.html फ़ाइल को परोसता है
-app.get('/mobile_scanner.html', (req, res) => {
-    const filePath = path.join(__dirname, 'mobile_scanner.html');
-
-    // सुनिश्चित करें कि फ़ाइल मौजूद है
-    fs.readFile(filePath, 'utf8', (err, data) => {
-        if (err) {
-            console.error('Error reading mobile_scanner.html:', err);
-            // 404 त्रुटि दें
-            return res.status(404).send('Cannot GET /mobile_scanner.html: File not found on server.');
-        }
-        
-        // फ़ाइल को HTML कंटेंट के रूप में भेजें
-        res.setHeader('Content-Type', 'text/html');
-        res.send(data);
-    });
-});
-
-
-
-
 
 // -----------------------------------------------------------------------------
 // VI. SERVER INITIALIZATION
@@ -2431,6 +2404,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
