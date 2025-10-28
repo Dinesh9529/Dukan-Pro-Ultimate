@@ -338,6 +338,61 @@
 
 /* ============ SCROLLBAR CSS END ============ */
 
+
+/* ============ TALLY-STYLE GST REPORT CSS ============ */
+.gst-report-tabs .nav-link {
+    background-color: #f0f0f0;
+    border: 1px solid #dee2e6;
+    border-bottom: none;
+    margin-right: 5px;
+    color: #495057;
+    font-weight: 600;
+}
+.gst-report-tabs .nav-link.active {
+    background-color: #fff;
+    border-bottom: 1px solid #fff;
+    color: #0d6efd;
+    position: relative;
+    top: 1px;
+}
+.gst-report-tab-content {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    padding: 1.5rem;
+    border-radius: 0 8px 8px 8px;
+}
+.gst-report-table {
+    font-size: 0.85rem;
+    margin-top: 15px;
+    border-collapse: collapse;
+    width: 100%;
+}
+.gst-report-table th, .gst-report-table td {
+    border: 1px solid #dee2e6;
+    padding: 8px 12px;
+    text-align: right;
+}
+.gst-report-table th {
+    background-color: #f8f9fa;
+    text-align: center;
+    font-weight: 600;
+    vertical-align: middle;
+}
+.gst-report-table td:first-child {
+    text-align: left;
+}
+.gst-report-table tfoot tr {
+    font-weight: bold;
+    background-color: #e9ecef;
+}
+.gst-report-table .group-header td {
+    background-color: #f3f4f6;
+    font-weight: bold;
+    text-align: left;
+}
+/* ============ END GST REPORT CSS ============ */
+
+
     </style>
 </head>
 <body>
@@ -770,8 +825,7 @@
         <section id="sales" class="section">
             <h2 class="mb-4 text-primary">बिक्री (पॉइंट ऑफ सेल)</h2>
             <div class="row g-4">
-                <div class="col-lg-6">
-                    <div class="card">
+                <div class="col-lg-5"> <div class="card">
                         <div class="card-header">नया चालान बनाएं</div>
                         <div class="card-body">
                             <form id="pos-form">
@@ -780,30 +834,39 @@
                                     <input type="text" class="form-control" id="pos-customer" list="customer-datalist" placeholder="अनाम ग्राहक या नाम टाइप करें">
                                     <datalist id="customer-datalist"></datalist>
                                 </div>
+        
                                 <div class="mb-3">
                                     <label for="pos-customer-mobile" class="form-label">मोबाइल नंबर</label>
                                     <input type="tel" class="form-control" id="pos-customer-mobile" placeholder="ग्राहक का मोबाइल नंबर (वैकल्पिक)">
                                 </div>
-                                <div class="mb-3 position-relative">
-        
-                                <div class="mb-3 position-relative">
-                                    <label for="pos-item-search" class="form-label">आइटम खोजें / SKU</label>
-                                    <input 
-                                        type="text" 
-                                        class="form-control" 
-                                        id="pos-item-search" 
-                                        placeholder="आइटम का नाम या SKU टाइप करें (या सभी के लिए क्लिक करें)" 
-                                        autocomplete="off"
-                                        >
-                                    
-                                    <ul 
-                                        id="pos-search-results" 
-                                        class="list-group position-absolute w-100" 
-                                        style="z-index: 100; max-height: 300px; overflow-y: auto;"
-                                        onclick="handleSearchResultClick(event)"
-                                    ></ul>
-                                </div>
-                                <hr>
+                                <!-- बदलने वाला कोड: <section id="sales" ...> के अंदर, लगभग Line 880 के पास -->
+<div class="mb-3 position-relative">
+    <label for="pos-item-search" class="form-label">आइटम खोजें / SKU</label>
+    
+    <!-- FIX: input-group यहाँ जोड़ा गया है ताकि इनपुट और बटन एक ही लाइन में रहें -->
+    <div class="input-group"> 
+        <input 
+            type="text" 
+            class="form-control" 
+            id="pos-item-search" 
+            placeholder="आइटम का नाम या SKU टाइप करें (या सभी के लिए क्लिक करें)" 
+            autocomplete="off"
+        >
+        <!-- NEW: Mobile Scanner Button -->
+        <button class="btn btn-warning" type="button" onclick="openMobileScanner()">
+            <i class="fas fa-qrcode"></i> मोबाइल स्कैनर
+        </button>
+    </div>
+    
+    <!-- सर्च रिजल्ट्स कंटेनर -->
+    <ul 
+        id="pos-search-results" 
+        class="list-group position-absolute w-100" 
+        style="z-index: 100; max-height: 300px; overflow-y: auto;"
+        onclick="handleSearchResultClick(event)"
+    ></ul>
+</div>
+<hr>
         
                                 <h5>बिलिंग कार्ट</h5>
                                 <div class="table-responsive mb-3" style="min-height: 150px;">
@@ -849,8 +912,7 @@
                     </div>
                 </div>
                 
-                <div class="col-lg-6">
-                    <div class="card">
+                <div class="col-lg-7"> <div class="card">
                         <div class="card-header">हाल के चालान</div>
                         <div class="card-body">
                             <div class="mb-3 d-flex justify-content-end">
@@ -877,7 +939,6 @@
                 </div>
             </div>
         </section>
-
         <section id="invoice-generator" class="section">
             <h2 class="mb-4 text-primary">🇮🇳 India's Best Invoice Generator Pro</h2>
             <div class="row g-4">
@@ -1406,16 +1467,110 @@
                             <button class="btn btn-secondary w-100" id="fetch-gstr3b-report-btn">GSTR-3B (सारांश) देखें</button>
                         </div>
                     </div>
-                    
+                    <p class="text-muted small mt-3">नोट: यह GSTR रिपोर्ट आपके द्वारा 'बिक्री (POS)' और 'ग्राहक (CRM)' में दर्ज किए गए डेटा पर आधारित है। </p>
+
                     <hr class="my-4">
                     
                     <h5 id="gst-report-title">रिपोर्ट रिजल्ट</h5>
-                    <div id="gst-report-result" class="json-viewer">
-                        <span class="text-muted">रिपोर्ट का रिजल्ट यहाँ दिखाई देगा...</span>
+                    <div id="gst-report-result">
+                        <div class="text-muted text-center py-4">कृपया तारीख चुनें और रिपोर्ट बटन पर क्लिक करें।</div>
+                        
+                        <div id="gstr1-report-template" style="display: none;">
+                            
+                           <!-- ============ TALLY-STYLE GST REPORT HTML START ============ -->
+<!-- यह Tally-Style टैब लेआउट है -->
+
+<!-- Tab Navigation (GSTR-1, 2, 3B) -->
+<nav class="gst-report-tabs mt-4">
+    <div class="nav nav-tabs" id="gstReportTab" role="tablist">
+        <button class="nav-link active" id="gst-gstr1-tab" data-bs-toggle="tab" data-bs-target="#gst-gstr1" type="button" role="tab" aria-controls="gst-gstr1" aria-selected="true">
+            GSTR-1 (बिक्री)
+        </button>
+        <button class="nav-link" id="gst-gstr2-tab" data-bs-toggle="tab" data-bs-target="#gst-gstr2" type="button" role="tab" aria-controls="gst-gstr2" aria-selected="false">
+            GSTR-2 (खरीद ITC)
+        </button>
+        <button class="nav-link" id="gst-gstr3b-tab" data-bs-toggle="tab" data-bs-target="#gst-gstr3b" type="button" role="tab" aria-controls="gst-gstr3b" aria-selected="false">
+            GSTR-3B (समरी)
+        </button>
+    </div>
+</nav>
+
+<!-- Tab Content (Main Body) -->
+<div class="tab-content gst-report-tab-content" id="gstReportTabContent">
+    
+    <!-- GSTR-1 Pane (यह GSTR-1 बटन से जुड़ा है) -->
+    <div class="tab-pane fade show active" id="gst-gstr1" role="tabpanel" aria-labelledby="gst-gstr1-tab">
+        <div id="gstr1-report-content" class="report-content-area">
+            <p class="text-muted text-center py-4">कृपया ऊपर दिए गए 'GSTR-1 (बिक्री) रिपोर्ट देखें' बटन पर क्लिक करें।</p>
+            <!-- GSTR-1 डेटा JavaScript द्वारा यहाँ भरा जाएगा -->
+        </div>
+        
+        <!-- GSTR-1 के लिए छिपा हुआ टेम्पलेट (JavaScript इसका इस्तेमाल करेगा) -->
+        <div id="gstr1-report-template" style="display: none;">
+            <nav class="gst-report-tabs">
+                <div class="nav nav-tabs" id="gstr1-inner-tab" role="tablist">
+                    <button class="nav-link active" id="gstr1-b2b-tab" data-bs-toggle="tab" data-bs-target="#gstr1-b2b" type="button" role="tab">B2B (GSTIN वाली बिक्री)</button>
+                    <button class="nav-link" id="gstr1-b2c-tab" data-bs-toggle="tab" data-bs-target="#gstr1-b2c" type="button" role="tab">B2C (छोटी बिक्री)</button>
+                    <button class="nav-link" id="gstr1-hsn-tab" data-bs-toggle="tab" data-bs-target="#gstr1-hsn" type="button" role="tab">HSN/SAC समरी</button>
+                </div>
+            </nav>
+            <div class="tab-content gst-report-tab-content" id="gstr1-inner-tabContent">
+                <div class="tab-pane fade show active" id="gstr1-b2b" role="tabpanel">
+                    <h6>GSTR-1: B2B (पंजीकृत ग्राहकों को बिक्री)</h6>
+                    <p class="small text-muted">वह बिक्री जहाँ ग्राहक का GSTIN दर्ज किया गया था।</p>
+                    <div class="table-responsive">
+                        <table class="table gst-report-table" id="gstr1-b2b-table">
+                            <thead><tr><th>ग्राहक GSTIN</th><th class="text-left">ग्राहक का नाम</th><th>इनवॉइस नं.</th><th>इनवॉइस तारीख</th><th>टैक्सेबल वैल्यू (₹)</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th></tr></thead>
+                            <tbody></tbody>
+                            <tfoot></tfoot>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="gstr1-b2c" role="tabpanel">
+                    <h6>GSTR-1: B2C(S) (छोटी बिक्री समरी)</h6>
+                    <p class="small text-muted">वह बिक्री जहाँ ग्राहक का GSTIN दर्ज नहीं किया गया था (राज्य और GST दर के अनुसार)।</p>
+                    <div class="table-responsive">
+                        <table class="table gst-report-table" id="gstr1-b2c-table">
+                            <thead><tr><th class="text-left">सप्लाई का राज्य</th><th>GST दर (%)</th><th>टैक्सेबल वैल्यू (₹)</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th><th>कुल टैक्स (₹)</th></tr></thead>
+                            <tbody></tbody>
+                            <tfoot></tfoot>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="gstr1-hsn" role="tabpanel">
+                    <h6>GSTR-1: HSN/SAC समरी (बिक्री)</h6>
+                    <p class="small text-muted">बेचे गए आइटम की HSN कोड के अनुसार समरी।</p>
+                    <div class="table-responsive">
+                        <table class="table gst-report-table" id="gstr1-hsn-table">
+                            <thead><tr><th>HSN कोड</th><th class="text-left">आइटम का नाम</th><th>यूनिट</th><th>मात्रा (Qty)</th><th>टैक्सेबल वैल्यू (₹)</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th><th>कुल टैक्स (₹)</th></tr></thead>
+                            <tbody></tbody>
+                            <tfoot></tfoot>
+                        </table>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </div>
+
+    <!-- GSTR-2 Pane (यह GSTR-2 बटन से जुड़ा है) -->
+    <div class="tab-pane fade" id="gst-gstr2" role="tabpanel" aria-labelledby="gst-gstr2-tab">
+        <div id="gstr2-report-content" class="report-content-area">
+            <p class="text-muted text-center py-4">कृपया ऊपर दिए गए 'GSTR-2 (खरीद) रिपोर्ट देखें' बटन पर क्लिक करें।</p>
+            <!-- GSTR-2 डेटा JavaScript द्वारा यहाँ भरा जाएगा -->
+        </div>
+    </div>
+
+    <!-- GSTR-3B Pane (यह GSTR-3B बटन से जुड़ा है) -->
+    <div class="tab-pane fade" id="gst-gstr3b" role="tabpanel" aria-labelledby="gst-gstr3b-tab">
+        <div id="gstr3b-report-content" class="report-content-area">
+            <p class="text-muted text-center py-4">कृपया ऊपर दिए गए 'GSTR-3B (सारांश) देखें' बटन पर क्लिक करें।</p>
+            <!-- GSTR-3B डेटा JavaScript द्वारा यहाँ भरा जाएगा -->
+        </div>
+    </div>
+</div>
+<!-- ============ TALLY-STYLE GST REPORT HTML END ============ -->
+
+
 
         <section id="daily-closing" class="section">
             <h2 class="mb-4 text-primary">डेली क्लोजिंग</h2>
@@ -1644,55 +1799,82 @@ function addSKUToCart(sku) {
 /**
  * स्कैन किए गए डेटा को हैंडल करने वाला फ़ंक्शन।
  */
-async function handleBarcodeScan(e) {
-    const sku = e.target.value;
-    if (!sku || AppState.currentView !== 'sales') {
-        e.target.value = '';
+// बदलने वाला कोड: handleBarcodeScan (पूरा फंक्शन बदलें)
+// यह सुनिश्चित करता है कि यह फ़ंक्शन इनपुट से या मोबाइल स्कैनर से SKU स्वीकार करता है।
+async function handleBarcodeScan(skuFromScanner = null) {
+    let sku;
+    
+    // चेक करें कि SKU मोबाइल स्कैनर या फिजिकल इनपुट से आया है
+    if (skuFromScanner) {
+        sku = skuFromScanner;
+    } else {
+        const barcodeInput = document.getElementById('barcode-scanner-input');
+        sku = barcodeInput.value.trim();
+        barcodeInput.value = ''; // इनपुट को तुरंत साफ़ करें
+    }
+
+    if (!sku) return;
+
+    const existingItemIndex = posCart.findIndex(item => item.sku === sku);
+
+    if (existingItemIndex !== -1) {
+        // आइटम पहले से कार्ट में है, मात्रा बढ़ाएँ
+        posCart[existingItemIndex].quantity += 1;
+        showMessage('कार्ट अपडेट', `${posCart[existingItemIndex].name} की मात्रा बढ़ी (+1)।`, 'success');
+        updatePOSCartView();
         return;
     }
+
+    // स्टॉक से आइटम डेटा लाएँ
+    const stockItem = await fetchApi(`/api/get-stock-item/${sku}`);
     
-    console.log("Barcode Scanned:", sku);
-    
-    // 1. अगर आइटम मौजूदा स्टॉक कैश में नहीं है, तो सर्वर से डेटा लाओ
-    let itemData = currentStock.find(item => item.sku === sku);
-    
-    if (!itemData) {
-        try {
-            // सर्वर एंडपॉइंट से आइटम की डिटेल्स लाओ
-            const res = await fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, `SKU ${sku} खोजा जा रहा है...`);
-            if (res.success && res.data) {
-                // सर्वर से मिले डेटा को पूरा करें
-                const itemDetails = res.data;
-                itemDetails.sku = sku; 
-                // सुनिश्चित करें कि सभी numeric fields parse हों
-                itemDetails.quantity = parseFloat(itemDetails.quantity || 0);
-                itemDetails.purchase_price = parseFloat(itemDetails.purchase_price || 0);
-                itemDetails.sale_price = parseFloat(itemDetails.sale_price || 0);
-                itemDetails.gst = parseFloat(itemDetails.gst_rate || 0); // gst_rate को gst के रूप में इस्तेमाल करें
-                
-                currentStock.push(itemDetails); // कैश में जोड़ें
-                itemData = itemDetails;
-            } else {
-                showMessage('नहीं मिला', `SKU ${sku} स्टॉक में नहीं मिला।`, 'warning');
-            }
-        } catch (error) {
-            showMessage('त्रुटि', error.message, 'danger');
+    if (stockItem.success && stockItem.data) { // Ensure stockItem.data exists
+        const item = stockItem.data; // Note: Ensure your API returns 'data' property
+        if (item.quantity <= 0) {
+            showMessage('स्टॉक अलर्ट', `${item.name} स्टॉक में नहीं है।`, 'warning');
+            return;
         }
+        
+        posCart.push({
+            sku: sku, // Use the provided SKU
+            name: item.name,
+            sale_price: parseFloat(item.sale_price),
+            purchase_price: parseFloat(item.purchase_price || 0),
+            gst: parseFloat(item.gst_rate || 0), // Use gst_rate from server
+            quantity: 1
+        });
+        showMessage('सफलता', `${item.name} कार्ट में जोड़ा गया।`, 'success');
+        updatePOSCartView();
+
+    } else {
+        showMessage('त्रुटि', `SKU ${sku} स्टॉक में नहीं मिला।`, 'danger');
     }
-    
-    if (itemData) {
-        addSKUToCart(sku); // कार्ट में आइटम जोड़ें
-    }
-    
-    // 3. इनपुट साफ करें और अगले स्कैन के लिए तैयार करें
-    e.target.value = '';
-    // छोटे डिले के साथ रि-फोकस करें
-    setTimeout(() => {
-       if(AppState.currentView === 'sales') e.target.focus();
-    }, 100); 
 }
 
 
+// नया फ़ंक्शन: मोबाइल स्कैनर विंडो खोलता है
+function openMobileScanner() {
+    // FIX: window.location.origin का उपयोग करके हमेशा लाइव Render URL खोलें
+    const scannerUrl = window.location.origin + '/mobile_scanner.html';
+    
+    // स्कैनर को एक नई विंडो/टैब में खोलें
+    window.scannerWindow = window.open(scannerUrl, '_blank', 'width=400,height=600'); 
+    
+    if (!window.scannerWindow) {
+        showMessage('त्रुटि', 'पॉपअप ब्लॉक किया गया। कृपया इस वेबसाइट के लिए पॉपअप की अनुमति दें।', 'danger');
+    }
+}
+
+// नया फ़ंक्शन: पोस्ट मैसेज से प्राप्त SKU को प्रोसेस करता है
+function processScannedSku(sku) {
+    if (currentTab !== 'sales') {
+        // अगर POS टैब खुला नहीं है, तो उसे खोलें
+        currentTab = 'sales';
+        renderContent(); 
+    }
+    // मुख्य हैंडलर को SKU भेजें
+    handleBarcodeScan(sku); 
+}
 
 
     function formatCurrency(amount) {
@@ -2078,94 +2260,117 @@ async function fetchAndPopulateShopData() {
         }
     }
 
-    async function renderReports() {
+    // ==========================================================
+// ========== UPDATED: renderReports (Bank-Style Detail) ==========
+// ==========================================================
+async function renderReports() {
+    // 1. Get date range (assuming server defaults if not provided, but server code requires it)
+    const endDate = getISODate();
+    const startDate = getISODate(new Date(new Date().setDate(new Date().getDate() - 90))); // 90-day default
+
     try {
-        // NEW: Fetch from the new P&L and Balance Sheet endpoints
-        // We'll set a default 90-day range
-        const endDate = getISODate();
-        const startDate = getISODate(new Date(new Date().setDate(new Date().getDate() - 90)));
-
-        const [plRes, bsRes] = await Promise.all([
-            fetchApi(`/api/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' }),
-            fetchApi(`/api/reports/balance-sheet`, { method: 'GET' }) // BS is "as of today"
-        ]);
-
-        // --- 1. Profit & Loss Update (Uses server.cjs [cite: 302-313]) ---
-        if (plRes.success) {
-            const pl = plRes.report;
-            const revenue = parseFloat(pl.income.totalSales);
-            const totalCOGS = parseFloat(pl.costOfGoodsSold);
-            const expenses = parseFloat(pl.expenses.totalExpenses);
-            const netProfit = parseFloat(pl.netProfit);
-            
-            const totalDebit = totalCOGS + expenses;
-            let totalCredit = revenue;
-
-            document.getElementById('report-pl-purchases').innerText = formatCurrency(totalCOGS); // COGS
-            document.getElementById('report-pl-expenses').innerText = formatCurrency(expenses);
-            document.getElementById('report-pl-revenue').innerText = formatCurrency(revenue);
-            
-            document.getElementById('report-pl-profit-row').classList.add('d-none');
-            document.getElementById('report-pl-loss-row').classList.add('d-none');
-            
-            let finalDebit = totalDebit;
-            let finalCredit = totalCredit; 
-
-            if (netProfit >= 0) {
-                document.getElementById('report-pl-profit-row').classList.remove('d-none');
-                document.getElementById('report-pl-profit').innerText = formatCurrency(netProfit);
-                finalDebit += netProfit; 
-            } else {
-                const absNetLoss = Math.abs(netProfit);
-                document.getElementById('report-pl-loss-row').classList.remove('d-none');
-                document.getElementById('report-pl-loss').innerText = formatCurrency(absNetLoss);
-                finalCredit += absNetLoss; 
-            }
-            document.getElementById('report-pl-total-debit').innerText = formatCurrency(parseFloat(finalDebit).toFixed(2));
-            document.getElementById('report-pl-total-credit').innerText = formatCurrency(parseFloat(finalCredit).toFixed(2));
-        } else {
-            showMessage('P&L त्रुटि', plRes.message || 'P&L रिपोर्ट लोड करने में विफल।', 'danger');
-        }
-
-        // --- 2. Balance Sheet Update (Uses server.cjs [cite: 314-324]) ---
-        if (bsRes.success) {
-            const bs = bsRes.report;
-            const bs_stockValue = parseFloat(bs.assets.currentAssets.inventory);
-            const bs_cashBalance = 0; // Not tracked by server
-            const bs_totalAssets = parseFloat(bs.assets.totalAssets);
-            
-            // Simplified: Liabilities and Equity are not fully calculated by server
-            const bs_vendorsPayable = 0; 
-            const bs_gstPayable = 0; 
-            // We use P&L net profit as a simple equity measure
-            const bs_ownerEquity = plRes.success ? parseFloat(plRes.report.netProfit) : 0; 
-            const bs_totalLiabilitiesAndEquity = bs_vendorsPayable + bs_gstPayable + bs_ownerEquity;
-
-            // Update HTML: Assets
-            document.getElementById('report-bs-stock-value').innerText = formatCurrency(bs_stockValue);
-            document.getElementById('report-bs-cash-balance').innerText = formatCurrency(bs_cashBalance);
-            document.getElementById('report-bs-total-assets').innerText = formatCurrency(bs_totalAssets);
-
-            // Update HTML: Liabilities & Equity
-            document.getElementById('report-bs-gst-payable').innerText = formatCurrency(bs_gstPayable);
-            document.getElementById('report-bs-vendors-payable').innerText = formatCurrency(bs_vendorsPayable);
-            document.getElementById('report-bs-owner-equity').innerText = formatCurrency(bs_ownerEquity);
-            document.getElementById('report-bs-total-liabilities').innerText = formatCurrency(bs_totalLiabilitiesAndEquity); 
-        } else {
-            showMessage('BS त्रुटि', bsRes.message || 'बैलेंस शीट लोड करने में विफल।', 'danger');
-        }
-
-        // --- 3. Set default dates for Product-wise report ---
-        document.getElementById('product-report-start-date').value = startDate;
-        document.getElementById('product-report-end-date').value = endDate;
+        // 2. Fetch P&L Report first
+        const plRes = await fetchApi(`/api/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' }, 'P&L रिपोर्ट लोड हो रही है...');
         
-        console.log("✅ Reports updated successfully.");
+        if (!plRes.success) {
+            throw new Error(plRes.message || 'P&L रिपोर्ट लोड करने में विफल।');
+        }
         
+        const pl = plRes.report;
+        const netProfit = pl.netProfit; // Save this for the Balance Sheet
+
+        // 3. Populate P&L Table (Debit Side)
+        // [यह 'pl-card' के अंदर पहले <tbody> को चुनता है]
+        const plDebitBody = document.getElementById('pl-card').querySelectorAll('tbody')[0];
+        plDebitBody.innerHTML = ''; // Clear existing static rows
+        pl.debit.forEach(item => {
+            plDebitBody.innerHTML += `<tr>
+                                        <td>${item.description}</td>
+                                        <td class="text-end">${formatCurrency(item.amount)}</td>
+                                      </tr>`;
+        });
+        // Total Debit
+        document.getElementById('report-pl-total-debit').innerText = formatCurrency(pl.totalDebit);
+
+        // 4. Populate P&L Table (Credit Side)
+        // [यह 'pl-card' के अंदर दूसरे <tbody> को चुनता है]
+        const plCreditBody = document.getElementById('pl-card').querySelectorAll('tbody')[1];
+        plCreditBody.innerHTML = ''; // Clear existing static rows
+        pl.credit.forEach(item => {
+            plCreditBody.innerHTML += `<tr>
+                                        <td>${item.description}</td>
+                                        <td class="text-end">${formatCurrency(item.amount)}</td>
+                                      </tr>`;
+        });
+        // Total Credit
+        document.getElementById('report-pl-total-credit').innerText = formatCurrency(pl.totalCredit);
+
+        // 5. Fetch Balance Sheet Report (passing the calculated netProfit)
+        // [यह P&L से प्राप्त शुद्ध लाभ को बैलेंस शीट API को भेजता है]
+        const bsRes = await fetchApi(`/api/reports/balance-sheet?netProfit=${netProfit}`, { method: 'GET' }, 'बैलेंस शीट लोड हो रही है...');
+
+        if (!bsRes.success) {
+            throw new Error(bsRes.message || 'बैलेंस शीट लोड करने में विफल।');
+        }
+        
+        const bs = bsRes.report;
+
+        // 6. Populate Balance Sheet (Liabilities & Equity Side)
+        // [यह 'bs-card' के अंदर पहले <tbody> को चुनता है]
+        const bsLiabilitiesBody = document.getElementById('bs-card').querySelectorAll('tbody')[0];
+        bsLiabilitiesBody.innerHTML = ''; // Clear existing static rows
+        
+        // Liabilities (देनदारियां)
+        bs.liabilities.forEach(item => {
+            bsLiabilitiesBody.innerHTML += `<tr>
+                                                <td>${item.description}</td>
+                                                <td class="text-end">${formatCurrency(item.amount)}</td>
+                                            </tr>`;
+        });
+        // Equity (इक्विटी)
+        bs.equity.forEach(item => {
+            bsLiabilitiesBody.innerHTML += `<tr>
+                                                <td>${item.description}</td>
+                                                <td class="text-end">${formatCurrency(item.amount)}</td>
+                                            </tr>`;
+        });
+        // Total Liabilities & Equity
+        document.getElementById('report-bs-total-liabilities').innerText = formatCurrency(bs.totalLiabilitiesAndEquity);
+
+        // 7. Populate Balance Sheet (Assets Side)
+        // [यह 'bs-card' के अंदर दूसरे <tbody> को चुनता है]
+        const bsAssetsBody = document.getElementById('bs-card').querySelectorAll('tbody')[1];
+        bsAssetsBody.innerHTML = ''; // Clear existing static rows
+        
+        // Assets (परिसंपत्तियां)
+        bs.assets.forEach(item => {
+            let note = item.note ? `<small class="text-muted d-block">${item.note}</small>` : '';
+            bsAssetsBody.innerHTML += `<tr>
+                                        <td>${item.description} ${note}</td>
+                                        <td class="text-end">${formatCurrency(item.amount)}</td>
+                                      </tr>`;
+        });
+        // Total Assets
+        document.getElementById('report-bs-total-assets').innerText = formatCurrency(bs.totalAssets);
+        
+        console.log("✅ Reports updated successfully with details.");
+
     } catch (error) {
         console.error("renderReports त्रुटि:", error);
         showMessage('सर्वर त्रुटि', `रिपोर्ट्स लोड नहीं हो सकी: ${error.message}`, 'danger');
+        
+        // Clear tables on error to avoid showing old data
+        document.getElementById('pl-card').querySelectorAll('tbody')[0].innerHTML = '<tr><td colspan="2" class="text-danger text-center">P&L लोड करने में विफल।</td></tr>';
+        document.getElementById('pl-card').querySelectorAll('tbody')[1].innerHTML = '<tr><td colspan="2" class="text-danger text-center"></td></tr>';
+        document.getElementById('bs-card').querySelectorAll('tbody')[0].innerHTML = '<tr><td colspan="2" class="text-danger text-center">BS लोड करने में विफल।</td></tr>';
+        document.getElementById('bs-card').querySelectorAll('tbody')[1].innerHTML = '<tr><td colspan="2" class="text-danger text-center"></td></tr>';
     }
 }
+// ==========================================================
+// ========== END OF UPDATED FUNCTION ==========
+// ==========================================================
+
+
 async function fetchAndRenderStockList() {
         const tableBody = document.getElementById('stock-table-body');
         const tableFoot = document.getElementById('stock-table-foot');
@@ -2465,56 +2670,58 @@ async function fetchAndRenderStockList() {
     }
 
     async function handleCompleteSale() {
-        if (posCart.length === 0) {
-            return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
-        }
-
-        const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
-
-        const itemsForApi = posCart.map(item => ({
-            sku: item.sku,
-            name: item.name,
-            quantity: item.quantity,
-            sale_price: item.sale_price,
-            purchase_price: parseFloat(item.purchase_price || 0),
-            gst: item.gst
-        }));
-
-        const saleData = {
-            customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
-            // NEW: मोबाइल नंबर जोड़ें
-            customerMobile: document.getElementById('pos-customer-mobile').value || null, 
-            total_amount: finalTotalAmount,
-            sale_items: itemsForApi
-        };
-        
-        try {
-            const res = await fetchApi('/api/invoices', {
-                method: 'POST',
-                body: saleData
-            }, 'बिक्री पूरी की जा रही है...');
-
-            if (res.success) {
-                showMessage('सफलता', res.message, 'success');
-                posCart = [];
-                updatePOSCartView();
-                document.getElementById('pos-customer').value = '';
-                fetchAndRenderSales();
-                // Update stock list
-                fetchApi('/api/stock', { method: 'GET' }).then(res => {
-                    if (res.success) currentStock = res.stock;
-                });
-                if (typeof renderDashboard === 'function') {
-                    renderDashboard();
-                }
-            } else {
-                throw new Error(res.message || 'अज्ञात बिक्री त्रुटि।');
-            }
-        } catch (error) {
-            showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
-        }
+    if (posCart.length === 0) {
+        return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
     }
 
+    const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
+
+    const itemsForApi = posCart.map(item => ({
+        sku: item.sku,
+        name: item.name,
+        quantity: item.quantity,
+        sale_price: item.sale_price,
+        purchase_price: parseFloat(item.purchase_price || 0),
+        gst: item.gst
+    }));
+
+    const saleData = {
+        customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
+        customerMobile: document.getElementById('pos-customer-mobile').value || null, // यह लाइन डेटा भेजती है
+        total_amount: finalTotalAmount,
+        sale_items: itemsForApi
+    };
+    
+    try {
+        const res = await fetchApi('/api/invoices', {
+            method: 'POST',
+            body: saleData
+        }, 'बिक्री पूरी की जा रही है...');
+
+        if (res.success) {
+            showMessage('सफलता', res.message, 'success');
+            posCart = [];
+            updatePOSCartView();
+            document.getElementById('pos-customer').value = '';
+            
+            // ✅ FIX: मोबाइल नंबर इनपुट को साफ़ करने वाली लाइन यहाँ जोड़ें
+            document.getElementById('pos-customer-mobile').value = ''; 
+            
+            fetchAndRenderSales();
+            // Update stock list
+            fetchApi('/api/stock', { method: 'GET' }).then(res => {
+                if (res.success) currentStock = res.stock;
+            });
+            if (typeof renderDashboard === 'function') {
+                renderDashboard();
+            }
+        } else {
+            throw new Error(res.message || 'अज्ञात बिक्री त्रुटि।');
+        }
+    } catch (error) {
+        showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
+    }
+}
     // --- FORM SUBMISSION HANDLERS ---
     
     function setupForm(formId, apiPath, successCallback) {
@@ -3113,43 +3320,7 @@ async function handleDeleteStaff(staffId) {
         }
     }
     
-    async function handleBarcodeScan(e) {
-        const sku = e.target.value;
-        if (!sku || AppState.currentView !== 'sales') {
-            e.target.value = '';
-            return;
-        }
-        
-        console.log("Barcode Scanned:", sku);
-        
-        // 1. Check if item is already in currentStock cache
-        let itemData = currentStock.find(item => item.sku === sku);
-        
-        if (itemData) {
-            // Found in cache, add to cart
-            addSKUToCart(sku);
-        } else {
-            // 2. Not in cache, fetch from server
-            try {
-                // Use the server endpoint [cite: 173]
-                const res = await fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, `SKU ${sku} खोजा जा रहा है...`);
-                if (res.success) {
-                    // Add to cache and then to cart
-                    currentStock.push(res.data);
-                    addSKUToCart(sku);
-                } else {
-                    showMessage('नहीं मिला', res.message, 'warning');
-                }
-            } catch (error) {
-                showMessage('त्रुटि', error.message, 'danger');
-            }
-        }
-        
-        // 3. Clear and re-focus the input for the next scan
-        e.target.value = '';
-        e.target.focus();
-    }
-    
+       
     // NEW: Functions for New Sections
     async function fetchAndRenderClosingReports() {
         const tableBody = document.getElementById('daily-closing-table-body');
@@ -3280,34 +3451,325 @@ async function handleDeleteStaff(staffId) {
         const gstResultEl = document.getElementById('gst-report-result');
         const gstTitleEl = document.getElementById('gst-report-title');
         
+        // --- TALLY UPDATE START: GSTR-1 Button Logic ---
         document.getElementById('fetch-gstr1-report-btn').addEventListener('click', async () => {
             const startDate = document.getElementById('gst-report-start-date').value;
             const endDate = document.getElementById('gst-report-end-date').value;
-            gstTitleEl.innerText = "GSTR-1 रिपोर्ट (लोड हो रही है...)";
+            if (!startDate || !endDate) return showMessage('त्रुटि', 'कृपया तारीख चुनें।', 'warning');
+            
+            // नए HTML टैब कंटेंट एरिया को टारगेट करें
+            const gstr1ContentEl = document.getElementById('gstr1-report-content');
+            const mainGstTitleEl = document.getElementById('gst-report-title'); // यह पुराना टाइटल है, इसे छिपा भी सकते हैं
+            
+            if(mainGstTitleEl) mainGstTitleEl.innerText = "GSTR-1 (बिक्री) रिपोर्ट (लोड हो रही है...)";
+            gstr1ContentEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+            // GSTR-1 टैब को सक्रिय करें
+            new bootstrap.Tab(document.getElementById('gst-gstr1-tab')).show();
+
             try {
                 const res = await fetchApi(`/api/reports/gstr1?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' });
-                gstTitleEl.innerText = "GSTR-1 (बिक्री) रिपोर्ट";
-                gstResultEl.textContent = JSON.stringify(res, null, 2);
-            } catch (e) { gstResultEl.textContent = `त्रुटि: ${e.message}`; }
+                if (!res.success) throw new Error(res.message || 'GSTR-1 रिपोर्ट लाने में विफल।');
+                
+                if(mainGstTitleEl) mainGstTitleEl.innerText = `GSTR-1 (बिक्री) रिपोर्ट (${startDate} से ${endDate})`;
+                const report = res.report;
+                
+                // 1. Tally-Style HTML Template को क्लोन करें
+                const template = document.getElementById('gstr1-report-template');
+                gstr1ContentEl.innerHTML = template.innerHTML; // टेम्पलेट को रिजल्ट एरिया में कॉपी करें
+
+                // 2. B2B टेबल भरें
+                const b2bTableBody = document.getElementById('gstr1-b2b-table').querySelector('tbody');
+                const b2bTableFoot = document.getElementById('gstr1-b2b-table').querySelector('tfoot');
+                let b2bTotalTaxable = 0, b2bTotalIgst = 0, b2bTotalCgst = 0, b2bTotalSgst = 0;
+                b2bTableBody.innerHTML = ''; // पुरानी पंक्तियाँ साफ़ करें
+                
+                if (report.b2b && report.b2b.length > 0) {
+                    report.b2b.forEach(item => {
+                        const taxable = parseFloat(item.total_taxable_value) || 0;
+                        const igst = parseFloat(item.total_igst) || 0;
+                        const cgst = parseFloat(item.total_cgst) || 0;
+                        const sgst = parseFloat(item.total_sgst) || 0;
+                        b2bTotalTaxable += taxable;
+                        b2bTotalIgst += igst;
+                        b2bTotalCgst += cgst;
+                        b2bTotalSgst += sgst;
+                        
+                        b2bTableBody.innerHTML += `
+                            <tr>
+                                <td class="text-left">${item.customer_gstin}</td>
+                                <td class="text-left">${item.customer_name || 'N/A'}</td>
+                                <td class="text-center">${item.invoice_number}</td>
+                                <td class="text-center">${new Date(item.invoice_date).toLocaleDateString()}</td>
+                                <td>${formatCurrency(taxable)}</td>
+                                <td>${formatCurrency(igst)}</td>
+                                <td>${formatCurrency(cgst)}</td>
+                                <td>${formatCurrency(sgst)}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    b2bTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">इस अवधि में कोई B2B (GSTIN वाली) बिक्री नहीं मिली।</td></tr>';
+                }
+                b2bTableFoot.innerHTML = `<tr><td colspan="4" class="text-left">B2B कुल</td><td>${formatCurrency(b2bTotalTaxable)}</td><td>${formatCurrency(b2bTotalIgst)}</td><td>${formatCurrency(b2bTotalCgst)}</td><td>${formatCurrency(b2bTotalSgst)}</td></tr>`;
+
+                // 3. B2C टेबल भरें
+                const b2cTableBody = document.getElementById('gstr1-b2c-table').querySelector('tbody');
+                const b2cTableFoot = document.getElementById('gstr1-b2c-table').querySelector('tfoot');
+                let b2cTotalTaxable = 0, b2cTotalIgst = 0, b2cTotalCgst = 0, b2cTotalSgst = 0, b2cTotalTax = 0;
+                b2cTableBody.innerHTML = ''; // पुरानी पंक्तियाँ साफ़ करें
+                
+                if (report.b2c && report.b2c.length > 0) {
+                    report.b2c.forEach(item => {
+                        const taxable = parseFloat(item.taxable_value) || 0;
+                        const igst = parseFloat(item.total_igst) || 0;
+                        const cgst = parseFloat(item.total_cgst) || 0;
+                        const sgst = parseFloat(item.total_sgst) || 0;
+                        const tax = parseFloat(item.total_tax) || 0;
+                        b2cTotalTaxable += taxable;
+                        b2cTotalIgst += igst;
+                        b2cTotalCgst += cgst;
+                        b2cTotalSgst += sgst;
+                        b2cTotalTax += tax;
+
+                        b2cTableBody.innerHTML += `
+                            <tr>
+                                <td class="text-left">${item.place_of_supply || 'N/A'}</td>
+                                <td class="text-center">${item.gst_rate}%</td>
+                                <td>${formatCurrency(taxable)}</td>
+                                <td>${formatCurrency(igst)}</td>
+                                <td>${formatCurrency(cgst)}</td>
+                                <td>${formatCurrency(sgst)}</td>
+                                <td>${formatCurrency(tax)}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    b2cTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">इस अवधि में कोई B2C (छोटी) बिक्री नहीं मिली।</td></tr>';
+                }
+                b2cTableFoot.innerHTML = `<tr><td colspan="2" class="text-left">B2C कुल</td><td>${formatCurrency(b2cTotalTaxable)}</td><td>${formatCurrency(b2cTotalIgst)}</td><td>${formatCurrency(b2cTotalCgst)}</td><td>${formatCurrency(b2cTotalSgst)}</td><td>${formatCurrency(b2cTotalTax)}</td></tr>`;
+
+                // 4. HSN टेबल भरें
+                const hsnTableBody = document.getElementById('gstr1-hsn-table').querySelector('tbody');
+                const hsnTableFoot = document.getElementById('gstr1-hsn-table').querySelector('tfoot'); // tfoot भी जोड़ें
+                let hsnTotalQty = 0, hsnTotalTaxable = 0, hsnTotalIgst = 0, hsnTotalCgst = 0, hsnTotalSgst = 0, hsnTotalTax = 0;
+                hsnTableBody.innerHTML = ''; // पुरानी पंक्तियाँ साफ़ करें
+                
+                if (report.hsn_summary && report.hsn_summary.length > 0) {
+                    report.hsn_summary.forEach(item => {
+                        const qty = parseFloat(item.total_quantity) || 0;
+                        const taxable = parseFloat(item.total_taxable_value) || 0;
+                        const igst = parseFloat(item.total_igst) || 0;
+                        const cgst = parseFloat(item.total_cgst) || 0;
+                        const sgst = parseFloat(item.total_sgst) || 0;
+                        const tax = parseFloat(item.total_tax) || 0;
+                        
+                        hsnTotalQty += qty;
+                        hsnTotalTaxable += taxable;
+                        hsnTotalIgst += igst;
+                        hsnTotalCgst += cgst;
+                        hsnTotalSgst += sgst;
+                        hsnTotalTax += tax;
+                        
+                        hsnTableBody.innerHTML += `
+                            <tr>
+                                <td class="text-center">${item.hsn_code || 'N/A'}</td>
+                                <td class="text-left">${item.item_name}</td>
+                                <td class="text-center">${item.unit || 'Pcs'}</td>
+                                <td class="text-center">${qty}</td>
+                                <td>${formatCurrency(taxable)}</td>
+                                <td>${formatCurrency(igst)}</td>
+                                <td>${formatCurrency(cgst)}</td>
+                                <td>${formatCurrency(sgst)}</td>
+                                <td>${formatCurrency(tax)}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    hsnTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">इस अवधि के लिए कोई HSN समरी नहीं मिली।</td></tr>';
+                }
+                // HSN Total Foot
+                if (hsnTableFoot) {
+                    hsnTableFoot.innerHTML = `<tr><td colspan="3" class="text-left">HSN कुल</td><td class="text-center">${hsnTotalQty}</td><td>${formatCurrency(hsnTotalTaxable)}</td><td>${formatCurrency(hsnTotalIgst)}</td><td>${formatCurrency(hsnTotalCgst)}</td><td>${formatCurrency(hsnTotalSgst)}</td><td>${formatCurrency(hsnTotalTax)}</td></tr>`;
+                }
+
+
+                // 5. Tabs को फिर से सक्रिय करें (क्योंकि हमने HTML को फिर से लिखा है)
+                var triggerTabList = [].slice.call(document.querySelectorAll('#gstr1-inner-tab button'));
+                triggerTabList.forEach(function (triggerEl) {
+                    var tabTrigger = new bootstrap.Tab(triggerEl);
+                    triggerEl.addEventListener('click', function (event) {
+                        event.preventDefault();
+                        tabTrigger.show();
+                    });
+                });
+                // पहले टैब (B2B) को डिफ़ॉल्ट रूप से दिखाएं
+                new bootstrap.Tab(document.getElementById('gstr1-b2b-tab')).show();
+
+
+            } catch (e) { 
+                if(mainGstTitleEl) mainGstTitleEl.innerText = "GSTR-1 रिपोर्ट";
+                gstr1ContentEl.innerHTML = `<div class="text-danger p-4">त्रुटि: ${e.message}</div>`;
+            }
         });
+        // --- TALLY UPDATE END: GSTR-1 Button Logic ---
+        
+        
+        // --- TALLY UPDATE START: GSTR-2 Button Logic ---
         document.getElementById('fetch-gstr2-report-btn').addEventListener('click', async () => {
             const startDate = document.getElementById('gst-report-start-date').value;
             const endDate = document.getElementById('gst-report-end-date').value;
-            gstTitleEl.innerText = "GSTR-2 रिपोर्ट (लोड हो रही है...)";
+            if (!startDate || !endDate) return showMessage('त्रुटि', 'कृपया तारीख चुनें।', 'warning');
+            
+            const gstr2ContentEl = document.getElementById('gstr2-report-content');
+            const mainGstTitleEl = document.getElementById('gst-report-title'); // पुराना टाइटल
+            
+            if(mainGstTitleEl) mainGstTitleEl.innerText = "GSTR-2 (खरीद) रिपोर्ट (लोड हो रही है...)";
+            gstr2ContentEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-warning" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+            // GSTR-2 टैब को सक्रिय करें
+            new bootstrap.Tab(document.getElementById('gst-gstr2-tab')).show();
+
             try {
                 const res = await fetchApi(`/api/reports/gstr2?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' });
-                gstTitleEl.innerText = "GSTR-2 (खरीद) रिपोर्ट";
-                gstResultEl.textContent = JSON.stringify(res, null, 2);
-            } catch (e) { gstResultEl.textContent = `त्रुटि: ${e.message}`; }
+                if (!res.success) throw new Error(res.message || 'GSTR-2 रिपोर्ट लाने में विफल।');
+                
+                if(mainGstTitleEl) mainGstTitleEl.innerText = `GSTR-2 (खरीद) रिपोर्ट (${startDate} से ${endDate})`;
+                const report = res.report;
+                let tableHtml = '';
+
+                // B2B Purchases Table
+                tableHtml += '<h6>B2B (पंजीकृत सप्लायर से खरीद)</h6>';
+                if (report.b2b_purchases && report.b2b_purchases.length > 0) {
+                    tableHtml += '<table class="table gst-report-table"><thead><tr><th class="text-left">सप्लायर</th><th>बिल नं.</th><th>तारीख</th><th>टैक्सेबल वैल्यू (₹)</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th></tr></thead><tbody>';
+                    report.b2b_purchases.forEach(item => {
+                        const details = item.gst_details || {}; // Get the JSONB data
+                        tableHtml += `
+                            <tr>
+                                <td class="text-left">${item.supplier_name}</td>
+                                <td class="text-center">${details.invoice_number || item.id}</td>
+                                <td class="text-center">${new Date(item.created_at).toLocaleDateString()}</td>
+                                <td>${formatCurrency(details.taxable_value)}</td>
+                                <td>${formatCurrency(details.igst)}</td>
+                                <td>${formatCurrency(details.cgst)}</td>
+                                <td>${formatCurrency(details.sgst)}</td>
+                            </tr>
+                        `;
+                    });
+                    tableHtml += '</tbody></table>';
+                } else {
+                    tableHtml += '<p class="text-muted">इस अवधि में कोई GST वाली खरीद दर्ज नहीं की गई। (कृपया \'खरीद\' सेक्शन में GST Details जोड़ें)</p>';
+                }
+
+                // ITC Summary Table
+                tableHtml += '<h6 class="mt-4">इनपुट टैक्स क्रेडिट (ITC) समरी</h6>';
+                const itc = report.itc_summary || {};
+                const totalTaxable = parseFloat(itc.total_taxable_value) || 0;
+                const totalIgst = parseFloat(itc.total_igst) || 0;
+                const totalCgst = parseFloat(itc.total_cgst) || 0;
+                const totalSgst = parseFloat(itc.total_sgst) || 0;
+                
+                tableHtml += '<table class="table gst-report-table"><thead><tr><th class="text-left">विवरण</th><th>टैक्सेबल वैल्यू (₹)</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th></tr></thead><tbody>';
+                tableHtml += `
+                    <tr class="subtotal-row">
+                        <td class="text-left">कुल उपलब्ध ITC</td>
+                        <td>${formatCurrency(totalTaxable)}</td>
+                        <td>${formatCurrency(totalIgst)}</td>
+                        <td>${formatCurrency(totalCgst)}</td>
+                        <td>${formatCurrency(totalSgst)}</td>
+                    </tr>
+                `;
+                tableHtml += '</tbody></table>';
+                
+                gstr2ContentEl.innerHTML = tableHtml;
+
+            } catch (e) {
+                if(mainGstTitleEl) mainGstTitleEl.innerText = "GSTR-2 रिपोर्ट";
+                gstr2ContentEl.innerHTML = `<div class="text-danger p-4">त्रुटि: ${e.message}</div>`;
+            }
         });
+        // --- TALLY UPDATE END: GSTR-2 Button Logic ---
+
+
+        // --- TALLY UPDATE START: GSTR-3B Button Logic ---
         document.getElementById('fetch-gstr3b-report-btn').addEventListener('click', async () => {
-            gstTitleEl.innerText = "GSTR-3B रिपोर्ट (लोड हो रही है...)";
+            const startDate = document.getElementById('gst-report-start-date').value;
+            const endDate = document.getElementById('gst-report-end-date').value;
+            if (!startDate || !endDate) return showMessage('त्रुटि', 'कृपया तारीख चुनें।', 'warning');
+
+            const gstr3bContentEl = document.getElementById('gstr3b-report-content');
+            const mainGstTitleEl = document.getElementById('gst-report-title'); // पुराना टाइटल
+            
+            if(mainGstTitleEl) mainGstTitleEl.innerText = "GSTR-3B (समरी) रिपोर्ट (लोड हो रही है...)";
+            gstr3bContentEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+            // GSTR-3B टैब को सक्रिय करें
+            new bootstrap.Tab(document.getElementById('gst-gstr3b-tab')).show();
+
             try {
-                const res = await fetchApi(`/api/reports/gstr3b`, { method: 'GET' });
-                gstTitleEl.innerText = "GSTR-3B (सारांश) रिपोर्ट";
-                gstResultEl.textContent = JSON.stringify(res, null, 2);
-            } catch (e) { gstResultEl.textContent = `त्रुटि: ${e.message}`; }
+                const res = await fetchApi(`/api/reports/gstr3b?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' });
+                if (!res.success) throw new Error(res.message || 'GSTR-3B रिपोर्ट लाने में विफल।');
+                
+                if(mainGstTitleEl) mainGstTitleEl.innerText = `GSTR-3B (समरी) रिपोर्ट (${startDate} से ${endDate})`;
+                const report = res.report;
+                let tableHtml = '';
+
+                // Table 3.1: Outward Supplies (Sales)
+                tableHtml += '<h6>3.1: बिक्री और टैक्स (Outward Supplies)</h6>';
+                tableHtml += '<table class="table gst-report-table"><thead><tr><th class="text-left">विवरण</th><th>टैक्सेबल वैल्यू (₹)</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th></tr></thead><tbody>';
+                tableHtml += `
+                    <tr class="subtotal-row">
+                        <td class="text-left">(a) टैक्सेबल बिक्री</td>
+                        <td>${formatCurrency(report.outward_supplies.taxable_value)}</td>
+                        <td>${formatCurrency(report.outward_supplies.igst)}</td>
+                        <td>${formatCurrency(report.outward_supplies.cgst)}</td>
+                        <td>${formatCurrency(report.outward_supplies.sgst)}</td>
+                    </tr>
+                `;
+                tableHtml += '</tbody></table>';
+
+                // Table 4: Eligible ITC (Purchases)
+                tableHtml += '<h6 class="mt-4">4: योग्य इनपुट टैक्स क्रेडिट (ITC)</h6>';
+                tableHtml += '<table class="table gst-report-table"><thead><tr><th class="text-left">विवरण</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th></tr></thead><tbody>';
+                tableHtml += `
+                    <tr>
+                        <td class="text-left">(A) (5) सभी अन्य ITC (B2B खरीद)</td>
+                        <td>${formatCurrency(report.inward_supplies_itc.igst)}</td>
+                        <td>${formatCurrency(report.inward_supplies_itc.cgst)}</td>
+                        <td>${formatCurrency(report.inward_supplies_itc.sgst)}</td>
+                    </tr>
+                    <tr class="subtotal-row">
+                        <td class="text-left">(D) कुल उपलब्ध ITC (A)</td>
+                        <td>${formatCurrency(report.inward_supplies_itc.igst)}</td>
+                        <td>${formatCurrency(report.inward_supplies_itc.cgst)}</td>
+                        <td>${formatCurrency(report.inward_supplies_itc.sgst)}</td>
+                    </tr>
+                `;
+                tableHtml += '</tbody></table>';
+
+                // Table 6.1: Payment of Tax (Net Tax)
+                tableHtml += '<h6 class="mt-4">6.1: टैक्स भुगतान (Net Tax Payable)</h6>';
+                tableHtml += '<table class="table gst-report-table"><thead><tr><th class="text-left">विवरण</th><th>IGST (₹)</th><th>CGST (₹)</th><th>SGST (₹)</th><th>कुल देय टैक्स (₹)</th></tr></thead><tbody>';
+                tableHtml += `
+                    <tr class="subtotal-row">
+                        <td class="text-left">कुल देय टैक्स (बिक्री - खरीद)</td>
+                        <td>${formatCurrency(report.net_tax_payable.igst)}</td>
+                        <td>${formatCurrency(report.net_tax_payable.cgst)}</td>
+                        <td>${formatCurrency(report.net_tax_payable.sgst)}</td>
+                        <td>${formatCurrency(report.net_tax_payable.total)}</td>
+                    </tr>
+                `;
+                tableHtml += '</tbody></table>';
+
+                gstr3bContentEl.innerHTML = tableHtml;
+
+            } catch (e) {
+                if(mainGstTitleEl) mainGstTitleEl.innerText = "GSTR-3B रिपोर्ट";
+                gstr3bContentEl.innerHTML = `<div class="text-danger p-4">त्रुटि: ${e.message}</div>`;
+            }
         });
+        // --- TALLY UPDATE END: GSTR-3B Button Logic ---
+
         
         // Daily Closing Button
         document.getElementById('run-daily-closing-btn').addEventListener('click', async () => {
@@ -3406,52 +3868,90 @@ const addStaffForm = document.getElementById('add-staff-form');
 /**
  * Main startup logic - MODIFIED
  */
-document.addEventListener('DOMContentLoaded', () => {
-    const licenseModalEl = document.getElementById('licenseModal');
-    const licenseModal = new bootstrap.Modal(licenseModalEl);
+ document.addEventListener('DOMContentLoaded', () => {
+    const licenseModalEl = document.getElementById('licenseModal');
+    const licenseModal = new bootstrap.Modal(licenseModalEl);
 
+    const token = localStorage.getItem('authToken');
+    const user = JSON.parse(localStorage.getItem('authUser'));
+
+    if (token && user) {
+        console.log("टोकन मिला, लॉगिन स्थिति की जाँच की जा रही है...");
+        saveAuthData(token, user);
+        startLicenseTimer(user.licenseExpiryDate); // Start timer regardless
+
+        const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
+        const now = new Date();
+
+        // --- MODIFIED LICENSE CHECK ---
+        if (!expiryDate || expiryDate < now) {
+            // License is expired or missing - SHOW MODAL, KEEP APP LOCKED
+            console.log("लाइसेंस समाप्त या गुम है। सक्रियण की आवश्यकता है।");
+            showMessage('लाइसेंस आवश्यक', 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया लाइसेंस कुंजी दर्ज करें।', 'warning');
+
+            // Unlock essential parts ONLY (sidebar for logout/timer, menu toggle)
+            document.getElementById('auth-container').classList.add('hidden');
+            document.getElementById('sidebar').classList.remove('locked');
+            document.getElementById('menu-toggle').classList.remove('locked');
+            document.getElementById('main-content').classList.add('locked'); // <<< KEEP MAIN CONTENT LOCKED
+            applyRBAC(user.role); // Apply RBAC for sidebar elements that should be visible
+            licenseModal.show(); // Show license modal
+
+        } else {
+            // Token and License are valid - UNLOCK FULLY
+            console.log("टोकन और लाइसेंस मान्य हैं। ऐप अनलॉक हो रहा है।");
+            unlockApplication(); // Unlock everything including main content
+        }
+        // --- END MODIFIED LICENSE CHECK ---
+
+    } else {
+        // No token found. Show login screen.
+        console.log("कोई टोकन नहीं मिला। लॉगिन स्क्रीन दिखा रहा है।");
+        document.getElementById('auth-container').classList.remove('hidden');
+        // Keep app parts locked (already default)
+        document.getElementById('sidebar').classList.add('locked');
+        document.getElementById('main-content').classList.add('locked');
+        document.getElementById('menu-toggle').classList.add('locked');
+    }
+
+    // --- NEW: postMessage Listener for Mobile Scanner ---
+    window.addEventListener('message', function(event) {
+        // केवल उसी origin से आने वाले मैसेज को स्वीकार करें (सुरक्षा)
+        // यदि आप दो अलग-अलग डोमेन का उपयोग करते हैं, तो origin को हटाना पड़ सकता है, 
+        // लेकिन यह सुरक्षा के लिए बेहतर है कि origin चेक किया जाए।
+        if (event.origin !== window.location.origin) return; 
+
+       // [ इसे इससे बदलें ]
+if (event.data) {
     const token = localStorage.getItem('authToken');
-    const user = JSON.parse(localStorage.getItem('authUser'));
+    // --- FIX START ---
+    const user = AppState.user || JSON.parse(localStorage.getItem('authUser'));
+    const shopId = user ? user.shopId : null; // <-- ✅ यह सही तरीका है
+    // --- FIX END ---
+    const backendUrl = __backend_url;
 
-    if (token && user) {
-        console.log("टोकन मिला, लॉगिन स्थिति की जाँच की जा रही है...");
-        saveAuthData(token, user);
-        startLicenseTimer(user.licenseExpiryDate); // Start timer regardless
+            // 1. Token Request (मोबाइल स्कैनर टोकन मांग रहा है)
+            if (event.data.type === 'REQUEST_AUTH' && token) {
+                // टोकन को स्कैनर विंडो पर वापस भेजें
+                if (window.scannerWindow && !window.scannerWindow.closed) {
+                    window.scannerWindow.postMessage({
+                        type: 'AUTH_TOKEN',
+                        token: token,
+                        shopId: shopId,
+                        backendUrl: backendUrl
+                    }, window.location.origin);
+                }
+            }
 
-        const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
-        const now = new Date();
-
-        // --- MODIFIED LICENSE CHECK ---
-        if (!expiryDate || expiryDate < now) {
-            // License is expired or missing - SHOW MODAL, KEEP APP LOCKED
-            console.log("लाइसेंस समाप्त या गुम है। सक्रियण की आवश्यकता है।");
-            showMessage('लाइसेंस आवश्यक', 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया लाइसेंस कुंजी दर्ज करें।', 'warning');
-
-            // Unlock essential parts ONLY (sidebar for logout/timer, menu toggle)
-            document.getElementById('auth-container').classList.add('hidden');
-            document.getElementById('sidebar').classList.remove('locked');
-            document.getElementById('menu-toggle').classList.remove('locked');
-            document.getElementById('main-content').classList.add('locked'); // <<< KEEP MAIN CONTENT LOCKED
-            applyRBAC(user.role); // Apply RBAC for sidebar elements that should be visible
-            licenseModal.show(); // Show license modal
-
-        } else {
-            // Token and License are valid - UNLOCK FULLY
-            console.log("टोकन और लाइसेंस मान्य हैं। ऐप अनलॉक हो रहा है।");
-            unlockApplication(); // Unlock everything including main content
+            // 2. Scanned SKU (मोबाइल स्कैनर ने SKU भेजा है)
+            if (event.data.type === 'SCANNED_SKU' && event.data.sku) {
+                processScannedSku(event.data.sku); // SKU को प्रोसेस करें
+            }
         }
-        // --- END MODIFIED LICENSE CHECK ---
+    });
+    // --- END NEW POSTMESSAGE LOGIC ---
 
-    } else {
-        // No token found. Show login screen.
-        console.log("कोई टोकन नहीं मिला। लॉगिन स्क्रीन दिखा रहा है।");
-        document.getElementById('auth-container').classList.remove('hidden');
-        // Keep app parts locked (already default)
-        document.getElementById('sidebar').classList.add('locked');
-        document.getElementById('main-content').classList.add('locked');
-        document.getElementById('menu-toggle').classList.add('locked');
-    }
-
+});
     // --- Login Form Handler - MODIFIED ---
     document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -3592,7 +4092,7 @@ const res = await fetchApi('/api/activate-license', {
 
     // ... (rest of DOMContentLoaded listeners like logout, sidebar, etc.) ...
 
-}); // End of DOMContentLoaded
+
         // --- Setup Other Listeners ---
         
         // Logout Button
