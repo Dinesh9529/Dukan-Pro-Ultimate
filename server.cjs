@@ -52,6 +52,8 @@ const pool = new Pool({
  * NOTE: All data tables now include 'shop_id' for multi-tenancy.
  */
 // --- server.cjs में इस पूरे फ़ंक्शन को बदलें ---
+// [ server.cjs फ़ाइल में इस पूरे फ़ंक्शन को बदलें ]
+
 async function createTables() {
     const client = await pool.connect();
     try {
@@ -80,7 +82,7 @@ async function createTables() {
         // FIX: Add the composite UNIQUE constraint safely if it was missing (Fixes ON CONFLICT Error)
         await client.query(`
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stock_shop_id_sku_key') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stock_shop_id_sku_key' AND conrelid = (SELECT oid FROM pg_class WHERE relname = 'stock')) THEN
                     ALTER TABLE stock ADD CONSTRAINT stock_shop_id_sku_key UNIQUE (shop_id, sku);
                 END IF;
             END $$;
@@ -101,10 +103,47 @@ async function createTables() {
 
         // 4. Invoices/Sales Table
         await client.query('CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL, total_amount NUMERIC NOT NULL, total_cost NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        
+        // === TALLY UPGRADE START: Add customer_gstin and place_of_supply to INVOICES ===
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoices') AND attname = 'customer_gstin') THEN
+                    ALTER TABLE invoices ADD COLUMN customer_gstin TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoices') AND attname = 'place_of_supply') THEN
+                    ALTER TABLE invoices ADD COLUMN place_of_supply TEXT;
+                END IF;
+            END $$;
+        `);
+        // === TALLY UPGRADE END ===
 
         // 5. Invoice Items
         await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);');
-        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='gst_rate') THEN ALTER TABLE invoice_items ADD COLUMN gst_rate NUMERIC DEFAULT 0; END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='gst_amount') THEN ALTER TABLE invoice_items ADD COLUMN gst_amount NUMERIC DEFAULT 0; END IF; END $$;`);
+        
+        // === TALLY UPGRADE START: Add detailed GST columns to INVOICE_ITEMS ===
+        // (Note: This combines your existing check [cite: 416] with the new Tally columns)
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
+                    ALTER TABLE invoice_items ADD COLUMN gst_rate NUMERIC DEFAULT 0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_amount') THEN
+                    ALTER TABLE invoice_items ADD COLUMN gst_amount NUMERIC DEFAULT 0;
+                END IF;
+                
+                -- New Tally Columns Added Safely --
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'cgst_amount') THEN
+                    ALTER TABLE invoice_items ADD COLUMN cgst_amount NUMERIC DEFAULT 0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'sgst_amount') THEN
+                    ALTER TABLE invoice_items ADD COLUMN sgst_amount NUMERIC DEFAULT 0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'igst_amount') THEN
+                    ALTER TABLE invoice_items ADD COLUMN igst_amount NUMERIC DEFAULT 0;
+                END IF;
+            END $$;
+        `);
+        // === TALLY UPGRADE END ===
 
         // 6. Purchases Table
         await client.query('CREATE TABLE IF NOT EXISTS purchases (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, supplier_name TEXT NOT NULL, item_details TEXT, total_cost NUMERIC NOT NULL, gst_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
@@ -125,11 +164,11 @@ async function createTables() {
         // 11. Renewal Requests Table
         await client.query(`CREATE TABLE IF NOT EXISTS renewal_requests (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), user_email TEXT, message TEXT, requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
-         // --- MOVED SECTION (Now inside the try block) ---
+        
+        // --- MOVED SECTION (Kept as per your request) ---
+        // (Note: These are redundant but kept to avoid deleting code)
+        
         // 1. GSTR और बेहतर रिपोर्टिंग के लिए स्टॉक में HSN कोड जोड़ना
-        // (Note: This is redundant because it's already handled in the CREATE/ALTER logic for 'stock' table above, but it is safe to leave)
-        // Fix for "await is only valid in async functions" SyntaxError
-
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'stock') AND attname = 'hsn_code') THEN
@@ -139,7 +178,6 @@ async function createTables() {
         `);
 
         // 2. GSTR (B2B) के लिए ग्राहकों में GSTIN जोड़ना
-        // (Note: This is redundant because it's already handled in the CREATE/ALTER logic for 'customers' table above, but it is safe to leave)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'customers') AND attname = 'gstin') THEN
@@ -149,7 +187,7 @@ async function createTables() {
         `);
 
         // 3. GSTR-1 रिपोर्टिंग के लिए Invoice Items में GST दरें जोड़ना
-        // (Note: This is redundant because it's already handled in the CREATE/ALTER logic for 'invoice_items' table above, but it is safe to leave)
+        // (Note: Redundant, already handled in the Tally Upgrade section above)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
@@ -162,7 +200,6 @@ async function createTables() {
         `);
 
         // 4. GSTR-2 (Purchases) के लिए Purchases में GST विवरण जोड़ना
-        // (Note: This is redundant because it's already handled in the CREATE/ALTER logic for 'purchases' table above, but it is safe to leave)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'purchases') AND attname = 'gst_details') THEN
@@ -170,10 +207,8 @@ async function createTables() {
                 END IF;
             END $$;
         `);
-    
 
         // 5. GSTR रिपोर्टिंग के लिए शॉप की कंपनी प्रोफाइल (GSTIN, नाम)
-        // (Note: This is redundant because it's already handled above, but it is safe to leave)
         await client.query(`
             CREATE TABLE IF NOT EXISTS company_profile (
                 shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE,
@@ -185,7 +220,6 @@ async function createTables() {
         `);
 
         // 6. लाइसेंस रिन्यूअल अनुरोधों को ट्रैक करने के लिए नई टेबल
-        // (Note: This is redundant because it's already handled above, but it is safe to leave)
         await client.query(`
             CREATE TABLE IF NOT EXISTS renewal_requests (
                 id SERIAL PRIMARY KEY,
@@ -197,20 +231,17 @@ async function createTables() {
         `);
         // --- END MOVED SECTION ---
 
-
-        console.log('✅ All tables and columns (including shop_id and license logic changes) checked/created successfully.'); // <<< This is now the last line inside the try block
-       
-
+        console.log('✅ All tables and columns (including Tally GST columns) checked/created successfully.');
+        
     } catch (err) {
         console.error('❌ Error ensuring database schema:', err.message, err.stack);
-        process.exit(1);
+        process.exit(1); // Exit if schema setup fails
     } finally {
-        if (client) {
+        if (client) { // Ensure client exists before releasing
            client.release();
         }
     }
-}
-        
+}        
            
   
 // --- License Utilities ---
@@ -2209,6 +2240,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
