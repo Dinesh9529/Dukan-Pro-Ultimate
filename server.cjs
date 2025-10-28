@@ -956,10 +956,11 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 
 //... (बाकी server.cjs कोड)
 
-// 8.1 Process New Sale / Create Invoice (SCOPED & TRANSACTIONAL) - (Completed route 22)
+// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST REPORTING)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
-    // FIX 1: req.body से customerMobile वेरिएबल निकालें
-    const { customerName, customerMobile, total_amount, sale_items } = req.body;
+    // FIX 1: req.body से customerMobile वेरिएबल निकालें (आपका मौजूदा कोड)
+    // TALLY UPDATE: हम 'place_of_supply' को भी req.body से लेंगे (यह फ्रंटएंड से आना चाहिए)
+    const { customerName, customerMobile, total_amount, sale_items, place_of_supply } = req.body;
     const shopId = req.shopId;
 
     if (!total_amount || !Array.isArray(sale_items) || sale_items.length === 0) {
@@ -971,53 +972,95 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         await client.query('BEGIN'); // Transaction Start
 
         let customerId = null;
+        // === TALLY UPDATE START: ग्राहक का GSTIN भी प्राप्त करें ===
+        let customerGstin = null; 
+        // === TALLY UPDATE END ===
+
         if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
-            // Check/Insert customer only within this shop_id
             
-            // FIX 2: ग्राहक को नाम OR फोन से खोजें
-            let customerResult = await client.query('SELECT id FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
+            // FIX 2: ग्राहक को नाम OR फोन से खोजें (आपका मौजूदा कोड)
+            // TALLY UPDATE: SELECT में 'gstin' जोड़ा गया
+            let customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
             
-            // यदि नाम से नहीं मिला और मोबाइल नंबर मौजूद है, तो मोबाइल से खोजें
             if (customerResult.rows.length === 0 && customerMobile) {
-                 customerResult = await client.query('SELECT id FROM customers WHERE shop_id = $1 AND phone = $2', [shopId, customerMobile]);
+                // TALLY UPDATE: SELECT में 'gstin' जोड़ा गया
+                 customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND phone = $2', [shopId, customerMobile]);
             }
 
             if (customerResult.rows.length > 0) {
-                 customerId = customerResult.rows[0].id;
+                customerId = customerResult.rows[0].id;
+                customerGstin = customerResult.rows[0].gstin; // <<< TALLY UPDATE: GSTIN सहेजें
             } else {
-                // FIX 3: नया ग्राहक बनाते समय phone कॉलम शामिल करें
-                const newCustomerResult = await client.query('INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id', [shopId, customerName.trim(), customerMobile]);
+                // FIX 3: नया ग्राहक बनाते समय phone कॉलम शामिल करें (आपका मौजूदा कोड)
+                // TALLY UPDATE: RETURNING में 'gstin' जोड़ा गया
+                const newCustomerResult = await client.query('INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id, gstin', [shopId, customerName.trim(), customerMobile]);
                 customerId = newCustomerResult.rows[0].id;
+                customerGstin = newCustomerResult.rows[0].gstin; // <<< TALLY UPDATE: (यह NULL होगा, जो सही है)
             }
         }
 
         const safeTotalAmount = parseFloat(total_amount);
         let calculatedTotalCost = 0;
 
+        // TALLY UPDATE: अपनी दुकान का GSTIN प्राप्त करें (यह जानने के लिए कि बिक्री Intra-State है या Inter-State)
+        const profileRes = await client.query('SELECT gstin FROM company_profile WHERE shop_id = $1', [shopId]);
+        const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2); // जैसे "27" (Maharashtra)
+        const supplyPlace = (place_of_supply || shopGstin); // यदि 'place_of_supply' नहीं है, तो मानें कि यह Intra-State है
+
         // 🔑 Insert invoice with shop_id
+        // TALLY UPDATE: 'customer_gstin' और 'place_of_supply' कॉलम जोड़े गए
         const invoiceResult = await client.query(
-            `INSERT INTO invoices (shop_id, customer_id, total_amount) VALUES ($1, $2, $3) RETURNING id`,
-            [shopId, customerId, safeTotalAmount]
+            `INSERT INTO invoices (shop_id, customer_id, total_amount, customer_gstin, place_of_supply) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [shopId, customerId, safeTotalAmount, customerGstin, supplyPlace]
         );
         const invoiceId = invoiceResult.rows[0].id;
 
         for (const item of sale_items) {
             const safeQuantity = parseFloat(item.quantity);
             const safePurchasePrice = parseFloat(item.purchase_price || 0);
+            const salePrice = parseFloat(item.sale_price);
+            
+            // === TALLY UPDATE START: CGST/SGST/IGST की गणना करें ===
+            const gstRate = parseFloat(item.gst || 0);
+            const taxableValue = (salePrice * safeQuantity); // मानते हैं कि sale_price टैक्स-रहित (tax-exclusive) है
+            const totalGstAmount = taxableValue * (gstRate / 100);
+
+            let cgst_amount = 0;
+            let sgst_amount = 0;
+            let igst_amount = 0;
+
+            if (supplyPlace === shopGstin) {
+                // Intra-State (राज्य के अंदर)
+                cgst_amount = totalGstAmount / 2;
+                sgst_amount = totalGstAmount / 2;
+            } else {
+                // Inter-State (राज्य के बाहर)
+                igst_amount = totalGstAmount;
+            }
+            // === TALLY UPDATE END ===
 
             calculatedTotalCost += safeQuantity * safePurchasePrice;
+            
+            // TALLY UPDATE: 'invoice_items' INSERT क्वेरी में नए GST कॉलम जोड़े गए
             await client.query(
-                `INSERT INTO invoice_items (invoice_id, item_name, item_sku, quantity, sale_price, purchase_price) VALUES ($1, $2, $3, $4, $5, $6)`,
-                [invoiceId, item.name, item.sku, safeQuantity, parseFloat(item.sale_price), safePurchasePrice]
+                `INSERT INTO invoice_items (
+                    invoice_id, item_name, item_sku, quantity, sale_price, purchase_price, 
+                    gst_rate, gst_amount, cgst_amount, sgst_amount, igst_amount
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                [
+                    invoiceId, item.name, item.sku, safeQuantity, salePrice, safePurchasePrice,
+                    gstRate, totalGstAmount, cgst_amount, sgst_amount, igst_amount
+                ]
             );
-            // 🔑 Update stock quantity only for the current shop_id
+            
+            // 🔑 Update stock quantity (आपका मौजूदा कोड)
             await client.query(
                 `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
                 [safeQuantity, item.sku, shopId]
             );
         }
 
-        // Update the invoice with the calculated total cost of goods sold (COGS)
+        // Update the invoice with the calculated total cost of goods sold (COGS) (आपका मौजूदा कोड)
         await client.query(
             `UPDATE invoices SET total_cost = $1 WHERE id = $2`,
             [calculatedTotalCost, invoiceId]
@@ -1025,15 +1068,17 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         await client.query('COMMIT'); // Transaction End
 
         res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री सफलतापूर्वक दर्ज की गई और स्टॉक अपडेट किया गया.' });
+    
     } catch (err) {
         await client.query('ROLLBACK');
         // Rollback on any error
-        console.error("Error processing invoice:", err.message);
+        console.error("Error processing invoice:", err.message, err.stack); // Added stack trace
         res.status(500).json({ success: false, message: 'बिक्री विफल: ' + err.message });
     } finally {
-        client.release();
+        if (client) client.release();
     }
 });
+
 
 //... (बाकी server.cjs कोड)
 
@@ -2240,6 +2285,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
