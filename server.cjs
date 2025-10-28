@@ -2174,16 +2174,95 @@ app.get('/api/reports/gstr2', authenticateJWT, checkRole('MANAGER'), async (req,
     }
 });
 
-// 15.4 Simplified GSTR-3B Summary (Placeholder)
+// 15.4 Tally-Style GSTR-3B Summary
 app.get('/api/reports/gstr3b', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
-    // (GSTR-3B, GSTR-1 और GSTR-2 का सारांश है।
-    // चूंकि वे रिपोर्टें सरलीकृत हैं, यह भी सरलीकृत होगी।)
-    res.json({
-        success: true,
-        message: "GSTR-3B सारांश",
-        note: "यह सुविधा GSTR-1 और GSTR-2 रिपोर्टों पर निर्भर करती है। वर्तमान डेटा स्कीमा के साथ सटीक GSTR-3B संभव नहीं है."
-    });
+    const shopId = req.shopId;
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+        return res.status(400).json({ success: false, message: 'StartDate और EndDate आवश्यक हैं.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        // --- 1. Outward Supplies (GSTR-1 का सारांश) ---
+        const outward_query = `
+            SELECT 
+                SUM(ii.sale_price * ii.quantity) AS total_taxable_value,
+                SUM(ii.igst_amount) AS total_igst,
+                SUM(ii.cgst_amount) AS total_cgst,
+                SUM(ii.sgst_amount) AS total_sgst
+            FROM invoice_items ii
+            JOIN invoices i ON ii.invoice_id = i.id
+            WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3;
+        `;
+        const outward_result = await client.query(outward_query, [shopId, startDate, endDate]);
+
+        // --- 2. Inward Supplies / ITC (GSTR-2 का सारांश) ---
+        const inward_query = `
+            SELECT 
+                SUM(COALESCE((gst_details->>'taxable_value')::numeric, 0)) AS total_taxable_value,
+                SUM(COALESCE((gst_details->>'igst')::numeric, 0)) AS total_igst,
+                SUM(COALESCE((gst_details->>'cgst')::numeric, 0)) AS total_cgst,
+                SUM(COALESCE((gst_details->>'sgst')::numeric, 0)) AS total_sgst
+            FROM purchases
+            WHERE shop_id = $1 AND created_at BETWEEN $2 AND $3
+              AND gst_details IS NOT NULL AND gst_details::text != '{}';
+        `;
+        const inward_result = await client.query(inward_query, [shopId, startDate, endDate]);
+
+        // --- 3. Non-GST Expenses (ITC का हिस्सा नहीं) ---
+        const expense_query = `
+            SELECT COALESCE(SUM(amount), 0) AS non_gst_expenses
+            FROM expenses 
+            WHERE shop_id = $1 AND created_at BETWEEN $2 AND $3;
+        `;
+        const expense_result = await client.query(expense_query, [shopId, startDate, endDate]);
+        
+        const sales = outward_result.rows[0] || {};
+        const itc = inward_result.rows[0] || {};
+        const expenses = expense_result.rows[0] || {};
+
+        // --- 4. Net Tax Calculation ---
+        const net_igst = (parseFloat(sales.total_igst) || 0) - (parseFloat(itc.total_igst) || 0);
+        const net_cgst = (parseFloat(sales.total_cgst) || 0) - (parseFloat(itc.total_cgst) || 0);
+        const net_sgst = (parseFloat(sales.total_sgst) || 0) - (parseFloat(itc.total_sgst) || 0);
+
+        res.json({
+            success: true,
+            report: {
+                period: { start: startDate, end: endDate },
+                outward_supplies: { // (Table 3.1)
+                    taxable_value: parseFloat(sales.total_taxable_value || 0).toFixed(2),
+                    igst: parseFloat(sales.total_igst || 0).toFixed(2),
+                    cgst: parseFloat(sales.total_cgst || 0).toFixed(2),
+                    sgst: parseFloat(sales.total_sgst || 0).toFixed(2)
+                },
+                inward_supplies_itc: { // (Table 4)
+                    taxable_value: parseFloat(itc.total_taxable_value || 0).toFixed(2),
+                    igst: parseFloat(itc.total_igst || 0).toFixed(2),
+                    cgst: parseFloat(itc.total_cgst || 0).toFixed(2),
+                    sgst: parseFloat(itc.total_sgst || 0).toFixed(2)
+                },
+                non_gst_expenses: parseFloat(expenses.non_gst_expenses || 0).toFixed(2),
+                net_tax_payable: {
+                    igst: net_igst.toFixed(2),
+                    cgst: net_cgst.toFixed(2),
+                    sgst: net_sgst.toFixed(2),
+                    total: (net_igst + net_cgst + net_sgst).toFixed(2)
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error("Error generating GSTR-3B Tally report:", err.message, err.stack);
+        res.status(500).json({ success: false, message: 'GSTR-3B Tally रिपोर्ट बनाने में विफल: ' + err.message });
+    } finally {
+        if (client) client.release();
+    }
 });
+
+
 
 
 
@@ -2285,6 +2364,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
