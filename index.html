@@ -394,6 +394,10 @@
 
 
     </style>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+</head>
 </head>
 <body>
 
@@ -1723,6 +1727,90 @@
 <script>
     // --- CONFIGURATION AND GLOBAL STATE ---
    // --- CONFIGURATION AND GLOBAL STATE ---
+// --- 🚀 3. WebSocket और मोबाइल डिटेक्शन फ़ंक्शन ---
+let posWebSocket = null;
+    let pairingModalInstance = null;
+    
+    function isMobile() {
+        try {
+            if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
+        } catch (e) { /* जारी रखें */ }
+        return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+    
+    function initPosWebSocket() {
+        if (posWebSocket && posWebSocket.readyState === WebSocket.OPEN) return;
+
+        const wsUrl = __backend_url.replace('https', 'wss').replace('http', 'ws');
+        posWebSocket = new WebSocket(wsUrl);
+        
+        const qrContainer = document.getElementById('pairing-qr-container');
+        const statusEl = document.getElementById('pairing-status');
+        
+        qrContainer.innerHTML = `<div class="spinner-border text-primary" role="status"><span class="visually-hidden">QR कोड जनरेट हो रहा है...</span></div>`;
+        qrContainer.style.display = 'flex';
+        statusEl.style.display = 'none';
+
+        posWebSocket.onopen = () => {
+            console.log("POS WebSocket Connected");
+            posWebSocket.send(JSON.stringify({
+                type: 'REGISTER_POS',
+                token: AppState.token 
+            }));
+        };
+
+        posWebSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            switch (data.type) {
+                case 'PAIR_CODE_GENERATED':
+                    qrContainer.innerHTML = ''; 
+                    const canvas = document.createElement('canvas');
+                    qrContainer.appendChild(canvas);
+                    QRCode.toCanvas(canvas, data.pairCode, { width: 256 }, (error) => {
+                        if (error) console.error(error);
+                        console.log('QR कोड बनाया गया:', data.pairCode);
+                    });
+                    break;
+                case 'SCANNER_PAIRED':
+                    console.log("स्कैनर पेयर हो गया!");
+                    qrContainer.style.display = 'none';
+                    statusEl.style.display = 'block';
+                    setTimeout(() => {
+                        if (pairingModalInstance) pairingModalInstance.hide();
+                    }, 2000);
+                    break;
+                case 'SKU_SCANNED':
+                    console.log("SKU प्राप्त हुआ:", data.sku);
+                    handleBarcodeScan(data.sku); 
+                    break;
+                case 'SCANNER_DISCONNECTED':
+                    console.log("स्कैनर डिस्कनेक्ट हो गया।");
+                    qrContainer.style.display = 'flex';
+                    statusEl.style.display = 'none';
+                    posWebSocket.send(JSON.stringify({
+                        type: 'REGISTER_POS',
+                        token: AppState.token 
+                    }));
+                    break;
+            }
+        };
+
+        posWebSocket.onclose = () => {
+            console.log("POS WebSocket Disconnected");
+            posWebSocket = null;
+        };
+        posWebSocket.onerror = (error) => console.error("WebSocket Error:", error);
+    }
+
+    function closePosWebSocket() {
+        if (posWebSocket) {
+            posWebSocket.close();
+            posWebSocket = null;
+        }
+    }
+
+
+
    const __backend_url = 'https://dukan-pro-ultimate.onrender.com';
     const SERVER_TIMEOUT = 20000; // 20 seconds for slow connections
     const AppState = {
@@ -1751,6 +1839,10 @@
     };
     
 // ==========================================================
+
+// --- 🚀 नया: मोबाइल डिटेक्शन फ़ंक्शन ---
+
+
 // ========== बारकोड स्कैनिंग और POS लॉजिक (CORE) ==========
 // ==========================================================
 
@@ -1853,18 +1945,37 @@ async function handleBarcodeScan(skuFromScanner = null) {
 
 
 // नया फ़ंक्शन: मोबाइल स्कैनर विंडो खोलता है
-function openMobileScanner() {
-    // FIX: window.location.origin का उपयोग करके हमेशा लाइव Render URL खोलें
-    const scannerUrl = window.location.origin + '/mobile_scanner.html';
-    
-    // स्कैनर को एक नई विंडो/टैब में खोलें
-    window.scannerWindow = window.open(scannerUrl, '_blank', 'width=400,height=600'); 
-    
-    if (!window.scannerWindow) {
-        showMessage('त्रुटि', 'पॉपअप ब्लॉक किया गया। कृपया इस वेबसाइट के लिए पॉपअप की अनुमति दें।', 'danger');
-    }
-}
+// [ पुराना openMobileScanner फ़ंक्शन बदलें ]
 
+    // 🚀 नया: हाइब्रिड 'openMobileScanner' फ़ंक्शन
+   // [ पुराना openMobileScanner फ़ंक्शन बदलें ]
+
+    // 🚀 नया: "फोर्स्ड" 'openMobileScanner' फ़ंक्शन
+   // [ पुराना openMobileScanner फ़ंक्शन बदलें ]
+
+    // 🚀 4. हाइब्रिड 'openMobileScanner' फ़ंक्शन
+    function openMobileScanner() {
+        
+        if (isMobile()) {
+            // 1. अगर मोबाइल पर हैं: पुराना तरीका (postMessage)
+            console.log("Mobile device detected. Opening scanner in new tab.");
+            const scannerUrl = window.location.origin + '/mobile_scanner.html';
+            window.scannerWindow = window.open(scannerUrl, '_blank', 'width=400,height=600');
+            
+            if (!window.scannerWindow) {
+                showMessage('त्रुटि', 'पॉपअप ब्लॉक किया गया। कृपया इस वेबसाइट के लिए पॉपअप की अनुमति दें।', 'danger');
+            }
+
+        } else {
+            // 2. अगर कंप्यूटर पर हैं: नया तरीका (WebSocket QR Code)
+            console.log("Desktop device detected. Opening pairing modal.");
+            if (!pairingModalInstance) {
+                pairingModalInstance = new bootstrap.Modal(document.getElementById('pairingModal'));
+            }
+            pairingModalInstance.show();
+            initPosWebSocket();
+        }
+    }
 // नया फ़ंक्शन: पोस्ट मैसेज से प्राप्त SKU को प्रोसेस करता है
 function processScannedSku(sku) {
     if (currentTab !== 'sales') {
@@ -4141,5 +4252,37 @@ const res = await fetchApi('/api/activate-license', {
        
         
 </script>
+
+<div class="modal fade" id="pairingModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="pairingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pairingModalLabel">मोबाइल स्कैनर कनेक्ट करें</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closePosWebSocket()"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p>अपने Dukan Pro मोबाइल स्कैनर ऐप से यह QR कोड स्कैन करें।</p>
+                
+                <div id="pairing-qr-container" style="min-height: 260px; display: flex; align-items: center; justify-content: center;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">QR कोड जनरेट हो रहा है...</span>
+                    </div>
+                </div>
+                
+                <h4 id="pairing-status" class="text-success" style="display: none;">
+                    <i class="fas fa-check-circle"></i> स्कैनर सफलतापूर्वक कनेक्ट हो गया!
+                </h4>
+                
+                <p class="text-muted small mt-3">यह QR कोड आपके POS को आपके फ़ोन से सुरक्षित रूप से जोड़ता है।</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="closePosWebSocket()">रद्द करें</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+
 </body>
 </html>
