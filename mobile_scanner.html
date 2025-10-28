@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dukan Pro Mobile Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        body { background-color: #1f2937; color: #f9fafb; font-family: sans-serif; margin: 0; padding: 0; }
+        .container { max-width: 100vw; max-height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+        #video-container { width: 100%; max-height: 70vh; position: relative; overflow: hidden; }
+        #video { width: 100%; height: auto; transform: scaleX(-1); /* Mirror effect for easier scanning */ }
+        #scanner-status { padding: 10px; background-color: #374151; color: #f9fafb; text-align: center; font-weight: bold; }
+        .scan-line { position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background-color: red; animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container p-4">
+        <h1 class="text-xl font-bold text-center text-blue-400 mb-2">मोबाइल बारकोड स्कैनर</h1>
+        <p class="text-sm text-gray-400 mb-4 text-center">कैमरा अनुमति दें और बारकोड को फ्रेम में रखें।</p>
+        
+        <div id="scanner-status" class="w-full rounded-lg mb-4">टोकन प्राप्त किया जा रहा है...</div>
+
+        <div id="video-container" class="w-full border-4 border-gray-700 rounded-xl">
+            <video id="video" playsinline></video>
+            <div class="scan-line"></div>
+        </div>
+        
+        <div id="results" class="mt-4 text-center w-full">
+            <p class="text-lg font-semibold text-green-400">स्कैन किया गया SKU:</p>
+            <p id="scanned-sku" class="text-2xl font-extrabold break-all text-white">---</p>
+        </div>
+        
+        <button id="send-btn" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hidden" onclick="sendSkuToPos()">
+            POS को भेजें
+        </button>
+
+    </div>
+
+    <script>
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+        const videoElement = document.getElementById('video');
+        const statusElement = document.getElementById('scanner-status');
+        const scannedSkuElement = document.getElementById('scanned-sku');
+        const sendBtn = document.getElementById('send-btn');
+        const __backend_url = 'https://dukan-pro-ultimate.onrender.com';
+        
+        let isAuthenticated = false;
+        let auth_token = null;
+        let current_sku = null;
+        
+        // --- 1. postMessage द्वारा टोकन प्राप्त करें ---
+        window.addEventListener('message', function(event) {
+            // केवल ज्ञात origin से आने वाले मैसेज को स्वीकार करें (सुरक्षा)
+            if (event.origin !== window.location.origin) return;
+
+            if (event.data && event.data.type === 'AUTH_TOKEN' && event.data.token) {
+                auth_token = event.data.token;
+                isAuthenticated = true;
+                statusElement.textContent = '✅ कनेक्टेड: स्कैनर शुरू हो रहा है...';
+                startScanner();
+            }
+        });
+        
+        // --- 2. टोकन के लिए मुख्य POS पेज से अनुरोध करें (यह सुनिश्चित करने के लिए कि POS सुन रहा है) ---
+        function requestToken() {
+            if (window.opener) {
+                statusElement.textContent = 'टोकन के लिए मुख्य POS विंडो से अनुरोध...';
+                // मुख्य विंडो को संकेत दें कि यह स्कैनर विंडो खुली है
+                window.opener.postMessage({ type: 'REQUEST_AUTH' }, window.location.origin);
+            } else {
+                statusElement.textContent = '❌ त्रुटि: यह विंडो सीधे मुख्य POS से नहीं खुली है।';
+            }
+        }
+        
+        // --- 3. स्कैनर लॉजिक ---
+        function startScanner() {
+            codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
+                if (result) {
+                    current_sku = result.text;
+                    scannedSkuElement.textContent = current_sku;
+                    statusElement.textContent = `स्कैन सफल: ${current_sku}`;
+                    sendBtn.classList.remove('hidden');
+                    
+                    // ऑटोमैटिकली POS को भेजें (बेहतरीन UX के लिए)
+                    sendSkuToPos();
+
+                } else if (err) {
+                    // console.error(err); // लगातार त्रुटि लॉगिंग से बचें
+                }
+            })
+            .catch(err => {
+                statusElement.textContent = `❌ कैमरा शुरू करने में त्रुटि: ${err.message}`;
+                console.error(err);
+            });
+        }
+        
+        // --- 4. SKU को POS को भेजें ---
+        async function sendSkuToPos() {
+            if (!current_sku || !auth_token) return;
+            
+            // यह फ़ंक्शन SKU को मुख्य POS के इनपुट फ़ील्ड में भेजने के बजाय 
+            // सीधे POS की लॉजिक को सर्वर पर ट्रिगर करता है (जैसे कि POS खुद स्कैन हुआ हो)।
+            // चूंकि POS अपने ही पेज पर SCAN LOGIC चलाता है, हम POS को मैसेज वापस भेजेंगे।
+            
+            if (window.opener) {
+                statusElement.textContent = `SKU: ${current_sku} POS को भेजा जा रहा है...`;
+                window.opener.postMessage({
+                    type: 'SCANNED_SKU',
+                    sku: current_sku
+                }, window.location.origin);
+                
+                // भेजने के बाद स्कैनर को फिर से तैयार करें
+                current_sku = null;
+                sendBtn.classList.add('hidden');
+                scannedSkuElement.textContent = 'स्कैन करें...';
+            } else {
+                 statusElement.textContent = '❌ POS विंडो नहीं मिली।';
+            }
+        }
+
+        // --- 5. Initial Call ---
+        window.onload = () => {
+            requestToken(); // टोकन मांगकर प्रक्रिया शुरू करें
+            // हर 5 सेकंड में टोकन अनुरोध भेजते रहें यदि पहली बार में विफल हो जाए
+            setInterval(() => { if (!isAuthenticated) requestToken(); }, 5000);
+        };
+    </script>
+</body>
+</html>
