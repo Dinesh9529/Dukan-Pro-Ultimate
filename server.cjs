@@ -1683,7 +1683,7 @@ app.get('/api/closing/reports', authenticateJWT, checkRole('MANAGER'), async (re
 // --- 14. ADVANCED REPORTING API (NEW) ---
 // -----------------------------------------------------------------------------
 
-// 14.1 Simplified Profit & Loss Report
+// 14.1 Simplified Profit & Loss Report (UPDATED FOR BANK-STYLE DETAIL)
 app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
     const { startDate, endDate } = req.query;
@@ -1694,6 +1694,7 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async
 
     const client = await pool.connect();
     try {
+        // 1. आय (Revenue) और COGS (Cost of Goods Sold)
         const salesResult = await client.query(
             `SELECT
                 COALESCE(SUM(total_amount), 0) AS total_sales,
@@ -1703,35 +1704,74 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async
             [shopId, startDate, endDate]
         );
 
+        // 2. खर्च (Expenses)
         const expenseResult = await client.query(
-            `SELECT COALESCE(SUM(amount), 0) AS total_expenses, category
+            `SELECT COALESCE(SUM(amount), 0) AS total_expenses
              FROM expenses
-             WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3
-             GROUP BY category`,
+             WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3`,
+            [shopId, startDate, endDate]
+        );
+        
+        // 3. खरीद/क्रय (Purchases - Raw material/Wholesale purchases)
+        const purchaseResult = await client.query(
+            `SELECT COALESCE(SUM(total_cost), 0) AS total_purchases
+             FROM purchases
+             WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3`,
             [shopId, startDate, endDate]
         );
 
-        const { total_sales, total_cogs } = salesResult.rows[0];
-        const gross_profit = parseFloat(total_sales) - parseFloat(total_cogs);
-        const total_expenses = expenseResult.rows.reduce((acc, row) => acc + parseFloat(row.total_expenses), 0);
-        const net_profit = gross_profit - total_expenses;
 
-        res.json({
-            success: true,
-            report: {
-                period: { start: startDate, end: endDate },
-                income: {
-                    totalSales: parseFloat(total_sales).toFixed(2),
-                },
-                costOfGoodsSold: parseFloat(total_cogs).toFixed(2),
-                grossProfit: parseFloat(gross_profit).toFixed(2),
-                expenses: {
-                    totalExpenses: parseFloat(total_expenses).toFixed(2),
-                    byCategory: expenseResult.rows
-                },
-                netProfit: parseFloat(net_profit).toFixed(2)
-            }
-        });
+        const { total_sales, total_cogs } = salesResult.rows[0];
+        const { total_expenses } = expenseResult.rows[0];
+        const { total_purchases } = purchaseResult.rows[0];
+
+        const sales = parseFloat(total_sales);
+        const cogs = parseFloat(total_cogs);
+        const expenses = parseFloat(total_expenses);
+        const purchases = parseFloat(total_purchases);
+
+        // Gross Profit = Total Sales - Total COGS
+        const grossProfit = sales - cogs;
+        // Net Profit = Gross Profit - Total Expenses
+        const netProfit = grossProfit - expenses;
+        
+        // P&L संतुलन के लिए, कुल डेबिट और कुल क्रेडिट बराबर होने चाहिए:
+        const totalDebit = cogs + expenses; 
+        const totalCredit = sales; 
+
+        let finalTotalDebit = totalDebit;
+        let finalTotalCredit = totalCredit;
+        let profitLossLine = { description: 'शुद्ध हानि (Net Loss)', amount: 0, type: 'Credit' };
+
+        if (netProfit >= 0) {
+            // शुद्ध लाभ (Net Profit) डेबिट साइड पर आता है (Total Credit - Total Debit)
+            finalTotalDebit += netProfit;
+            profitLossLine = { description: 'शुद्ध लाभ (Net Profit)', amount: netProfit, type: 'Debit' };
+        } else {
+            // शुद्ध हानि (Net Loss) क्रेडिट साइड पर आती है
+            const netLoss = Math.abs(netProfit);
+            finalTotalCredit += netLoss;
+            profitLossLine = { description: 'शुद्ध हानि (Net Loss)', amount: netLoss, type: 'Credit' };
+        }
+        
+        // Detailed P&L for Bank-Style Display
+        const plReport = {
+            debit: [
+                { description: 'कुल खरीद लागत (COGS)', amount: cogs.toFixed(2) },
+                { description: 'परिचालन खर्च (Operating Expenses)', amount: expenses.toFixed(2) },
+                profitLossLine.type === 'Debit' ? { description: profitLossLine.description, amount: profitLossLine.amount.toFixed(2) } : null
+            ].filter(Boolean),
+            credit: [
+                { description: 'कुल बिक्री राजस्व (Revenue)', amount: sales.toFixed(2) },
+                profitLossLine.type === 'Credit' ? { description: profitLossLine.description, amount: profitLossLine.amount.toFixed(2) } : null
+            ].filter(Boolean),
+            totalDebit: finalTotalDebit.toFixed(2),
+            totalCredit: finalTotalCredit.toFixed(2),
+            netProfit: netProfit.toFixed(2) // Balance Sheet के लिए
+        };
+
+
+        res.json({ success: true, report: plReport });
 
     } catch (err) {
         console.error("Error generating P&L report:", err.message);
@@ -1741,53 +1781,107 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async
     }
 });
 
-// 14.2 Simplified Balance Sheet Report
+
+// 14.2 Simplified Balance Sheet Report (UPDATED FOR BANK-STYLE DETAIL)
 app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
+    const { netProfit } = req.query; // P&L से शुद्ध लाभ/हानि प्राप्त करें
+
     const client = await pool.connect();
     try {
-        // 1. Assets: Stock Value
+        // 1. परिसंपत्तियां (Assets)
+        
+        // A. स्टॉक का मूल्य (Inventory Value - Cost Price)
         const stockValueResult = await client.query(
-            `SELECT COALESCE(SUM(quantity * cost_price), 0) AS inventory_value
+            `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value
              FROM stock
              WHERE shop_id = $1`,
             [shopId]
         );
         const inventory_value = parseFloat(stockValueResult.rows[0].inventory_value);
 
-        // 2. Assets: Customer Balances (Accounts Receivable)
-        const customerBalanceResult = await client.query(
+        // B. ग्राहक शेष (Accounts Receivable) - Assets
+        const accountsReceivableResult = await client.query(
             `SELECT COALESCE(SUM(balance), 0) AS accounts_receivable
              FROM customers
              WHERE shop_id = $1 AND balance > 0`,
             [shopId]
         );
-        const accounts_receivable = parseFloat(customerBalanceResult.rows[0].accounts_receivable);
+        const accounts_receivable = parseFloat(accountsReceivableResult.rows[0].accounts_receivable);
+        
+        // C. बैंक/कैश बैलेंस (Bank/Cash) - Assets (सरल गणना: नेट प्रॉफिट + कोई भी अज्ञात प्रारंभिक पूंजी)
+        // चूंकि हम प्रारंभिक पूंजी को ट्रैक नहीं करते हैं, हम इसे नेट प्रॉफिट (यानी retained earnings) के रूप में मानते हैं।
+        const cashBalance = parseFloat(netProfit || 0);
+        
+        // 2. देनदारियां (Liabilities)
+        
+        // A. वेंडर/सप्लायर देय (Accounts Payable) - Liabilities (वर्तमान स्कीमा में ट्रैक नहीं किया गया, 0 मान लें)
+        const accounts_payable = 0;
+        
+        // B. GST/टैक्स देय (GST/Tax Payable) - Liabilities (वर्तमान स्कीमा में ट्रैक नहीं किया गया, 0 मान लें)
+        const gst_payable = 0;
 
-        // (नोट: एक पूर्ण बैलेंस शीट के लिए Liabilities (देय खाते, ऋण) और Equity (पूंजी, लाभ)
-        // की आवश्यकता होती है, जो वर्तमान स्कीमा में ट्रैक नहीं किए जाते हैं।)
-        const total_assets = inventory_value + accounts_receivable;
+        
+        // 3. इक्विटी (Equity)
+        
+        // A. मालिक की पूंजी (Owner's Equity) - Net Profit को Equity/Retained Earnings मानते हैं
+        const owner_equity = parseFloat(netProfit || 0);
+
+        // --- Grand Totals ---
+        const totalAssets = inventory_value + accounts_receivable + cashBalance; // कैश बैलेंस Net Profit को दर्शाता है
+        const totalLiabilities = accounts_payable + gst_payable;
+        const totalEquityAndLiabilities = totalLiabilities + owner_equity;
+
+        // Balance Sheet तभी सही होगी जब Net Profit को Cash Balance (Asset) और Owner's Equity (Equity) दोनों जगह शामिल किया जाए।
+        // FIX: हमने Net Profit को Cash Balance (Asset) और Owner's Equity (Equity) दोनों में रखा है।
+        
+        
+        // यदि शुद्ध हानि होती है, तो Net Profit < 0 होगा, जिससे CashBalance कम होगा और Owner's Equity भी कम होगी।
+        // इसे संतुलित करने के लिए, हमें P&L से प्राप्त शुद्ध लाभ को केवल इक्विटी के रूप में उपयोग करना चाहिए, 
+        // और कैश बैलेंस को 0 या एक अनुमानित मूल्य (यदि आवश्यक हो) पर सेट करना चाहिए।
+        
+        // बेहतर संतुलन के लिए, हम Net Loss को Liabilities में 'Deficit' के रूप में दिखाएंगे।
+        const finalOwnerEquity = Math.max(0, owner_equity); // पूंजी 0 से कम नहीं हो सकती (सरल मॉडल)
+        const deficit = Math.min(0, owner_equity); // शुद्ध हानि (Deficit)
+
+        // अंतिम गणना:
+        const finalTotalLiabilitiesAndEquity = totalLiabilities + finalOwnerEquity + Math.abs(deficit); 
+        
+        // P&L से शुद्ध लाभ/हानि को Equity में ट्रांसफर करने के बाद बैलेंस शीट संतुलित हो जाएगी।
+        // हम संतुलन दिखाने के लिए एक अनुमानित ओपनिंग बैलेंस जोड़ते हैं (या बस यह दिखाते हैं कि दोनों पक्ष Net Profit के साथ कैसे संतुलित होते हैं)।
+
+        const finalReport = {
+            assets: [
+                { description: 'स्टॉक का मूल्य (Inventory)', amount: inventory_value.toFixed(2) },
+                { description: 'ग्राहकों से प्राप्य (A/R)', amount: accounts_receivable.toFixed(2) },
+                // यहाँ हम Cash/Bank Balance को Net Profit के साथ संतुलित करने के लिए 'Balancing Figure' मानते हैं:
+                { description: 'बैंक/कैश बैलेंस (Balancing Figure)', amount: (totalAssets - totalEquityAndLiabilities).toFixed(2), note: "यह केवल संतुलन के लिए है" }
+            ],
+            liabilitiesAndEquity: [
+                { description: 'वेंडर को देय (A/P)', amount: accounts_payable.toFixed(2) },
+                { description: 'GST/टैक्स देय', amount: gst_payable.toFixed(2) },
+                { description: 'मालिक की इक्विटी (पूंजी)', amount: finalOwnerEquity.toFixed(2) },
+                deficit < 0 ? { description: 'संचित हानि (Net Loss)', amount: Math.abs(deficit).toFixed(2) } : { description: 'संचित लाभ (Net Profit)', amount: finalOwnerEquity.toFixed(2) }
+            ],
+            totalAssets: totalAssets.toFixed(2),
+            totalLiabilitiesAndEquity: finalTotalLiabilitiesAndEquity.toFixed(2),
+            netProfit: netProfit.toFixed(2) // यह P&L से आ रहा है
+        };
+        
+        // संतुलन सुनिश्चित करें:
+        // यहाँ हमने अनुमानित संतुलन के लिए totalAssets की गणना को finalTotalLiabilitiesAndEquity से अलग रखा है, 
+        // इसलिए हम फ्रंटएंड पर Balance Sheet को मैनुअली संतुलित करेंगे (जैसा कि HTML में किया गया है)।
+        
 
         res.json({
             success: true,
             report: {
-                asOf: new Date().toISOString(),
-                assets: {
-                    currentAssets: {
-                        inventory: inventory_value.toFixed(2),
-                        accountsReceivable: accounts_receivable.toFixed(2),
-                        // (कैश इन हैंड ट्रैक नहीं किया गया है)
-                        cash: (0).toFixed(2)
-                    },
-                    totalAssets: total_assets.toFixed(2)
-                },
-                liabilitiesAndEquity: {
-                    // (वर्तमान स्कीमा के साथ गणना करना संभव नहीं है)
-                    totalLiabilities: (0).toFixed(2),
-                    totalEquity: (0).toFixed(2),
-                    totalLiabilitiesAndEquity: (0).toFixed(2),
-                    note: "सटीक बैलेंस शीट के लिए Liabilities और Equity ट्रैकिंग की आवश्यकता है."
-                }
+                 // हम P&L से शुद्ध लाभ को सीधे भेजते हैं, ताकि HTML में संतुलन हो सके।
+                inventoryValue: inventory_value.toFixed(2),
+                accountsReceivable: accounts_receivable.toFixed(2),
+                accountsPayable: accounts_payable.toFixed(2),
+                gstPayable: gst_payable.toFixed(2),
+                netProfit: netProfit.toFixed(2) // P&L से प्राप्त शुद्ध लाभ/हानि
             }
         });
 
@@ -2141,6 +2235,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
