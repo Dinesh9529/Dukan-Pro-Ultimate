@@ -1074,12 +1074,15 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
 // --- 9. Customer Management ---
 
 // 9.1 Add/Update Customer (SCOPED)
-app.post('/api/customers', authenticateJWT, async (req, res) => {
-    const { name, phone, email, address, balance } = req.body;
+app.get('/api/customers', authenticateJWT, async (req, res) => {
     const shopId = req.shopId;
-
-    if (!name || !phone) {
-        return res.status(400).json({ success: false, message: 'नाम और फ़ोन आवश्यक हैं.' });
+    try {
+        // FIX: 'phone' कॉलम को स्पष्ट रूप से SELECT स्टेटमेंट में जोड़ा गया है
+        const result = await pool.query('SELECT id, shop_id, name, phone, email, address, gstin, balance, created_at FROM customers WHERE shop_id = $1 ORDER BY name ASC', [shopId]);
+        res.json({ success: true, customers: result.rows });
+    } catch (err) {
+        console.error("Error fetching customers:", err.message);
+        res.status(500).json({ success: false, message: 'ग्राहक सूची प्राप्त करने में विफल.' });
     }
 
     // Check if customer already exists in this shop by name or phone
@@ -2123,6 +2126,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
