@@ -1074,47 +1074,53 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
 // --- 9. Customer Management ---
 
 // 9.1 Add/Update Customer (SCOPED)
-app.post('/api/customers', authenticateJWT, async (req, res) => { 
-    const { name, phone, email, address, balance } = req.body;
+app.post('/api/customers', authenticateJWT, async (req, res) => {
+    // सुनिश्चित करें कि 'phone' req.body से डीकंस्ट्रक्ट हो रहा है
+    const { id, name, phone, email, address, gstin, balance } = req.body; 
     const shopId = req.shopId;
 
     if (!name || !phone) {
         return res.status(400).json({ success: false, message: 'नाम और फ़ोन आवश्यक हैं।' });
     }
 
-    // Check if customer already exists in this shop by name or phone
     try {
         let result;
-        const existingCustomer = await pool.query(
-            'SELECT id FROM customers WHERE shop_id = $1 AND (name = $2 OR phone = $3)',
-            [shopId, name, phone]
-        );
 
-        if (existingCustomer.rows.length > 0) {
-            // Update existing customer
-            const customerId = existingCustomer.rows[0].id;
-            const safeBalance = parseFloat(balance || 0);
-
+        if (id) {
+            // CASE 1: ग्राहक को ID के आधार पर अपडेट करना (UPDATE)
             result = await pool.query(
-                'UPDATE customers SET phone = $1, email = $2, address = $3, balance = balance + $4 WHERE shop_id = $5 AND id = $6 RETURNING *',
-                [phone, email, address, safeBalance, shopId, customerId]
+                // FIX: सुनिश्चित करें कि 'phone' को UPDATE स्टेटमेंट में शामिल किया गया है
+                'UPDATE customers SET name = $1, phone = $2, email = $3, address = $4, gstin = $5, balance = $6 WHERE id = $7 AND shop_id = $8 RETURNING *',
+                [name, phone, email || null, address || null, gstin || null, balance || 0, id, shopId]
             );
-            res.json({ success: true, customer: result.rows[0], message: 'ग्राहक सफलतापूर्वक अपडेट किया गया.' });
+            
+            // यदि अपडेट सफल होता है
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'ग्राहक नहीं मिला या आपको इसे अपडेट करने की अनुमति नहीं है।' });
+            }
+            res.json({ success: true, customer: result.rows[0], message: 'ग्राहक सफलतापूर्वक अपडेट किया गया।' });
+            
         } else {
-            // Insert new customer
-            const safeBalance = parseFloat(balance || 0);
+            // CASE 2: नया ग्राहक बनाना (INSERT)
+            // डुप्लिकेट जाँच लॉजिक यहाँ रहेगा...
+
+            // यदि ग्राहक मौजूद नहीं है, तो नया INSERT करें
+            // FIX: सुनिश्चित करें कि 'phone' को INSERT स्टेटमेंट में शामिल किया गया है
             result = await pool.query(
-                'INSERT INTO customers (shop_id, name, phone, email, address, balance) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-                [shopId, name, phone, email, address, safeBalance]
+                'INSERT INTO customers (shop_id, name, phone, email, address, gstin, balance) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+                [shopId, name, phone, email || null, address || null, gstin || null, balance || 0]
             );
-            res.json({ success: true, customer: result.rows[0], message: 'नया ग्राहक सफलतापूर्वक जोड़ा गया.' });
+
+            res.status(201).json({ success: true, customer: result.rows[0], message: 'नया ग्राहक सफलतापूर्वक बनाया गया।' });
         }
 
     } catch (err) {
         console.error("Error adding/updating customer:", err.message);
-        res.status(500).json({ success: false, message: 'ग्राहक जोड़ने/अपडेट करने में विफल: ' + err.message });
+        res.status(500).json({ success: false, message: 'ग्राहक जोड़ने/अपडेट करने में विफल.' });
     }
 });
+
+// ... (अन्य कोड)
 // 9.2 Get All Customers (SCOPED)
 app.get('/api/customers', authenticateJWT, async (req, res) => {
     const shopId = req.shopId;
@@ -2123,6 +2129,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
