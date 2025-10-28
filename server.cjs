@@ -925,55 +925,35 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 
 // 8.1 Process New Sale / Create Invoice (SCOPED & TRANSACTIONAL) - (Completed route 22)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
-    // 1. customerMobile वेरिएबल को req.body से निकालें
+    // FIX 1: req.body से customerMobile वेरिएबल निकालें
     const { customerName, customerMobile, total_amount, sale_items } = req.body;
     const shopId = req.shopId;
 
     if (!total_amount || !Array.isArray(sale_items) || sale_items.length === 0) {
         return res.status(400).json({ success: false, message: 'कुल राशि और बिक्री आइटम आवश्यक हैं.' });
     }
-    
-    // Normalize mobile number (remove non-digits) and set to null if invalid
-    const normalizedMobile = (customerMobile || '').replace(/\D/g, '').trim();
-    const phoneToUse = normalizedMobile.length >= 10 ? normalizedMobile : null;
-
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN'); // Transaction Start
 
         let customerId = null;
-        // Check if we have a name or a valid mobile number to proceed with customer logic
-        if ((customerName && customerName.trim() !== 'अनाम ग्राहक') || phoneToUse) {
+        if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
+            // Check/Insert customer only within this shop_id
             
-            // 2. NEW Logic: Check/Insert customer by Name OR Mobile
-            let customerResult;
+            // FIX 2: ग्राहक को नाम OR फोन से खोजें
+            let customerResult = await client.query('SELECT id FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
             
-            // A. Search by phone first (prioritize phone as unique identifier)
-            if (phoneToUse) {
-                 customerResult = await client.query('SELECT id FROM customers WHERE shop_id = $1 AND phone = $2', [shopId, phoneToUse]);
-            } 
-            
-            // B. If not found by phone, or if no phone was provided, try searching by name
-            if ((!customerResult || customerResult.rows.length === 0) && (customerName && customerName.trim() !== 'अनाम ग्राहक')) {
-                customerResult = await client.query('SELECT id FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
+            // यदि नाम से नहीं मिला और मोबाइल नंबर मौजूद है, तो मोबाइल से खोजें
+            if (customerResult.rows.length === 0 && customerMobile) {
+                 customerResult = await client.query('SELECT id FROM customers WHERE shop_id = $1 AND phone = $2', [shopId, customerMobile]);
             }
 
-            if (customerResult && customerResult.rows.length > 0) {
-                // Customer Found
-                customerId = customerResult.rows[0].id;
-                
-                // Optional: If found by phone but name was updated/provided, update the customer entry.
-                if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
-                    await client.query('UPDATE customers SET name = $1, phone = COALESCE($2, phone) WHERE id = $3', [customerName.trim(), phoneToUse, customerId]);
-                }
-            } else if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
-                // Create New Customer if name is provided (and not found by name/phone)
-                const newCustomerResult = await client.query(
-                    // phoneToUse will be null if invalid, ensuring constraint is not violated if phone is null
-                    'INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id', 
-                    [shopId, customerName.trim(), phoneToUse] 
-                );
+            if (customerResult.rows.length > 0) {
+                 customerId = customerResult.rows[0].id;
+            } else {
+                // FIX 3: नया ग्राहक बनाते समय phone कॉलम शामिल करें
+                const newCustomerResult = await client.query('INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id', [shopId, customerName.trim(), customerMobile]);
                 customerId = newCustomerResult.rows[0].id;
             }
         }
@@ -1021,6 +1001,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         client.release();
     }
 });
+
 //... (बाकी server.cjs कोड)
 
 // 8.2 Get Invoices/Sales List (SCOPED)
@@ -2129,6 +2110,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message); // Corrected: Removed extra space
     process.exit(1);
 });
+
 
 
 
