@@ -5,209 +5,131 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro Mobile Scanner</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; flex-direction: column; }
-        #scanner-container { width: 100%; max-width: 400px; position: relative; border-radius: 1rem; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); }
-        #qr-reader { width: 100%; background-color: #1e293b; }
-        #qr-reader video { width: 100% !important; height: auto !important; }
-        .status-box { padding: 1.5rem; background-color: #1e293b; text-align: center; }
-        .scan-feedback { font-size: 1.1rem; font-weight: 600; color: #fbbf24; min-height: 1.5rem; }
-        .status-message { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; }
+        #container { width: 100%; max-width: 400px; background-color: #1e293b; border-radius: 1rem; padding: 2rem; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); text-align: center; }
+        input[type="text"] { background-color: #334155; border: 1px solid #475569; color: #f1f5f9; text-align: center; font-size: 2rem; letter-spacing: 5px; }
+        button { background-color: #0ea5e9; transition: background-color 0.2s; }
+        button:hover { background-color: #0284c7; }
+        .status { min-height: 1.5rem; margin-top: 1rem; font-weight: 600; }
     </style>
 </head>
 <body>
 
-    <div id="scanner-container">
-        <div id="qr-reader"></div>
-        <div class="status-box">
-            <div id="status-message">कैमरा शुरू हो रहा है...</div>
-            <div id="scan-feedback" class="scan-feedback">&nbsp;</div>
-        </div>
+    <div id="container">
+        <h1 class="text-2xl font-bold mb-4">POS से कनेक्ट करें</h1>
+        <p class="text-gray-400 mb-6">अपने कंप्यूटर स्क्रीन पर दिख रहा 6 अंकों का पेयरिंग कोड यहाँ दर्ज करें:</p>
+        
+        <input 
+            type="text" 
+            id="pairing-code-input" 
+            maxlength="6" 
+            pattern="\d{6}" 
+            required
+            placeholder="------"
+            class="w-full p-4 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-sky-500">
+            
+        <button id="connect-button" class="w-full py-3 px-6 rounded-lg text-white font-bold text-lg">
+            कनेक्ट करें
+        </button>
+
+        <div id="status-message" class="status text-yellow-400">&nbsp;</div>
     </div>
 
 <script>
     // --- CONFIGURATION ---
-    const APP_STATE = {
-        PAIRING_QR: 'PAIRING_QR', // कंप्यूटर से पेयरिंग के लिए QR स्कैन
-        SCANNING_PRODUCTS: 'SCANNING_PRODUCTS', // प्रोडक्ट स्कैनिंग
-        LEGACY_POSTMESSAGE: 'LEGACY_POSTMESSAGE' // मोबाइल-ओनली मोड
-    };
-    let currentState = null;
-    let html5QrCode;
+    const BACKEND_URL = 'https://dukan-pro-ultimate.onrender.com'; // सुनिश्चित करें कि यह सही है
     let scannerSocket = null;
-    let lastScanTime = 0;
-    
-    // 1. बैकएंड URL (यह वही होना चाहिए जो आपके Multiuser.html में है)
-    const BACKEND_URL = 'https://dukan-pro-ultimate.onrender.com'; //
 
+    const codeInput = document.getElementById('pairing-code-input');
+    const connectButton = document.getElementById('connect-button');
     const statusMessage = document.getElementById('status-message');
-    const scanFeedback = document.getElementById('scan-feedback');
 
-    function updateStatus(message, feedback = "") {
-        if (message) statusMessage.innerText = message;
-        if (feedback) scanFeedback.innerText = feedback;
-    }
-    
-    function flashFeedback(feedback) {
-        scanFeedback.innerText = feedback;
-        setTimeout(() => {
-            if (currentState === APP_STATE.SCANNING_PRODUCTS || currentState === APP_STATE.LEGACY_POSTMESSAGE) {
-                scanFeedback.innerText = "प्रोडक्ट स्कैन करने के लिए तैयार...";
-            }
-        }, 2000);
+    function updateStatus(message, isError = false) {
+        statusMessage.textContent = message;
+        statusMessage.className = `status ${isError ? 'text-red-400' : 'text-green-400'}`;
     }
 
-    // --- 🚀 हाइब्रिड लॉजिक ---
-
-    // 1. 'postMessage' लॉजिक (मोबाइल-ओनली के लिए)
-    function startLegacyMode() {
-        currentState = APP_STATE.LEGACY_POSTMESSAGE;
-        updateStatus("POS से कनेक्ट हो रहा है...");
-        
-        // टोकन के लिए अनुरोध करें
-        window.opener.postMessage({ type: 'REQUEST_AUTH' }, window.location.origin);
-
-        window.addEventListener('message', function(event) {
-            if (event.origin !== window.location.origin) return;
-            if (event.data && event.data.type === 'AUTH_TOKEN') {
-                updateStatus("✅ कनेक्टेड!", "प्रोडक्ट स्कैन करने के लिए तैयार...");
-                startCamera(onProductScan_Legacy); //
-            }
-        });
-    }
-    
-    function onProductScan_Legacy(decodedText, decodedResult) {
-        const now = Date.now();
-        if (now - lastScanTime < 3000) return;
-        lastScanTime = now;
-        
-        const sku = decodedText.trim();
-        flashFeedback(`स्कैन किया गया: ${sku}`);
-        
-        // SKU को 'postMessage' के ज़रिए वापस भेजें
-        window.opener.postMessage({ type: 'SCANNED_SKU', sku: sku }, window.location.origin);
-    }
-
-
-    // 2. 'WebSocket' लॉजिक (कंप्यूटर + मोबाइल के लिए)
-    
-    function startPairingMode() {
-        currentState = APP_STATE.PAIRING_QR;
-        updateStatus("POS से कनेक्ट करने के लिए QR कोड स्कैन करें...");
-        startCamera(onPairingScanSuccess);
-    }
-    
+    // WebSocket कनेक्शन शुरू करें
     function connectWebSocket(pairCode) {
         if (scannerSocket) scannerSocket.close();
+
+        updateStatus("कनेक्ट हो रहा है...");
+        connectButton.disabled = true;
+        connectButton.textContent = "कनेक्ट हो रहा है...";
+
         const wsUrl = BACKEND_URL.replace('https', 'wss').replace('http', 'ws');
         scannerSocket = new WebSocket(wsUrl);
 
         scannerSocket.onopen = () => {
-            updateStatus("सर्वर से कनेक्ट हो रहा है...");
-            scannerSocket.send(JSON.stringify({ type: 'REGISTER_SCANNER', pairCode: pairCode }));
+            scannerSocket.send(JSON.stringify({
+                type: 'REGISTER_SCANNER',
+                pairCode: pairCode
+            }));
         };
 
         scannerSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.type === 'SCANNER_PAIRED') {
-                currentState = APP_STATE.SCANNING_PRODUCTS;
-                updateStatus("✅ कनेक्टेड!", "प्रोडक्ट स्कैन करने के लिए तैयार...");
-                startCamera(onProductScan_WebSocket); // प्रोडक्ट स्कैनिंग मोड
-            } else if (data.type === 'POS_DISCONNECTED') {
-                currentState = APP_STATE.PAIRING_QR;
-                updateStatus("POS डिस्कनेक्ट हो गया।", "फिर से कनेक्ट करने के लिए QR कोड स्कैन करें...");
-                startCamera(onPairingScanSuccess); // पेयरिंग मोड
-            } else if (data.type === 'ERROR') {
-                updateStatus("त्रुटि: " + data.message, "कृपया पुनः प्रयास करें।");
-                currentState = APP_STATE.PAIRING_QR;
+            switch (data.type) {
+                case 'SCANNER_PAIRED':
+                    updateStatus("✅ कनेक्टेड! अब आप स्कैन कर सकते हैं।");
+                    // इस मोड में, स्कैनिंग कार्यक्षमता नहीं है, 
+                    // लेकिन हम यहाँ बता सकते हैं कि कनेक्शन सफल रहा।
+                    // भविष्य में यहाँ कैमरा शुरू करने का कोड जोड़ा जा सकता है अगर हाइब्रिड चाहें।
+                    connectButton.disabled = false;
+                    connectButton.textContent = "कनेक्टेड";
+                    codeInput.disabled = true; // कोड बदलने से रोकें
+                    break;
+                case 'POS_DISCONNECTED':
+                    updateStatus("POS डिस्कनेक्ट हो गया।", true);
+                    connectButton.disabled = false;
+                    connectButton.textContent = "कनेक्ट करें";
+                    codeInput.disabled = false;
+                    break;
+                case 'ERROR':
+                    updateStatus("त्रुटि: " + data.message, true);
+                    connectButton.disabled = false;
+                    connectButton.textContent = "कनेक्ट करें";
+                    break;
             }
         };
 
         scannerSocket.onclose = () => {
-            if (currentState !== APP_STATE.PAIRING_QR) {
-                updateStatus("कनेक्शन टूट गया।", "पुनः कनेक्ट करने के लिए QR कोड स्कैन करें...");
-                currentState = APP_STATE.PAIRING_QR;
-                startCamera(onPairingScanSuccess);
+            console.log("Scanner WebSocket Disconnected");
+            if (statusMessage.textContent.includes("कनेक्टेड")) { // केवल अगर कनेक्टेड था
+                 updateStatus("कनेक्शन टूट गया।", true);
             }
+            connectButton.disabled = false;
+            connectButton.textContent = "कनेक्ट करें";
+            codeInput.disabled = false;
         };
-    }
-
-    function onPairingScanSuccess(decodedText, decodedResult) {
-        const now = Date.now();
-        if (now - lastScanTime < 3000) return;
-        lastScanTime = now;
         
-        if (/^\d{6}$/.test(decodedText)) { // मान लें कि पेयरिंग कोड 6 अंकों का है
-            updateStatus("पेयरिंग कोड मिला!", "POS से कनेक्ट किया जा रहा है...");
-            html5QrCode.stop().then(() => connectWebSocket(decodedText));
-        } else {
-            flashFeedback("यह पेयरिंग QR कोड नहीं है।");
-        }
-    }
-
-    function onProductScan_WebSocket(decodedText, decodedResult) {
-        const now = Date.now();
-        if (now - lastScanTime < 3000) return;
-        lastScanTime = now;
-
-        const sku = decodedText.trim();
-        flashFeedback(`स्कैन किया गया: ${sku}`);
-        
-        if (scannerSocket && scannerSocket.readyState === WebSocket.OPEN) {
-            scannerSocket.send(JSON.stringify({ type: 'SCAN_SKU', sku: sku }));
-        }
-    }
-
-    // 3. मुख्य कैमरा फ़ंक्शन
-    function startCamera(onScanSuccessCallback) {
-        if (html5QrCode && html5QrCode.isScanning) {
-            html5QrCode.stop().catch(err => console.log("कैमरा रोकने में छोटी त्रुटि, अनदेखा करें।"));
-        }
-        
-        html5QrCode = new Html5Qrcode("qr-reader");
-
-        Html5Qrcode.getCameras().then(devices => {
-            if (devices && devices.length) {
-                let cameraId = devices.length > 1 
-                    ? (devices.find(d => d.label.toLowerCase().includes('back')) || devices[devices.length - 1]).id
-                    : devices[0].id;
-                
-                html5QrCode.start(
-                    cameraId, 
-                    { fps: 5, qrbox: { width: 250, height: 150 } },
-                    onScanSuccessCallback,
-                    (error) => { /* "No code found" को अनदेखा करें */ }
-                ).catch(err => {
-                    updateStatus(`कैमरा शुरू करने में विफल: ${err}`);
-                });
-
-            } else {
-                updateStatus('कोई कैमरा नहीं मिला।');
-            }
-        }).catch(err => {
-            updateStatus(`कैमरा खोजने में विफल: ${err}`);
-        });
+        scannerSocket.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            updateStatus("कनेक्शन त्रुटि।", true);
+            connectButton.disabled = false;
+            connectButton.textContent = "कनेक्ट करें";
+        };
     }
 
     // --- INITIALIZATION ---
     window.onload = function() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            updateStatus('त्रुटि: कैमरा सपोर्ट नहीं है।');
-            return;
-        }
-
-        // 🚀 मुख्य हाइब्रिड राउटर
-        if (window.opener) {
-            // अगर यह 'window.open' से खुला है (मोबाइल-ओनली)
-            console.log("Legacy (postMessage) मोड शुरू हो रहा है।");
-            startLegacyMode();
-        } else {
-            // अगर यह सीधे URL से खुला है (कंप्यूटर + मोबाइल पेयरिंग)
-            console.log("WebSocket (Pairing) मोड शुरू हो रहा है।");
-            startPairingMode();
-        }
+        connectButton.addEventListener('click', () => {
+            const code = codeInput.value.trim();
+            if (code.length === 6 && /^\d{6}$/.test(code)) {
+                connectWebSocket(code);
+            } else {
+                updateStatus("कृपया 6 अंकों का कोड दर्ज करें।", true);
+            }
+        });
+        
+         // Enter दबाने पर भी कनेक्ट करें
+        codeInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+               connectButton.click();
+            }
+        });
     };
     
 </script>
