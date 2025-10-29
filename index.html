@@ -393,12 +393,9 @@
 /* ============ END GST REPORT CSS ============ */
 
 
-    </style>
-
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-
+</style>
 </head>
-</head>
+
 <body>
 
     <input type="text" id="barcode-scanner-input" autocomplete="off">
@@ -1723,6 +1720,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/qrcode.min.js"></script>
+
+
 
 <script>
     // --- CONFIGURATION AND GLOBAL STATE ---
@@ -1802,10 +1802,19 @@ let posWebSocket = null;
         posWebSocket.onerror = (error) => console.error("WebSocket Error:", error);
     }
 
+    // [ इसे इससे बदलें ]
     function closePosWebSocket() {
+        // WebSocket बंद करें (अगर खुला है)
         if (posWebSocket) {
             posWebSocket.close();
             posWebSocket = null;
+            console.log("WebSocket connection closed by user.");
+        }
+        
+        // 🚀 नया: Modal को भी बंद करें (अगर खुला है)
+        if (pairingModalInstance) {
+            pairingModalInstance.hide();
+            console.log("Pairing modal hidden.");
         }
     }
 
