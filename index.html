@@ -1762,20 +1762,46 @@ let posWebSocket = null;
             const data = JSON.parse(event.data);
             switch (data.type) {
                 case 'PAIR_CODE_GENERATED':
-                    qrContainer.innerHTML = ''; 
+                    console.log("PAIR_CODE_GENERATED प्राप्त हुआ, QR कोड बनाने का प्रयास...");
+                    qrContainer.innerHTML = ''; // स्पिनर हटाएँ
                     const canvas = document.createElement('canvas');
-                    
-                    // --- 🚀 नया बदलाव START ---
-                    // Canvas की साइज़ को स्पष्ट रूप से सेट करें
-                    canvas.width = 256; 
-                    canvas.height = 256; 
-                    // --- 🚀 नया बदलाव END ---
+                    canvas.width = 256;
+                    canvas.height = 256;
 
+                    // --- जाँचें कि कंटेनर मौजूद है ---
+                    if (!qrContainer) {
+                        console.error("❌ एरर: qrContainer div नहीं मिला!");
+                        break;
+                    }
+
+                    // --- कैनवास जोड़ें और तुरंत जाँचें ---
                     qrContainer.appendChild(canvas);
-                    QRCode.toCanvas(canvas, data.pairCode, { width: 256 }, (error) => { //
-                        if (error) console.error(error);
-                        console.log('QR कोड बनाया गया:', data.pairCode); //
-                    });
+                    if (qrContainer.contains(canvas)) {
+                        console.log("✅ Canvas एलिमेंट सफलतापूर्वक qrContainer में जोड़ा गया।");
+                    } else {
+                        console.error("❌ एरर: Canvas एलिमेंट qrContainer में जोड़ने में विफल!");
+                        break; // आगे बढ़ने का कोई मतलब नहीं
+                    }
+
+                    // --- QR कोड बनाने की कोशिश करें ---
+                    try {
+                        QRCode.toCanvas(canvas, data.pairCode, { width: 256, errorCorrectionLevel: 'L' }, (error) => { //
+                            if (error) {
+                                console.error("❌ QRCode.toCanvas कॉलबैक एरर:", error);
+                                // एरर होने पर कैनवास हटा दें ताकि स्पिनर दिखे (या एरर मैसेज)
+                                qrContainer.innerHTML = '<p class="text-danger">QR कोड बनाने में विफल।</p>';
+                            } else {
+                                console.log('✅ QR कोड सफलतापूर्वक बनाया गया:', data.pairCode); //
+                                // सुनिश्चित करें कि कैनवास अभी भी मौजूद है
+                                if (!qrContainer.contains(canvas)) {
+                                   console.warn("❓ चेतावनी: QR कोड बन गया, लेकिन Canvas रहस्यमय तरीके से गायब हो गया!");
+                                }
+                            }
+                        });
+                    } catch (err) {
+                        console.error("❌ QRCode.toCanvas को कॉल करते समय तत्काल एरर:", err);
+                        qrContainer.innerHTML = '<p class="text-danger">QR कोड बनाने में विफल (लाइब्रेरी एरर)।</p>';
+                    }
                     break;
                 case 'SCANNER_PAIRED':
                     console.log("स्कैनर पेयर हो गया!");
