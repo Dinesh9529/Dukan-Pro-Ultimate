@@ -1720,7 +1720,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-   <script src="./qrcode.min.js"></script>
+    <script src="./qrcode.min.js"></script>
 
 
 <script>
@@ -1764,10 +1764,17 @@ let posWebSocket = null;
                 case 'PAIR_CODE_GENERATED':
                     qrContainer.innerHTML = ''; 
                     const canvas = document.createElement('canvas');
+                    
+                    // --- 🚀 नया बदलाव START ---
+                    // Canvas की साइज़ को स्पष्ट रूप से सेट करें
+                    canvas.width = 256; 
+                    canvas.height = 256; 
+                    // --- 🚀 नया बदलाव END ---
+
                     qrContainer.appendChild(canvas);
-                    QRCode.toCanvas(canvas, data.pairCode, { width: 256 }, (error) => {
+                    QRCode.toCanvas(canvas, data.pairCode, { width: 256 }, (error) => { //
                         if (error) console.error(error);
-                        console.log('QR कोड बनाया गया:', data.pairCode);
+                        console.log('QR कोड बनाया गया:', data.pairCode); //
                     });
                     break;
                 case 'SCANNER_PAIRED':
@@ -4294,4 +4301,3 @@ const res = await fetchApi('/api/activate-license', {
 
 </body>
 </html>
-
