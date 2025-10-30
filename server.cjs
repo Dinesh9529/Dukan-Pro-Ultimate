@@ -178,10 +178,49 @@ async function createTables() {
         // 12. Renewal Requests Table
         await client.query(`CREATE TABLE IF NOT EXISTS renewal_requests (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), user_email TEXT, message TEXT, requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
+        // ... (renewal_requests टेबल के बाद)
+
+        // 13. Bank Statement Items Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS bank_statement_items (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                transaction_date DATE NOT NULL,
+                description TEXT,
+                debit NUMERIC DEFAULT 0,
+                credit NUMERIC DEFAULT 0,
+                balance NUMERIC,
+                is_reconciled BOOLEAN DEFAULT FALSE,
+                reconciliation_id INTEGER DEFAULT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 14. Reconciliation Reports Table (The "Static Report")
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS reconciliation_reports (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                statement_end_date DATE NOT NULL,
+                statement_end_balance NUMERIC NOT NULL,
+                book_balance_start NUMERIC NOT NULL,
+                cleared_payments NUMERIC DEFAULT 0,
+                cleared_deposits NUMERIC DEFAULT 0,
+                uncleared_items_count INTEGER DEFAULT 0,
+                uncleared_items_total NUMERIC DEFAULT 0,
+                reconciled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
         
+        // 15. Add 'is_reconciled' status to existing tables
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoices') AND attname='is_reconciled') THEN ALTER TABLE invoices ADD COLUMN is_reconciled BOOLEAN DEFAULT FALSE; END IF; END $$;`);
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='purchases') AND attname='is_reconciled') THEN ALTER TABLE purchases ADD COLUMN is_reconciled BOOLEAN DEFAULT FALSE; END IF; END $$;`);
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='expenses') AND attname='is_reconciled') THEN ALTER TABLE expenses ADD COLUMN is_reconciled BOOLEAN DEFAULT FALSE; END IF; END $$;`);
+
+// ... (console.log('✅ All tables...') से पहले)
         // --- MOVED SECTION (Kept as per your request) ---
         // (Note: These are redundant but kept to avoid deleting code)
-        
+
         // 1. GSTR और बेहतर रिपोर्टिंग के लिए स्टॉक में HSN कोड जोड़ना
         await client.query(`
             DO $$ BEGIN
@@ -2569,6 +2608,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
