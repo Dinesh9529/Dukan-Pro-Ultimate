@@ -2445,6 +2445,10 @@ app.get('/', (req, res) => {
 // 1. HTTP सर्वर बनाएँ और Express ऐप को उससे जोड़ें
 const server = http.createServer(app);
 
+// 🚀 FIX: टाइमआउट को 120 सेकंड (2 मिनट) तक बढ़ाएँ
+server.timeout = 120000; 
+server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा अधिक रखें
+
 // 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
 const wss = new WebSocketServer({ server });
 
@@ -2565,6 +2569,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
