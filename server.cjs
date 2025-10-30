@@ -2085,10 +2085,9 @@ app.get('/api/reports/recently-sold-items', authenticateJWT, async (req, res) =>
 // -----------------------------------------------------------------------------
 
 // 15.1 Get/Update Company Profile (GSTIN, etc.)
-// [ server.cjs में इस पूरे फ़ंक्शन को बदलें (लगभग लाइन 401) ]
 app.post('/api/shop/company-profile', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
     const shopId = req.shopId;
-    // 🚀 FIX: 'opening_capital' को जोड़ा गया
+    // सुनिश्चित करें कि यहां कोई ' // ' कमेंट न हो।
     const { legal_name, gstin, address, opening_capital } = req.body; 
 
     try {
@@ -2099,13 +2098,14 @@ app.post('/api/shop/company-profile', authenticateJWT, checkRole('ADMIN'), async
              SET legal_name = EXCLUDED.legal_name,
                  gstin = EXCLUDED.gstin,
                  address = EXCLUDED.address,
-                 opening_capital = EXCLUDED.opening_capital, // 👈 यह नई लाइन जोड़ी
+                 opening_capital = EXCLUDED.opening_capital,
                  updated_at = CURRENT_TIMESTAMP
              RETURNING *`,
-            [shopId, legal_name, gstin, address, parseFloat(opening_capital) || 0] // 👈 'opening_capital' पैरामीटर जोड़ा
+            [shopId, legal_name, gstin, address, parseFloat(opening_capital) || 0] 
         );
         res.json({ success: true, profile: result.rows[0], message: 'कंपनी प्रोफ़ाइल सफलतापूर्वक अपडेट की गई।' });
     } catch (err) {
+        // यदि अभी भी एरर आता है, तो 'opening_capital' कॉलम missing हो सकता है।
         console.error("Error updating company profile:", err.message);
         res.status(500).json({ success: false, message: 'प्रोफ़ाइल अपडेट करने में विफल: ' + err.message });
     }
@@ -2556,6 +2556,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
