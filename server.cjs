@@ -1141,13 +1141,13 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
             LEFT JOIN customers c ON i.customer_id = c.id
             JOIN shops s ON i.shop_id = s.id
             WHERE i.shop_id = $1 AND i.id = $2;
-        [cite_start]`, [shopId, invoiceId]); [cite: 238-240]
+        `, [shopId, invoiceId]);
 
         if (invoiceResult.rows.length === 0) {
-            [cite_start]return res.status(404).json({ success: false, message: 'चालान नहीं मिला या आपकी शॉप से संबंधित नहीं है.' }); [cite: 240]
+            return res.status(404).json({ success: false, message: 'चालान नहीं मिला या आपकी शॉप से संबंधित नहीं है.' });
         }
 
-        // 🚀 फिक्स: SELECT में gst_rate और gst_amount को जोड़ा गया
+        // फिक्स: SELECT में gst_rate और gst_amount को जोड़ा गया
         const itemsResult = await pool.query(
            `SELECT 
                 item_name, item_sku, quantity, sale_price, purchase_price, 
@@ -1155,18 +1155,17 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
             FROM invoice_items 
             WHERE invoice_id = $1`,
             [invoiceId]
-        [cite_start]); [cite: 241, 37-43] // Note: Citations cover the existence of columns, query is logical aggregation.
+        );
 
-        [cite_start]const invoice = invoiceResult.rows[0]; [cite: 242]
-        [cite_start]invoice.items = itemsResult.rows; [cite: 242]
+        const invoice = invoiceResult.rows[0];
+        invoice.items = itemsResult.rows;
 
-        [cite_start]res.json({ success: true, invoice: invoice }); [cite: 243]
+        res.json({ success: true, invoice: invoice });
     } catch (error) {
-        [cite_start]console.error("Error fetching invoice details:", error.message); [cite: 244]
-        [cite_start]res.status(500).json({ success: false, message: 'चालान विवरण प्राप्त करने में विफल.' }); [cite: 244]
+        console.error("Error fetching invoice details:", error.message);
+        res.status(500).json({ success: false, message: 'चालान विवरण प्राप्त करने में विफल.' });
     }
 });
-
 
 // --- 9. Customer Management ---
 
@@ -2556,6 +2555,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
