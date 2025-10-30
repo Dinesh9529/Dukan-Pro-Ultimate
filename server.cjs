@@ -2467,6 +2467,99 @@ app.post('/api/request-renewal', authenticateJWT, async (req, res) => {
 
 
 
+// ==========================================================
+// --- 🚀 17. बैंक रिकॉन्सिलेशन API (NEW) ---
+// ==========================================================
+
+// 17.1 CSV स्टेटमेंट अपलोड करें और बुक/बैंक आइटम्स लाएँ
+app.post('/api/reconciliation/upload-statement', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    const shopId = req.shopId;
+    // statementItems एक JSON ऐरे है जिसे CSV से पार्स किया गया है
+    const { statementDate, statementBalance, statementItems } = req.body;
+
+    if (!statementDate || !statementBalance || !statementItems || !Array.isArray(statementItems)) {
+        return res.status(400).json({ success: false, message: 'स्टेटमेंट की तारीख, बैलेंस और CSV डेटा (आइटम्स) आवश्यक हैं।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. पुराने (unreconciled) बैंक आइटम्स को साफ़ करें (यदि कोई हो)
+        await client.query('DELETE FROM bank_statement_items WHERE shop_id = $1 AND is_reconciled = FALSE', [shopId]);
+
+        // 2. CSV से आए नए आइटम्स को डालें
+        for (const item of statementItems) {
+            await client.query(
+                `INSERT INTO bank_statement_items (shop_id, transaction_date, description, debit, credit)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [shopId, item.date, item.description, item.debit || 0, item.credit || 0]
+            );
+        }
+
+        // 3. Dukan Pro (बुक) के वे आइटम्स लाएँ जो मैच नहीं हुए हैं
+        // (बिक्री और खर्च)
+        const bookTransactionsQuery = `
+            (SELECT 
+                'invoice' AS type, 
+                id, 
+                created_at AS date, 
+                'बिक्री (Sales) - चालान #' || id AS description, 
+                total_amount AS amount 
+            FROM invoices 
+            WHERE shop_id = $1 AND is_reconciled = FALSE AND created_at <= $2)
+            
+            UNION ALL
+            
+            (SELECT 
+                'expense' AS type, 
+                id, 
+                created_at AS date, 
+                description, 
+                amount * -1 AS amount -- खर्च को नेगेटिव दिखाएँ
+            FROM expenses 
+            WHERE shop_id = $1 AND is_reconciled = FALSE AND created_at <= $2)
+            
+            ORDER BY date DESC
+        `;
+        
+        // 4. बैंक के वे आइटम्स लाएँ जो मैच नहीं हुए हैं (जो अभी डाले हैं)
+        const bankTransactionsQuery = `
+            SELECT 
+                id, 
+                transaction_date AS date, 
+                description, 
+                (credit - debit) AS amount -- क्रेडिट पॉजिटिव, डेबिट नेगेटिव
+            FROM bank_statement_items 
+            WHERE shop_id = $1 AND is_reconciled = FALSE 
+            ORDER BY date DESC
+        `;
+        
+        const bookRes = await client.query(bookTransactionsQuery, [shopId, statementDate]);
+        const bankRes = await client.query(bankTransactionsQuery, [shopId]);
+
+        await client.query('COMMIT');
+        
+        res.json({
+            success: true,
+            message: 'स्टेटमेंट सफलतापूर्वक अपलोड हुआ।',
+            bookItems: bookRes.rows,
+            bankItems: bankRes.rows
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error in /upload-statement:", err.message);
+        res.status(500).json({ success: false, message: 'स्टेटमेंट अपलोड करने में विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
+
+
+
 
 // [ यह नया कोड यहाँ पेस्ट करें ]
 
@@ -2608,6 +2701,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
