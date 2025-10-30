@@ -2557,7 +2557,87 @@ app.post('/api/reconciliation/upload-statement', authenticateJWT, checkRole('MAN
 });
 
 
+// ... (upload-statement API के '});' के बाद)
 
+// 17.2 स्टैटिक रिपोर्ट सेव करें
+app.post('/api/reconciliation/save', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    const shopId = req.shopId;
+    const { 
+        statementEndDate, 
+        statementEndBalance, 
+        reportSummary, // यह एक ऑब्जेक्ट होगा
+        reconciledBankIds, // IDs का ऐरे [1, 2, 3]
+        reconciledBookItems  // ऑब्जेक्ट्स का ऐरे [{type: 'invoice', id: 123}]
+    } = req.body;
+
+    if (!statementEndDate || !statementEndBalance || !reportSummary || !reconciledBankIds || !reconciledBookItems) {
+        return res.status(400).json({ success: false, message: 'रिपोर्ट सेव करने के लिए पूरा डेटा आवश्यक है।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. स्टैटिक रिपोर्ट (reconciliation_reports) में एक एंट्री बनाएँ
+        const reportRes = await client.query(
+            `INSERT INTO reconciliation_reports 
+             (shop_id, statement_end_date, statement_end_balance, 
+              cleared_payments, cleared_deposits, 
+              uncleared_items_count, uncleared_items_total)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+            [
+                shopId,
+                statementEndDate,
+                parseFloat(statementEndBalance),
+                parseFloat(reportSummary.clearedPayments) || 0,
+                parseFloat(reportSummary.clearedDeposits) || 0,
+                parseInt(reportSummary.unclearedCount) || 0,
+                parseFloat(reportSummary.unclearedTotal) || 0
+            ]
+        );
+        const reportId = reportRes.rows[0].id;
+
+        // 2. बैंक आइटम्स को 'reconciled' के रूप में चिह्नित करें
+        if (reconciledBankIds.length > 0) {
+            await client.query(
+                `UPDATE bank_statement_items SET is_reconciled = TRUE, reconciliation_id = $1
+                 WHERE shop_id = $2 AND id = ANY($3::int[])`,
+                [reportId, shopId, reconciledBankIds]
+            );
+        }
+
+        // 3. बुक आइटम्स (Invoices/Expenses) को 'reconciled' के रूप में चिह्नित करें
+        const invoiceIds = reconciledBookItems
+            .filter(item => item.type === 'invoice')
+            .map(item => item.id);
+        const expenseIds = reconciledBookItems
+            .filter(item => item.type === 'expense')
+            .map(item => item.id);
+
+        if (invoiceIds.length > 0) {
+            await client.query(
+                `UPDATE invoices SET is_reconciled = TRUE WHERE shop_id = $1 AND id = ANY($2::int[])`,
+                [shopId, invoiceIds]
+            );
+        }
+        if (expenseIds.length > 0) {
+            await client.query(
+                `UPDATE expenses SET is_reconciled = TRUE WHERE shop_id = $1 AND id = ANY($2::int[])`,
+                [shopId, expenseIds]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: 'रिकॉन्सिलेशन रिपोर्ट सफलतापूर्वक सेव की गई!', reportId: reportId });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error in /reconciliation/save:", err.message);
+        res.status(500).json({ success: false, message: 'रिपोर्ट सेव करने में विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
 
 
 
@@ -2701,6 +2781,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
