@@ -1882,15 +1882,15 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async
 });
 
 // 14.2 Simplified Balance Sheet Report (UPDATED FOR REAL LIABILITY/ASSET TRACKING)
+// [ server.cjs में इस पूरे फ़ंक्शन को बदलें (लगभग लाइन 361) ]
 app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
-    
-    // Balance Sheet 'आज तक' की होती है
     const today = new Date().toISOString(); 
 
     const client = await pool.connect();
     try {
         // --- P&L की गणना करें (Net Profit जानने के लिए) ---
+        // ... (P&L calculations - no change) ...
         const salesResult = await client.query(
             `SELECT COALESCE(SUM(total_amount), 0) AS total_sales, COALESCE(SUM(total_cost), 0) AS total_cogs
              FROM invoices WHERE shop_id = $1 AND created_at <= $2`,
@@ -1904,17 +1904,16 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), asy
         const { total_sales, total_cogs } = salesResult.rows[0];
         const { total_expenses } = expenseResult.rows[0];
         const grossProfit = parseFloat(total_sales) - parseFloat(total_cogs);
-        const netProfit = grossProfit - parseFloat(total_expenses); // कुल इक्विटी
+        const netProfit = grossProfit - parseFloat(total_expenses);
 
         // --- Assets (परिसंपत्तियां) ---
-        // 1. स्टॉक का मूल्य (Inventory Value)
+        // ... (Inventory and A/R calculations - no change) ...
         const stockValueResult = await client.query(
             `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value FROM stock WHERE shop_id = $1`,
             [shopId]
         );
         const inventory_value = parseFloat(stockValueResult.rows[0].inventory_value);
 
-        // 2. ग्राहक शेष (Accounts Receivable - A/R) 🚀 अब यह काम करेगा
         const accountsReceivableResult = await client.query(
             `SELECT COALESCE(SUM(balance), 0) AS accounts_receivable FROM customers WHERE shop_id = $1 AND balance > 0`,
             [shopId]
@@ -1923,28 +1922,27 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), asy
 
         // --- Liabilities & Equity (देनदारियां और इक्विटी) ---
         
-        // 3. GST/टैक्स देय (Tax Payable) 🚀 अब यह काम करेगा
-        // Sales GST (Liability: Tax Collected)
+        // 🚀 NEW: Fetch Opening Capital from company_profile
+        const capitalResult = await client.query('SELECT opening_capital FROM company_profile WHERE shop_id = $1', [shopId]);
+        // 👈 FIX: Capital को fetch करें
+        const savedOpeningCapital = parseFloat(capitalResult.rows[0]?.opening_capital || 0);
+
+        // ... (GST Payable calculation - no change) ...
         const salesGstRes = await client.query(`SELECT COALESCE(SUM(ii.gst_amount), 0) AS total_sales_gst FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id WHERE i.shop_id = $1 AND i.created_at <= $2`, [shopId, today]);
         const totalSalesGst = parseFloat(salesGstRes.rows[0].total_sales_gst || 0);
 
-        // Purchase ITC (Asset: Tax Paid) - (Uses logic from GSTR-2 [cite: 1-426, 1-428])
         const purchaseItcRes = await client.query(`SELECT SUM(COALESCE((gst_details->>'igst')::numeric, 0) + COALESCE((gst_details->>'cgst')::numeric, 0) + COALESCE((gst_details->>'sgst')::numeric, 0)) AS total_purchase_itc FROM purchases WHERE shop_id = $1 AND created_at <= $2 AND gst_details IS NOT NULL`, [shopId, today]);
         const totalPurchaseItc = parseFloat(purchaseItcRes.rows[0].total_purchase_itc || 0);
 
-        // Net GST Payable (अगर यह नेगेटिव है, तो यह Payable की जगह Receivable बन जाएगा)
-        const netGstPayable = totalSalesGst - totalPurchaseItc; 
+        const netGstPayable = totalSalesGst - totalPurchaseItc;
         
-        // 4. Accounts Payable (A/P) और Capital - अभी भी 0 पर सेट हैं, क्योंकि इनके लिए समर्पित फॉर्म/डेटाबेस फ़ील्ड्स मौजूद नहीं हैं।
-        const accounts_payable = 0; 
-        const opening_capital = 0; 
-        const retained_earnings = netProfit; 
+        // 4. Accounts Payable (A/P) और Capital - Hardcodes (Capital now uses fetched value)
+        const accounts_payable = 0; // 🚀 FIX: A/P tracking needs major upgrade
+        const opening_capital = savedOpeningCapital; // 👈 FIX: Use fetched value instead of 0
+        const retained_earnings = netProfit; 
 
         // 5. Cash Balance (Balancing Figure)
-        // L&E = A/P + GST Payable + Capital + Net Profit
         const totalLiabilitiesAndEquity = accounts_payable + netGstPayable + opening_capital + retained_earnings;
-        // Assets = Inventory + A/R + Cash
-        // Cash = Total L&E - Inventory - A/R
         const cash_balance = totalLiabilitiesAndEquity - inventory_value - accounts_receivable;
 
 
@@ -1957,10 +1955,10 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), asy
             ],
             liabilities: [
                 { description: 'करेंट लायबिलिटी: वेंडर देय (A/P)', amount: accounts_payable.toFixed(2) },
-                { description: 'करेंट लायबिलिटी: GST/टैक्स देय', amount: netGstPayable.toFixed(2) } // USING NET GST
+                { description: 'करेंट लायबिलिटी: GST/टैक्स देय', amount: netGstPayable.toFixed(2) }
             ],
             equity: [
-                { description: 'ओपनिंग कैपिटल (पूंजी)', amount: opening_capital.toFixed(2) },
+                { description: 'ओपनिंग कैपिटल (पूंजी)', amount: opening_capital.toFixed(2) }, // 👈 FIX: Fetched value
                 { description: 'रिटेन्ड अर्निंग्स (Net Profit/Loss)', amount: retained_earnings.toFixed(2) }
             ],
             // Totals
@@ -2087,23 +2085,26 @@ app.get('/api/reports/recently-sold-items', authenticateJWT, async (req, res) =>
 // -----------------------------------------------------------------------------
 
 // 15.1 Get/Update Company Profile (GSTIN, etc.)
+// [ server.cjs में इस पूरे फ़ंक्शन को बदलें (लगभग लाइन 401) ]
 app.post('/api/shop/company-profile', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
     const shopId = req.shopId;
-    const { legal_name, gstin, address } = req.body;
+    // 🚀 FIX: 'opening_capital' को जोड़ा गया
+    const { legal_name, gstin, address, opening_capital } = req.body; 
 
     try {
         const result = await pool.query(
-            `INSERT INTO company_profile (shop_id, legal_name, gstin, address, updated_at)
-             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+            `INSERT INTO company_profile (shop_id, legal_name, gstin, address, opening_capital, updated_at)
+             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
              ON CONFLICT (shop_id) DO UPDATE
              SET legal_name = EXCLUDED.legal_name,
                  gstin = EXCLUDED.gstin,
                  address = EXCLUDED.address,
+                 opening_capital = EXCLUDED.opening_capital, // 👈 यह नई लाइन जोड़ी
                  updated_at = CURRENT_TIMESTAMP
              RETURNING *`,
-            [shopId, legal_name, gstin, address]
+            [shopId, legal_name, gstin, address, parseFloat(opening_capital) || 0] // 👈 'opening_capital' पैरामीटर जोड़ा
         );
-        res.json({ success: true, profile: result.rows[0], message: 'कंपनी प्रोफ़ाइल अपडेट की गई.' });
+        res.json({ success: true, profile: result.rows[0], message: 'कंपनी प्रोफ़ाइल सफलतापूर्वक अपडेट की गई।' });
     } catch (err) {
         console.error("Error updating company profile:", err.message);
         res.status(500).json({ success: false, message: 'प्रोफ़ाइल अपडेट करने में विफल: ' + err.message });
@@ -2555,6 +2556,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
