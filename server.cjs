@@ -166,7 +166,16 @@ async function createTables() {
         // 10. Company Profile Table
         await client.query(`CREATE TABLE IF NOT EXISTS company_profile (shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE, legal_name TEXT, gstin TEXT, address TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
-        // 11. Renewal Requests Table
+        //11. createTables() फ़ंक्शन के अंदर, company_profile टेबल बनाने के बाद इसे जोड़ें:
+        await client.query(`
+        DO $$ BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='company_profile') AND attname='opening_capital') 
+        THEN ALTER TABLE company_profile ADD COLUMN opening_capital NUMERIC DEFAULT 0; 
+    END IF; 
+    END $$;
+`);
+
+        // 12. Renewal Requests Table
         await client.query(`CREATE TABLE IF NOT EXISTS renewal_requests (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), user_email TEXT, message TEXT, requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
 
         
@@ -2556,6 +2565,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
