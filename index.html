@@ -393,6 +393,10 @@
 /* ============ END GST REPORT CSS ============ */
 
 
+
+
+
+
 </style>
 </head>
 
@@ -840,34 +844,38 @@
                                     <label for="pos-customer-mobile" class="form-label">मोबाइल नंबर</label>
                                     <input type="tel" class="form-control" id="pos-customer-mobile" placeholder="ग्राहक का मोबाइल नंबर (वैकल्पिक)">
                                 </div>
-                                <!-- बदलने वाला कोड: <section id="sales" ...> के अंदर, लगभग Line 880 के पास -->
-<div class="mb-3 position-relative">
-    <label for="pos-item-search" class="form-label">आइटम खोजें / SKU</label>
-    
-    <!-- FIX: input-group यहाँ जोड़ा गया है ताकि इनपुट और बटन एक ही लाइन में रहें -->
-    <div class="input-group"> 
-        <input 
-            type="text" 
-            class="form-control" 
-            id="pos-item-search" 
-            placeholder="आइटम का नाम या SKU टाइप करें (या सभी के लिए क्लिक करें)" 
-            autocomplete="off"
-        >
-        <!-- NEW: Mobile Scanner Button -->
-        <button class="btn btn-warning" type="button" onclick="openMobileScanner()">
-            <i class="fas fa-qrcode"></i> मोबाइल स्कैनर
-        </button>
-    </div>
-    
-    <!-- सर्च रिजल्ट्स कंटेनर -->
-    <ul 
-        id="pos-search-results" 
-        class="list-group position-absolute w-100" 
-        style="z-index: 100; max-height: 300px; overflow-y: auto;"
-        onclick="handleSearchResultClick(event)"
-    ></ul>
-</div>
-<hr>
+                                
+                                <div class="mb-3 position-relative">
+                                    <label for="pos-item-search" class="form-label">आइटम खोजें / SKU</label>
+                                    <div class="input-group"> 
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            id="pos-item-search" 
+                                            placeholder="आइटम का नाम या SKU टाइप करें (या सभी के लिए क्लिक करें)" 
+                                            autocomplete="off"
+                                        >
+                                        <button class="btn btn-warning" type="button" onclick="openMobileScanner()">
+                                            <i class="fas fa-qrcode"></i> मोबाइल स्कैनर
+                                        </button>
+                                    </div>
+
+                                    <div id="inline-pairing-box" class="mt-2 p-2 border border-warning rounded bg-light text-center" style="display: none;">
+                                        <p class="mb-1 small text-muted">स्कैनर कनेक्ट करने के लिए यह कोड मोबाइल में डालें:</p>
+                                        <span id="inline-pairing-code" style="font-size: 1.8rem; font-weight: bold; letter-spacing: 3px; color: #dc3545;"></span> <div id="inline-pairing-spinner" class="spinner-border spinner-border-sm text-warning ms-2" role="status"> <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p id="inline-pairing-status" class="mt-1 mb-0 small text-success" style="display: none;">
+                                            <i class="fas fa-check-circle"></i> स्कैनर कनेक्टेड।
+                                        </p>
+                                    </div>
+                                    <ul 
+                                        id="pos-search-results" 
+                                        class="list-group position-absolute w-100" 
+                                        style="z-index: 100; max-height: 300px; overflow-y: auto;"
+                                        onclick="handleSearchResultClick(event)"
+                                    ></ul>
+                                </div>
+                                <hr>
         
                                 <h5>बिलिंग कार्ट</h5>
                                 <div class="table-responsive mb-3" style="min-height: 150px;">
@@ -940,6 +948,7 @@
                 </div>
             </div>
         </section>
+        
         <section id="invoice-generator" class="section">
             <h2 class="mb-4 text-primary">🇮🇳 India's Best Invoice Generator Pro</h2>
             <div class="row g-4">
@@ -1569,6 +1578,7 @@
         </div>
     </div>
 </div>
+</section>
 <!-- ============ TALLY-STYLE GST REPORT HTML END ============ -->
 
 
@@ -1726,9 +1736,11 @@
 <script>
     // --- CONFIGURATION AND GLOBAL STATE ---
    // --- CONFIGURATION AND GLOBAL STATE ---
-// --- 🚀 3. WebSocket और मोबाइल डिटेक्शन फ़ंक्शन ---
-let posWebSocket = null;
-    let pairingModalInstance = null;
+// --- CONFIGURATION AND GLOBAL STATE ---
+    // ... (अन्य वेरिएबल्स) ...
+    let posWebSocket = null;
+    let qrCodeDataUrl = null; // 🚀 नया: QR कोड इमेज डेटा रखने के लिए
+    let isWaitingForQr = false; // 🚀 नया: बताएगा कि QR का इंतज़ार हो रहा है
     
     function isMobile() {
         try {
@@ -1737,104 +1749,114 @@ let posWebSocket = null;
         return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     }
     
-    function initPosWebSocket() {
-        if (posWebSocket && posWebSocket.readyState === WebSocket.OPEN) return;
+   
+// [ initPosWebSocket फ़ंक्शन को इस कोड से बदल दें ]
 
-        const wsUrl = __backend_url.replace('https', 'wss').replace('http', 'ws');
-        posWebSocket = new WebSocket(wsUrl);
-        
-        const qrContainer = document.getElementById('pairing-qr-container');
-        const statusEl = document.getElementById('pairing-status');
-        
-        qrContainer.innerHTML = `<div class="spinner-border text-primary" role="status"><span class="visually-hidden">QR कोड जनरेट हो रहा है...</span></div>`;
-        qrContainer.style.display = 'flex';
-        statusEl.style.display = 'none';
+// [ यह initPosWebSocket फ़ंक्शन का नया कोड है ]
 
-        posWebSocket.onopen = () => {
-            console.log("POS WebSocket Connected");
-            posWebSocket.send(JSON.stringify({
-                type: 'REGISTER_POS',
-                token: AppState.token 
-            }));
-        };
-
-        posWebSocket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            switch (data.type) {
-                case 'PAIR_CODE_GENERATED':
-                    console.log("PAIR_CODE_GENERATED प्राप्त हुआ, QR कोड बनाने का प्रयास...");
-                    qrContainer.innerHTML = ''; // स्पिनर हटाएँ
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 256;
-                    canvas.height = 256;
-
-                    // --- जाँचें कि कंटेनर मौजूद है ---
-                    if (!qrContainer) {
-                        console.error("❌ एरर: qrContainer div नहीं मिला!");
-                        break;
-                    }
-
-                    // --- कैनवास जोड़ें और तुरंत जाँचें ---
-                    qrContainer.appendChild(canvas);
-                    if (qrContainer.contains(canvas)) {
-                        console.log("✅ Canvas एलिमेंट सफलतापूर्वक qrContainer में जोड़ा गया।");
-                    } else {
-                        console.error("❌ एरर: Canvas एलिमेंट qrContainer में जोड़ने में विफल!");
-                        break; // आगे बढ़ने का कोई मतलब नहीं
-                    }
-
-                    // --- QR कोड बनाने की कोशिश करें ---
-                    try {
-                        QRCode.toCanvas(canvas, data.pairCode, { width: 256, errorCorrectionLevel: 'L' }, (error) => { //
-                            if (error) {
-                                console.error("❌ QRCode.toCanvas कॉलबैक एरर:", error);
-                                // एरर होने पर कैनवास हटा दें ताकि स्पिनर दिखे (या एरर मैसेज)
-                                qrContainer.innerHTML = '<p class="text-danger">QR कोड बनाने में विफल।</p>';
-                            } else {
-                                console.log('✅ QR कोड सफलतापूर्वक बनाया गया:', data.pairCode); //
-                                // सुनिश्चित करें कि कैनवास अभी भी मौजूद है
-                                if (!qrContainer.contains(canvas)) {
-                                   console.warn("❓ चेतावनी: QR कोड बन गया, लेकिन Canvas रहस्यमय तरीके से गायब हो गया!");
-                                }
-                            }
-                        });
-                    } catch (err) {
-                        console.error("❌ QRCode.toCanvas को कॉल करते समय तत्काल एरर:", err);
-                        qrContainer.innerHTML = '<p class="text-danger">QR कोड बनाने में विफल (लाइब्रेरी एरर)।</p>';
-                    }
-                    break;
-                case 'SCANNER_PAIRED':
-                    console.log("स्कैनर पेयर हो गया!");
-                    qrContainer.style.display = 'none';
-                    statusEl.style.display = 'block';
-                    setTimeout(() => {
-                        if (pairingModalInstance) pairingModalInstance.hide();
-                    }, 2000);
-                    break;
-                case 'SKU_SCANNED':
-                    console.log("SKU प्राप्त हुआ:", data.sku);
-                    handleBarcodeScan(data.sku); 
-                    break;
-                case 'SCANNER_DISCONNECTED':
-                    console.log("स्कैनर डिस्कनेक्ट हो गया।");
-                    qrContainer.style.display = 'flex';
-                    statusEl.style.display = 'none';
-                    posWebSocket.send(JSON.stringify({
-                        type: 'REGISTER_POS',
-                        token: AppState.token 
-                    }));
-                    break;
-            }
-        };
-
-        posWebSocket.onclose = () => {
-            console.log("POS WebSocket Disconnected");
-            posWebSocket = null;
-        };
-        posWebSocket.onerror = (error) => console.error("WebSocket Error:", error);
+function initPosWebSocket() {
+    if (posWebSocket && posWebSocket.readyState === WebSocket.OPEN) {
+        // अगर पहले से खुला है, तो बस नया कोड माँगें और UI रीसेट करें
+        const spinner = document.getElementById('inline-pairing-spinner');
+        const codeDisplay = document.getElementById('inline-pairing-code');
+        const statusDisplay = document.getElementById('inline-pairing-status');
+        if(spinner) spinner.style.display = 'inline-block';
+        if(codeDisplay) codeDisplay.textContent = '------';
+        if(statusDisplay) statusDisplay.style.display = 'none';
+        posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
+        return;
     }
 
-    // [ इसे इससे बदलें ]
+    const wsUrl = __backend_url.replace('https', 'wss').replace('http', 'ws');
+    posWebSocket = new WebSocket(wsUrl);
+
+    posWebSocket.onopen = () => {
+        console.log("POS WebSocket Connected");
+        posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
+    };
+
+   // [ पुराना onmessage बदलें ]
+posWebSocket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    // इनलाइन एलिमेंट्स को ढूँढें
+    const codeDisplay = document.getElementById('inline-pairing-code');
+    const spinner = document.getElementById('inline-pairing-spinner');
+    const statusDisplay = document.getElementById('inline-pairing-status');
+    const inlineBox = document.getElementById('inline-pairing-box'); // Need inlineBox too
+
+    // सुरक्षा जाँच
+    if (!codeDisplay || !spinner || !statusDisplay || !inlineBox) { // Check all 4
+         console.error("❌ Fatal Error: Inline pairing elements missing in onmessage!");
+         return; 
+    }
+
+    switch (data.type) {
+        case 'PAIR_CODE_GENERATED':
+            console.log("PAIR_CODE_GENERATED प्राप्त हुआ:", data.pairCode);
+            codeDisplay.textContent = data.pairCode; // कोड सेट करें
+            spinner.style.display = 'none'; // स्पिनर छिपाएँ
+            statusDisplay.style.display = 'none'; 
+            codeDisplay.style.display = 'inline-block'; // सुनिश्चित करें कि कोड दिखे
+            inlineBox.style.display = 'block'; // सुनिश्चित करें कि बॉक्स दिखे
+            break;
+
+        case 'SCANNER_PAIRED':
+            console.log("स्कैनर पेयर हो गया!");
+            spinner.style.display = 'none';
+            codeDisplay.style.display = 'none'; 
+            statusDisplay.style.display = 'block'; 
+            // setTimeout(() => { inlineBox.style.display = 'none'; }, 3000); 
+            break;
+
+        case 'SKU_SCANNED':
+            console.log("SKU प्राप्त हुआ:", data.sku);
+            handleBarcodeScan(data.sku); 
+            break;
+
+        case 'SCANNER_DISCONNECTED':
+            console.log("स्कैनर डिस्कनेक्ट हो गया।");
+            if(inlineBox) inlineBox.style.display = 'block'; 
+            spinner.style.display = 'inline-block'; 
+            codeDisplay.textContent = '------'; 
+            codeDisplay.style.display = 'inline-block'; // Re-show display span
+            statusDisplay.style.display = 'none'; 
+            if (posWebSocket && posWebSocket.readyState === WebSocket.OPEN) {
+               posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
+            }
+            break;
+    }
+};
+
+posWebSocket.onclose = () => {
+        console.log("POS WebSocket Disconnected");
+        posWebSocket = null;
+         const inlineBox = document.getElementById('inline-pairing-box');
+         if(inlineBox) inlineBox.style.display = 'none';
+    };
+    posWebSocket.onerror = (error) => {
+         console.error("WebSocket Error:", error);
+         const inlineBox = document.getElementById('inline-pairing-box');
+         if(inlineBox) {
+             inlineBox.innerHTML = '<p class="text-danger small">कनेक्शन त्रुटि।</p>';
+             inlineBox.style.display = 'block';
+         }
+    };
+}
+// [ closePosWebSocket फ़ंक्शन बदलें ]
+function closePosWebSocket() {
+    if (posWebSocket) {
+        posWebSocket.close();
+        posWebSocket = null;
+        console.log("WebSocket connection closed.");
+    }
+    // सिर्फ इनलाइन बॉक्स छिपाएँ
+    const inlineBox = document.getElementById('inline-pairing-box');
+    if(inlineBox) inlineBox.style.display = 'none';
+}
+
+
+// [ इसे इससे बदलें ]
     function closePosWebSocket() {
         // WebSocket बंद करें (अगर खुला है)
         if (posWebSocket) {
@@ -1985,38 +2007,28 @@ async function handleBarcodeScan(skuFromScanner = null) {
 }
 
 
-// नया फ़ंक्शन: मोबाइल स्कैनर विंडो खोलता है
-// [ पुराना openMobileScanner फ़ंक्शन बदलें ]
 
-    // 🚀 नया: हाइब्रिड 'openMobileScanner' फ़ंक्शन
-   // [ पुराना openMobileScanner फ़ंक्शन बदलें ]
-
-    // 🚀 नया: "फोर्स्ड" 'openMobileScanner' फ़ंक्शन
-   // [ पुराना openMobileScanner फ़ंक्शन बदलें ]
-
-    // 🚀 4. हाइब्रिड 'openMobileScanner' फ़ंक्शन
+      
+    // 🚀 नया: WebSocket शुरू करता है और इंतज़ार करता है
     function openMobileScanner() {
-        
-        if (isMobile()) {
-            // 1. अगर मोबाइल पर हैं: पुराना तरीका (postMessage)
-            console.log("Mobile device detected. Opening scanner in new tab.");
-            const scannerUrl = window.location.origin + '/mobile_scanner.html';
-            window.scannerWindow = window.open(scannerUrl, '_blank', 'width=400,height=600');
-            
-            if (!window.scannerWindow) {
-                showMessage('त्रुटि', 'पॉपअप ब्लॉक किया गया। कृपया इस वेबसाइट के लिए पॉपअप की अनुमति दें।', 'danger');
-            }
-
-        } else {
-            // 2. अगर कंप्यूटर पर हैं: नया तरीका (WebSocket QR Code)
-            console.log("Desktop device detected. Opening pairing modal.");
-            if (!pairingModalInstance) {
-                pairingModalInstance = new bootstrap.Modal(document.getElementById('pairingModal'));
-            }
-            pairingModalInstance.show();
-            initPosWebSocket();
-        }
+    const inlineBox = document.getElementById('inline-pairing-box');
+    if (!inlineBox) {
+        console.error("Inline pairing box not found!");
+        return;
     }
+
+    // बॉक्स दिखाएँ और UI रीसेट करें
+    inlineBox.style.display = 'block';
+    const spinner = document.getElementById('inline-pairing-spinner');
+    const codeDisplay = document.getElementById('inline-pairing-code');
+    const statusDisplay = document.getElementById('inline-pairing-status');
+    if(spinner) spinner.style.display = 'inline-block'; // स्पिनर दिखाएँ
+    if(codeDisplay) codeDisplay.textContent = '------'; // कोड रीसेट करें
+    if(statusDisplay) statusDisplay.style.display = 'none'; // स्टेटस छिपाएँ
+
+    // WebSocket शुरू करें (यह कोड जनरेट करने का अनुरोध भेजेगा)
+    initPosWebSocket(); 
+}
 // नया फ़ंक्शन: पोस्ट मैसेज से प्राप्त SKU को प्रोसेस करता है
 function processScannedSku(sku) {
     if (currentTab !== 'sales') {
@@ -2178,13 +2190,22 @@ async function fetchAndPopulateShopData() {
     const renderView = (viewId) => {
         AppState.currentView = viewId;
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.getElementById(viewId)?.classList.add('active');
+        
+        // यह लाइन सुनिश्चित करती है कि सेक्शन को active क्लास मिले
+        const sectionElement = document.getElementById(viewId);
+        if (sectionElement) {
+             sectionElement.classList.add('active');
+             console.log(`✅ Activated section: #${viewId}`); // कन्फर्म करने के लिए लॉग
+        } else {
+             console.error(`❌ Section not found for ID: ${viewId}`); // अगर ID गलत है
+        }
+
         document.querySelectorAll('#sidebar-nav .nav-link').forEach(l => {
             l.classList.remove('active');
             if (l.getAttribute('data-view') === viewId) l.classList.add('active');
         });
         
-        // Call the specific function for the view
+        // --- 🚀 अस्थायी रूप से कमेंट आउट ---
         switch (viewId) {
             case 'dashboard': renderDashboard(); break;
             case 'stock': fetchAndRenderStockList(); break;
@@ -2197,33 +2218,28 @@ async function fetchAndPopulateShopData() {
                 fetchApi('/api/stock', { method: 'GET' }).then(res => {
                     if (res.success) currentStock = res.stock;
                 });
-                focusBarcodeScanner(); // <<< ADDED: Scanner Focus
+                focusBarcodeScanner(); 
                 break;
-                fetchAndRenderSales(); 
-                fetchApi('/api/stock', { method: 'GET' }).then(res => {
-                    if (res.success) currentStock = res.stock;
-                });
-                // NEW: Focus barcode scanner when on sales page
-                focusBarcodeScanner();
-                break; 
-                case 'invoice-generator': 
-                fetchAndPopulateShopData(); // <<< ADDED: Loads saved data
+             // Note: Duplicate 'sales' case removed below
+            case 'invoice-generator': 
+                fetchAndPopulateShopData(); 
                 initializeQRUpload(); 
-                // updateInvoicePreview(); // updateInvoicePreview will run inside fetchAndPopulateShopData
                 break;
-            // NEW: Render functions for new sections
             case 'gst-reports': 
-                // Set default dates
-                document.getElementById('gst-report-start-date').value = getISODate(new Date(new Date().setDate(1))); // First of month
-                document.getElementById('gst-report-end-date').value = getISODate(); // Today
+                // Ensure getISODate function exists or handle potential error
+                try {
+                    document.getElementById('gst-report-start-date').value = getISODate(new Date(new Date().setDate(1))); 
+                    document.getElementById('gst-report-end-date').value = getISODate(); 
+                } catch (e) { console.error("Error setting GST dates:", e); }
                 break;
-            case 'daily-closing': fetchAndRenderClosingReports(); break;
-            case 'data-backup': break; // No action needed on load
-            case 'shop-settings': fetchAndRenderShopSettings(); break;
-            case 'staff': renderStaff(); break; // <-- यह लाइन जोड़ें
+            case 'daily-closing': fetchAndRenderClosingReports(); break; 
+            case 'data-backup': break; 
+            case 'shop-settings': fetchAndRenderShopSettings(); break; 
+            case 'staff': renderStaff(); break; 
         }
+        
+        // --- 🚀 कमेंट खत्म ---
     };
-
     async function fetchAndRenderSales() {
         const salesTableBody = document.getElementById('sales-table-body');
         salesTableBody.innerHTML = ''; // Clear previous entries
@@ -2941,6 +2957,35 @@ async function fetchAndRenderStockList() {
     }
 
 
+
+    
+
+// 🚀 नया हेल्पर फ़ंक्शन: QR इमेज सेट करता है और Modal दिखाता है
+function displayQrModal() {
+         const modalBody = document.querySelector('#pairingModal .modal-body'); 
+         if (!modalBody || !qrCodeDataUrl) {
+             console.error("❌ displayQrModal: Modal बॉडी या QR कोड URL नहीं मिला!");
+             showMessage('त्रुटि', 'QR कोड दिखाने में विफल।', 'danger');
+             return;
+         }
+         
+         // Modal बॉडी को साफ़ करें और इमेज दिखाएँ
+         modalBody.innerHTML = `
+            <p>अपने Dukan Pro मोबाइल स्कैनर ऐप से यह QR कोड स्कैन करें।</p>
+            <div style="min-height: 260px; display: flex; align-items: center; justify-content: center;">
+                <img src="${qrCodeDataUrl}" alt="QR Code" style="width: 256px; height: 256px; border: 1px solid #ccc;">
+            </div>
+             <p class="text-muted small mt-3">यह QR कोड आपके POS को आपके फ़ोन से सुरक्षित रूप से जोड़ता है।</p>
+         `;
+         
+         // Modal दिखाएँ
+         if (pairingModalInstance) {
+             pairingModalInstance.show();
+         }
+         isWaitingForQr = false; // इंतज़ार खत्म
+    }
+
+
     // ===================================
 // STAFF MANAGEMENT FUNCTIONS (NEW)
 // ===================================
@@ -3140,6 +3185,7 @@ async function handleDeleteStaff(staffId) {
 
         // Load initial view
         renderView('dashboard');
+    
     };
 
 
@@ -3475,29 +3521,42 @@ async function handleDeleteStaff(staffId) {
        
     // NEW: Functions for New Sections
     async function fetchAndRenderClosingReports() {
-        const tableBody = document.getElementById('daily-closing-table-body');
-        tableBody.innerHTML = `<tr><td colspan="5" class="text-center">लोड हो रहा है...</td></tr>`;
-        try {
-            const res = await fetchApi('/api/closing/reports', { method: 'GET' });
-            if (res.success && res.reports.length > 0) {
-                tableBody.innerHTML = res.reports.map(r => `
-                    <tr>
-                        <td>${new Date(r.closing_date).toLocaleDateString()}</td>
-                        <td>${formatCurrency(r.total_sales)}</td>
-                        <td>${formatCurrency(r.total_cogs)}</td>
-                        <td>${formatCurrency(r.total_expenses)}</td>
-                        <td class="fw-bold ${r.net_profit >= 0 ? 'text-success' : 'text-danger'}">
-                            ${formatCurrency(r.net_profit)}
-                        </td>
-                    </tr>
-                `).join('');
-            } else {
-                tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">कोई क्लोजिंग रिपोर्ट नहीं मिली।</td></tr>`;
-            }
-        } catch (e) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
-        }
+    console.log("🚀 fetchAndRenderClosingReports() शुरू हुआ..."); // Log Start
+    const tableBody = document.getElementById('daily-closing-table-body');
+    if (!tableBody) {
+         console.error("❌ एरर: daily-closing-table-body नहीं मिला!");
+         return;
     }
+    tableBody.innerHTML = `<tr><td colspan="5" class="text-center">लोड हो रहा है...</td></tr>`;
+    try {
+        console.log("📡 API कॉल /api/closing/reports भेजा जा रहा है...");
+        const res = await fetchApi('/api/closing/reports', { method: 'GET' });
+        console.log("📄 API रिस्पांस मिला:", res); // Log Response
+
+        if (res.success && res.reports && res.reports.length > 0) {
+             console.log(`📊 ${res.reports.length} रिपोर्ट्स मिलीं। HTML बना रहा हूँ...`);
+            tableBody.innerHTML = res.reports.map(r => `
+                <tr>
+                    <td>${new Date(r.closing_date).toLocaleDateString()}</td>
+                    <td>${formatCurrency(r.total_sales)}</td>
+                    <td>${formatCurrency(r.total_cogs)}</td>
+                    <td>${formatCurrency(r.total_expenses)}</td>
+                    <td class="fw-bold ${r.net_profit >= 0 ? 'text-success' : 'text-danger'}">
+                        ${formatCurrency(r.net_profit)}
+                    </td>
+                </tr>
+            `).join('');
+             console.log("✅ टेबल HTML अपडेट हो गया।");
+        } else {
+             console.log("ℹ️ कोई रिपोर्ट नहीं मिली या API विफल।");
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">कोई क्लोजिंग रिपोर्ट नहीं मिली।</td></tr>`;
+        }
+    } catch (e) {
+        console.error("❌ fetchAndRenderClosingReports एरर:", e); // Log Error
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+    }
+     console.log("🏁 fetchAndRenderClosingReports() खत्म हुआ।"); // Log End
+}
     
     async function fetchAndRenderShopSettings() {
         try {
@@ -4291,9 +4350,10 @@ const res = await fetchApi('/api/activate-license', {
         barcodeInput.addEventListener('change', handleBarcodeScan);
         // Re-focus scanner input whenever user clicks anywhere
        
+        // 🚀 नया फ़ंक्शन: Modal इवेंट सेटअप करता है
+   
         
 </script>
-
 <div class="modal fade" id="pairingModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="pairingModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -4302,19 +4362,22 @@ const res = await fetchApi('/api/activate-license', {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closePosWebSocket()"></button>
             </div>
             <div class="modal-body text-center">
-                <p>अपने Dukan Pro मोबाइल स्कैनर ऐप से यह QR कोड स्कैन करें।</p>
+                <p>अपने Dukan Pro मोबाइल स्कैनर में यह कोड दर्ज करें:</p>
                 
-                <div id="pairing-qr-container" style="min-height: 260px; display: flex; align-items: center; justify-content: center;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">QR कोड जनरेट हो रहा है...</span>
+                <div id="pairing-code-container" style="min-height: 100px; display: flex; align-items: center; justify-content: center; background: #eee; border-radius: 8px; margin: 20px 0;">
+                    
+                    <span id="pairing-code-display" style="font-size: 2.5rem; font-weight: bold; letter-spacing: 5px; color: #0d6efd;"></span> 
+                    
+                    <div id="code-spinner" class="spinner-border text-primary" role="status"> 
+                        <span class="visually-hidden">कोड जनरेट हो रहा है...</span>
                     </div>
                 </div>
                 
-                <h4 id="pairing-status" class="text-success" style="display: none;">
+                <h4 id="pairing-status" class="text-success"> 
                     <i class="fas fa-check-circle"></i> स्कैनर सफलतापूर्वक कनेक्ट हो गया!
                 </h4>
                 
-                <p class="text-muted small mt-3">यह QR कोड आपके POS को आपके फ़ोन से सुरक्षित रूप से जोड़ता है।</p>
+                <p class="text-muted small mt-3">यह कोड आपके POS को आपके फ़ोन से सुरक्षित रूप से जोड़ता है।</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="closePosWebSocket()">रद्द करें</button>
@@ -4323,7 +4386,6 @@ const res = await fetchApi('/api/activate-license', {
     </div>
 </div>
 
-</body>
 
 </body>
 </html>
