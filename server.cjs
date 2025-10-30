@@ -1881,78 +1881,83 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async
     }
 });
 
-// 14.2 Simplified Balance Sheet Report (UPDATED FOR BANK-STYLE DETAIL & BALANCE)
+// 14.2 Simplified Balance Sheet Report (UPDATED FOR REAL LIABILITY/ASSET TRACKING)
 app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
     
-    // बैलेंस शीट "आज तक" की होती है, इसलिए तारीखों की आवश्यकता नहीं है
-    const today = new Date().toISOString(); // 'As of' date
-    const beginningOfTime = new Date(0).toISOString(); // Epoch start
+    // Balance Sheet 'आज तक' की होती है
+    const today = new Date().toISOString(); 
 
     const client = await pool.connect();
     try {
         // --- P&L की गणना करें (Net Profit जानने के लिए) ---
-        // 1. कुल बिक्री और COGS (शुरू से आज तक)
         const salesResult = await client.query(
             `SELECT COALESCE(SUM(total_amount), 0) AS total_sales, COALESCE(SUM(total_cost), 0) AS total_cogs
              FROM invoices WHERE shop_id = $1 AND created_at <= $2`,
             [shopId, today]
         );
-        // 2. कुल खर्च (शुरू से आज तक)
         const expenseResult = await client.query(
             `SELECT COALESCE(SUM(amount), 0) AS total_expenses
              FROM expenses WHERE shop_id = $1 AND created_at <= $2`,
             [shopId, today]
         );
-        
         const { total_sales, total_cogs } = salesResult.rows[0];
         const { total_expenses } = expenseResult.rows[0];
         const grossProfit = parseFloat(total_sales) - parseFloat(total_cogs);
-        const netProfit = grossProfit - parseFloat(total_expenses); // यह आपकी कुल इक्विटी है
+        const netProfit = grossProfit - parseFloat(total_expenses); // कुल इक्विटी
 
         // --- Assets (परिसंपत्तियां) ---
-        // 1. स्टॉक का मूल्य (लागत मूल्य पर)
+        // 1. स्टॉक का मूल्य (Inventory Value)
         const stockValueResult = await client.query(
-            // सुनिश्चित करें कि 'purchase_price' या 'cost_price' का उपयोग करें, P&L (cogs) से मेल खाता हो
-            `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value 
-             FROM stock WHERE shop_id = $1`,
+            `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value FROM stock WHERE shop_id = $1`,
             [shopId]
         );
         const inventory_value = parseFloat(stockValueResult.rows[0].inventory_value);
 
-        // 2. ग्राहक शेष (Accounts Receivable)
+        // 2. ग्राहक शेष (Accounts Receivable - A/R) 🚀 अब यह काम करेगा
         const accountsReceivableResult = await client.query(
-            // 'balance' कॉलम का उपयोग करें (जैसा कि createTables में जोड़ा गया है)
-            `SELECT COALESCE(SUM(balance), 0) AS accounts_receivable
-             FROM customers WHERE shop_id = $1 AND balance > 0`,
+            `SELECT COALESCE(SUM(balance), 0) AS accounts_receivable FROM customers WHERE shop_id = $1 AND balance > 0`,
             [shopId]
         );
         const accounts_receivable = parseFloat(accountsReceivableResult.rows[0].accounts_receivable);
 
-        // 3. कैश बैलेंस (Balancing Figure)
-        // Assets = Liabilities + Equity
-        // (Inventory + A/R + Cash) = (A/P + GST) + (Capital + Net Profit)
-        // Cash = (A/P + GST + Capital + Net Profit) - (Inventory + A/R)
-        // मानते हैं कि A/P, GST, और Capital = 0 हैं
-        const cash_balance = netProfit - inventory_value - accounts_receivable;
-
-
         // --- Liabilities & Equity (देनदारियां और इक्विटी) ---
-        const accounts_payable = 0; // (ट्रैक नहीं किया गया)
-        const gst_payable = 0; // (ट्रैक नहीं किया गया)
-        const opening_capital = 0; // (ट्रैक नहीं किया गया)
-        const retained_earnings = netProfit; // P&L से
+        
+        // 3. GST/टैक्स देय (Tax Payable) 🚀 अब यह काम करेगा
+        // Sales GST (Liability: Tax Collected)
+        const salesGstRes = await client.query(`SELECT COALESCE(SUM(ii.gst_amount), 0) AS total_sales_gst FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id WHERE i.shop_id = $1 AND i.created_at <= $2`, [shopId, today]);
+        const totalSalesGst = parseFloat(salesGstRes.rows[0].total_sales_gst || 0);
+
+        // Purchase ITC (Asset: Tax Paid) - (Uses logic from GSTR-2 [cite: 1-426, 1-428])
+        const purchaseItcRes = await client.query(`SELECT SUM(COALESCE((gst_details->>'igst')::numeric, 0) + COALESCE((gst_details->>'cgst')::numeric, 0) + COALESCE((gst_details->>'sgst')::numeric, 0)) AS total_purchase_itc FROM purchases WHERE shop_id = $1 AND created_at <= $2 AND gst_details IS NOT NULL`, [shopId, today]);
+        const totalPurchaseItc = parseFloat(purchaseItcRes.rows[0].total_purchase_itc || 0);
+
+        // Net GST Payable (अगर यह नेगेटिव है, तो यह Payable की जगह Receivable बन जाएगा)
+        const netGstPayable = totalSalesGst - totalPurchaseItc; 
+        
+        // 4. Accounts Payable (A/P) और Capital - अभी भी 0 पर सेट हैं, क्योंकि इनके लिए समर्पित फॉर्म/डेटाबेस फ़ील्ड्स मौजूद नहीं हैं।
+        const accounts_payable = 0; 
+        const opening_capital = 0; 
+        const retained_earnings = netProfit; 
+
+        // 5. Cash Balance (Balancing Figure)
+        // L&E = A/P + GST Payable + Capital + Net Profit
+        const totalLiabilitiesAndEquity = accounts_payable + netGstPayable + opening_capital + retained_earnings;
+        // Assets = Inventory + A/R + Cash
+        // Cash = Total L&E - Inventory - A/R
+        const cash_balance = totalLiabilitiesAndEquity - inventory_value - accounts_receivable;
+
 
         // --- अंतिम रिपोर्ट (Detailed) ---
         const bsReport = {
             assets: [
                 { description: 'करेंट एसेट्स: स्टॉक (Inventory)', amount: inventory_value.toFixed(2) },
                 { description: 'करेंट एसेट्स: ग्राहक शेष (A/R)', amount: accounts_receivable.toFixed(2) },
-                { description: 'करेंट एसेट्स: कैश/बैंक बैलेंस', amount: cash_balance.toFixed(2), note: "P&L के आधार पर" }
+                { description: 'करेंट एसेट्स: कैश/बैंक बैलेंस', amount: cash_balance.toFixed(2), note: "Net L&E के आधार पर" }
             ],
             liabilities: [
                 { description: 'करेंट लायबिलिटी: वेंडर देय (A/P)', amount: accounts_payable.toFixed(2) },
-                { description: 'करेंट लायबिलिटी: GST/टैक्स देय', amount: gst_payable.toFixed(2) }
+                { description: 'करेंट लायबिलिटी: GST/टैक्स देय', amount: netGstPayable.toFixed(2) } // USING NET GST
             ],
             equity: [
                 { description: 'ओपनिंग कैपिटल (पूंजी)', amount: opening_capital.toFixed(2) },
@@ -1960,25 +1965,20 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), asy
             ],
             // Totals
             totalAssets: (inventory_value + accounts_receivable + cash_balance).toFixed(2),
-            totalLiabilitiesAndEquity: (accounts_payable + gst_payable + opening_capital + retained_earnings).toFixed(2)
+            totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2)
         };
-
-        // संतुलन की जाँच करें (यह अब हमेशा 0.00 होना चाहिए)
-        console.log("Balance Sheet Check (Assets - L&E):", bsReport.totalAssets - bsReport.totalLiabilitiesAndEquity);
-
+        
+        console.log("Balance Sheet Check (Assets - L&E):", (bsReport.totalAssets - totalLiabilitiesAndEquity).toFixed(2));
         res.json({ success: true, report: bsReport });
 
     } catch (err) {
         console.error("Error generating Balance Sheet:", err.message, err.stack);
-        // अगर 'balance' कॉलम अभी भी मौजूद नहीं है, तो यह एरर यहाँ पकड़ा जाएगा
-        if (err.message.includes('column "balance" does not exist')) {
-             return res.status(500).json({ success: false, message: 'बैलेंस शीट विफल: "customers" टेबल में "balance" कॉलम नहीं मिला। कृपया सर्वर एडमिन से संपर्क करें।' });
-        }
         res.status(500).json({ success: false, message: 'बैलेंस शीट बनाने में विफल: ' + err.message });
     } finally {
         if (client) client.release();
     }
 });
+
 
 // 14.3 Product-wise Sales Report
 app.get('/api/reports/product-sales', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
@@ -2555,6 +2555,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
