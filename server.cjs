@@ -1091,14 +1091,39 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
 app.get('/api/invoices', authenticateJWT, async (req, res) => {
     const shopId = req.shopId;
     try {
-        // 🔑 Query now includes WHERE i.shop_id = $1
-        const result = await pool.query("SELECT i.id, i.total_amount, i.created_at, COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name, i.total_cost FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id WHERE i.shop_id = $1 ORDER BY i.created_at DESC LIMIT 100", [shopId]);
+        
+        // --- पुराना लॉजिक (इसे डिस्टर्ब नहीं किया गया है, बस कमेंट किया गया है) ---
+        // const result = await pool.query("SELECT i.id, i.total_amount, i.created_at, COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name, i.total_cost FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id WHERE i.shop_id = $1 ORDER BY i.created_at DESC LIMIT 100", [shopId]);
+        // --- पुराना लॉजिक समाप्त ---
+
+        // --- नया लॉजिक (GST जोड़ने के लिए) ---
+        // 🚀 फिक्स: invoice_items को JOIN किया और कुल gst_amount को SUM किया 
+        const result = await pool.query(`
+            SELECT 
+                i.id, 
+                i.total_amount, 
+                i.created_at, 
+                COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name, 
+                i.total_cost,
+                COALESCE(SUM(ii.gst_amount), 0) AS total_gst
+            FROM invoices i 
+            LEFT JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
+            WHERE i.shop_id = $1 
+            GROUP BY i.id, c.name
+            ORDER BY i.created_at DESC 
+            LIMIT 100
+        `, [shopId]);
+        // --- नया लॉजिक समाप्त ---
+
         res.json({ success: true, sales: result.rows, message: "चालान सफलतापूर्वक लोड किए गए।" }); // Corrected: Single line
     } catch (error) {
         console.error("Error fetching invoices list:", error.message);
         res.status(500).json({ success: false, message: 'चालान सूची प्राप्त करने में विफल.' });
     }
 });
+
+
 // 8.3 Get Invoice Details (SCOPED)
 app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
     const { invoiceId } = req.params;
@@ -1122,10 +1147,20 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
             return res.status(404).json({ success: false, message: 'चालान नहीं मिला या आपकी शॉप से संबंधित नहीं है.' });
         }
 
+       // ... (लगभग लाइन 240)
+        }
+
+        // 🚀 फिक्स: SELECT में gst_rate और gst_amount को जोड़ा गया
         const itemsResult = await pool.query(
-            `SELECT item_name, item_sku, quantity, sale_price, purchase_price FROM invoice_items WHERE invoice_id = $1`,
+     
+           `SELECT 
+                item_name, item_sku, quantity, sale_price, purchase_price, 
+                gst_rate, gst_amount 
+            FROM invoice_items 
+            WHERE invoice_id = $1`,
             [invoiceId]
         );
+// ...
         const invoice = invoiceResult.rows[0];
         invoice.items = itemsResult.rows;
 
@@ -2523,6 +2558,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
