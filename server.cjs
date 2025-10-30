@@ -2640,6 +2640,34 @@ app.post('/api/reconciliation/save', authenticateJWT, checkRole('MANAGER'), asyn
 });
 
 
+// 17.3 पिछली (पुरानी) रिकॉन्सिलेशन रिपोर्ट्स लाएँ
+app.get('/api/reconciliation/reports', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    const shopId = req.shopId;
+
+    try {
+        const result = await pool.query(
+            `SELECT 
+                id, 
+                statement_end_date, 
+                statement_end_balance,
+                uncleared_items_total,
+                reconciled_at
+             FROM reconciliation_reports 
+             WHERE shop_id = $1 
+             ORDER BY statement_end_date DESC`,
+            [shopId]
+        );
+
+        res.json({ success: true, reports: result.rows });
+
+    } catch (err) {
+        console.error("Error in /reconciliation/reports:", err.message);
+        res.status(500).json({ success: false, message: 'पुरानी रिपोर्ट्स लाने में विफल: ' + err.message });
+    }
+});
+
+
+
 
 // [ यह नया कोड यहाँ पेस्ट करें ]
 
@@ -2781,6 +2809,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
