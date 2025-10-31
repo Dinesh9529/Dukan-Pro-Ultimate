@@ -67,7 +67,7 @@ async function createTables() {
         // 0. Shops / Tenant Table & License Expiry
         await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN ALTER TABLE shops ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; END $$;`);
-
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='plan_type') THEN ALTER TABLE shops ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
         // 0.5. Users Table
         await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled')); END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN ALTER TABLE users ADD COLUMN mobile TEXT; END IF; END $$;`);
@@ -75,7 +75,7 @@ async function createTables() {
         // 1. Licenses Table (All necessary updates for shop_id, etc.)
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'user_id') THEN ALTER TABLE licenses ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL; CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses (user_id); END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'customer_details') THEN ALTER TABLE licenses ADD COLUMN customer_details JSONB; END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'shop_id') THEN ALTER TABLE licenses ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL; CREATE INDEX IF NOT EXISTS idx_licenses_shop_id ON licenses (shop_id); END IF; END $$;`);
-
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='licenses') AND attname='plan_type') THEN ALTER TABLE licenses ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
         // --- Multi-tenant modification: Add shop_id to all data tables ---
         const dataTables = ['stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
         for (const table of dataTables) {
@@ -352,18 +352,79 @@ const authenticateJWT = (req, res, next) => {
  * Middleware for Role-Based Access Control (RBAC).
  * Role hierarchy: ADMIN (3) > MANAGER (2) > CASHIER (1)
  */
+/* [Line 86] - यह आपका मौजूदा checkRole फ़ंक्शन है */
 const checkRole = (requiredRole) => (req, res, next) => {
     const roles = { 'ADMIN': 3, 'MANAGER': 2, 'CASHIER': 1 };
     const userRoleValue = roles[req.userRole];
     const requiredRoleValue = roles[requiredRole.toUpperCase()];
 
     if (userRoleValue >= requiredRoleValue) {
-        next();
-        // Authorized
+        next(); // Authorized
     } else {
         res.status(403).json({ success: false, message: 'इस कार्य को करने के लिए पर्याप्त अनुमतियाँ नहीं हैं। (आवश्यक: ' + requiredRole + ')' });
     }
 };
+/* [Line 94] - checkRole फ़ंक्शन यहाँ समाप्त होता है */
+
+
+/* ============================================== */
+/* === 🚀 🚀 🚀 नया checkPlan मिडलवेयर यहाँ पेस्ट करें 🚀 🚀 🚀 === */
+/* ============================================== */
+/**
+ * मिडलवेयर: प्लान-आधारित फीचर कंट्रोल के लिए।
+ * पदानुक्रम (Hierarchy): PREMIUM (4) > MEDIUM (3) > BASIC (2) > TRIAL (1)
+ * AMC: 'ONE_TIME' प्लान की AMC एक्सपायर होने पर उसे 'BASIC' माना जाएगा।
+ */
+const checkPlan = (requiredPlans) => (req, res, next) => {
+    const plans = { 'PREMIUM': 4, 'ONE_TIME': 4, 'MEDIUM': 3, 'BASIC': 2, 'TRIAL': 1 };
+    
+    // JWT टोकन से यूज़र का प्लान और एक्सपायरी डेट लें
+    const userPlan = req.user.plan_type || 'TRIAL';
+    const userPlanLevel = plans[userPlan.toUpperCase()] || 0;
+    const expiryDate = req.user.licenseExpiryDate ? new Date(req.user.licenseExpiryDate) : null;
+    const now = new Date();
+
+    // 1. जाँच करें कि लाइसेंस/AMC एक्सपायर तो नहीं हो गया
+    if (!expiryDate || expiryDate < now) {
+        // लाइसेंस/AMC एक्सपायर हो गया है।
+        // 🚀 आपकी आवश्यकता: "Amc nahi de to software lok ho jaye"
+        // (नोट: यह लॉगिन के समय पहले ही हैंडल हो जाता है, लेकिन यह एक डबल-चेक है)
+        return res.status(403).json({ 
+            success: false, 
+            message: `आपका '${userPlan}' प्लान/AMC समाप्त हो गया है। सॉफ्टवेयर लॉक है। कृपया 7303410987 पर संपर्क करें।`
+        });
+    }
+
+    // 2. 'TRIAL' प्लान के लिए जाँच करें
+    // 🚀 आपकी आवश्यकता: "5 din ke trial mein pure software ka access milna chahiye"
+    if (userPlan === 'TRIAL') {
+        next(); // ट्रायल एक्टिव है, सभी फीचर्स की अनुमति दें
+        return;
+    }
+
+    // 3. 'ONE_TIME' प्लान के लिए जाँच करें
+    // 🚀 आपकी आवश्यकता: "One time licence rs.40000/- AMC per year 15000"
+    // (यह 'PREMIUM' (लेवल 4) के बराबर माना जाएगा, जब तक AMC एक्टिव है)
+    
+    // 4. मुख्य प्लान लेवल की जाँच करें
+    const isAuthorized = requiredPlans.some(plan => {
+        const requiredLevel = plans[plan.toUpperCase()] || 0;
+        return userPlanLevel >= requiredLevel; // क्या यूज़र का लेवल ज़रूरी लेवल से ज़्यादा है?
+    });
+
+    if (isAuthorized) {
+        next(); // अनुमति है
+    } else {
+        // अनुमति नहीं है (जैसे 'BASIC' यूज़र 'MEDIUM' फीचर इस्तेमाल कर रहा है)
+        res.status(403).json({ 
+            success: false, 
+            message: `यह फीचर (${requiredPlans.join('/')}) आपके '${userPlan}' प्लान में शामिल नहीं है। अपग्रेड करने के लिए 7303410987 पर संपर्क करें।`
+        });
+    }
+};
+/* ============================================== */
+/* === 🚀 नया मिडलवेयर समाप्त === */
+/* ============================================== */
 
 // -----------------------------------------------------------------------------
 // III. AUTHENTICATION AND LICENSE ROUTES (PUBLIC/SETUP)
@@ -372,10 +433,11 @@ const checkRole = (requiredRole) => (req, res, next) => {
 // 🌟 FIX: This route is now /api/admin/generate-key and uses GLOBAL_ADMIN_PASSWORD
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// 1. License Key Generation (Now accessible by global ADMIN password)
+// 1. License Key Generation (UPDATED FOR 'plan_type')
 app.post('/api/admin/generate-key', async (req, res) => {
-    // (FIX) 'customerAddress' को जोड़ा गया
-    const { adminPassword, days, customerName, customerMobile, customerAddress } = req.body;
+    
+    // 🚀 FIX: 'plan_type' को req.body से जोड़ा गया
+    const { adminPassword, days, plan_type = 'TRIAL', customerName, customerMobile, customerAddress } = req.body;
 
     if (!process.env.GLOBAL_ADMIN_PASSWORD) {
         return res.status(500).json({ success: false, message: 'सर्वर पर GLOBAL_ADMIN_PASSWORD सेट नहीं है।' });
@@ -388,7 +450,7 @@ app.post('/api/admin/generate-key', async (req, res) => {
         return res.status(400).json({ success: false, message: 'दिनों की संख्या मान्य होनी चाहिए।' });
     }
 
-    // (FIX) ग्राहक विवरण को एक JSON ऑब्जेक्ट में सहेजें
+    // ग्राहक विवरण को एक JSON ऑब्जेक्ट में सहेजें (यह सही है)
     const customer_details = {
         name: customerName,
         mobile: customerMobile,
@@ -401,15 +463,16 @@ app.post('/api/admin/generate-key', async (req, res) => {
     expiryDate.setDate(expiryDate.getDate() + days);
 
     try {
+        // 🚀 FIX: 'plan_type' को INSERT क्वेरी में जोड़ा गया
         await pool.query(
-            // (FIX) 'customer_details' को JSONB के रूप में डालें
-            'INSERT INTO licenses (key_hash, expiry_date, is_trial, customer_details) VALUES ($1, $2, $3, $4)',
-            [keyHash, expiryDate, (days === 5), customer_details]
+            'INSERT INTO licenses (key_hash, expiry_date, is_trial, customer_details, plan_type) VALUES ($1, $2, $3, $4, $5)',
+            [keyHash, expiryDate, (plan_type === 'TRIAL'), customer_details, plan_type]
         );
+        
         res.json({
             success: true,
             key: rawKey,
-            message: 'लाइसेंस कुंजी सफलतापूर्वक बनाई गई।',
+            message: `लाइसेंस कुंजी (${plan_type}) सफलतापूर्वक बनाई गई।`,
             duration_days: days,
             valid_until: expiryDate.toISOString(),
             customer: customerName || 'N/A'
@@ -422,6 +485,7 @@ app.post('/api/admin/generate-key', async (req, res) => {
         res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डेटाबेस त्रुटि।' });
     }
 });
+
 // 2. Verify License Key (Used before login/registration, still public)
 app.get('/api/verify-license', async (req, res) => {
     const rawKey = req.query.key;
@@ -538,7 +602,7 @@ if (!/^\d{10}$/.test(mobile)) {
 
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// // 4. User Login (Authenticates and returns JWT) - UPDATED FOR SHOP-BASED LICENSE
+// 4. User Login (UPDATED FOR 'plan_type')
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -547,9 +611,9 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // --- Step 1: Fetch User and Shop Name (No change here) ---
+        // --- 🚀 FIX: Step 1: यूज़र और शॉप की सभी जानकारी (plan_type सहित) एक साथ लाएँ ---
         const result = await pool.query(
-            'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
+            'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
             [email]
         );
 
@@ -558,9 +622,9 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        let user = result.rows[0]; // Contains user data including shop_id and shop_name
+        let user = result.rows[0]; // इसमें अब 'license_expiry_date' और 'plan_type' भी शामिल है
 
-        // --- Step 2: Check Password (No change here) ---
+        // --- Step 2: Check Password (यह सही है) ---
         const isMatch = await bcrypt.compare(password, user.password_hash);
         console.log(`DEBUG LOGIN: Password Match? ${isMatch}`);
 
@@ -568,24 +632,22 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        // --- Step 3: Check/Update User Status (Optional - No change here) ---
+        // --- Step 3: Check/Update User Status (यह सही है) ---
         if (user.status !== 'active') {
              await pool.query('UPDATE users SET status = $1 WHERE id = $2', ['active', user.id]);
              user.status = 'active'; // Update local variable too
              console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
         }
 
-        // --- Step 4: Fetch SHOP's License Expiry Date <<< NEW LOGIC >>> ---
-        const shopLicenseResult = await pool.query(
-            'SELECT license_expiry_date FROM shops WHERE id = $1',
-            [user.shop_id] // Use shop_id from the user data fetched in Step 1
-        );
-        // Handle case where shop might not be found (though unlikely if user exists)
-        const shopExpiryDate = shopLicenseResult.rows.length > 0 ? shopLicenseResult.rows[0].license_expiry_date : null;
-        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate}`);
+        // --- Step 4: (इसकी अब ज़रूरत नहीं, क्योंकि Step 1 में डेटा मिल गया) ---
+        // const shopLicenseResult = ... (हटा दिया गया)
+        const shopExpiryDate = user.license_expiry_date; // 🚀 FIX: 'user' ऑब्जेक्ट से सीधा इस्तेमाल करें
+        const shopPlanType = user.plan_type || 'TRIAL'; // 🚀 FIX: 'user' ऑब्जेक्ट से सीधा इस्तेमाल करें
+        
+        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate} | Plan: ${shopPlanType}`);
 
 
-        // --- Step 5: Prepare Token Payload (Using SHOP's expiry date) <<< UPDATED PAYLOAD >>> ---
+        // --- 🚀 FIX: Step 5: टोकन पेलोड में 'plan_type' जोड़ें ---
         const tokenUser = {
             id: user.id,
             email: user.email,
@@ -595,11 +657,12 @@ app.post('/api/login', async (req, res) => {
             role: user.role,
             shopName: user.shop_name,
             licenseExpiryDate: shopExpiryDate, // <<< Use SHOP's expiry date
-            status: user.status
+            status: user.status,
+            plan_type: shopPlanType // 🚀🚀🚀 नया प्लान यहाँ जोड़ा गया
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
-        // --- Step 6: Check SHOP's License Expiry <<< UPDATED CHECK >>> ---
+        // --- Step 6: Check SHOP's License Expiry (यह सही है) ---
         const expiryDate = shopExpiryDate ? new Date(shopExpiryDate) : null;
         const currentDate = new Date();
         currentDate.setHours(0, 0, 0, 0); // Compare dates only, ignore time
@@ -631,9 +694,10 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'लॉगिन प्रक्रिया में सर्वर त्रुटि हुई: ' + err.message });
     }
 });
+
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// 5. License Activation Route (Securely update license expiry) - UPDATED FOR SHOP-BASED LICENSE
+// 5. License Activation Route (UPDATED FOR 'plan_type')
 app.post('/api/activate-license', authenticateJWT, async (req, res) => {
     const { licenseKey } = req.body;
     // --- ROLE CHECK ADDED: Only Admin should activate ---
@@ -654,9 +718,9 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
     try {
         await client.query('BEGIN'); // Start transaction
 
-        // 1. Find the license key in the 'licenses' table and check its shop_id
+        // 1. 🚀 FIX: 'plan_type' को भी 'licenses' टेबल से SELECT करें
         const licenseResult = await client.query(
-            'SELECT expiry_date, user_id, shop_id FROM licenses WHERE key_hash = $1 FOR UPDATE', // Lock the row
+            'SELECT expiry_date, user_id, shop_id, plan_type FROM licenses WHERE key_hash = $1 FOR UPDATE', // Lock the row
             [keyHash]
         );
 
@@ -675,21 +739,19 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
             return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही समाप्त हो चुकी है.' });
         }
 
-        // 3. Check if the key is already used by ANOTHER shop <<< MODIFIED CHECK >>>
-        // If license.shop_id exists and is different from the current user's shopId, it's used elsewhere.
+        // 3. Check if the key is already used by ANOTHER shop
         if (license.shop_id && license.shop_id !== shopId) {
             await client.query('ROLLBACK');
             return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही किसी अन्य दुकान द्वारा उपयोग की जा चुकी है.' });
         }
-        // Note: We allow activating the same key again for the SAME shop (e.g., if admin reactivates),
-        // but we mainly care about preventing use across different shops.
-        // Also check user_id consistency if needed, but shop_id is primary now.
-
-        // 4. Update the SHOP's expiry date in the 'shops' table <<< MODIFIED UPDATE >>>
-        console.log(`DEBUG ACTIVATE: Updating shop ID ${shopId} expiry to ${newExpiryDate.toISOString()}`);
+        
+        // 4. 🚀 FIX: 'shops' टेबल में 'plan_type' और 'expiry_date' दोनों को अपडेट करें
+        const newPlanType = license.plan_type || 'TRIAL'; // लाइसेंस से प्लान लें
+        
+        console.log(`DEBUG ACTIVATE: Updating shop ID ${shopId} expiry to ${newExpiryDate.toISOString()} and Plan to ${newPlanType}`);
         const updateShopResult = await client.query(
-            'UPDATE shops SET license_expiry_date = $1 WHERE id = $2',
-            [newExpiryDate, shopId]
+            'UPDATE shops SET license_expiry_date = $1, plan_type = $2 WHERE id = $3',
+            [newExpiryDate, newPlanType, shopId]
         );
         if (updateShopResult.rowCount === 0) {
              await client.query('ROLLBACK'); // Rollback if shop wasn't found
@@ -698,7 +760,7 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         }
 
 
-        // 5. Mark the key as used by this user AND this shop in 'licenses' table <<< MODIFIED UPDATE >>>
+        // 5. Mark the key as used by this user AND this shop in 'licenses' table
         console.log(`DEBUG ACTIVATE: Linking key ${keyHash} to user ID ${userId} and shop ID ${shopId}`);
         await client.query(
             'UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3', // Add shop_id assignment
@@ -706,13 +768,16 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         );
 
         // --- Fetch updated data for the new token ---
-        // 6. Fetch updated SHOP expiry date (to be sure it's saved)
+        
+        // 6. 🚀 FIX: 'shops' टेबल से अपडेटेड 'plan_type' और 'expiry_date' को फिर से SELECT करें
         const updatedShopLicenseResult = await pool.query(
-           'SELECT license_expiry_date FROM shops WHERE id = $1',
+           'SELECT license_expiry_date, plan_type FROM shops WHERE id = $1',
            [shopId]
         );
         const updatedShopExpiryDate = updatedShopLicenseResult.rows[0].license_expiry_date;
-        console.log(`DEBUG ACTIVATE: Verified updated shop expiry: ${updatedShopExpiryDate}`);
+        const updatedPlanType = updatedShopLicenseResult.rows[0].plan_type; // 🚀 नया
+        
+        console.log(`DEBUG ACTIVATE: Verified updated shop expiry: ${updatedShopExpiryDate} | Verified Plan: ${updatedPlanType}`);
 
         // 7. Fetch user data again (shop_name needed for payload)
         const updatedUserResult = await client.query(
@@ -721,7 +786,7 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         );
         const updatedUser = updatedUserResult.rows[0];
 
-        // 8. Generate new token with the UPDATED SHOP expiry date <<< UPDATED PAYLOAD >>>
+        // 8. 🚀 FIX: नए टोकन में 'plan_type' जोड़ें
         const tokenUser = {
             id: updatedUser.id,
             email: updatedUser.email,
@@ -731,15 +796,16 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
             role: updatedUser.role,
             shopName: updatedUser.shop_name,
             licenseExpiryDate: updatedShopExpiryDate, // <<< Use UPDATED shop expiry date
-            status: updatedUser.status
+            status: updatedUser.status,
+            plan_type: updatedPlanType // 🚀🚀🚀 नया प्लान यहाँ जोड़ा गया
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT'); // Commit transaction
-        console.log(`DEBUG ACTIVATE: Shop ID ${shopId} successfully activated/renewed.`);
+        console.log(`DEBUG ACTIVATE: Shop ID ${shopId} successfully activated/renewed to ${updatedPlanType}.`);
         res.json({
             success: true,
-            message: `दुकान का लाइसेंस सफलतापूर्वक सक्रिय हो गया है। नई समाप्ति तिथि: ${newExpiryDate.toLocaleDateString()}`, // Updated message
+            message: `दुकान का '${updatedPlanType}' लाइसेंस सफलतापूर्वक सक्रिय हो गया है। नई समाप्ति तिथि: ${newExpiryDate.toLocaleDateString()}`, // Updated message
             token: token, // Send back new token with updated expiry
             user: tokenUser // Send back potentially updated user info with new expiry
         });
@@ -753,10 +819,17 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
            client.release(); // Release client connection
         }
     }
-});// --- 6. User Management (Shop Admin Only) ---
+});
 
-// 6.1 Add New User to the Current Shop
-app.post('/api/users', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+
+// --- 6. User Management (Shop Admin Only) ---
+
+// --- 6. User Management (Shop Admin Only) ---
+
+// 6.1 Add New User to the Current Shop (PLAN LOCKED)
+app.post('/api/users', authenticateJWT, checkRole('ADMIN'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     // 🌟 FIX: Added 'status' field
     const { name, email, password, role = 'CASHIER', status = 'pending' } = req.body;
     const shopId = req.shopId;
@@ -780,8 +853,11 @@ app.post('/api/users', authenticateJWT, checkRole('ADMIN'), async (req, res) => 
         res.status(500).json({ success: false, message: 'यूजर जोड़ने में विफल: ' + err.message });
     }
 });
-// 6.2 Get All Users for the Current Shop
-app.get('/api/users', authenticateJWT, checkRole('MANAGER'), async (req, res) => { // Manager can view staff
+
+// 6.2 Get All Users for the Current Shop (PLAN LOCKED)
+app.get('/api/users', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => { // Manager can view staff
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const shopId = req.shopId;
     try {
         // 🌟 FIX: Added 'status' to SELECT
@@ -792,8 +868,11 @@ app.get('/api/users', authenticateJWT, checkRole('MANAGER'), async (req, res) =>
         res.status(500).json({ success: false, message: 'यूजर सूची प्राप्त करने में विफल।' });
     }
 });
-// 6.3 Update User Role/Name/Status
-app.put('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+
+// 6.3 Update User Role/Name/Status (PLAN LOCKED)
+app.put('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const { userId } = req.params;
     // 🌟 FIX: Added 'status'
     const { name, role, status } = req.body;
@@ -850,8 +929,11 @@ app.put('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), async (req, r
         res.status(500).json({ success: false, message: 'यूजर अपडेट करने में विफल: ' + err.message });
     }
 });
-// 6.4 Delete User from the Current Shop
-app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
+
+// 6.4 Delete User from the Current Shop (PLAN LOCKED)
+app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const { userId } = req.params;
     const shopId = req.shopId;
 
@@ -874,7 +956,6 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), async (req
         res.status(500).json({ success: false, message: 'यूजर डिलीट करने में विफल: ' + err.message });
     }
 });
-
 
 // --- 7. Stock Management ---
 
@@ -1217,8 +1298,10 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
 
 // --- 9. Customer Management ---
 
-// 9.1 Add/Update Customer (SCOPED)
-app.post('/api/customers', authenticateJWT, async (req, res) => {
+/// 9.1 Add/Update Customer (PLAN LOCKED)
+app.post('/api/customers', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+// 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     // सुनिश्चित करें कि 'phone' req.body से डीकंस्ट्रक्ट हो रहा है
     const { id, name, phone, email, address, gstin, balance } = req.body; 
     const shopId = req.shopId;
@@ -1265,8 +1348,11 @@ app.post('/api/customers', authenticateJWT, async (req, res) => {
 });
 
 // ... (अन्य कोड)
-// 9.2 Get All Customers (SCOPED)
-app.get('/api/customers', authenticateJWT, async (req, res) => {
+
+// 9.2 Get All Customers (PLAN LOCKED)
+app.get('/api/customers', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+// 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const shopId = req.shopId;
     try {
         const result = await pool.query('SELECT * FROM customers WHERE shop_id = $1 ORDER BY name ASC', [shopId]);
@@ -1276,8 +1362,11 @@ app.get('/api/customers', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: 'ग्राहक सूची प्राप्त करने में विफल.' });
     }
 });
-// 9.3 Get Customer by ID (SCOPED)
-app.get('/api/customers/:customerId', authenticateJWT, async (req, res) => {
+
+// 9.3 Get Customer by ID (PLAN LOCKED)
+app.get('/api/customers/:customerId', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+// 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const { customerId } = req.params;
     const shopId = req.shopId;
     try {
@@ -2471,8 +2560,10 @@ app.post('/api/request-renewal', authenticateJWT, async (req, res) => {
 // --- 🚀 17. बैंक रिकॉन्सिलेशन API (NEW) ---
 // ==========================================================
 
-// 17.1 CSV स्टेटमेंट अपलोड करें और बुक/बैंक आइटम्स लाएँ
-app.post('/api/reconciliation/upload-statement', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 17.1 CSV स्टेटमेंट अपलोड करें और बुक/बैंक आइटम्स लाएँ (PLAN LOCKED)
+app.post('/api/reconciliation/upload-statement', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const shopId = req.shopId;
     // statementItems एक JSON ऐरे है जिसे CSV से पार्स किया गया है
     const { statementDate, statementBalance, statementItems } = req.body;
@@ -2559,8 +2650,10 @@ app.post('/api/reconciliation/upload-statement', authenticateJWT, checkRole('MAN
 
 // ... (upload-statement API के '});' के बाद)
 
-// 17.2 स्टैटिक रिपोर्ट सेव करें
-app.post('/api/reconciliation/save', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 17.2 स्टैटिक रिपोर्ट सेव करें (PLAN LOCKED)
+app.post('/api/reconciliation/save', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const shopId = req.shopId;
     const { 
         statementEndDate, 
@@ -2640,8 +2733,10 @@ app.post('/api/reconciliation/save', authenticateJWT, checkRole('MANAGER'), asyn
 });
 
 
-// 17.3 पिछली (पुरानी) रिकॉन्सिलेशन रिपोर्ट्स लाएँ
-app.get('/api/reconciliation/reports', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 17.3 पिछली (पुरानी) रिकॉन्सिलेशन रिपोर्ट्स लाएँ (PLAN LOCKED)
+app.get('/api/reconciliation/reports', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const shopId = req.shopId;
 
     try {
@@ -2665,9 +2760,6 @@ app.get('/api/reconciliation/reports', authenticateJWT, checkRole('MANAGER'), as
         res.status(500).json({ success: false, message: 'पुरानी रिपोर्ट्स लाने में विफल: ' + err.message });
     }
 });
-
-
-
 
 // [ यह नया कोड यहाँ पेस्ट करें ]
 
@@ -2809,6 +2901,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
