@@ -376,57 +376,127 @@ const checkRole = (requiredRole) => (req, res, next) => {
  * पदानुक्रम (Hierarchy): PREMIUM (4) > MEDIUM (3) > BASIC (2) > TRIAL (1)
  * AMC: 'ONE_TIME' प्लान की AMC एक्सपायर होने पर उसे 'BASIC' माना जाएगा।
  */
-const checkPlan = (requiredPlans) => (req, res, next) => {
+/* ============================================== */
+/* === 🚀 🚀 🚀 NAYA 'checkPlan' (ADD-ON KE SAATH) 🚀 🚀 🚀 === */
+/* ============================================== */
+/**
+ * मिडलवेयर: प्लान-आधारित और ऐड-ऑन आधारित फीचर कंट्रोल के लिए।
+ * पदानुक्रम (Hierarchy): PREMIUM (4) > MEDIUM (3) > BASIC (2) > TRIAL (1)
+ * requiredPlans: ['MEDIUM', 'PREMIUM'] (यानि Medium ya Premium hona zaroori hai)
+ * requiredAddOn: 'has_closing' (ya fir 'has_backup')
+ */
+/* ============================================== */
+/* === 🚀 🚀 🚀 NAYA 'checkPlan' (ADD-ON KE SAATH) 🚀 🚀 🚀 === */
+/* ============================================== */
+/**
+ * मिडलवेयर: प्लान-आधारित और ऐड-ऑन आधारित फीचर कंट्रोल के लिए।
+ * पदानुक्रम (Hierarchy): PREMIUM (4) > MEDIUM (3) > BASIC (2) > TRIAL (1)
+ * requiredPlans: ['MEDIUM', 'PREMIUM'] (यानि Medium ya Premium hona zaroori hai)
+ * requiredAddOn: 'has_closing' (ya fir 'has_backup')
+ */
+const checkPlan = (requiredPlans, requiredAddOn = null) => (req, res, next) => {
     const plans = { 'PREMIUM': 4, 'ONE_TIME': 4, 'MEDIUM': 3, 'BASIC': 2, 'TRIAL': 1 };
     
-    // JWT टोकन से यूज़र का प्लान और एक्सपायरी डेट लें
+    // JWT टोकन से यूज़र का प्लान और ऐड-ऑन लें (jo humne Login/Activate mein daala tha)
     const userPlan = req.user.plan_type || 'TRIAL';
     const userPlanLevel = plans[userPlan.toUpperCase()] || 0;
+    const userAddOns = req.user.add_ons || {}; // Jaise { "has_backup": true }
     const expiryDate = req.user.licenseExpiryDate ? new Date(req.user.licenseExpiryDate) : null;
     const now = new Date();
 
     // 1. जाँच करें कि लाइसेंस/AMC एक्सपायर तो नहीं हो गया
     if (!expiryDate || expiryDate < now) {
         // लाइसेंस/AMC एक्सपायर हो गया है।
-        // 🚀 आपकी आवश्यकता: "Amc nahi de to software lok ho jaye"
-        // (नोट: यह लॉगिन के समय पहले ही हैंडल हो जाता है, लेकिन यह एक डबल-चेक है)
         return res.status(403).json({ 
             success: false, 
             message: `आपका '${userPlan}' प्लान/AMC समाप्त हो गया है। सॉफ्टवेयर लॉक है। कृपया 7303410987 पर संपर्क करें।`
         });
     }
 
-    // 2. 'TRIAL' प्लान के लिए जाँच करें
-    // 🚀 आपकी आवश्यकता: "5 din ke trial mein pure software ka access milna chahiye"
+    // 2. 'TRIAL' प्लान के लिए जाँच करें (sab access milna chahiye)
     if (userPlan === 'TRIAL') {
-        next(); // ट्रायल एक्टिव है, सभी फीचर्स की अनुमति दें
+        next(); // ट्रायल एक्टिव है, अनुमति दें
         return;
     }
 
-    // 3. 'ONE_TIME' प्लान के लिए जाँच करें
-    // 🚀 आपकी आवश्यकता: "One time licence rs.40000/- AMC per year 15000"
-    // (यह 'PREMIUM' (लेवल 4) के बराबर माना जाएगा, जब तक AMC एक्टिव है)
+    // 3. 'ONE_TIME' प्लान 'PREMIUM' ke barabar hai
+    // (Yeh logic neeche handle ho jaayega)
     
-    // 4. मुख्य प्लान लेवल की जाँच करें
-    const isAuthorized = requiredPlans.some(plan => {
+    // 4. मुख्य प्लान लेवल की जाँच करें (Kya user MEDIUM ya PREMIUM hai?)
+    const isPlanAuthorized = requiredPlans.some(plan => {
         const requiredLevel = plans[plan.toUpperCase()] || 0;
-        return userPlanLevel >= requiredLevel; // क्या यूज़र का लेवल ज़रूरी लेवल से ज़्यादा है?
+        return userPlanLevel >= requiredLevel; // Kya user ka level zaroori level se zyada hai?
     });
 
-    if (isAuthorized) {
-        next(); // अनुमति है
-    } else {
-        // अनुमति नहीं है (जैसे 'BASIC' यूज़र 'MEDIUM' फीचर इस्तेमाल कर रहा है)
-        res.status(403).json({ 
-            success: false, 
-            message: `यह फीचर (${requiredPlans.join('/')}) आपके '${userPlan}' प्लान में शामिल नहीं है। अपग्रेड करने के लिए 7303410987 पर संपर्क करें।`
-        });
+    if (isPlanAuthorized) {
+        // Haan, user MEDIUM ya PREMIUM par hai.
+        next(); // Anumati hai
+        return;
     }
+
+    // 5. 🚀 ADD-ON CHECK 🚀
+    // Agar user 'BASIC' par hai, to add-on check karen
+    if (requiredAddOn && userPlan === 'BASIC' && userAddOns[requiredAddOn] === true) {
+        // User 'BASIC' par hai, lekin usne yeh add-on (jaise 'has_closing') khareeda hai
+        console.log(`User ${req.user.id} accessed ${requiredAddOn} via Add-on.`);
+        next(); // Anumati hai
+        return;
+    }
+    
+    // 6. अनुमति नहीं है (Na toh plan hai, na hi add-on)
+    const featureName = requiredAddOn ? `'${requiredAddOn}' ऐड-ऑन` : `'${requiredPlans.join('/')}' प्लान`;
+    res.status(403).json({ 
+        success: false, 
+        message: `यह फीचर (${featureName}) आपके '${userPlan}' प्लान में शामिल नहीं है। अपग्रेड करने या ऐड-ऑन खरीदने के लिए 7303410987 पर संपर्क करें।`
+    });
 };
 /* ============================================== */
+/* === 🚀 Naya checkPlan yahaan samapt hota hai === */
+/* ============================================== *//* ============================================== */
+/* === 🚀 Naya checkPlan yahaan samapt hota hai === */
+/* ============================================== *//* ============================================== */
 /* === 🚀 नया मिडलवेयर समाप्त === */
 /* ============================================== */
+/* ============================================== */
+/* === 🚀 🚀 🚀 Naya Add-on Grant API 🚀 🚀 🚀 === */
+/* ============================================== */
+app.post('/api/admin/grant-addon', async (req, res) => {
+    const { adminPassword, shop_id, add_ons } = req.body; // add_ons = { "has_backup": true, "has_closing": false }
 
+    // 1. एडमिन पासवर्ड चेक करें
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(500).json({ success: false, message: 'सर्वर पर GLOBAL_ADMIN_PASSWORD सेट नहीं है।' });
+    }
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
+    }
+    
+    // 2. इनपुट चेक करें
+    if (!shop_id || !add_ons) {
+        return res.status(400).json({ success: false, message: 'Shop ID और add_ons ऑब्जेक्ट आवश्यक हैं।' });
+    }
+
+    try {
+        // 3. डेटाबेस अपडेट करें
+        const result = await pool.query(
+            "UPDATE shops SET add_ons = $1 WHERE id = $2 RETURNING id, shop_name, add_ons",
+            [add_ons, shop_id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: `Shop ID ${shop_id} नहीं मिली।` });
+        }
+
+        res.json({ success: true, message: `Shop ID ${result.rows[0].id} (${result.rows[0].shop_name}) के लिए ऐड-ऑन सफलतापूर्वक अपडेट किए गए।`, data: result.rows[0] });
+
+    } catch (err) {
+        console.error("Error granting add-on:", err.message);
+        res.status(500).json({ success: false, message: 'ऐड-ऑन देने में विफल: ' + err.message });
+    }
+});
+/* ============================================== */
+/* === 🚀 Naya API yahaan samapt hota hai === */
+/* ============================================== */
 // -----------------------------------------------------------------------------
 // III. AUTHENTICATION AND LICENSE ROUTES (PUBLIC/SETUP)
 // -----------------------------------------------------------------------------
@@ -565,17 +635,20 @@ if (!/^\d{10}$/.test(mobile)) {
         const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, mobile, 'ADMIN']); // <<< 'mobile' यहाँ जोड़ा
         const user = userResult.rows[0];
         // 5. JWT टोकन जनरेट करें
-        const tokenUser = {
-            id: user.id,
-            email: user.email,
-            mobile: user.mobile,
-            shopId: user.shop_id,
-            name: user.name,
-            role: user.role,
-            shopName: shopName, // ShopName जोड़ना
-            status: user.status
-        };
-        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+const tokenUser = {
+    id: user.id,
+    email: user.email,
+    mobile: user.mobile,
+    shopId: user.shop_id,
+    name: user.name,
+    role: user.role,
+    shopName: shopName, // ShopName जोड़ना
+    status: user.status,
+    plan_type: 'TRIAL', // 🚀 NAYA: Register par default 'TRIAL'
+    add_ons: {}, // 🚀 NAYA: Register par default 'khaali add-on'
+    licenseExpiryDate: null // 🚀 NAYA: Register par koi date nahi
+};
+const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT');
         // लेन-देन पूरा करें
@@ -2908,6 +2981,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
