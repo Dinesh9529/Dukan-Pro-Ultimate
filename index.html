@@ -12,392 +12,519 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
+        /* ====================================================================
+         === DUKAN PRO - MODERN AESTHETIC REDESIGN (INDIGO/CYAN) ===
+         ====================================================================
+        */
+    
+        /* --- 1. नए और सुंदर रंगों को डिफाइन करना --- */
+        :root {
+            --dp-bg-light: #f4f7f6;        /* हल्का ग्रे बैकग्राउंड */
+            --dp-bg-white: #ffffff;
+            --dp-sidebar-bg: #111d4a;    /* डीप इंडिगो (गहरा नीला) */
+            --dp-sidebar-text: #a0aed0;   /* हल्का नीला/ग्रे टेक्स्ट */
+            --dp-sidebar-text-hover: #ffffff;
+            --dp-sidebar-active-bg: #1a2b6d;  /* एक्टिव लिंक के लिए गहरा नीला */
+            --dp-primary: #00b4d8;       /* मुख्य सायन (Cyan) रंग */
+            --dp-secondary: #03045e;     /* गहरा नीला (Gradient के लिए) */
+            --dp-text-dark: #1A202C;
+            --dp-text-light: #4A5568;
+            --dp-border: #E2E8F0;
+            --dp-shadow: 0 5px 15px rgba(0, 0, 0, 0.08); /* सॉफ्ट शैडो */
+            
+            /* हमारा मुख्य 'सुंदर' ग्रेडिएंट */
+            --dp-gradient: linear-gradient(135deg, var(--dp-primary) 0%, var(--dp-secondary) 100%);
+        }
+    
+        /* --- 2. मुख्य बॉडी और लेआउट --- */
         body {
             font-family: 'Poppins', sans-serif;
-            background-color: #f8f9fa;
+            background-color: var(--dp-bg-light); /* नया बैकग्राउंड */
+            color: var(--dp-text-dark); /* नया टेक्स्ट कलर */
         }
+    
+        .main-content {
+            margin-left: 280px;
+            padding: 30px; /* थोड़ी और जगह */
+            transition: margin-left 0.3s ease;
+        }
+    
+        /* App is hidden until licensed */
+        .main-content.locked, .sidebar.locked, .navbar-toggler.locked {
+                display: none;
+        }
+    
+        /* --- 3. साइडबार (आपका फिक्स्ड स्ट्रक्चर) --- */
         .sidebar {
             width: 280px;
-            background-color: #343a40;
-            color: #fff;
+            background-color: var(--dp-sidebar-bg); /* नया इंडिगो बैकग्राउंड */
+            color: var(--dp-sidebar-text-hover);
             height: 100vh;
-            position: fixed;
+            position: fixed; /* ⭐️ यह आपकी आवश्यकता है, यह वैसी ही है */
             top: 0;
             left: 0;
             padding-top: 20px;
             transition: transform 0.3s ease;
             z-index: 1050;
+            border-right: 1px solid var(--dp-border);
+            overflow-y: auto; /* स्क्रॉल के लिए */
+            overflow-x: hidden;
         }
+        
+        /* साइडबार में "Dukan Pro" हेडिंग */
+        .sidebar h3 {
+            margin-bottom: 2rem;
+            text-align: center;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+    
+        /* साइडबार के लिंक्स (नया स्टाइल) */
         .sidebar .nav-link {
-            color: #adb5bd;
-            padding: 15px 20px;
+            color: var(--dp-sidebar-text);
+            padding: 15px 25px;
             border-left: 5px solid transparent;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            /* नया: दाईं ओर से गोल इफ़ेक्ट */
+            border-radius: 0 30px 30px 0;
+            margin-right: 15px; 
+            margin-bottom: 5px; /* लिंक्स के बीच थोड़ी जगह */
         }
+    
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
-            color: #fff;
-            background-color: #495057;
-            border-left-color: #0d6efd;
+            color: var(--dp-sidebar-text-hover); /* सफ़ेद टेक्स्ट */
+            background-color: var(--dp-sidebar-active-bg); /* थोड़ा हल्का नीला */
+            border-left-color: var(--dp-primary); /* सायन एक्सेंट */
+            /* खूबसूरत 'Glow' इफ़ेक्ट */
+            box-shadow: 0 4px 10px rgba(0, 180, 216, 0.2); 
         }
+    
         .sidebar .nav-link i {
-            margin-right: 10px;
+            margin-right: 12px;
+            width: 20px; /* आइकन्स को एक लाइन में रखने के लिए */
+            text-align: center;
         }
-        .main-content {
-            margin-left: 280px;
-            padding: 20px;
-            transition: margin-left 0.3s ease;
+        
+        /* नीचे का यूज़र इन्फो बॉक्स */
+        #user-info {
+            background-color: var(--dp-sidebar-active-bg) !important;
         }
-        /* App is hidden until licensed */
-        .main-content.locked, .sidebar.locked, .navbar-toggler.locked {
-             display: none;
+        
+    
+        /* --- 4. मुख्य कंटेंट (कार्ड्स, बटन, टेबल्स) --- */
+    
+        /* सेक्शन की मुख्य हेडिंग (जैसे "डैशबोर्ड") */
+        .section > h2 {
+            font-weight: 700;
+            color: var(--dp-text-dark);
+            margin-bottom: 2rem !important;
+            /* टेक्स्ट पर ग्रेडिएंट */
+            background-image: var(--dp-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-fill-color: transparent;
+            display: inline-block;
         }
+    
+        /* कार्ड्स का नया डिज़ाइन */
         .card {
-            border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            border-radius: 16px; /* ज़्यादा गोल कोने */
+            box-shadow: var(--dp-shadow); /* नया सॉफ्ट शैडो */
             border: none;
+            overflow: hidden; /* हेडर को सही से रखने के लिए */
+            margin-bottom: 1.5rem; /* कार्ड्स के बीच जगह */
         }
+    
+        /* कार्ड का हेडर (यह सबसे बड़ा बदलाव है) */
         .card-header {
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
-            background-color: #0d6efd;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            background: var(--dp-gradient); /* हमारा सुंदर ग्रेडिएंट */
             color: white;
-            padding: 15px;
+            padding: 20px 25px;
             font-weight: 600;
+            font-size: 1.1rem;
+            border-bottom: none;
         }
-        .section {
-            display: none;
+        
+        /* डैशबोर्ड के छोटे कार्ड्स */
+        .dashboard-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            background: var(--dp-bg-white);
         }
-        .section.active {
-            display: block;
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1); /* हॉवर पर ज़्यादा शैडो */
         }
-        .form-control, .btn {
+        /* डैशबोर्ड के आइकन्स पर ग्रेडिएंट */
+        .dashboard-card i {
+            background: var(--dp-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-fill-color: transparent;
+            font-size: 2.5rem; /* थोड़े बड़े आइकन्स */
+        }
+    
+        /* फॉर्म्स और बटन्स */
+        .form-control, .form-select, .btn {
             border-radius: 8px;
+            padding: 10px 15px;
+            border: 1px solid var(--dp-border);
+            transition: all 0.3s ease;
         }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--dp-primary);
+            box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.15);
+        }
+    
+        .btn {
+            font-weight: 600;
+            padding: 10px 20px;
+        }
+        
+        /* मुख्य बटन (नया स्टाइल) */
         .btn-primary {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
+            background-color: var(--dp-primary);
+            border-color: var(--dp-primary);
+            color: #fff;
         }
         .btn-primary:hover {
-            background-color: #0b5ed7;
-            border-color: #0a58ca;
+            background-color: var(--dp-secondary);
+            border-color: var(--dp-secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 180, 216, 0.3);
         }
+        
+        /* अन्य बटन (जैसे 'Add') */
+        .btn-success { background-color: #1abc9c; border-color: #1abc9c; }
+        .btn-success:hover { background-color: #16a085; border-color: #16a085; }
+        .btn-info { background-color: #3498db; border-color: #3498db; }
+        .btn-info:hover { background-color: #2980b9; border-color: #2980b9; }
+        .btn-warning { background-color: #f39c12; border-color: #f39c12; }
+        .btn-warning:hover { background-color: #e67e22; border-color: #e67e22; }
+    
+        /* टेबल्स */
         .table th {
-            background-color: #e9ecef;
-            color: #495057;
+            background-color: var(--dp-bg-light); /* हल्का बैकग्राउंड */
+            color: var(--dp-text-light); /* हल्का टेक्स्ट */
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            border: none;
+            padding: 15px;
         }
         .table-striped > tbody > tr:nth-of-type(odd) > * {
-            --bs-table-bg-type: #f3f4f6;
+            --bs-table-bg-type: var(--dp-bg-light);
         }
-
-        /* Mobile Adjustments */
+        .table td {
+            border-top: 1px solid var(--dp-border); /* हल्की बॉर्डर */
+            vertical-align: middle;
+            padding: 15px;
+            color: var(--dp-text-dark);
+        }
+        .table-hover tbody tr:hover {
+            background-color: #eaf6f9; /* हल्का सायन हॉवर */
+        }
+    
+        /* --- 5. बाकी के स्टाइल्स (पहले से मौजूद) --- */
+        
+        /* मोबाइल एडजस्टमेंट (पहले जैसा) */
         @media (max-width: 991.98px) {
-            .sidebar {
-                transform: translateX(-280px);
-            }
-            .sidebar.active {
-                transform: translateX(0);
-            }
-            .main-content {
-                margin-left: 0;
-            }
-            .main-content.sidebar-open {
-                margin-left: 280px;
-                overflow-x: hidden;
-            }
-            .navbar-toggler {
-                display: block !important;
-            }
+            .sidebar { transform: translateX(-280px); }
+            .sidebar.active { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .main-content.sidebar-open { margin-left: 280px; overflow-x: hidden; }
+            .navbar-toggler { display: block !important; }
         }
         
         .navbar-toggler {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 1060;
-            display: none; /* Hide by default on desktop */
-            background-color: #343a40;
-            border-color: #fff;
+            position: fixed; top: 10px; left: 10px; z-index: 1060;
+            display: none; background-color: var(--dp-sidebar-bg);
+            border: 1px solid var(--dp-primary);
         }
         .navbar-toggler-icon {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='white' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
         }
         
         .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.9);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.9); display: flex;
+            justify-content: center; align-items: center; z-index: 2000;
         }
-        .hidden {
-            display: none !important;
-        }
-
-        /* Dashboard specific styles */
-        .dashboard-card {
-            transition: transform 0.2s;
-        }
-        .dashboard-card:hover {
-            transform: translateY(-5px);
-        }
-
-        /* Utility classes */
-        .bg-gradient-primary { background: linear-gradient(45deg, #0d6efd, #00b4d8); }
-        .text-shadow { text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); }
-        
-        /* --- INVOICE GENERATOR PRO STYLES START --- */
-        #invoice-generator h5 {
-            font-weight: 600;
-        }
+        .hidden { display: none !important; }
+    
+        /* --- इनवॉइस जनरेटर स्टाइल्स --- */
+        #invoice-generator h5 { font-weight: 600; }
         #invoice-preview {
-            background: white;
-            padding: 25px;
-            border: 1px solid #dee2e6;
-            min-height: 80vh;
-            font-size: 14px;
-            color: #333;
-            border-radius: 12px; /* Adopt Dukan Pro's card style */
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); /* Adopt Dukan Pro's card style */
+            background: white; padding: 25px; border: 1px solid var(--dp-border);
+            min-height: 80vh; font-size: 14px; color: #333;
+            border-radius: 16px; box-shadow: var(--dp-shadow);
         }
         .invoice-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid #0d6efd;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            border-bottom: 2px solid var(--dp-primary);
+            margin-bottom: 20px; padding-bottom: 15px;
         }
-        .shop-details h3 {
-            margin: 0;
-            color: #0d6efd;
-            font-weight: 700;
-        }
-        #qr-preview img {
-            max-width: 100px;
-            max-height: 100px;
-            border: 1px solid #ccc;
-            padding: 3px;
-        }
+        .shop-details h3 { color: var(--dp-secondary); font-weight: 700; }
         .customer-details {
-            border: 1px solid #eee;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 8px;
+            border: 1px solid #eee; padding: 15px;
+            margin-bottom: 20px; border-radius: 8px;
         }
-        .invoice-table {
-            width: 100%;
-            margin-bottom: 20px;
-            border-collapse: collapse; /* Ensure table looks clean */
-        }
-        .invoice-table th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-        }
-        .invoice-table th, .invoice-table td {
-            padding: 10px;
-            text-align: right;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .invoice-table th:first-child, .invoice-table td:first-child {
-            text-align: left;
-        }
-        .invoice-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-top: 20px;
-        }
-        .totals-table {
-            width: 50%;
-        }
-        .totals-table td {
-            padding: 5px 10px;
-        }
-        .terms {
-            font-size: 12px;
-            color: #777;
-        }
-        .no-print { /* Already in Dukan Pro, ensuring consistency */ }
+        .invoice-table th { background-color: var(--dp-bg-light); }
         
-        /* --- REPORT STYLES --- */
-        .report-table {
-            font-size: 0.9rem;
+        /* --- GST रिपोर्ट टैब्स --- */
+        .gst-report-tabs .nav-link {
+            background-color: #f0f0f0; border: 1px solid var(--dp-border);
+            color: var(--dp-text-light); font-weight: 600;
         }
-        .report-table th {
-            background-color: #f8f9fa;
+        .gst-report-tabs .nav-link.active {
+            background-color: var(--dp-bg-white);
+            border-bottom: 1px solid var(--dp-bg-white);
+            color: var(--dp-secondary); /* डार्क ब्लू एक्टिव */
+            position: relative; top: 1px;
         }
-        .report-table td {
-            padding: 0.5rem;
+        .gst-report-tab-content {
+            background-color: var(--dp-bg-white);
+            border: 1px solid var(--dp-border);
+            padding: 1.5rem;
+            border-radius: 0 8px 8px 8px;
         }
-        .report-table .fw-bold {
-            border-top: 2px solid #333;
-        }
-        .report-print-area {
-            display: none;
-        }
-
-        /* --- NEW FEATURE STYLES --- */
-        /* Barcode Scanner Input */
-        #barcode-scanner-input {
-            position: fixed;
-            top: -100px; /* Hide it off-screen */
-            left: -100px;
-            opacity: 0;
-        }
-        /* License Timer */
-        #license-timer {
-            font-size: 0.8rem;
-            font-weight: 500;
-            padding: 5px 10px;
-            border-radius: 6px;
-        }
-        #license-timer.expiring-soon {
-            background-color: #ffc107;
-            color: #333;
-            cursor: pointer;
-        }
-        #license-timer.expired {
-            background-color: #dc3545;
-            color: #fff;
-            cursor: pointer;
-        }
-        #license-timer i {
-            margin-right: 5px;
-        }
-        /* GST Report JSON Viewer */
-        .json-viewer {
-            background-color: #282c34;
-            color: #abb2bf;
-            padding: 15px;
-            border-radius: 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9rem;
-            white-space: pre;
-        }
-
-        /* --- PRINT STYLES --- */
+        
+        /* --- अन्य सभी स्टाइल्स (बारकोड, टाइमर, प्रिंट) --- */
+        /* (यह बाकी का CSS है जिसे बदलने की ज़रूरत नहीं है) */
+    
+        .section { display: none; }
+        .section.active { display: block; }
+        .text-shadow { text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); }
+        #qr-preview img { max-width: 100px; max-height: 100px; border: 1px solid #ccc; padding: 3px; }
+        .invoice-table { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+        .invoice-table th, .invoice-table td { padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6; }
+        .invoice-table th:first-child, .invoice-table td:first-child { text-align: left; }
+        .invoice-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; }
+        .totals-table { width: 50%; }
+        .totals-table td { padding: 5px 10px; }
+        .terms { font-size: 12px; color: #777; }
+        .report-table { font-size: 0.9rem; }
+        .report-table th { background-color: #f8f9fa; }
+        .report-table td { padding: 0.5rem; }
+        .report-table .fw-bold { border-top: 2px solid #333; }
+        .report-print-area { display: none; }
+        #barcode-scanner-input { position: fixed; top: -100px; left: -100px; opacity: 0; }
+        #license-timer { font-size: 0.8rem; font-weight: 500; padding: 5px 10px; border-radius: 6px; }
+        #license-timer.expiring-soon { background-color: #ffc107; color: #333; cursor: pointer; }
+        #license-timer.expired { background-color: #dc3545; color: #fff; cursor: pointer; }
+        #license-timer i { margin-right: 5px; }
+        .json-viewer { background-color: #282c34; color: #abb2bf; padding: 15px; border-radius: 8px; max-height: 400px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; white-space: pre; }
         @media print {
-            body * {
-                visibility: hidden;
-            }
-            .printable, .printable * {
-                visibility: visible;
-            }
-            .printable {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                margin: 0;
-                padding: 15px;
-                border: none;
-                box-shadow: none;
-            }
-            .no-print {
-                display: none;
-            }
+            body * { visibility: hidden; }
+            .printable, .printable * { visibility: visible; }
+            .printable { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 15px; border: none; box-shadow: none; }
+            .no-print { display: none; }
         }
+        .sidebar::-webkit-scrollbar { width: 8px; }
+        .sidebar::-webkit-scrollbar-track { background: #555; }
+        .sidebar::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        .sidebar::-webkit-scrollbar-thumb:hover { background: #aaa; }
+        .gst-report-table { font-size: 0.85rem; margin-top: 15px; border-collapse: collapse; width: 100%; }
+        .gst-report-table th, .gst-report-table td { border: 1px solid #dee2e6; padding: 8px 12px; text-align: right; }
+        .gst-report-table th { background-color: #f8f9fa; text-align: center; font-weight: 600; vertical-align: middle; }
+        .gst-report-table td:first-child { text-align: left; }
+        .gst-report-table tfoot tr { font-weight: bold; background-color: #e9ecef; }
+        .gst-report-table .group-header td { background-color: #f3f4f6; font-weight: bold; text-align: left; }
+    
+    
+    /* ======================================================== */
+/* === 🚀 नया खूबसूरत लॉगिन CSS (यहाँ से कॉपी करें) === */
+/* ======================================================== */
 
-/* ============ SCROLLBAR CSS START ============ */
-
-/* Allow main content area to scroll if needed */
-.main-content {
-    /* Optional: If you want ONLY the main content to scroll, not the whole page */
-    /* height: 100vh; */
-    /* overflow-y: auto; */
+/* 1. मॉल का बैकग्राउंड इमेज */
+.auth-overlay {
+    background: url('./images/shopkeeper-dukanpro.jpg') no-repeat center center fixed;
+    background-size: cover;
+    background-color: rgba(0, 0, 0, 0.45); /* थोड़ा गहरा ओवरले */
+    background-blend-mode: multiply;
+    /* ... (बाकी का कोड) ... */
+}    
+    /* नया: मॉल का बैकग्राउंड */
+    background: url('https://images.unsplash.com/photo-1567990680325-10d6569f313a?q=80&w=1974&auto=format&fit=crop') no-repeat center center fixed;
+    background-size: cover;
+    
+    /* टेक्स्ट साफ़ दिखे इसके लिए हल्की डार्क लेयर */
+    background-color: rgba(0, 0, 0, 0.3);
+    background-blend-mode: multiply;
+    
+    /* सुनिश्चित करें कि यह पूरे पेज पर हो */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
 }
 
-/* Allow sidebar internal content to scroll if it's too long */
-.sidebar {
-    overflow-y: auto; /* Show scrollbar only if needed */
-    overflow-x: hidden; /* Hide horizontal scrollbar */
-}
-
-/* Optional: Style the scrollbar (Works in WebKit browsers like Chrome/Safari) */
-.sidebar::-webkit-scrollbar {
-  width: 8px; /* Width of the scrollbar */
-}
-.sidebar::-webkit-scrollbar-track {
-  background: #555; /* Color of the track */
-}
-.sidebar::-webkit-scrollbar-thumb {
-  background: #888; /* Color of the scroll thumb */
-  border-radius: 4px; /* Rounded corners */
-}
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: #aaa; /* Color on hover */
-}
-
-/* ============ SCROLLBAR CSS END ============ */
-
-
-/* ============ TALLY-STYLE GST REPORT CSS ============ */
-.gst-report-tabs .nav-link {
-    background-color: #f0f0f0;
-    border: 1px solid #dee2e6;
-    border-bottom: none;
-    margin-right: 5px;
-    color: #495057;
-    font-weight: 600;
-}
-.gst-report-tabs .nav-link.active {
-    background-color: #fff;
-    border-bottom: 1px solid #fff;
-    color: #0d6efd;
-    position: relative;
-    top: 1px;
-}
-.gst-report-tab-content {
-    background-color: #fff;
-    border: 1px solid #dee2e6;
-    padding: 1.5rem;
-    border-radius: 0 8px 8px 8px;
-}
-.gst-report-table {
-    font-size: 0.85rem;
-    margin-top: 15px;
-    border-collapse: collapse;
+/* 2. नया सेंटर्ड रैपर (Wrapper) */
+.login-wrapper {
     width: 100%;
+    max-width: 950px; /* लॉगिन बॉक्स + साइडबार की कुल चौड़ाई */
+    display: grid;
+    /* 40% एडवरटाइजिंग, 60% लॉगिन फॉर्म */
+    grid-template-columns: 40% 60%; 
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
-.gst-report-table th, .gst-report-table td {
-    border: 1px solid #dee2e6;
-    padding: 8px 12px;
-    text-align: right;
+
+/* 3. नया एडवरटाइजिंग साइडबार (Left Column) */
+.login-ad-sidebar {
+    /* आपकी ऐप की इंडिगो थीम का उपयोग */
+    background: var(--dp-sidebar-bg, #111d4a); 
+    color: #fff;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
-.gst-report-table th {
-    background-color: #f8f9fa;
-    text-align: center;
+.login-ad-sidebar h3 {
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+.login-ad-sidebar p {
+    font-size: 1.1rem;
+    color: var(--dp-sidebar-text, #a0aed0);
+    border-bottom: 1px solid var(--dp-sidebar-active-bg, #1a2b6d);
+    padding-bottom: 15px;
+}
+.login-ad-sidebar .ad-footer {
+    margin-top: auto;
+    padding-top: 15px;
+    border-top: 1px solid var(--dp-sidebar-active-bg, #1a2b6d);
+    color: var(--dp-sidebar-text, #a0aed0);
+}
+
+/* 4. लॉगिन कार्ड (Glass Effect) */
+.login-card-glass {
+    background: rgba(255, 255, 255, 0.8); /* थोड़ी ज़्यादा पारदर्शिता */
+    backdrop-filter: blur(15px); /* थोड़ा कम ब्लर, ताकि पीछे का ज़्यादा दिखे */
+    -webkit-backdrop-filter: blur(15px);
+    padding: 30px 40px;
+}
+.login-card-glass h3 {
+    color: var(--dp-text-dark, #1A202C);
+}
+/* टैब्स को ग्लास पर बेहतर दिखाना */
+.login-card-glass .nav-tabs {
+    border-bottom: 2px solid var(--dp-border, #E2E8F0);
+}
+.login-card-glass .nav-link {
+    color: var(--dp-text-light, #4A5568);
     font-weight: 600;
-    vertical-align: middle;
+    padding: 10px 15px;
 }
-.gst-report-table td:first-child {
-    text-align: left;
+.login-card-glass .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: var(--dp-primary, #00b4d8);
+    border: 2px solid var(--dp-border, #E2E8F0);
+    border-bottom-color: transparent;
+    border-radius: 8px 8px 0 0;
 }
-.gst-report-table tfoot tr {
-    font-weight: bold;
-    background-color: #e9ecef;
+
+
+/* 5. एनिमेटेड फीचर्स (Advertising Quotes) */
+.features-list {
+    list-style: none;
+    padding: 0;
+    margin: 25px 0;
+    height: 180px; /* एनीमेशन के लिए फिक्स्ड ऊंचाई */
+    overflow: hidden;
+    position: relative;
 }
-.gst-report-table .group-header td {
-    background-color: #f3f4f6;
-    font-weight: bold;
-    text-align: left;
+.features-list {
+    list-style: none;
+    padding: 0;
+    margin: 25px 0;
+    height: 250px; /* एनीमेशन के लिए थोड़ी ज़्यादा ऊंचाई */
+    overflow: hidden;
+    position: relative;
+    font-size: 1.1rem; /* मुख्य टेक्स्ट का साइज़ */
 }
-/* ============ END GST REPORT CSS ============ */
+.features-list li {
+    font-weight: 500;
+    padding: 8px 0;
+    position: absolute;
+    width: 100%;
+    opacity: 0;
+    transform: translateY(30px);
+    /* 9 आइटम के लिए 18 सेकंड का लूप (2s प्रति आइटम) */
+    animation: slide-up-fade 18s linear infinite; /* टोटल 18 सेकंड */
+    animation-delay: var(--delay);
+}
+.features-list li span {
+    display: block; /* हिंदी टेक्स्ट को नई लाइन पर */
+    font-size: 0.9rem; /* हिंदी टेक्स्ट का छोटा साइज़ */
+    color: var(--dp-sidebar-text, #a0aed0); /* हल्का रंग */
+    margin-top: 3px;
+    font-weight: 400;
+}
+/* हर आइटम को अलग-अलग समय पर एनिमेट करना (अब 9 आइटम के लिए) */
+.features-list li:nth-child(1) { --delay: 0s; }
+.features-list li:nth-child(2) { --delay: 2s; }
+.features-list li:nth-child(3) { --delay: 4s; }
+.features-list li:nth-child(4) { --delay: 6s; }
+.features-list li:nth-child(5) { --delay: 8s; }
+.features-list li:nth-child(6) { --delay: 10s; }
+.features-list li:nth-child(7) { --delay: 12s; }
+.features-list li:nth-child(8) { --delay: 14s; } /* नया आइटम */
+.features-list li:nth-child(9) { --delay: 16s; } /* नया आइटम */
+/* (नया, सही कोड) */
+@keyframes slide-up-fade {
+    /* हर आइटम 18 सेकंड के लूप में सिर्फ 2 सेकंड के लिए दिखेगा */
+
+    /* 0% से ~1.1% (लगभग 0.2s) - अंदर आना */
+    0%   { opacity: 0; transform: translateY(30px); }
+    1.1% { opacity: 1; transform: translateY(0); }
+
+    /* ~1.1% से ~10% (लगभग 1.6s) - रुके रहना */
+    10%  { opacity: 1; transform: translateY(0); }
+
+    /* ~10% से ~11.1% (लगभग 0.2s) - बाहर जाना */
+    11.1% { opacity: 0; transform: translateY(-15px); }
+    
+    /* बाकी 88.9% समय (16 सेकंड) - छिपा रहना */
+    100% { opacity: 0; }
+}/* 6. मोबाइल के लिए (बहुत महत्वपूर्ण) */
+@media (max-width: 800px) {
+    .login-wrapper {
+        grid-template-columns: 1fr; /* 1 कॉलम में दिखाना */
+        width: 95%;
+        max-width: 450px;
+        max-height: 90vh;
+        overflow-y: auto; /* स्क्रॉल के लिए */
+    }
+    .login-ad-sidebar {
+        /* मोबाइल पर एडवरटाइजिंग छिपा दें */
+        display: none; 
+    }
+    .login-card-glass {
+        /* मोबाइल पर ज़्यादा साफ़ दिखाना */
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+}
+/* ======================================================== */
+/* === 🚀 नया CSS यहाँ समाप्त होता है === */
+/* ======================================================== */
+    
+    
+    
+    
+    </style>
 
 
-
-
-
-
-</style>
 </head>
 
 <body>
@@ -405,73 +532,91 @@
     <input type="text" id="barcode-scanner-input" autocomplete="off">
 
 
-    <div id="auth-container" class="container">
-        <div class="row justify-content-center align-items-center" style="min-height: 100vh;">
-            <div class="col-md-6">
-                <div class="card shadow-lg">
-                    <div class="card-header p-0">
-                        <nav>
-                            <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                                <button class="nav-link active w-50" id="nav-login-tab" data-bs-toggle="tab" data-bs-target="#nav-login" type="button" role="tab" aria-controls="nav-login" aria-selected="true">
-                                    <i class="fas fa-sign-in-alt me-2"></i>लॉगिन
-                                </button>
-                                <button class="nav-link w-50" id="nav-register-tab" data-bs-toggle="tab" data-bs-target="#nav-register" type="button" role="tab" aria-controls="nav-register" aria-selected="false">
-                                    <i class="fas fa-user-plus me-2"></i>नया अकाउंट (रजिस्टर)
-                                </button>
-                            </div>
-                        </nav>
-                    </div>
-                    <div class="tab-content" id="nav-tabContent">
-                        <div class="tab-pane fade show active p-4" id="nav-login" role="tabpanel" aria-labelledby="nav-login-tab">
-                            <h3 class="text-center mb-4 text-primary">Dukan Pro में लॉगिन करें</h3>
-                            <form id="login-form">
-                                <div class="mb-3">
-                                    <label for="login-email" class="form-label">ईमेल</label>
-                                    <input type="email" class="form-control" id="login-email" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="login-password" class="form-label">पासवर्ड</label>
-                                    <input type="password" class="form-control" id="login-password" required>
-                                </div>
-                                <div id="login-message" class="text-danger small mb-3">&nbsp;</div>
-                                <button type="submit" class="btn btn-primary w-100" id="login-submit-btn">लॉगिन</button>
-                            </form>
-                        </div>
-                        <div class="tab-pane fade p-4" id="nav-register" role="tabpanel" aria-labelledby="nav-register-tab">
-                            <h3 class="text-center mb-4 text-success">नया शॉप अकाउंट बनाएं</h3>
-                            <form id="register-form">
-                                <div class="mb-3">
-                                    <label for="register-shop-name" class="form-label">आपकी शॉप का नाम</label>
-                                    <input type="text" class="form-control" id="register-shop-name" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="register-name" class="form-label">आपका पूरा नाम (एडमिन)</label>
-                                    <input type="text" class="form-control" id="register-name" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="register-email" class="form-label">आपका ईमेल</label>
-                                    <input type="email" class="form-control" id="register-email" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="register-mobile" class="form-label">मोबाइल नंबर</label>
-                                    <input type="tel" class="form-control" id="register-mobile" required pattern="[0-9]{10}" title="कृपया 10 अंकों का मोबाइल नंबर डालें।">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="register-password" class="form-label">नया पासवर्ड</label>
-                                    <input type="password" class="form-control" id="register-password" required>
-                                </div>
-                                <div id="register-message" class="text-danger small mb-3">&nbsp;</div>
-                                <button type="submit" class="btn btn-success w-100" id="register-submit-btn">अकाउंट बनाएं</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+    <div class="auth-overlay" id="auth-container-new">
+    
+    <div class="login-wrapper">
+        
+        <div class="login-ad-sidebar">
+            <h3 class="mb-3"><i class="fas fa-store me-2"></i>Dukan Pro Ultimate</h3>
+            <p>इंडिया का सबसे एडवांस बिज़नेस सूट</p>
+            
+            <ul class="features-list">
+                <li><i class="fas fa-file-alt me-2"></i> GSTR-1, 2, & 3B Reports<br><span>(GSTR-1, 2, और 3B रिपोर्ट्स)</span></li>
+                <li><i class="fas fa-university me-2"></i> Automated Bank Reconciliation<br><span>(स्वचालित बैंक समाधान)</span></li>
+                <li><i class="fas fa-qrcode me-2"></i> Barcode Scanning via Mobile<br><span>(मोबाइल से बारकोड स्कैनिंग)</span></li>
+                <li><i class="fas fa-users me-2"></i> Advanced Customer (CRM)<br><span>(उन्नत ग्राहक संबंध प्रबंधन)</span></li>
+                <li><i class="fas fa-boxes me-2"></i> Smart Stock & Inventory Control<br><span>(स्मार्ट स्टॉक और इन्वेंटरी नियंत्रण)</span></li>
+                <li><i class="fas fa-chart-line me-2"></i> Real-time P&L & Analytics<br><span>(रियल-टाइम P&L और विश्लेषण)</span></li>
+                <li><i class="fas fa-cash-register me-2"></i> Lightning-Fast POS Billing<br><span>(बिजली की तेज़ी से POS बिलिंग)</span></li>
+                <li><i class="fas fa-receipt me-2"></i> Customizable Invoice Generator<br><span>(कस्टमाइजेबल इनवॉइस जनरेटर)</span></li>
+                <li><i class="fas fa-cloud me-2"></i> Secure Cloud Data Backup<br><span>(सुरक्षित क्लाउड डेटा बैकअप)</span></li>
+            </ul>
+
+            <div class="ad-footer">
+                <p>आपके बिज़नेस की हर ज़रूरत, एक सॉफ्टवेयर में।</p>
             </div>
         </div>
+        
+        <div class="login-card-glass">
+            <nav>
+                <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                    <button class="nav-link active w-50" id="nav-login-tab" data-bs-toggle="tab" data-bs-target="#nav-login" type="button" role="tab" aria-controls="nav-login" aria-selected="true">
+                        <i class="fas fa-sign-in-alt me-2"></i>लॉगिन
+                    </button>
+                    <button class="nav-link w-50" id="nav-register-tab" data-bs-toggle="tab" data-bs-target="#nav-register" type="button" role="tab" aria-controls="nav-register" aria-selected="false">
+                        <i class="fas fa-user-plus me-2"></i>नया अकाउंट
+                    </button>
+                </div>
+            </nav>
+            <div class="tab-content mt-4" id="nav-tabContent">
+                <div class="tab-pane fade show active" id="nav-login" role="tabpanel" aria-labelledby="nav-login-tab">
+                    <h3 class="text-center mb-4">Dukan Pro में लॉगिन करें</h3>
+                    <form id="login-form">
+                        <div class="mb-3">
+                            <label for="login-email" class="form-label">ईमेल</label>
+                            <input type="email" class="form-control" id="login-email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="login-password" class="form-label">पासवर्ड</label>
+                            <input type="password" class="form-control" id="login-password" required>
+                        </div>
+                        <div id="login-message" class="text-danger small mb-3">&nbsp;</div>
+                        <button type="submit" class="btn btn-primary w-100" id="login-submit-btn">लॉगिन</button>
+                    </form>
+                </div>
+                <div class="tab-pane fade" id="nav-register" role="tabpanel" aria-labelledby="nav-register-tab">
+                    <h3 class="text-center mb-4">नया शॉप अकाउंट बनाएं</h3>
+                    <form id="register-form">
+                        <div class="mb-3">
+                            <label for="register-shop-name" class="form-label">आपकी शॉप का नाम</label>
+                            <input type="text" class="form-control" id="register-shop-name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="register-name" class="form-label">आपका पूरा नाम (एडमिन)</label>
+                            <input type="text" class="form-control" id="register-name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="register-email" class="form-label">आपका ईमेल</label>
+                            <input type="email" class="form-control" id="register-email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="register-mobile" class="form-label">मोबाइल नंबर</label>
+                            <input type="tel" class="form-control" id="register-mobile" required pattern="[0-9]{10}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="register-password" class="form-label">नया पासवर्ड</label>
+                            <input type="password" class="form-control" id="register-password" required>
+                        </div>
+                        <div id="register-message" class="text-danger small mb-3">&nbsp;</div>
+                        <button type="submit" class="btn btn-success w-100" id="register-submit-btn">अकाउंट बनाएं</button>
+                    </form>
+                </div>
+            </div>
+            </div>
+
     </div>
 
-
-
+</div>
 
 
 
@@ -587,6 +732,11 @@
                     <a href="#" class="nav-link" data-view="gst-reports" data-role="MANAGER"> <i class="fas fa-file-alt"></i> GST रिपोर्ट्स
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-view="bank-reconciliation" data-role="MANAGER"> <i class="fas fa-university"></i> बैंक रिकॉन्सिलेशन
+                    </a>
+                </li>
+
                 <li class="nav-item">
                     <a href="#" class="nav-link" data-view="daily-closing" data-role="MANAGER"> <i class="fas fa-calendar-check"></i> डेली क्लोजिंग
                     </a>
@@ -933,6 +1083,7 @@
                                         <tr>
                                             <th>चालान नं.</th>
                                             <th>ग्राहक</th>
+                                            <th>GST</th>
                                             <th>कुल राशि</th>
                                             <th>तिथि</th>
                                             <th>एक्शन</th>
@@ -1032,32 +1183,47 @@
                 <div class="card-header">नई खरीद दर्ज करें</div>
                 <div class="card-body">
                     <form id="add-purchase-form" class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="purchase-bill-number" class="form-label">बिल / चालान नं.</label>
                             <input type="text" class="form-control" id="purchase-bill-number" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="purchase-supplier" class="form-label">आपूर्तिकर्ता का नाम</label>
                             <input type="text" class="form-control" id="purchase-supplier" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <label for="purchase-date" class="form-label">खरीद की तारीख</label>
+                            <input type="date" class="form-control" id="purchase-date" required>
+                        </div>
+                        <div class="col-md-3">
                             <label for="purchase-total-cost" class="form-label">कुल बिल राशि (₹)</label>
                             <input type="number" step="0.01" class="form-control" id="purchase-total-cost" required min="0">
                         </div>
+                    
                         <hr class="my-3 col-12">
-                        <h6 class="col-12">खरीदे गए आइटम</h6>
-                        <div id="purchase-items-container" class="col-12">
+                        <h6 class="col-12 text-primary">GST विवरण (GSTR-2 के लिए)</h6>
+                        
+                        <div class="col-md-3">
+                            <label for="purchase-taxable-value" class="form-label">टैक्सेबल वैल्यू (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-taxable-value" min="0">
                         </div>
-                        <div class="col-12">
-                            <button type="button" id="add-purchase-item-btn" class="btn btn-sm btn-outline-secondary">
-                                <i class="fas fa-plus"></i> और आइटम जोड़ें
-                            </button>
+                        <div class="col-md-3">
+                            <label for="purchase-cgst" class="form-label">CGST (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-cgst" value="0" min="0">
                         </div>
+                        <div class="col-md-3">
+                            <label for="purchase-sgst" class="form-label">SGST (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-sgst" value="0" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="purchase-igst" class="form-label">IGST (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="purchase-igst" value="0" min="0">
+                        </div>
+                    
                         <div class="col-12 mt-4">
-                            <button type="submit" class="btn btn-success w-100">खरीद रिकॉर्ड करें और स्टॉक अपडेट करें</button>
+                            <button type="submit" class="btn btn-success w-100">खरीद रिकॉर्ड करें</button>
                         </div>
-                    </form>
-                </div>
+                    </form>                </div>
             </div>
 
             <div class="card">
@@ -1111,7 +1277,11 @@
                             <label for="customer-gstin" class="form-label">GSTIN (वैकल्पिक)</label>
                             <input type="text" class="form-control" id="customer-gstin" maxlength="15">
                         </div>
-                        <div class="col-12 mt-4">
+                        <div class="col-md-6">
+                            <label for="customer-balance" class="form-label">पिछला बकाया (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="customer-balance" value="0" min="0">
+                        </div>
+                       <div class="col-12 mt-4">
                             <button type="submit" class="btn btn-primary w-100">ग्राहक को जोड़ें</button>
                         </div>
                     </form>
@@ -1451,7 +1621,7 @@
 
         <section id="gst-reports" class="section">
             <h2 class="mb-4 text-primary">GST रिपोर्ट्स (Simplified)</h2>
-            <p class="text-muted">ये आपके सर्वर द्वारा प्रदान की गई सरलीकृत (simplified) GST रिपोर्ट हैं। [cite: 350, 363, 367]</p>
+            <p class="text-muted">ये आपके सर्वर द्वारा प्रदान की गई सरलीकृत (simplified) GST रिपोर्ट हैं। </p>
             
             <div class="card">
                 <div class="card-header">रिपोर्ट्स जेनरेट करें</div>
@@ -1486,6 +1656,8 @@
                         <div class="text-muted text-center py-4">कृपया तारीख चुनें और रिपोर्ट बटन पर क्लिक करें।</div>
                         
                         <div id="gstr1-report-template" style="display: none;">
+
+
                             
                            <!-- ============ TALLY-STYLE GST REPORT HTML START ============ -->
 <!-- यह Tally-Style टैब लेआउट है -->
@@ -1582,6 +1754,161 @@
 <!-- ============ TALLY-STYLE GST REPORT HTML END ============ -->
 
 
+<section id="bank-reconciliation" class="section">
+    <h2 class="mb-4 text-primary">बैंक रिकॉन्सिलेशन</h2>
+    
+    <div class="card mb-4" id="reconciliation-setup">
+        <div class="card-header">
+            नया रिकॉन्सिलेशन शुरू करें
+        </div>
+        <div class="card-body">
+            <form id="reconciliation-start-form">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="recon-statement-date" class="form-label">बैंक स्टेटमेंट की अंतिम तिथि</label>
+                        <input type="date" class="form-control" id="recon-statement-date" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="recon-statement-balance" class="form-label">स्टेटमेंट का अंतिम बैलेंस (₹)</label>
+                        <input type="number" step="0.01" class="form-control" id="recon-statement-balance" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="recon-statement-csv" class="form-label">बैंक स्टेटमेंट अपलोड करें (.csv)</label>
+                        <input type="file" class="form-control" id="recon-statement-csv" accept=".csv" required>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <p class="text-muted small">यह फ़ाइल आप अपने बैंक की नेट बैंकिंग वेबसाइट पर 'Account Statement' > 'Download Statement' सेक्शन से CSV फॉर्मेट में डाउनलोड कर सकते हैं। कृपया सुनिश्चित करें कि उसमें 'Date', 'Description', 'Debit'/'Withdrawal', और 'Credit'/'Deposit' कॉलम हों।
+                    </div>
+                </div>
+                <hr>
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary btn-lg" id="start-reconciliation-btn">
+                        <i class="fas fa-play me-2"></i> रिकॉन्सिलेशन शुरू करें
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="reconciliation-matching-area" class="hidden">
+        <h3 class="mb-3">एंट्रीज़ का मिलान करें</h3>
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        Dukan Pro (बुक) ट्रांजैक्शन
+                        <span id="book-total" class="badge bg-light text-dark float-end">₹0.00</span>
+                    </div>
+                    <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="check-all-book"></th>
+                                    <th>विवरण</th>
+                                    <th>राशि (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="book-transactions-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        बैंक स्टेटमेंट ट्रांजैक्शन
+                        <span id="bank-total" class="badge bg-light text-dark float-end">₹0.00</span>
+                    </div>
+                    <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="check-all-bank"></th>
+                                    <th>विवरण</th>
+                                    <th>राशि (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bank-transactions-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-dark text-white">
+                रिकॉन्सिलेशन रिपोर्ट (सारांश)
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <table class="table" id="reconciliation-report-table">
+                            <tbody>
+                                <tr>
+                                    <td>बैंक स्टेटमेंट का अंतिम बैलेंस</td>
+                                    <td class="text-end" id="report-statement-balance">₹0.00</td>
+                                </tr>
+                                <tr>
+                                    <td>वे पेमेंट्स जो अभी क्लियर नहीं हुए (Uncleared Payments)</td>
+                                    <td class="text-end" id="report-uncleared-payments">₹0.00</td>
+                                </tr>
+                                <tr>
+                                    <td>वे डिपॉजिट जो अभी क्लियर नहीं हुए (Uncleared Deposits)</td>
+                                    <td class="text-end" id="report-uncleared-deposits">₹0.00</td>
+                                </tr>
+                                <tr class="fw-bold">
+                                    <td>Dukan Pro (बुक) में एडजस्टेड बैलेंस</td>
+                                    <td class="text-end" id="report-adjusted-balance">₹0.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-center justify-content-center">
+                        <div id="reconciliation-status-box" class="p-3 text-center">
+                            <h4 id="difference-amount" class="text-danger fw-bold">₹0.00 का अंतर</h4>
+                            <p id="difference-status" class="text-muted">बैलेंस मैच नहीं हुआ</p>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-end">
+                    <button class="btn btn-secondary" id="cancel-reconciliation-btn">रद्द करें</button>
+                    <button class="btn btn-success" id="save-reconciliation-btn" disabled>
+                        <i class="fas fa-save me-2"></i> रिपोर्ट सेव करें
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div> 
+    <div class="card mt-4" id="previous-reports-area">
+        <div class="card-header bg-secondary text-white">
+            पिछली रिकॉन्सिलेशन रिपोर्ट्स
+        </div>
+        <div class="card-body">
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>रिपोर्ट ID</th>
+                            <th>स्टेटमेंट की तारीख</th>
+                            <th>बैंक बैलेंस (₹)</th>
+                            <th>अनक्लियरर्ड अमाउंट (₹)</th>
+                            <th>सेव की गई तारीख</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previous-reports-body">
+                        <tr><td colspan="5" class="text-center text-muted">कोई पुरानी रिपोर्ट नहीं मिली।</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </section>
 
         <section id="daily-closing" class="section">
             <h2 class="mb-4 text-primary">डेली क्लोजिंग</h2>
@@ -1683,6 +2010,10 @@
                                     <label for="company-address" class="form-label">शॉप का पता</label>
                                     <textarea class="form-control" id="company-address" rows="2"></textarea>
                                 </div>
+                                <div class="mb-3">
+                                    <label for="company-opening-capital" class="form-label">ओपनिंग कैपिटल (शुरुआती पूंजी)</label>
+                                    <input type="number" step="0.01" class="form-control" id="company-opening-capital" value="0" min="0">
+                                </div>
                                 <button type="submit" class="btn btn-primary w-100">प्रोफाइल सेव करें</button>
                             </form>
                         </div>
@@ -1704,7 +2035,11 @@
                                     <div class="form-text">सबसे अच्छे रिजल्ट के लिए 1:1 (स्क्वायर) इमेज अपलोड करें।</div>
                                     <img id="shop-logo-preview" src="" alt="Logo Preview" class="img-thumbnail mt-2" style="max-height: 100px; display: none;">
                                 </div>
+                                    <button type="button" id="remove-shop-logo-btn" class="btn btn-sm btn-outline-danger mt-2 d-none" onclick="removeShopLogo()">
+                                    <i class="fas fa-trash"></i> लोगो हटाएँ
+                                </button>
                                 <button type="submit" class="btn btn-primary w-100">डिस्प्ले सेव करें</button>
+                            </form>
                             </form>
                         </div>
                     </div>
@@ -2122,6 +2457,67 @@ function processScannedSku(sku) {
         }
     }
 
+
+/**
+ * एक साधारण CSV टेक्स्ट को JSON ऑब्जेक्ट ऐरे में पार्स करता है
+ */
+ function parseCSV(csvText) {
+    const lines = csvText.split('\n');
+    if (lines.length === 0) return [];
+    
+    // हेडर (Date, Description, Debit, Credit) का पता लगाएँ
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    
+    // कॉलम इंडेक्स ढूँढें
+    const dateIdx = headers.findIndex(h => h.includes('date'));
+    const descIdx = headers.findIndex(h => h.includes('description') || h.includes('narration'));
+    const debitIdx = headers.findIndex(h => h.includes('debit') || h.includes('withdrawal'));
+    const creditIdx = headers.findIndex(h => h.includes('credit') || h.includes('deposit'));
+
+    if (dateIdx === -1 || descIdx === -1 || debitIdx === -1 || creditIdx === -1) {
+        showMessage('CSV एरर', 'CSV में Date, Description, Debit/Withdrawal, या Credit/Deposit कॉलम नहीं मिले।', 'danger');
+        throw new Error('Invalid CSV headers');
+    }
+
+    const items = [];
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        
+        const values = line.split(',');
+        
+        const dateStr = values[dateIdx];
+        // तारीख को YYYY-MM-DD में बदलें (मान लें कि यह DD/MM/YYYY या MM/DD/YYYY है)
+        let dateObj;
+        if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            // मान लें कि यह MM/DD/YYYY है (इसे अपने बैंक के अनुसार बदलें)
+            // अगर DD/MM/YYYY है, तो new Date(parts[2], parts[1] - 1, parts[0]) का उपयोग करें
+            dateObj = new Date(parts[2], parts[0] - 1, parts[1]); 
+        } else {
+            dateObj = new Date(dateStr); // ISO 8601 (YYYY-MM-DD)
+        }
+        
+        const debitAmount = parseFloat(values[debitIdx].replace(/[^0-9.]/g, '')) || 0;
+        const creditAmount = parseFloat(values[creditIdx].replace(/[^0-9.]/g, '')) || 0;
+
+        items.push({
+            date: dateObj.toISOString().split('T')[0],
+            description: values[descIdx],
+            debit: debitAmount,
+            credit: creditAmount
+        });
+    }
+    return items;
+}
+
+
+
+
+
+
+
+
     function updateBalanceSheet(data) {
     // अगर कोई डेटा नहीं आता है, तो फ़ंक्शन यहीं रुक जाएगा
     if (!data) return; 
@@ -2157,32 +2553,31 @@ function processScannedSku(sku) {
 
 
 // NEW: Function to fetch and populate Company Profile into Invoice Generator
-async function fetchAndPopulateShopData() {
-    try {
-        // Fetch saved Company Profile data (GSTIN, Address)
-        const profileRes = await fetchApi('/api/shop/company-profile', { method: 'GET' });
-        
-        // Fetch current user data (Shop Name/Logo) from the authenticated token
-        const settingsRes = await fetchApi('/api/shop/settings', { method: 'GET' }); 
-        
-        const profile = profileRes.success ? profileRes.profile : {};
-        const user = AppState.user || {}; // Use current user data from AppState
+function fetchAndPopulateShopData() {
+        console.log("Populating Shop Data for Invoice...");
+        try {
+            // 1. शॉप सेटिंग्स से डेटा उठाएँ
+            const legalName = document.getElementById('company-legal-name').value;
+            const gstin = document.getElementById('company-gstin').value;
+            const address = document.getElementById('company-address').value;
+            
+            // 2. AppState (लॉग-इन यूज़र) से डेटा उठाएँ
+            const displayName = AppState.user?.shopName || '';
+            const mobile = AppState.user?.mobile || ''; // (यह सर्वर से आना चाहिए)
 
-        // Populate Company Profile fields in Invoice Generator (lines 800-805 approx.)
-        document.getElementById('shopGstin').value = profile.gstin || '';
-        document.getElementById('shopAddress').value = profile.address || '';
-        
-        // Populate Shop Name field (using token data)
-        document.getElementById('shopName').value = user.shopName || profile.legal_name || '';
+            // 3. इनवॉइस जनरेटर के फॉर्म में यह डेटा भरें
+            document.getElementById('shopName').value = legalName || displayName; //
+            document.getElementById('shopContact').value = mobile; //
+            document.getElementById('shopAddress').value = address; //
+            document.getElementById('shopGstin').value = gstin; //
+            
+            // 4. प्रीव्यू को तुरंत अपडेट करें
+            updateInvoicePreview();
 
-        // Update the Invoice Preview display with the newly populated data
-        updateInvoicePreview(); 
-
-    } catch (e) {
-        console.error("Error loading shop profile for invoice:", e.message);
-    }
-}
-// यह भी सुनिश्चित करें कि 'renderReports' फ़ंक्शन के अंदर API कॉल के बाद 
+        } catch (e) {
+            console.warn("Could not pre-populate shop data:", e.message);
+        }
+    }// यह भी सुनिश्चित करें कि 'renderReports' फ़ंक्शन के अंदर API कॉल के बाद 
 // यह फ़ंक्शन कॉल हो रहा है, जैसा कि नीचे है:
 
 
@@ -2220,11 +2615,12 @@ async function fetchAndPopulateShopData() {
                 });
                 focusBarcodeScanner(); 
                 break;
+                case 'invoice-generator':
+            fetchAndPopulateShopData();
+            initializeQRUpload();
+            break;
              // Note: Duplicate 'sales' case removed below
-            case 'invoice-generator': 
-                fetchAndPopulateShopData(); 
-                initializeQRUpload(); 
-                break;
+            
             case 'gst-reports': 
                 // Ensure getISODate function exists or handle potential error
                 try {
@@ -2232,6 +2628,13 @@ async function fetchAndPopulateShopData() {
                     document.getElementById('gst-report-end-date').value = getISODate(); 
                 } catch (e) { console.error("Error setting GST dates:", e); }
                 break;
+            case 'bank-reconciliation':
+            // जब हम टैब पर क्लिक करते हैं तो इंटरफ़ेस को रीसेट करें
+                document.getElementById('reconciliation-setup').classList.remove('hidden');
+                document.getElementById('reconciliation-matching-area').classList.add('hidden');
+                document.getElementById('reconciliation-start-form').reset();
+                fetchAndRenderSavedReports();
+                break;    
             case 'daily-closing': fetchAndRenderClosingReports(); break; 
             case 'data-backup': break; 
             case 'shop-settings': fetchAndRenderShopSettings(); break; 
@@ -2240,35 +2643,66 @@ async function fetchAndPopulateShopData() {
         
         // --- 🚀 कमेंट खत्म ---
     };
+
     async function fetchAndRenderSales() {
-        const salesTableBody = document.getElementById('sales-table-body');
+        const salesTableBody = document.getElementById('sales-table-body');  
         salesTableBody.innerHTML = ''; // Clear previous entries
         try {
             const salesRes = await fetchApi('/api/invoices', { method: 'GET' }, 'हाल की बिक्री लोड हो रही है...');
             if (salesRes.success && salesRes.sales && salesRes.sales.length > 0) {
                 salesRes.sales.forEach(sale => {
+                    
+                    // --- पुराना लॉजिक (कमेंटेड) ---
+                    /*
                     salesTableBody.innerHTML += `
                         <tr>
                             <td>INV-${sale.id}</td> <td>${sale.customer_name}</td>
+                            <td>${formatCurrency(sale.total_gst)}</td> 
                             <td>${formatCurrency(sale.total_amount)}</td>
                             <td>${new Date(sale.created_at).toLocaleDateString()}</td>
                             <td>
-                                <button class="btn btn-sm btn-info" onclick="showInvoiceDetail(${sale.id})">
+                                <button class="btn btn-sm btn-info py-0 px-1" onclick="showInvoiceDetail(${sale.id})" title="विवरण देखें">
                                     <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary py-0 px-1 ms-1" onclick="printPOSInvoice(${sale.id})" title="इनवॉइस प्रिंट करें">
+                                    <i class="fas fa-print"></i>
                                 </button>
                                </td>
                         </tr>
                     `;
+                    */
+                    // --- पुराना लॉजिक समाप्त ---
+
+                    // --- 🚀 नया और सही कोड (6 कॉलम के लिए) ---
+                    salesTableBody.innerHTML += `
+                        <tr>
+                            <td>INV-${sale.id}</td>
+                            <td>${sale.customer_name}</td>
+                            <td>${formatCurrency(sale.total_gst)}</td>
+                            <td>${formatCurrency(sale.total_amount)}</td>
+                            <td>${new Date(sale.created_at).toLocaleDateString()}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info py-0 px-1" onclick="showInvoiceDetail(${sale.id})" title="विवरण देखें">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary py-0 px-1 ms-1" onclick="printPOSInvoice(${sale.id})" title="इनवॉइस प्रिंट करें">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                               </td>
+                        </tr>
+                    `;
+                    // --- नया कोड समाप्त ---
+
                 });
             } else {
-                 salesTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">कोई बिक्री रिकॉर्ड नहीं।</td></tr>`;
+                 salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">कोई बिक्री रिकॉर्ड नहीं।</td></tr>`; // 👈 colspan को 5 से 6 कर दिया
             }
         } catch (error) {
             showMessage('सर्वर त्रुटि', `बिक्री डेटा लोड नहीं हो सका: ${error.message}`, 'danger');
-            salesTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">त्रुटि: ${error.message}</td></tr>`;
+            salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${error.message}</td></tr>`; // 👈 colspan को 5 से 6 कर दिया
         }
     }
-    
+        
     // NEW: Show Invoice Detail Modal (Placeholder, needs a modal)
     async function showInvoiceDetail(invoiceId) {
         try {
@@ -2287,7 +2721,155 @@ async function fetchAndPopulateShopData() {
         }
     }
 
+/**
+    
+  /**
+     * (नया फ़ंक्शन - प्रिंट क्लीनअप के साथ फिक्स्ड)
+     * POS से सेव किये गए इनवॉइस को फ़ेच करता है और प्रिंट करता है।
+     */
+     async function printPOSInvoice(invoiceId) {
+        showLoader('इनवॉइस लोड हो रहा है...');
+        
+        // 🚀 हम इस 'printArea' को बाद में हटाएंगे
+        let printArea = document.getElementById('report-print-area');
 
+        try {
+            // 1. सर्वर से इनवॉइस का पूरा डेटा लाएँ
+            const res = await fetchApi(`/api/invoices/${invoiceId}`, { method: 'GET' }, null);
+            if (!res.success || !res.invoice) {
+                throw new Error(res.message || 'इनवॉइस डेटा नहीं मिला।');
+            }
+            
+            const invoice = res.invoice;
+            
+            // 2. शॉप की डिटेल्स AppState से लें
+            const profileRes = await fetchApi('/api/shop/company-profile', { method: 'GET' }, null);
+            const shopProfile = profileRes.success ? profileRes.profile : {};
+            const shopDisplayName = AppState.user?.shopName || 'Shop Name';
+
+            // 3. इनवॉइस HTML तैयार करें
+            let itemRows = '';
+            let totalTax = 0;
+            let subTotal = 0;
+
+            invoice.items.forEach((item, index) => {
+                const itemSubTotal = (item.sale_price || 0) * (item.quantity || 0);
+                const itemGst = itemSubTotal * ((item.gst_rate || 0) / 100); 
+                
+                subTotal += itemSubTotal;
+                totalTax += itemGst;
+                
+                itemRows += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td style="text-align: left;">${item.item_name}</td>
+                        <td>${item.quantity}</td>
+                        <td>${formatCurrency(item.sale_price)}</td>
+                        <td>${item.gst_rate || 0}%</td> 
+                        <td>${formatCurrency(itemSubTotal)}</td>
+                        <td class="no-print"></td>
+                    </tr>
+                `;
+            });
+
+            const cgst = totalTax / 2;
+            const sgst = totalTax / 2;
+
+            // 4. एक अस्थायी प्रिंट करने योग्य (printable) div बनाएँ
+            if (!printArea) {
+                printArea = document.createElement('div');
+                printArea.id = 'report-print-area';
+                printArea.className = 'printable'; // [cite: 1-267]
+                document.body.appendChild(printArea);
+            }
+
+            // 5. इनवॉइस HTML को प्रिंट एरिया में इंजेक्ट करें
+            printArea.innerHTML = `
+                <div id="invoice-preview-printable" class="printable"> 
+                    <div class="invoice-header">
+                        <div class="shop-details">
+                            <h3>${shopProfile.legal_name || shopDisplayName}</h3>
+                            <p class="mb-0">${shopProfile.address || 'Shop Address'}</p>
+                            <p class="mb-0">Ph: ${shopProfile.contact || 'Contact No.'}</p>
+                            ${shopProfile.gstin ? `<p class="mb-0"><strong>GSTIN: ${shopProfile.gstin}</strong></p>` : ''}
+                        </div>
+                        <h2 style="color: #333; align-self: center;">INVOICE</h2>
+                    </div>
+                    
+                    <div class="customer-details row">
+                        <div class="col-8">
+                            <strong>Bill To:</strong>
+                            <p class="mb-0">${invoice.customer_name || 'N/A'}</p>
+                            <p class="mb-0">Ph: ${invoice.customer_mobile || 'N/A'}</p>
+                        </div>
+                        <div class="col-4 text-end">
+                            <p class="mb-0"><strong>Invoice No:</strong> INV-${invoice.id}</p>
+                            <p class="mb-0"><strong>Date:</strong> ${new Date(invoice.created_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+
+                    <table class="invoice-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 5%;">#</th>
+                                <th style="text-align: left;">Item</th>
+                                <th style="width: 10%;">Qty</th>
+                                <th style="width: 15%;">Rate</th>
+                                <th style="width: 10%;">GST%</th>
+                                <th style="width: 15%;">Amount</th>
+                                <th style="width: 5%;" class="no-print"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemRows}
+                        </tbody>
+                    </table>
+                    
+                    <div class="invoice-footer">
+                        <div>
+                            </div>
+                        <table class="totals-table">
+                            <tbody>
+                                <tr><td>Subtotal:</td><td style="text-align: right;">${formatCurrency(subTotal)}</td></tr>
+                                <tr><td>CGST:</td><td style="text-align: right;">${formatCurrency(cgst)}</td></tr>
+                                <tr><td>SGST:</td><td style="text-align: right;">${formatCurrency(sgst)}</td></tr>
+                                <tr style="font-weight: bold; font-size: 1.2em; border-top: 2px solid #333;">
+                                    <td>Grand Total:</td>
+                                    <td style="text-align: right;">${formatCurrency(invoice.total_amount)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // 🚀🚀🚀 यह रहा फिक्स 🚀🚀🚀
+            // 6. एक क्लीनअप फ़ंक्शन बनाएँ
+            function cleanupPrint() {
+                if (printArea) {
+                    printArea.remove(); // अस्थायी div को हटा दें
+                }
+                window.onafterprint = null; // इवेंट लिस्नर को हटा दें
+            }
+            
+            // 7. 'afterprint' (प्रिंट करने के बाद) इवेंट पर क्लीनअप फ़ंक्शन सेट करें
+            window.onafterprint = cleanupPrint;
+            
+            // 8. प्रिंट करें
+            window.print();
+            // 🚀🚀🚀 फिक्स समाप्त 🚀🚀🚀
+
+        } catch (e) {
+            showMessage('त्रुटि', `इनवॉइस प्रिंट करने में विफल: ${e.message}`, 'danger');
+            // 🚀 अगर एरर आए तो भी क्लीनअप करें
+            if (printArea) {
+                printArea.remove();
+            }
+        } finally {
+            hideLoader();
+        }
+    }
+    
     async function renderDashboard() {
         // --- 1. Get Summary Cards Data ---
         try {
@@ -2919,12 +3501,43 @@ async function fetchAndRenderStockList() {
                     data.phone = document.getElementById('customer-phone').value;
                     data.email = document.getElementById('customer-email').value;
                     data.address = document.getElementById('customer-address').value;
-                    data.gstin = document.getElementById('customer-gstin').value; // NEW
+                    data.gstin = document.getElementById('customer-gstin').value;
+                    
+                    // 🚀 यह नई लाइन यहाँ जोड़ें
+                    data.balance = document.getElementById('customer-balance').value || 0;
+
                 } else if (formId === 'add-purchase-form') {
-                    // This form needs modification to handle multiple items
+               // ... (लाइन 1944 के आसपास)
+            } else if (formId === 'add-purchase-form') {
+                    // 🚀 नया GST-सक्षम लॉजिक
                     data.supplier_name = document.getElementById('purchase-supplier').value;
-                    data.item_details = `Bill No: ${document.getElementById('purchase-bill-number').value}`;
                     data.total_cost = document.getElementById('purchase-total-cost').value;
+                    data.date = document.getElementById('purchase-date').value;
+                    
+                    // GSTR-2 के लिए gst_details JSON बनाएँ 
+                    data.gst_details = {
+                        invoice_number: document.getElementById('purchase-bill-number').value,
+                        taxable_value: parseFloat(document.getElementById('purchase-taxable-value').value) || 0,
+                        cgst: parseFloat(document.getElementById('purchase-cgst').value) || 0,
+                        sgst: parseFloat(document.getElementById('purchase-sgst').value) || 0,
+                        igst: parseFloat(document.getElementById('purchase-igst').value) || 0
+                    };
+                    
+                    // 'item_details' को बिल नंबर से भरें
+                    data.item_details = `Bill No: ${data.gst_details.invoice_number}`;
+                    
+                    // यह सुनिश्चित करें कि 'total_cost' GST के साथ मैच हो
+                    const calculatedTotal = data.gst_details.taxable_value + data.gst_details.cgst + data.gst_details.sgst + data.gst_details.igst;
+                    if (calculatedTotal > 0 && Math.abs(calculatedTotal - data.total_cost) > 0.1) {
+                         // चेतावनी दें अगर 'कुल राशि' और GST का जोड़ मैच नहीं होता
+                         if(!confirm(`चेतावनी: आपकी 'कुल बिल राशि' (${formatCurrency(data.total_cost)}) और GST का जोड़ (${formatCurrency(calculatedTotal)}) मैच नहीं हो रहा है। क्या आप फिर भी जारी रखना चाहते हैं?`)) {
+                             btn.disabled = false;
+                             btn.innerHTML = originalBtnText;
+                             return; // सबमिशन रोकें
+                         }
+                    }
+                    
+// ... (यह 'else if (formId === 'add-expense-form')' से पहले खत्म होना चाहिए)
                 } else if (formId === 'add-expense-form') {
                     data.description = document.getElementById('expense-description').value;
                     data.category = document.getElementById('expense-category').value;
@@ -3090,6 +3703,64 @@ async function handleAddStaff(event) {
     }
 }
 
+
+
+/**
+ * एक साधारण CSV टेक्स्ट को JSON ऑब्जेक्ट ऐरे में पार्स करता है
+ */
+ function parseCSV(csvText) {
+    const lines = csvText.split('\n');
+    if (lines.length === 0) return [];
+    
+    // हेडर (Date, Description, Debit, Credit) का पता लगाएँ
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    
+    // कॉलम इंडेक्स ढूँढें
+    const dateIdx = headers.findIndex(h => h.includes('date'));
+    const descIdx = headers.findIndex(h => h.includes('description') || h.includes('narration'));
+    const debitIdx = headers.findIndex(h => h.includes('debit') || h.includes('withdrawal'));
+    const creditIdx = headers.findIndex(h => h.includes('credit') || h.includes('deposit'));
+
+    if (dateIdx === -1 || descIdx === -1 || debitIdx === -1 || creditIdx === -1) {
+        showMessage('CSV एरर', 'CSV में Date, Description, Debit/Withdrawal, या Credit/Deposit कॉलम नहीं मिले।', 'danger');
+        throw new Error('Invalid CSV headers');
+    }
+
+    const items = [];
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        
+        const values = line.split(',');
+        
+        const dateStr = values[dateIdx];
+        // तारीख को YYYY-MM-DD में बदलें (मान लें कि यह DD/MM/YYYY या MM/DD/YYYY है)
+        let dateObj;
+        if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            // मान लें कि यह MM/DD/YYYY है (इसे अपने बैंक के अनुसार बदलें)
+            // अगर DD/MM/YYYY है, तो new Date(parts[2], parts[1] - 1, parts[0]) का उपयोग करें
+            dateObj = new Date(parts[2], parts[0] - 1, parts[1]); 
+        } else {
+            dateObj = new Date(dateStr); // ISO 8601 (YYYY-MM-DD)
+        }
+        
+        const debitAmount = parseFloat(values[debitIdx].replace(/[^0-9.]/g, '')) || 0;
+        const creditAmount = parseFloat(values[creditIdx].replace(/[^0-9.]/g, '')) || 0;
+
+        items.push({
+            date: dateObj.toISOString().split('T')[0],
+            description: values[descIdx],
+            debit: debitAmount,
+            credit: creditAmount
+        });
+    }
+    return items;
+}
+
+
+
+
  // Handles the submission of the "Edit Staff" modal form
  async function handleUpdateStaff(event) {
     event.preventDefault(); // Prevent default form submission
@@ -3156,36 +3827,24 @@ async function handleDeleteStaff(staffId) {
 }
 
     // --- APPLICATION UNLOCK & INITIALIZATION ---
-    const unlockApplication = () => {
-        // Hide auth screen, show main app
-        document.getElementById('auth-container').classList.add('hidden');
+   // ... (unlockApplication फ़ंक्शन)
+   const unlockApplication = () => {
+        // 🚀 नया: नए लॉगिन पेज को छिपाएँ
+        const authContainerNew = document.getElementById('auth-container-new');
+        if (authContainerNew) authContainerNew.classList.add('hidden');
+        
+        // पुराना कोड (auth-container को छिपाने के लिए)
+        //document.getElementById('auth-container').classList.add('hidden');//
+        
+        // बाकी का आपका कोड...
         document.getElementById('sidebar').classList.remove('locked');
         document.getElementById('main-content').classList.remove('locked');
-        document.getElementById('menu-toggle').classList.remove('locked');
+        // ... (आदि) ...
         
-        // Apply Role-Based Access Control
         applyRBAC(AppState.user.role);
-
-        // Setup all forms
-        setupForm('add-stock-form', '/api/stock', () => {
-             fetchAndRenderStockList(); renderDashboard(); renderReports();
-        });
-        setupForm('add-customer-form', '/api/customers', () => {
-            fetchAndRenderCustomers(); renderDashboard();
-        });
-        setupForm('add-purchase-form', '/api/purchases', () => {
-             fetchAndRenderPurchases(); renderDashboard(); renderReports();
-        });
-        setupForm('add-expense-form', '/api/expenses', () => {
-             fetchAndRenderExpenses(); renderDashboard(); renderReports();
-        });
-        
-        // NEW: Setup new form handlers
-        setupNewFormHandlers();
-
-        // Load initial view
+        setupForm('add-stock-form', '/api/stock', () => { /* ... */ });
+        // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
         renderView('dashboard');
-    
     };
 
 
@@ -3212,19 +3871,27 @@ async function handleDeleteStaff(staffId) {
     
     // --- INVOICE GENERATOR FUNCTIONS ---
     function initializeQRUpload() {
-        const qrUpload = document.getElementById('qrUpload');
-        if (qrUpload && !qrUpload.dataset.initialized) {
-            qrUpload.dataset.initialized = 'true';
-            qrUpload.addEventListener('change', function(event) {
-                if (event.target.files && event.target.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = e => { qrCodeImage = e.target.result; updateInvoicePreview(); };
-                    reader.readAsDataURL(event.target.files[0]);
+        console.log("Initializing QR Upload...");
+        const qrUploadInput = document.getElementById('qrUpload'); //
+        if (qrUploadInput) {
+            qrUploadInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    qrCodeImage = '';
+                    updateInvoicePreview();
+                    return;
                 }
+                
+                // फ़ाइल को Base64 स्ट्रिंग में बदलें
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    qrCodeImage = event.target.result; // Base64 डेटा
+                    updateInvoicePreview(); // प्रीव्यू को QR कोड के साथ रीफ्रेश करें
+                };
+                reader.readAsDataURL(file);
             });
         }
     }
-
     // --- REPORT ACTION HANDLER ---
     function handleReportAction(reportType, action) {
         const reportCardId = reportType === 'profit_loss' ? 'pl-card' : 'bs-card';
@@ -3296,82 +3963,158 @@ async function handleDeleteStaff(staffId) {
 
 
     function addItem() {
-        const itemName = document.getElementById("itemName").value;
-        const quantity = parseFloat(document.getElementById("quantity").value) || 0;
-        const price = parseFloat(document.getElementById("price").value) || 0;
-        const gst = parseFloat(document.getElementById("gst").value) || 0;
+        const itemName = document.getElementById('itemName').value; //
+        const quantity = parseFloat(document.getElementById('quantity').value); //
+        const price = parseFloat(document.getElementById('price').value); //
+        const gst = parseFloat(document.getElementById('gst').value) || 0; //
 
-        if (!itemName || quantity <= 0 || price <= 0) {
-            return showMessage('त्रुटि', "कृपया वैध आइटम का नाम, मात्रा और दर दर्ज करें।", 'danger');
+        if (!itemName || !quantity || !price) {
+            showMessage('Error', 'Please fill Item Name, Quantity, and Rate.', 'danger');
+            return;
         }
 
-        const amount = price * quantity;
-        const gstAmount = amount * (gst / 100);
-        const total = amount + gstAmount;
-
-        items.push({ itemName, quantity, price, gst, amount, gstAmount, total });
+        items.push({ name: itemName, quantity: quantity, price: price, gst: gst });
         updateInvoicePreview();
-        document.getElementById("item-form").reset();
-        document.getElementById("itemName").focus();
+        
+        document.getElementById('item-form').reset(); //
+        document.getElementById('itemName').focus();
     }
 
     function deleteItem(index) {
-        items.splice(index, 1);
-        updateInvoicePreview();
+        if (confirm('Are you sure you want to delete this item?')) {
+            items.splice(index, 1);
+            updateInvoicePreview();
+        }
     }
 
     function updateInvoicePreview() {
-        const invoicePreview = document.getElementById('invoice-preview');
-        const shopName = document.getElementById('shopName').value || AppState.user?.shopName || 'Your Shop Name'; // NEW: Use saved name
-        const shopAddress = document.getElementById('shopAddress').value || 'Your Shop Address';
-        const shopContact = document.getElementById('shopContact').value || 'Contact: +91 00000 00000';
-        const shopGstin = document.getElementById('shopGstin').value || 'GSTIN: Not Available';
-        const customerName = document.getElementById('customerName').value || 'Walk-in Customer';
-        const customerAddress = document.getElementById('customerAddress').value || 'N/A';
-        const customerContact = document.getElementById('customerContact').value || '';
+        const shopName = document.getElementById('shopName').value || 'Shop Name';
+        const shopContact = document.getElementById('shopContact').value || 'Contact No.';
+        const shopAddress = document.getElementById('shopAddress').value || 'Shop Address';
+        const shopGstin = document.getElementById('shopGstin').value || '';
+        
+        const customerName = document.getElementById('customerName').value || 'Customer Name';
+        const customerContact = document.getElementById('customerContact').value || 'Contact No.';
+        const customerAddress = document.getElementById('customerAddress').value || 'Customer Address';
+        
+        const preview = document.getElementById('invoice-preview'); //
+        
+        let itemRows = '';
+        let totalAmount = 0;
+        let totalTax = 0;
+        let subTotal = 0;
+        
+        items.forEach((item, index) => {
+            const itemSubTotal = (item.price || 0) * (item.quantity || 0);
+            const itemGst = itemSubTotal * ((item.gst || 0) / 100);
+            const itemTotal = itemSubTotal + itemGst;
+            
+            subTotal += itemSubTotal;
+            totalTax += itemGst;
+            totalAmount += itemTotal;
+            
+            itemRows += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td style="text-align: left;">${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${item.gst}%</td>
+                    <td>${formatCurrency(itemSubTotal)}</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm py-0 px-1 no-print" onclick="deleteItem(${index})">&times;</button>
+                    </td>
+                </tr>
+            `;
+        });
 
-        let subTotal = 0, totalGst = 0;
-        items.forEach(item => { subTotal += item.amount; totalGst += item.gstAmount; });
-        const grandTotal = subTotal + totalGst;
+        const cgst = totalTax / 2;
+        const sgst = totalTax / 2;
+        
+        // 🚀 (फिक्स) QR कोड के लिए HTML
+        const qrHtml = qrCodeImage ? `
+            <div id="qr-preview" class="text-center">
+                <p class="small mb-1">Scan to Pay:</p>
+                <img src="${qrCodeImage}" alt="UPI QR Code" style="max-width: 100px; max-height: 100px; border: 1px solid #ccc; padding: 3px;">
+            </div>` : '';
 
-        const itemsHtml = items.map((item, index) => `
-            <tr>
-                <td>${index + 1}. ${item.itemName}</td>
-                <td>${item.quantity}</td>
-                <td>${formatCurrency(item.price)}</td>
-                <td>${item.gst}%</td>
-                <td>${formatCurrency(item.total)}</td>
-                <td class="no-print"><button class="btn btn-danger btn-sm" onclick="deleteItem(${index})">&times;</button></td>
-            </tr>`).join('');
-
-        invoicePreview.innerHTML = `
+        // पूरा इनवॉइस HTML
+        preview.innerHTML = `
             <div class="printable">
                 <div class="invoice-header">
                     <div class="shop-details">
                         <h3>${shopName}</h3>
-                        <p>${shopAddress}<br>${shopContact}<br>${shopGstin}</p>
+                        <p class="mb-0">${shopAddress}</p>
+                        <p class="mb-0">Ph: ${shopContact}</p>
+                        ${shopGstin ? `<p class="mb-0"><strong>GSTIN: ${shopGstin}</strong></p>` : ''}
                     </div>
-                    <div id="qr-preview" class="no-print">${qrCodeImage ? `<img src="${qrCodeImage}" alt="QR">` : ''}</div>
+                    <h2 style="color: #333; align-self: center;">INVOICE</h2>
                 </div>
-                <h4 class="text-center bg-light p-2 mb-3">TAX INVOICE</h4>
-                <div class="row customer-details">
-                    <div class="col-6"><strong>Bill To:</strong><br>${customerName}<br>${customerAddress}<br>${customerContact}</div>
-                    <div class="col-6 text-end"><strong>Invoice No:</strong> INV-${Date.now().toString().slice(-6)}<br><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN')}</div>
+                
+                <div class="customer-details row">
+                    <div class="col-8">
+                        <strong>Bill To:</strong>
+                        <p class="mb-0">${customerName}</p>
+                        <p class="mb-0">${customerAddress}</p>
+                        <p class="mb-0">Ph: ${customerContact}</p>
+                    </div>
+                    <div class="col-4 text-end">
+                        <p class="mb-0"><strong>Invoice No:</strong> INV-${Date.now().toString().slice(-6)}</p>
+                        <p class="mb-0"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                    </div>
                 </div>
-                <table class="table invoice-table">
-                    <thead><tr><th style="width:40%;">Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Total</th><th class="no-print"></th></tr></thead>
-                    <tbody>${itemsHtml || '<tr><td colspan="6" class="text-center">No items added.</td></tr>'}</tbody>
+
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="text-align: left;">Item</th>
+                            <th style="width: 10%;">Qty</th>
+                            <th style="width: 15%;">Rate</th>
+                            <th style="width: 10%;">GST%</th>
+                            <th style="width: 15%;">Amount</th>
+                            <th style="width: 5%;" class="no-print"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemRows || `<tr><td colspan="7" class="text-center text-muted p-4">No items added.</td></tr>`}
+                    </tbody>
                 </table>
+                
                 <div class="invoice-footer">
-                    <div class="terms"><strong>Terms:</strong><p>1. Goods once sold will not be taken back.<br>2. Thank you!</p></div>
+                    <div>
+                        ${qrHtml} <div class="terms mt-3">
+                            <strong>Terms & Conditions:</strong>
+                            <p class="mb-0">1. Goods once sold will not be taken back.</p>
+                            <p class="mb-0">2. All disputes are subject to jurisdiction.</p>
+                        </div>
+                    </div>
+                    
                     <table class="totals-table">
-                        <tr><td>Sub Total:</td><td class="text-end">${formatCurrency(subTotal)}</td></tr>
-                        <tr><td>Total GST:</td><td class="text-end">${formatCurrency(totalGst)}</td></tr>
-                        <tr><td><strong>Grand Total:</strong></td><td class="text-end"><strong>${formatCurrency(grandTotal)}</strong></td></tr>
+                        <tbody>
+                            <tr>
+                                <td>Subtotal:</td>
+                                <td style="text-align: right;">${formatCurrency(subTotal)}</td>
+                            </tr>
+                            <tr>
+                                <td>CGST:</td>
+                                <td style="text-align: right;">${formatCurrency(cgst)}</td>
+                            </tr>
+                            <tr>
+                                <td>SGST:</td>
+                                <td style="text-align: right;">${formatCurrency(sgst)}</td>
+                            </tr>
+                            <tr style="font-weight: bold; font-size: 1.2em; border-top: 2px solid #333;">
+                                <td>Grand Total:</td>
+                                <td style="text-align: right;">${formatCurrency(totalAmount)}</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
-            </div>`;
+            </div>
+        `;
     }
+
 
    function downloadInvoicePDF() {
         if (items.length === 0) {
@@ -3381,27 +4124,23 @@ async function handleDeleteStaff(staffId) {
     }
 
     function printInvoice() {
-        const invoiceElement = document.getElementById('invoice-preview').querySelector('.printable');
-        if (invoiceElement) {
-             document.querySelectorAll('.printable').forEach(el => el.classList.remove('printable'));
-             invoiceElement.classList.add('printable');
-             window.print();
-        }
+        window.print();
     }
 
     function clearBill() {
-        if (confirm("क्या आप सुनिश्चित हैं कि सब कुछ साफ़ करना चाहते हैं?")) {
-            items = []; qrCodeImage = '';
-            document.getElementById('shopName').value = '';
-            document.getElementById('shopAddress').value = '';
-            document.getElementById('shopContact').value = '';
-            document.getElementById('shopGstin').value = '';
+        if (confirm('Are you sure you want to clear the entire bill?')) {
+            items = [];
+            qrCodeImage = '';
+            document.getElementById('qrUpload').value = null;
             document.getElementById('customerName').value = '';
-            document.getElementById('customerAddress').value = '';
             document.getElementById('customerContact').value = '';
-            document.getElementById('qrUpload').value = '';
-            updateInvoicePreview();
-            showMessage('सफलता', 'बिल साफ़ कर दिया गया है।', 'success');
+            document.getElementById('customerAddress').value = '';
+            document.getElementById('item-form').reset();
+            
+            // शॉप की डिटेल्स को फिर से भरें (उन्हें क्लियर न करें)
+            fetchAndPopulateShopData(); 
+            
+            showMessage('Success', 'Bill cleared.', 'success');
         }
     }
    // ===================================
@@ -3422,10 +4161,15 @@ async function handleDeleteStaff(staffId) {
     }
     
     // NEW: Update Shop Name/Logo in UI
-    function updateShopDisplay(user) {
+   // NEW: Update Shop Name/Logo in UI
+  // NEW: Update Shop Name/Logo in UI
+  function updateShopDisplay(user) {
         if (!user) return;
         const shopName = user.shopName || 'Dukan Pro';
-        const shopLogo = user.shopLogo; // Base64 string
+        
+        // 🚀 FIX: पहले सर्वर से आया हुआ लोगो, अगर नहीं तो Local Storage से लें
+        const storedLogo = localStorage.getItem('shopLogoData');
+        const shopLogo = user.shopLogo || storedLogo; 
 
         document.getElementById('user-shop-name').innerText = shopName;
         document.getElementById('user-name-email').innerText = `${user.name} (${user.role})`;
@@ -3433,8 +4177,15 @@ async function handleDeleteStaff(staffId) {
         const logoContainer = document.getElementById('shop-logo-container');
         if (shopLogo) {
             logoContainer.innerHTML = `<img src="${shopLogo}" alt="Shop Logo" class="img-fluid rounded-circle" style="max-height: 100px; border: 3px solid #fff;">`;
+            
+            // यह सुनिश्चित करें कि UI के अन्य भाग भी अपडेट हो जाएँ
+            document.getElementById('remove-shop-logo-btn').classList.remove('d-none');
+            document.getElementById('shop-logo-preview').src = shopLogo; 
+            document.getElementById('shop-logo-preview').style.display = 'block';
         } else {
             logoContainer.innerHTML = '';
+            document.getElementById('remove-shop-logo-btn').classList.add('d-none');
+            document.getElementById('shop-logo-preview').style.display = 'none';
         }
     }
 
@@ -3442,14 +4193,17 @@ async function handleDeleteStaff(staffId) {
     /**
      * Clears auth data and reloads the page to show login screen
      */
-    function logout() {
+     function logout() {
         AppState.token = null;
         AppState.user = null;
         localStorage.removeItem('authToken');
         localStorage.removeItem('authUser');
-        if(AppState.licenseTimerId) clearInterval(AppState.licenseTimerId); // Stop timer
-        // Reload the page to go back to the login screen
-        window.location.reload();
+        if(AppState.licenseTimerId) clearInterval(AppState.licenseTimerId);
+        window.location.reload(); 
+        
+        // 🚀 नया: रीलोड करने से पहले लॉगिन पेज दिखाएँ (वैकल्पिक, लेकिन स्मूथ)
+        const authContainerNew = document.getElementById('auth-container-new');
+        if (authContainerNew) authContainerNew.classList.remove('hidden');
     }
     
     // NEW: License Timer and Renewal Warning
@@ -3566,6 +4320,8 @@ async function handleDeleteStaff(staffId) {
                 document.getElementById('company-legal-name').value = profileRes.profile.legal_name || '';
                 document.getElementById('company-gstin').value = profileRes.profile.gstin || '';
                 document.getElementById('company-address').value = profileRes.profile.address || '';
+                // 🚀 FIX: पूंजी लोड करने के लिए यह लाइन जोड़ी
+                document.getElementById('company-opening-capital').value = profileRes.profile.opening_capital || '0'; 
             }
             
             // Fetch display settings (from user object)
@@ -3625,6 +4381,20 @@ async function handleDeleteStaff(staffId) {
             window.open(url, '_blank');
         }
     }
+
+
+    // अपने अन्य JavaScript फंक्शन्स के साथ इसे जोड़ें
+function removeShopLogo() {
+    // 1. ग्लोबल वेरिएबल को रीसेट करें
+    shopLogoBase64 = null; 
+    // 2. HTML साफ़ करें
+    document.getElementById('shop-logo-preview').src = '';
+    document.getElementById('shop-logo-preview').style.display = 'none';
+    document.getElementById('shop-logo-upload').value = null; // फ़ाइल इनपुट साफ़ करें
+    document.getElementById('remove-shop-logo-btn').classList.add('d-none');
+    
+    showMessage('सावधान', 'लोगो हटाने के लिए "डिस्प्ले सेव करें" पर क्लिक करें।', 'warning');
+}
     
     // NEW: Setup listeners for all new forms and buttons
     function setupNewFormHandlers() {
@@ -4015,6 +4785,8 @@ async function handleDeleteStaff(staffId) {
                 legal_name: document.getElementById('company-legal-name').value,
                 gstin: document.getElementById('company-gstin').value,
                 address: document.getElementById('company-address').value,
+                // 🚀 FIX: पूंजी डेटा यहाँ जोड़ा गया
+                opening_capital: document.getElementById('company-opening-capital').value 
             };
             try {
                 const res = await fetchApi('/api/shop/company-profile', { method: 'POST', body: data });
@@ -4031,27 +4803,51 @@ async function handleDeleteStaff(staffId) {
                  shopLogoBase64 = event.target.result;
                  document.getElementById('shop-logo-preview').src = shopLogoBase64;
                  document.getElementById('shop-logo-preview').style.display = 'block';
+                 document.getElementById('remove-shop-logo-btn').classList.remove('d-none');
              };
              reader.readAsDataURL(file);
         });
         
-        document.getElementById('shop-display-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = {
-                shop_name: document.getElementById('shop-display-name').value,
-                shop_logo: shopLogoBase64 || AppState.user.shopLogo // Send new logo or old one
-            };
-            try {
-                const res = await fetchApi('/api/shop/settings', { method: 'POST', body: data });
-                if (res.success) {
-                    // CRITICAL: Update token and user data with new shop name/logo
-                    saveAuthData(res.token, res.user);
-                    showMessage('सफलता', res.message, 'success');
+       // ... (बाकी कोड)
+  // ... (लाइन 2244 के आसपास)
+
+  document.getElementById('shop-display-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            shop_name: document.getElementById('shop-display-name').value,
+            shop_logo: shopLogoBase64 || AppState.user.shopLogo // Send new logo or old one
+        };
+        try {
+            const res = await fetchApi('/api/shop/settings', { method: 'POST', body: data });
+            if (res.success) {
+                // CRITICAL: Update token and user data with new shop name/logo
+                saveAuthData(res.token, res.user);
+                
+                // 🚀 FIX: इमेज को Local Storage में भी सेव करें (सफलता पर)
+                if (res.user.shopLogo) {
+                    localStorage.setItem('shopLogoData', res.user.shopLogo);
+                } else {
+                    localStorage.removeItem('shopLogoData');
+                }
+                
+                showMessage('सफलता', res.message, 'success');
+            } else {
+                // 🚀 FIX: यदि सर्वर 500 एरर दे, तो भी लोकल स्टोरेज में सेव करें (FallBack)
+                if (shopLogoBase64) {
+                     localStorage.setItem('shopLogoData', shopLogoBase64);
+                     // Note: We don't call saveAuthData because the server update failed
+                     showMessage('चेतावनी', 'सर्वर टाइमआउट हुआ। लोगो लोकल (Local) में सेव हो गया है, लेकिन अन्य यूज़र्स को देखने के लिए यह अभी भी डेटाबेस में सेव हो रहा है।', 'warning');
                 } else {
                     throw new Error(res.message);
                 }
-            } catch (err) { showMessage('त्रुटि', err.message, 'danger'); }
-        });
+            }
+        } catch (err) { 
+             // यदि Fetch API ही विफल हो जाता है
+             showMessage('त्रुटि', err.message, 'danger');
+        }
+    });
+
+// ... (बाकी कोड)
 
 // Staff Form Listeners
 const addStaffForm = document.getElementById('add-staff-form');
@@ -4067,8 +4863,257 @@ const addStaffForm = document.getElementById('add-staff-form');
 
     }
 
+// 🚀🚀🚀 बैंक रिकॉन्सिलेशन लिस्नर यहाँ जोड़ें 🚀🚀🚀
+document.getElementById('reconciliation-start-form').addEventListener('submit', handleStatementUpload);
+        document.getElementById('save-reconciliation-btn').addEventListener('click', saveReconciliationReport);
+        document.getElementById('cancel-reconciliation-btn').addEventListener('click', () => {
+            if(confirm('क्या आप वाकई रिकॉन्सिलेशन रद्द करना चाहते हैं?')) {
+                renderView('bank-reconciliation'); // पेज को रीसेट करें
+            }
+        });
+        // 🚀🚀🚀 कोड यहाँ समाप्त होता है 🚀🚀🚀
 
+
+
+// ==============================================
+// 🚀 बैंक रिकॉन्सिलेशन लॉजिक फ़ंक्शंस
+// ==============================================
+
+/**
+ * चरण 1: बैंक स्टेटमेंट CSV को अपलोड और पार्स करता है
+ */
+/**
+ * चरण 1: बैंक स्टेटमेंट CSV को अपलोड और पार्स करता है
+ */
+ async function handleStatementUpload(event) {
+    event.preventDefault();
+    const btn = document.getElementById('start-reconciliation-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> अपलोड हो रहा है...';
+
+    // 1. फॉर्म डेटा इकट्ठा करें
+    const statementFile = document.getElementById('recon-statement-csv').files[0];
+    const statementDate = document.getElementById('recon-statement-date').value;
+    const statementBalance = parseFloat(document.getElementById('recon-statement-balance').value);
+
+    if (!statementFile) {
+        showMessage('त्रुटि', 'कृपया एक CSV फ़ाइल चुनें।', 'danger');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-play me-2"></i> रिकॉन्सिलेशन शुरू करें';
+        return;
+    }
+
+    try {
+        // 2. CSV फ़ाइल को टेक्स्ट के रूप में पढ़ें
+        const csvText = await statementFile.text();
+        
+        // 3. टेक्स्ट को JSON में पार्स करें
+        const statementItems = parseCSV(csvText);
+
+        if (!statementItems || statementItems.length === 0) {
+            throw new Error('CSV खाली है या पार्स नहीं किया जा सका।');
+        }
+
+        // 4. डेटा को नए API एंडपॉइंट पर भेजें
+        const res = await fetchApi('/api/reconciliation/upload-statement', {
+            method: 'POST',
+            body: {
+                statementDate,
+                statementBalance,
+                statementItems
+            }
+        }, 'ट्रांजैक्शन का मिलान किया जा रहा है...');
+
+        if (res.success) {
+            // 5. UI को "मैचिंग" मोड में बदलें
+            document.getElementById('reconciliation-setup').classList.add('hidden');
+            document.getElementById('reconciliation-matching-area').classList.remove('hidden');
+            
+            // 6. मैचिंग टेबल रेंडर करें
+            renderReconciliationTables(res.bookItems, res.bankItems, statementBalance);
+            showMessage('सफलता', 'स्टेटमेंट अपलोड हुआ। अब एंट्रीज़ का मिलान करें।', 'success');
+        } else {
+            throw new Error(res.message);
+        }
+
+    } catch (e) {
+        showMessage('त्रुटि', `अपलोड विफल: ${e.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play me-2"></i> रिकॉन्सिलेशन शुरू करें';
+    }
+}
+
+
+ /**
+ * चरण 2: बुक और बैंक ट्रांजैक्शन को लाता है और टेबल में दिखाता है
+ * (इवेंट लिस्नर के साथ फिक्स्ड)
+ */
+function renderReconciliationTables(bookItems, bankItems, statementBalance) {
+    const bookBody = document.getElementById('book-transactions-body');  
+    const bankBody = document.getElementById('bank-transactions-body'); 
+    bookBody.innerHTML = '';
+    bankBody.innerHTML = '';
+
+    let bookTotal = 0;
+    let bankTotal = 0;
+
+    // Dukan Pro (बुक) आइटम्स को भरें
+    bookItems.forEach(item => {
+        bookTotal += parseFloat(item.amount);
+        bookBody.innerHTML += `
+            <tr data-id="${item.type}-${item.id}" data-amount="${item.amount}">
+                <td><input type="checkbox" class="recon-check-book"></td>
+                <td>
+                    ${item.description}
+                    <small class="d-block text-muted">${new Date(item.date).toLocaleDateString()}</small>
+                </td>
+                <td>${formatCurrency(item.amount)}</td>
+            </tr>
+        `;
+    });
+
+    // बैंक स्टेटमेंट आइटम्स को भरें
+    bankItems.forEach(item => {
+        bankTotal += parseFloat(item.amount);
+        bankBody.innerHTML += `
+            <tr data-id="${item.id}" data-amount="${item.amount}">
+                <td><input type="checkbox" class="recon-check-bank"></td>
+                <td>
+                    ${item.description}
+                    <small class="d-block text-muted">${new Date(item.date).toLocaleDateString()}</small>
+                </td>
+                <td>${formatCurrency(item.amount)}</td>
+            </tr>
+        `;
+    });
+
+    // टोटल्स दिखाएँ
+    document.getElementById('book-total').innerText = formatCurrency(bookTotal);  
+    document.getElementById('bank-total').innerText = formatCurrency(bankTotal);  
     
+    // रिपोर्ट में स्टेटमेंट बैलेंस सेट करें
+    document.getElementById('report-statement-balance').innerText = formatCurrency(statementBalance);  
+    
+    // 🚀🚀🚀 यह नया कोड है (फ़ंक्शन के अंदर) 🚀🚀🚀
+    // सभी चेकबॉक्स में 'change' इवेंट लिस्नर जोड़ें
+    const allCheckboxes = document.querySelectorAll('.recon-check-book, .recon-check-bank, #check-all-book, #check-all-bank'); 
+    allCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            // 'Select All' लॉजिक
+            if (cb.id === 'check-all-book') {  
+                document.querySelectorAll('.recon-check-book').forEach(bookCb => bookCb.checked = cb.checked);  
+            }
+            if (cb.id === 'check-all-bank') {  
+                document.querySelectorAll('.recon-check-bank').forEach(bankCb => bankCb.checked = cb.checked);  
+            }
+            
+            // मुख्य गणना फ़ंक्शन को कॉल करें
+            calculateReconciliation();
+        });
+    });
+    
+    // पहली बार गणना (Calculate) चलाएँ
+    calculateReconciliation();
+    // 🚀🚀🚀 नया कोड समाप्त 🚀🚀🚀
+}
+/**
+ * चरण 3: मिलान की गई एंट्रीज़ और रिपोर्ट को सेव करता है
+ */
+/**
+ * चरण 3: मिलान की गई एंट्रीज़ और रिपोर्ट को सेव करता है
+ */
+ async function saveReconciliationReport() {
+    const btn = document.getElementById('save-reconciliation-btn');  
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> सेव हो रहा है...';
+
+    try {
+        // 1. चेक्ड (matched) बैंक IDs इकट्ठा करें
+        const reconciledBankIds = [];
+        document.querySelectorAll('.recon-check-bank:checked').forEach(cb => {  
+            reconciledBankIds.push(cb.closest('tr').dataset.id);
+        });
+
+        // 2. चेक्ड (matched) बुक Items इकट्ठा करें
+        const reconciledBookItems = [];
+        document.querySelectorAll('.recon-check-book:checked').forEach(cb => {  
+            const idParts = cb.closest('tr').dataset.id.split('-'); // जैसे "invoice-123"
+            reconciledBookItems.push({
+                type: idParts[0],
+                id: parseInt(idParts[1])
+            });
+        });
+        
+        // 3. रिपोर्ट का सारांश (Summary) इकट्ठा करें 
+        const unclearedPaymentsAmount = parseFloat(document.getElementById('report-uncleared-payments').innerText.replace(/[^0-9.-]/g, '')); 
+        const unclearedDepositsAmount = parseFloat(document.getElementById('report-uncleared-deposits').innerText.replace(/[^0-9.-]/g, '')); 
+        
+        const reportData = {
+             clearedPayments: 0, // (यह अभी ट्रैक नहीं किया गया है, 0 भेजें)
+             clearedDeposits: 0, // (यह अभी ट्रैक नहीं किया गया है, 0 भेजें)
+             unclearedCount: document.querySelectorAll('.recon-check-book:not(:checked)').length,  
+             unclearedTotal: unclearedPaymentsAmount + unclearedDepositsAmount
+        };
+
+        // 4. मुख्य डेटा इकट्ठा करें
+        const dataToSend = {
+            statementEndDate: document.getElementById('recon-statement-date').value,  
+            statementEndBalance: parseFloat(document.getElementById('report-statement-balance').innerText.replace(/[^0-9.-]/g, '')),  
+            reportSummary: reportData,
+            reconciledBankIds: reconciledBankIds,
+            reconciledBookItems: reconciledBookItems
+        };
+
+        // 5. सर्वर पर भेजें
+        const res = await fetchApi('/api/reconciliation/save', {
+            method: 'POST',
+            body: dataToSend
+        }, 'रिपोर्ट सेव की जा रही है...');
+
+        if (res.success) {
+            showMessage('सफलता', 'रिकॉन्सिलेशन रिपोर्ट सफलतापूर्वक सेव की गई!', 'success');
+            renderView('bank-reconciliation'); // सब कुछ रीसेट करें
+        } else {
+            throw new Error(res.message);
+        }
+
+    } catch (e) {
+        showMessage('त्रुटि', `रिपोर्ट सेव करने में विफल: ${e.message}`, 'danger');
+        btn.disabled = false; // बटन को फिर से इनेबल करें
+        btn.innerHTML = '<i class="fas fa-save me-2"></i> रिपोर्ट सेव करें';
+    }
+}
+
+
+    /**
+ * चरण 4: पिछली सेव की गई रिपोर्ट्स को लाता है और टेबल में दिखाता है
+ */
+async function fetchAndRenderSavedReports() {
+    const tableBody = document.getElementById('previous-reports-body');
+    tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">रिपोर्ट्स लोड हो रही हैं...</td></tr>`;
+
+    try {
+        const res = await fetchApi('/api/reconciliation/reports', { method: 'GET' }, null); // लोडर नहीं दिखाएँ
+
+        if (res.success && res.reports.length > 0) {
+            tableBody.innerHTML = res.reports.map(report => `
+                <tr>
+                    <td>REP-${report.id}</td>
+                    <td>${new Date(report.statement_end_date).toLocaleDateString()}</td>
+                    <td>${formatCurrency(report.statement_end_balance)}</td>
+                    <td class="${parseFloat(report.uncleared_items_total) !== 0 ? 'text-danger' : ''}">
+                        ${formatCurrency(report.uncleared_items_total)}
+                    </td>
+                    <td>${new Date(report.reconciled_at).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        } else {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">कोई पुरानी रिपोर्ट नहीं मिली।</td></tr>`;
+        }
+    } catch (e) {
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+    }
+}
     /**
      * Main startup logic
      */
@@ -4079,91 +5124,71 @@ const addStaffForm = document.getElementById('add-staff-form');
 /**
  * Main startup logic - MODIFIED
  */
- document.addEventListener('DOMContentLoaded', () => {
-    const licenseModalEl = document.getElementById('licenseModal');
-    const licenseModal = new bootstrap.Modal(licenseModalEl);
+// [ यह रहा नया और सही DOMContentLoaded - पुराने वाले को हटाकर इसे पेस्ट करें ]
+// [ यह रहा नया और सही DOMContentLoaded - पुराने वाले को हटाकर इसे पेस्ट करें ]
+// [ यह रहा नया और सही DOMContentLoaded - पुराने वाले को हटाकर इसे पेस्ट करें ]
+document.addEventListener('DOMContentLoaded', () => {
+    const licenseModalEl = document.getElementById('licenseModal');  
+    const licenseModal = new bootstrap.Modal(licenseModalEl);
+    
+    // 🚀 फिक्स: सिर्फ नए लॉगिन कंटेनर को पकड़ें
+    const newLoginContainer = document.getElementById('auth-container-new'); 
+    
+    // 🚀 फिक्स: पुराना कंटेनर अब मौजूद नहीं है, उसे हटा दें
+    // const oldLoginContainer = document.getElementById('auth-container'); 
 
-    const token = localStorage.getItem('authToken');
-    const user = JSON.parse(localStorage.getItem('authUser'));
-
-    if (token && user) {
-        console.log("टोकन मिला, लॉगिन स्थिति की जाँच की जा रही है...");
-        saveAuthData(token, user);
-        startLicenseTimer(user.licenseExpiryDate); // Start timer regardless
-
-        const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
-        const now = new Date();
-
-        // --- MODIFIED LICENSE CHECK ---
-        if (!expiryDate || expiryDate < now) {
-            // License is expired or missing - SHOW MODAL, KEEP APP LOCKED
-            console.log("लाइसेंस समाप्त या गुम है। सक्रियण की आवश्यकता है।");
-            showMessage('लाइसेंस आवश्यक', 'आपका खाता सक्रिय है, लेकिन लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया लाइसेंस कुंजी दर्ज करें।', 'warning');
-
-            // Unlock essential parts ONLY (sidebar for logout/timer, menu toggle)
-            document.getElementById('auth-container').classList.add('hidden');
-            document.getElementById('sidebar').classList.remove('locked');
-            document.getElementById('menu-toggle').classList.remove('locked');
-            document.getElementById('main-content').classList.add('locked'); // <<< KEEP MAIN CONTENT LOCKED
-            applyRBAC(user.role); // Apply RBAC for sidebar elements that should be visible
-            licenseModal.show(); // Show license modal
-
-        } else {
-            // Token and License are valid - UNLOCK FULLY
-            console.log("टोकन और लाइसेंस मान्य हैं। ऐप अनलॉक हो रहा है।");
-            unlockApplication(); // Unlock everything including main content
-        }
-        // --- END MODIFIED LICENSE CHECK ---
-
-    } else {
-        // No token found. Show login screen.
-        console.log("कोई टोकन नहीं मिला। लॉगिन स्क्रीन दिखा रहा है।");
-        document.getElementById('auth-container').classList.remove('hidden');
-        // Keep app parts locked (already default)
-        document.getElementById('sidebar').classList.add('locked');
-        document.getElementById('main-content').classList.add('locked');
-        document.getElementById('menu-toggle').classList.add('locked');
-    }
-
-    // --- NEW: postMessage Listener for Mobile Scanner ---
-    window.addEventListener('message', function(event) {
-        // केवल उसी origin से आने वाले मैसेज को स्वीकार करें (सुरक्षा)
-        // यदि आप दो अलग-अलग डोमेन का उपयोग करते हैं, तो origin को हटाना पड़ सकता है, 
-        // लेकिन यह सुरक्षा के लिए बेहतर है कि origin चेक किया जाए।
-        if (event.origin !== window.location.origin) return; 
-
-       // [ इसे इससे बदलें ]
-if (event.data) {
     const token = localStorage.getItem('authToken');
-    // --- FIX START ---
-    const user = AppState.user || JSON.parse(localStorage.getItem('authUser'));
-    const shopId = user ? user.shopId : null; // <-- ✅ यह सही तरीका है
-    // --- FIX END ---
-    const backendUrl = __backend_url;
+    const user = JSON.parse(localStorage.getItem('authUser'));
 
-            // 1. Token Request (मोबाइल स्कैनर टोकन मांग रहा है)
-            if (event.data.type === 'REQUEST_AUTH' && token) {
-                // टोकन को स्कैनर विंडो पर वापस भेजें
-                if (window.scannerWindow && !window.scannerWindow.closed) {
-                    window.scannerWindow.postMessage({
-                        type: 'AUTH_TOKEN',
-                        token: token,
-                        shopId: shopId,
-                        backendUrl: backendUrl
-                    }, window.location.origin);
-                }
-            }
+    if (token && user) {
+        console.log("टोकन मिला, लॉगिन स्थिति की जाँच की जा रही है...");
+        saveAuthData(token, user);
+        startLicenseTimer(user.licenseExpiryDate);
 
-            // 2. Scanned SKU (मोबाइल स्कैनर ने SKU भेजा है)
-            if (event.data.type === 'SCANNED_SKU' && event.data.sku) {
-                processScannedSku(event.data.sku); // SKU को प्रोसेस करें
-            }
+        const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
+        const now = new Date();
+
+        if (!expiryDate || expiryDate < now) {
+            // --- 🚀 केस 1: लाइसेंस एक्सपायर है ---
+            console.log("लाइसेंस समाप्त या गुम है। सक्रियण की आवश्यकता है।");
+            showMessage('लाइसेंस आवश्यक', 'आपका लाइसेंस समाप्त हो गया है। कृपया सक्रिय करें।', 'warning');
+
+            // 🚀 फिक्स: नया लॉगिन पेज (बैकग्राउंड के लिए) दिखाएँ
+            if (newLoginContainer) newLoginContainer.classList.remove('hidden');
+
+            // ऐप के हिस्से (जैसे साइडबार) अनलॉक करें
+            document.getElementById('sidebar').classList.remove('locked');
+            document.getElementById('menu-toggle').classList.remove('locked');
+            document.getElementById('main-content').classList.add('locked'); // मुख्य कंटेंट लॉक रखें
+            applyRBAC(user.role);
+            licenseModal.show(); // लाइसेंस Modal को बैकग्राउंड के ऊपर दिखाएँ
+
+        } else {
+            // --- 🚀 केस 2: सब कुछ सही है (टोकन और लाइसेंस) ---
+            console.log("टोकन और लाइसेंस मान्य हैं। ऐप अनलॉक हो रहा है।");
+            
+            // 🚀 फिक्स: नया लॉगिन पेज छिपाएँ
+            if (newLoginContainer) newLoginContainer.classList.add('hidden');
+            
+            unlockApplication(); // ऐप को पूरी तरह अनलॉक करें
         }
-    });
-    // --- END NEW POSTMESSAGE LOGIC ---
 
-});
-    // --- Login Form Handler - MODIFIED ---
+    } else {
+        // --- 🚀 केस 3: कोई टोकन नहीं मिला (लॉगआउट है) ---
+        console.log("कोई टोकन नहीं मिला। लॉगिन स्क्रीन दिखा रहा है।");
+        
+        // 🚀 फिक्स: सिर्फ नया लॉगिन पेज दिखाएँ
+        if (newLoginContainer) newLoginContainer.classList.remove('hidden');
+
+        // ऐप के बाकी हिस्सों को लॉक रखें
+        document.getElementById('sidebar').classList.add('locked');
+        document.getElementById('main-content').classList.add('locked');
+        document.getElementById('menu-toggle').classList.add('locked');
+    }
+
+    // --- बाकी के सभी लिस्नर (Event Listeners) ---
+    
+    // Login Form
     document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('login-email').value;
@@ -4175,36 +5200,29 @@ if (event.data) {
 
         try {
             const res = await fetch(__backend_url + '/api/login', {
-    method: 'POST', // <<< यह POST बताता है
-    headers: { 'Content-Type': 'application/json' }, // <<< यह बताता है कि JSON भेज रहे हैं
-    body: JSON.stringify({ email, password }) // <<< यह ईमेल और पासवर्ड भेजता है
-});
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
             const data = await res.json();
-
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'लॉगिन विफल');
-            }
+            if (!res.ok || !data.success) { throw new Error(data.message || 'लॉगिन विफल'); }
 
             msgEl.innerText = 'सफलता! लोड हो रहा है...';
             saveAuthData(data.token, data.user);
             startLicenseTimer(data.user.licenseExpiryDate);
 
-            // --- MODIFIED LICENSE CHECK ON LOGIN ---
             if (data.requiresLicense) {
-                // License is expired - SHOW MODAL, KEEP APP LOCKED
+                // 🚀 फिक्स: लाइसेंस एक्सपायर होने पर सिर्फ Modal दिखाएँ (बैकग्राउंड पहले से ही दिख रहा है)
                 showMessage('लाइसेंस आवश्यक', data.message, 'warning');
-                document.getElementById('auth-container').classList.add('hidden');
+                if (newLoginContainer) newLoginContainer.classList.remove('hidden'); // सुनिश्चित करें कि बैकग्राउंड दिखे
                 document.getElementById('sidebar').classList.remove('locked');
                 document.getElementById('menu-toggle').classList.remove('locked');
-                document.getElementById('main-content').classList.add('locked'); // <<< KEEP LOCKED
+                document.getElementById('main-content').classList.add('locked');
                 applyRBAC(data.user.role);
                 licenseModal.show();
             } else {
-                // All good - UNLOCK FULLY
-                unlockApplication();
+                unlockApplication(); // सब सही है, ऐप अनलॉक करें
             }
-            // --- END MODIFIED LICENSE CHECK ON LOGIN ---
-
         } catch (error) {
             msgEl.innerText = error.message;
         } finally {
@@ -4213,7 +5231,137 @@ if (event.data) {
         }
     });
 
-    // --- Registration Form Handler - MODIFIED ---
+    // Registration Form
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const shopName = document.getElementById('register-shop-name').value;
+        const name = document.getElementById('register-name').value;
+        const email = document.getElementById('register-email').value;
+        const mobile = document.getElementById('register-mobile').value;
+        const password = document.getElementById('register-password').value;
+        const msgEl = document.getElementById('register-message');
+        const btn = document.getElementById('register-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> रजिस्टर हो रहा है...`;
+
+        try {
+            const res = await fetch(__backend_url + '/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shopName, name, email, mobile, password })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) { throw new Error(data.message || 'रजिस्ट्रेशन विफल'); }
+
+            msgEl.innerText = 'सफलता! ऐप लोड हो रहा है...';
+            saveAuthData(data.token, data.user);
+            startLicenseTimer(data.user.licenseExpiryDate);
+            showMessage('सफलता!', 'आपका अकाउंट बन गया है। कृपया अपना लाइसेंस सक्रिय करें।', 'success');
+            
+            // 🚀 फिक्स: रजिस्टर करने के बाद भी नया लॉगिन बैकग्राउंड दिखाएँ
+            if (newLoginContainer) newLoginContainer.classList.remove('hidden');
+            document.getElementById('sidebar').classList.remove('locked');
+            document.getElementById('menu-toggle').classList.remove('locked');
+            document.getElementById('main-content').classList.add('locked');
+            applyRBAC(data.user.role);
+            licenseModal.show();
+
+        } catch (error) {
+            msgEl.innerText = error.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'अकाउंट बनाएं';
+        }
+    });
+
+    // License Activation Form
+    document.getElementById('license-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const key = document.getElementById("license-key-input").value.trim();
+        const messageEl = document.getElementById("license-message");
+        messageEl.innerText = 'सत्यापित किया जा रहा है...';
+
+        try {
+           const res = await fetchApi('/api/activate-license', {
+                method: 'POST',
+                body: { licenseKey: key }
+           }, 'लाइसेंस सक्रिय किया जा रहा है...');
+            
+            if (res.success) {
+                saveAuthData(res.token, res.user);
+                startLicenseTimer(res.user.licenseExpiryDate);
+                licenseModal.hide();
+                showMessage('सफलता', res.message, 'success');
+                unlockApplication(); // <<< अब ऐप को अनलॉक करें
+            } else {
+                throw new Error(res.message || 'अमान्य या समाप्त लाइसेंस।');
+            }
+        } catch (err) {
+            messageEl.innerText = '❌ ' + err.message;
+        }
+    });
+    
+    // --- बाकी के सभी लिस्नर ---
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            renderView(link.getAttribute('data-view'));
+            if (window.innerWidth < 992) document.getElementById('sidebar').classList.remove('active');
+        });
+    });
+    document.getElementById('menu-toggle').addEventListener('click', () => {
+         document.getElementById('sidebar').classList.toggle('active');
+    });
+    const posSearchInput = document.getElementById('pos-item-search');
+    if (posSearchInput) {
+        posSearchInput.addEventListener('input', () => handleItemSearch(false)); 
+        posSearchInput.addEventListener('click', () => handleItemSearch(true)); 
+        document.addEventListener('click', (e) => {
+            if (e.target.id !== 'pos-item-search') {
+                document.getElementById('pos-search-results').innerHTML = '';
+            }
+        });
+    }
+    updatePOSCartView(); 
+    const expenseDateInput = document.getElementById('expense-date');
+    if (expenseDateInput) {
+        try {
+            expenseDateInput.value = new Date().toISOString().split('T')[0];
+        } catch(e) { console.error("Expense date set error", e); }
+    }
+    const barcodeInput = document.getElementById('barcode-scanner-input');
+    barcodeInput.addEventListener('change', () => handleBarcodeScan(null));
+    document.body.addEventListener('click', focusBarcodeScanner);
+
+    // postMessage Listener
+    window.addEventListener('message', function(event) {
+        if (event.origin !== window.location.origin) return; 
+        if (event.data) {
+            const token = localStorage.getItem('authToken');
+            const user = AppState.user || JSON.parse(localStorage.getItem('authUser'));
+            const shopId = user ? user.shopId : null;
+            const backendUrl = __backend_url;
+
+            if (event.data.type === 'REQUEST_AUTH' && token) {
+                if (window.scannerWindow && !window.scannerWindow.closed) {
+                    window.scannerWindow.postMessage({
+                        type: 'AUTH_TOKEN',
+                        token: token,
+                        shopId: shopId,
+                        backendUrl: backendUrl
+                    }, window.location.origin);
+                }
+            }
+            if (event.data.type === 'SCANNED_SKU' && event.data.sku) {
+                 addSKUToCart(event.data.sku);
+            }
+        }
+    });
+});
+// [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]
+
+// [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]// [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]    // --- Registration Form Handler - MODIFIED ---
    // Registration Form Handler - MODIFIED to include mobile
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
