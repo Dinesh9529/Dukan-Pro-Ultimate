@@ -2416,8 +2416,10 @@ app.get('/api/reports/gstr2', authenticateJWT, checkRole('MANAGER'), async (req,
 });
 
 
-// 15.4 Tally-Style GSTR-3B Summary
-app.get('/api/reports/gstr3b', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 15.4 Tally-Style GSTR-3B Summary (PLAN LOCKED)
+app.get('/api/reports/gstr3b', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
     const shopId = req.shopId;
     const { startDate, endDate } = req.query;
 
@@ -2503,8 +2505,6 @@ app.get('/api/reports/gstr3b', authenticateJWT, checkRole('MANAGER'), async (req
         if (client) client.release();
     }
 });
-
-
 
 
 
@@ -2901,6 +2901,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
