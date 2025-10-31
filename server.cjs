@@ -68,6 +68,7 @@ async function createTables() {
         await client.query('CREATE TABLE IF NOT EXISTS shops (id SERIAL PRIMARY KEY, shop_name TEXT NOT NULL, shop_logo TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN ALTER TABLE shops ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='plan_type') THEN ALTER TABLE shops ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='add_ons') THEN ALTER TABLE shops ADD COLUMN add_ons JSONB DEFAULT '{}'::jsonb; END IF; END $$;`);
         // 0.5. Users Table
         await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled')); END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN ALTER TABLE users ADD COLUMN mobile TEXT; END IF; END $$;`);
@@ -602,7 +603,7 @@ if (!/^\d{10}$/.test(mobile)) {
 
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// 4. User Login (UPDATED FOR 'plan_type')
+// 4. User Login (UPDATED FOR 'plan_type' AND 'add_ons')
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -611,9 +612,9 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // --- 🚀 FIX: Step 1: यूज़र और शॉप की सभी जानकारी (plan_type सहित) एक साथ लाएँ ---
+        // --- 🚀 FIX: Step 1: 'plan_type' और 'add_ons' को एक साथ लाएँ ---
         const result = await pool.query(
-            'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
+            'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.add_ons FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
             [email]
         );
 
@@ -622,7 +623,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        let user = result.rows[0]; // इसमें अब 'license_expiry_date' और 'plan_type' भी शामिल है
+        let user = result.rows[0]; // इसमें अब 'add_ons' भी शामिल है
 
         // --- Step 2: Check Password (यह सही है) ---
         const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -639,15 +640,15 @@ app.post('/api/login', async (req, res) => {
              console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
         }
 
-        // --- Step 4: (इसकी अब ज़रूरत नहीं, क्योंकि Step 1 में डेटा मिल गया) ---
-        // const shopLicenseResult = ... (हटा दिया गया)
-        const shopExpiryDate = user.license_expiry_date; // 🚀 FIX: 'user' ऑब्जेक्ट से सीधा इस्तेमाल करें
-        const shopPlanType = user.plan_type || 'TRIAL'; // 🚀 FIX: 'user' ऑब्जेक्ट से सीधा इस्तेमाल करें
-        
+        // --- Step 4: (डेटा पहले ही Step 1 में मिल गया है) ---
+        const shopExpiryDate = user.license_expiry_date; 
+        const shopPlanType = user.plan_type || 'TRIAL'; 
+        const shopAddOns = user.add_ons || {}; // 🚀🚀🚀 नया: ऐड-ऑन को यहाँ जोड़ा गया
+
         console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate} | Plan: ${shopPlanType}`);
 
 
-        // --- 🚀 FIX: Step 5: टोकन पेलोड में 'plan_type' जोड़ें ---
+        // --- 🚀 FIX: Step 5: टोकन पेलोड में 'add_ons' जोड़ें ---
         const tokenUser = {
             id: user.id,
             email: user.email,
@@ -658,7 +659,8 @@ app.post('/api/login', async (req, res) => {
             shopName: user.shop_name,
             licenseExpiryDate: shopExpiryDate, // <<< Use SHOP's expiry date
             status: user.status,
-            plan_type: shopPlanType // 🚀🚀🚀 नया प्लान यहाँ जोड़ा गया
+            plan_type: shopPlanType,
+            add_ons: shopAddOns // 🚀🚀🚀 नया ऐड-ऑन यहाँ जोड़ा गया
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
@@ -694,10 +696,9 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'लॉगिन प्रक्रिया में सर्वर त्रुटि हुई: ' + err.message });
     }
 });
-
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
-// 5. License Activation Route (UPDATED FOR 'plan_type')
+// 5. License Activation Route (UPDATED FOR 'plan_type' AND 'add_ons')
 app.post('/api/activate-license', authenticateJWT, async (req, res) => {
     const { licenseKey } = req.body;
     // --- ROLE CHECK ADDED: Only Admin should activate ---
@@ -769,13 +770,14 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
 
         // --- Fetch updated data for the new token ---
         
-        // 6. 🚀 FIX: 'shops' टेबल से अपडेटेड 'plan_type' और 'expiry_date' को फिर से SELECT करें
+        // 6. 🚀 FIX: 'shops' टेबल से 'plan_type', 'expiry_date' और 'add_ons' को फिर से SELECT करें
         const updatedShopLicenseResult = await pool.query(
-           'SELECT license_expiry_date, plan_type FROM shops WHERE id = $1',
+           'SELECT license_expiry_date, plan_type, add_ons FROM shops WHERE id = $1',
            [shopId]
         );
         const updatedShopExpiryDate = updatedShopLicenseResult.rows[0].license_expiry_date;
-        const updatedPlanType = updatedShopLicenseResult.rows[0].plan_type; // 🚀 नया
+        const updatedPlanType = updatedShopLicenseResult.rows[0].plan_type;
+        const updatedAddOns = updatedShopLicenseResult.rows[0].add_ons || {}; // 🚀🚀🚀 नया
         
         console.log(`DEBUG ACTIVATE: Verified updated shop expiry: ${updatedShopExpiryDate} | Verified Plan: ${updatedPlanType}`);
 
@@ -786,7 +788,7 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         );
         const updatedUser = updatedUserResult.rows[0];
 
-        // 8. 🚀 FIX: नए टोकन में 'plan_type' जोड़ें
+        // 8. 🚀 FIX: नए टोकन में 'plan_type' और 'add_ons' जोड़ें
         const tokenUser = {
             id: updatedUser.id,
             email: updatedUser.email,
@@ -797,7 +799,8 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
             shopName: updatedUser.shop_name,
             licenseExpiryDate: updatedShopExpiryDate, // <<< Use UPDATED shop expiry date
             status: updatedUser.status,
-            plan_type: updatedPlanType // 🚀🚀🚀 नया प्लान यहाँ जोड़ा गया
+            plan_type: updatedPlanType,
+            add_ons: updatedAddOns // 🚀🚀🚀 नया ऐड-ऑन यहाँ जोड़ा गया
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
@@ -821,8 +824,6 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
     }
 });
 
-
-// --- 6. User Management (Shop Admin Only) ---
 
 // --- 6. User Management (Shop Admin Only) ---
 
@@ -1659,8 +1660,10 @@ app.post('/api/shop/settings', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: 'सेटिंग्स अपडेट करने में विफल: ' + err.message });
     }
 });
-// 11.6 Shop-Specific Backup
-app.get('/api/backup', authenticateJWT, async (req, res) => {
+// 11.6 Shop-Specific Backup (PLAN LOCKED)
+app.get('/api/backup', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM'], 'has_backup'), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const shopId = req.shopId;
     const client = await pool.connect();
     try {
@@ -1682,8 +1685,7 @@ app.get('/api/backup', authenticateJWT, async (req, res) => {
     } finally {
         client.release();
     }
-});
-// 12.1 Get All Users (Global)
+});// 12.1 Get All Users (Global)
 app.get('/api/admin/all-users', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
     try {
         const result = await pool.query('SELECT id, shop_id, name, email, role, status FROM users ORDER BY shop_id, id');
@@ -1846,8 +1848,10 @@ app.post('/api/admin/sql-console', authenticateJWT, checkRole('ADMIN'), async (r
 // 13. DAILY CLOSING API (NEW)
 // -----------------------------------------------------------------------------
 
-// 13.1 Run Daily Closing (SCOPED & TRANSACTIONAL)
-app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 13.1 Run Daily Closing (PLAN LOCKED)
+app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM'], 'has_closing'), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const shopId = req.shopId;
     // आज की तारीख सर्वर टाइमज़ोन के अनुसार
     const today = new Date().toISOString().split('T')[0];
@@ -1913,8 +1917,11 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), async (req, 
         client.release();
     }
 });
-// 13.2 Get All Closing Reports (SCOPED)
-app.get('/api/closing/reports', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+
+// 13.2 Get All Closing Reports (PLAN LOCKED)
+app.get('/api/closing/reports', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM'], 'has_closing'), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const shopId = req.shopId;
     try {
         const result = await pool.query(
@@ -1926,15 +1933,15 @@ app.get('/api/closing/reports', authenticateJWT, checkRole('MANAGER'), async (re
         console.error("Error fetching closing reports:", err.message);
         res.status(500).json({ success: false, message: 'रिपोर्ट्स लाने में विफल: ' + err.message });
     }
-});
-
-// -----------------------------------------------------------------------------
+});// -----------------------------------------------------------------------------
 // --- 🚀 START: NEW API SECTION (आपकी नई आवश्यकताओं के लिए) ---
 // --- 14. ADVANCED REPORTING API (NEW) ---
 // -----------------------------------------------------------------------------
 
-// 14.1 Simplified Profit & Loss Report (UPDATED FOR BANK-STYLE DETAIL)
-app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 14.1 Simplified Profit & Loss Report (PLAN LOCKED)
+app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const shopId = req.shopId;
     const { startDate, endDate } = req.query;
 
@@ -2018,9 +2025,10 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), async
     }
 });
 
-// 14.2 Simplified Balance Sheet Report (UPDATED FOR REAL LIABILITY/ASSET TRACKING)
-// [ server.cjs में इस पूरे फ़ंक्शन को बदलें (लगभग लाइन 361) ]
-app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+// 14.2 Simplified Balance Sheet Report (PLAN LOCKED)
+app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM']), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
     const shopId = req.shopId;
     const today = new Date().toISOString(); 
 
@@ -2074,9 +2082,9 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), asy
         const netGstPayable = totalSalesGst - totalPurchaseItc;
         
         // 4. Accounts Payable (A/P) और Capital - Hardcodes (Capital now uses fetched value)
-        const accounts_payable = 0; // 🚀 FIX: A/P tracking needs major upgrade
+        const accounts_payable = 0; // 🚀 FIX: A/P tracking needs major upgrade
         const opening_capital = savedOpeningCapital; // 👈 FIX: Use fetched value instead of 0
-        const retained_earnings = netProfit; 
+        const retained_earnings = netProfit; 
 
         // 5. Cash Balance (Balancing Figure)
         const totalLiabilitiesAndEquity = accounts_payable + netGstPayable + opening_capital + retained_earnings;
@@ -2113,7 +2121,6 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), asy
         if (client) client.release();
     }
 });
-
 
 // 14.3 Product-wise Sales Report
 app.get('/api/reports/product-sales', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
@@ -2901,6 +2908,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
