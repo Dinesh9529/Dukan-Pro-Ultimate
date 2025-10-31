@@ -341,14 +341,16 @@
         /* === 🚀 SAHI LOGIN AUR LANDING PAGE CSS (YAHAN SE SHURU) === */
         /* ======================================================== */
     
-              /* 1. मॉल का बैकग्राउंड (Relative Path - यही 100% सही तरीका है) */
+             
+/* 1. मॉल का बैकग्राउंड (Cache Busting Fix) */
+/* 1. मॉल का बैकग्राउंड (imgbb Online URL Fix) */
 .auth-overlay {
-    /* * यह CSS कोड Render सर्वर को बताता है कि
-     * "जिस फोल्डर में तुम (Multiuser.html) हो,
-     * उसी फोल्डर के अंदर 'images' नाम का एक फोल्डर है,
-     * उसमें से 'shopkeeper-dukanpro.jpg' को लोड करो।"
+    /*
+     * 🚀🚀🚀 YEH HAI PERMANENT FIX 🚀🚀🚀
+     * Neeche diye gaye URL ko apne imgbb ke "Direct Link" se badal dein.
      */
-    background: url('./images/shopkeeper-dukanpro.jpg') no-repeat center center fixed;
+    background: url(https://i.postimg.cc/1R76fKdh/shopkeeper-dukanpro.png) no-repeat center center fixed;
+    
     background-size: cover;
     background-color: rgba(0, 0, 0, 0.45); /* डार्क लेयर */
     background-blend-mode: multiply;
@@ -359,7 +361,7 @@
     padding: 20px;
 }
 
-        /* 2. सेंटर्ड रैपर (Wrapper) */
+/* 2. सेंटर्ड रैपर (Wrapper) */
         .login-wrapper {
             width: 100%;
             max-width: 950px;
