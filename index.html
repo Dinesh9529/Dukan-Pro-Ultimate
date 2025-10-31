@@ -337,27 +337,21 @@
         .gst-report-table .group-header td { background-color: #f3f4f6; font-weight: bold; text-align: left; }
     
     
-    /* ======================================================== */
-/* === 🚀 नया खूबसूरत लॉगिन CSS (यहाँ से कॉपी करें) === */
-/* ======================================================== */
-
-/* 1. मॉल का बैकग्राउंड इमेज */
+        /* ======================================================== */
+        /* === 🚀 SAHI LOGIN AUR LANDING PAGE CSS (YAHAN SE SHURU) === */
+        /* ======================================================== */
+    
+              /* 1. मॉल का बैकग्राउंड (Relative Path - यही 100% सही तरीका है) */
 .auth-overlay {
+    /* * यह CSS कोड Render सर्वर को बताता है कि
+     * "जिस फोल्डर में तुम (Multiuser.html) हो,
+     * उसी फोल्डर के अंदर 'images' नाम का एक फोल्डर है,
+     * उसमें से 'shopkeeper-dukanpro.jpg' को लोड करो।"
+     */
     background: url('./images/shopkeeper-dukanpro.jpg') no-repeat center center fixed;
     background-size: cover;
-    background-color: rgba(0, 0, 0, 0.45); /* थोड़ा गहरा ओवरले */
+    background-color: rgba(0, 0, 0, 0.45); /* डार्क लेयर */
     background-blend-mode: multiply;
-    /* ... (बाकी का कोड) ... */
-}    
-    /* नया: मॉल का बैकग्राउंड */
-    background: url('https://raw.githubusercontent.com/Dinesh9529/Dukan-Pro-Ultimate/main/images/shopkeeper-dukanpro.jpg') no-repeat center center fixed;    
-	background-size: cover;
-    
-    /* टेक्स्ट साफ़ दिखे इसके लिए हल्की डार्क लेयर */
-    background-color: rgba(0, 0, 0, 0.3);
-    background-blend-mode: multiply;
-    
-    /* सुनिश्चित करें कि यह पूरे पेज पर हो */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -365,165 +359,211 @@
     padding: 20px;
 }
 
-/* 2. नया सेंटर्ड रैपर (Wrapper) */
-.login-wrapper {
-    width: 100%;
-    max-width: 950px; /* लॉगिन बॉक्स + साइडबार की कुल चौड़ाई */
-    display: grid;
-    /* 40% एडवरटाइजिंग, 60% लॉगिन फॉर्म */
-    grid-template-columns: 40% 60%; 
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-/* 3. नया एडवरटाइजिंग साइडबार (Left Column) */
-.login-ad-sidebar {
-    /* आपकी ऐप की इंडिगो थीम का उपयोग */
-    background: var(--dp-sidebar-bg, #111d4a); 
-    color: #fff;
-    padding: 40px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-.login-ad-sidebar h3 {
-    font-weight: 700;
-    letter-spacing: 1px;
-}
-.login-ad-sidebar p {
-    font-size: 1.1rem;
-    color: var(--dp-sidebar-text, #a0aed0);
-    border-bottom: 1px solid var(--dp-sidebar-active-bg, #1a2b6d);
-    padding-bottom: 15px;
-}
-.login-ad-sidebar .ad-footer {
-    margin-top: auto;
-    padding-top: 15px;
-    border-top: 1px solid var(--dp-sidebar-active-bg, #1a2b6d);
-    color: var(--dp-sidebar-text, #a0aed0);
-}
-
-/* 4. लॉगिन कार्ड (Glass Effect) */
-.login-card-glass {
-    background: rgba(255, 255, 255, 0.8); /* थोड़ी ज़्यादा पारदर्शिता */
-    backdrop-filter: blur(15px); /* थोड़ा कम ब्लर, ताकि पीछे का ज़्यादा दिखे */
-    -webkit-backdrop-filter: blur(15px);
-    padding: 30px 40px;
-}
-.login-card-glass h3 {
-    color: var(--dp-text-dark, #1A202C);
-}
-/* टैब्स को ग्लास पर बेहतर दिखाना */
-.login-card-glass .nav-tabs {
-    border-bottom: 2px solid var(--dp-border, #E2E8F0);
-}
-.login-card-glass .nav-link {
-    color: var(--dp-text-light, #4A5568);
-    font-weight: 600;
-    padding: 10px 15px;
-}
-.login-card-glass .nav-link.active {
-    background-color: rgba(255, 255, 255, 0.8);
-    color: var(--dp-primary, #00b4d8);
-    border: 2px solid var(--dp-border, #E2E8F0);
-    border-bottom-color: transparent;
-    border-radius: 8px 8px 0 0;
-}
-
-
-/* 5. एनिमेटेड फीचर्स (Advertising Quotes) */
-.features-list {
-    list-style: none;
-    padding: 0;
-    margin: 25px 0;
-    height: 180px; /* एनीमेशन के लिए फिक्स्ड ऊंचाई */
-    overflow: hidden;
-    position: relative;
-}
-.features-list {
-    list-style: none;
-    padding: 0;
-    margin: 25px 0;
-    height: 250px; /* एनीमेशन के लिए थोड़ी ज़्यादा ऊंचाई */
-    overflow: hidden;
-    position: relative;
-    font-size: 1.1rem; /* मुख्य टेक्स्ट का साइज़ */
-}
-.features-list li {
-    font-weight: 500;
-    padding: 8px 0;
-    position: absolute;
-    width: 100%;
-    opacity: 0;
-    transform: translateY(30px);
-    /* 9 आइटम के लिए 18 सेकंड का लूप (2s प्रति आइटम) */
-    animation: slide-up-fade 18s linear infinite; /* टोटल 18 सेकंड */
-    animation-delay: var(--delay);
-}
-.features-list li span {
-    display: block; /* हिंदी टेक्स्ट को नई लाइन पर */
-    font-size: 0.9rem; /* हिंदी टेक्स्ट का छोटा साइज़ */
-    color: var(--dp-sidebar-text, #a0aed0); /* हल्का रंग */
-    margin-top: 3px;
-    font-weight: 400;
-}
-/* हर आइटम को अलग-अलग समय पर एनिमेट करना (अब 9 आइटम के लिए) */
-.features-list li:nth-child(1) { --delay: 0s; }
-.features-list li:nth-child(2) { --delay: 2s; }
-.features-list li:nth-child(3) { --delay: 4s; }
-.features-list li:nth-child(4) { --delay: 6s; }
-.features-list li:nth-child(5) { --delay: 8s; }
-.features-list li:nth-child(6) { --delay: 10s; }
-.features-list li:nth-child(7) { --delay: 12s; }
-.features-list li:nth-child(8) { --delay: 14s; } /* नया आइटम */
-.features-list li:nth-child(9) { --delay: 16s; } /* नया आइटम */
-/* (नया, सही कोड) */
-@keyframes slide-up-fade {
-    /* हर आइटम 18 सेकंड के लूप में सिर्फ 2 सेकंड के लिए दिखेगा */
-
-    /* 0% से ~1.1% (लगभग 0.2s) - अंदर आना */
-    0%   { opacity: 0; transform: translateY(30px); }
-    1.1% { opacity: 1; transform: translateY(0); }
-
-    /* ~1.1% से ~10% (लगभग 1.6s) - रुके रहना */
-    10%  { opacity: 1; transform: translateY(0); }
-
-    /* ~10% से ~11.1% (लगभग 0.2s) - बाहर जाना */
-    11.1% { opacity: 0; transform: translateY(-15px); }
+        /* 2. सेंटर्ड रैपर (Wrapper) */
+        .login-wrapper {
+            width: 100%;
+            max-width: 950px;
+            display: grid;
+            grid-template-columns: 40% 60%; 
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            
+            /* 🚀 लॉगिन बॉक्स को डिफ़ॉल्ट रूप से छिपाएँ */
+            display: none; 
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
     
-    /* बाकी 88.9% समय (16 सेकंड) - छिपा रहना */
-    100% { opacity: 0; }
-}/* 6. मोबाइल के लिए (बहुत महत्वपूर्ण) */
-@media (max-width: 800px) {
-    .login-wrapper {
-        grid-template-columns: 1fr; /* 1 कॉलम में दिखाना */
-        width: 95%;
-        max-width: 450px;
-        max-height: 90vh;
-        overflow-y: auto; /* स्क्रॉल के लिए */
-    }
-    .login-ad-sidebar {
-        /* मोबाइल पर एडवरटाइजिंग छिपा दें */
-        display: none; 
-    }
-    .login-card-glass {
-        /* मोबाइल पर ज़्यादा साफ़ दिखाना */
-        background: rgba(255, 255, 255, 0.98);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-    }
-}
-/* ======================================================== */
-/* === 🚀 नया CSS यहाँ समाप्त होता है === */
-/* ======================================================== */
+        /* 2b. जब 'active' क्लास जोड़ी जाए तब दिखाएँ */
+        .login-wrapper.active {
+            display: grid; /* 🚀 यह इसे वापस दिखाता है */
+            opacity: 1;
+            transform: scale(1);
+        }
     
+        /* 3. एडवरटाइजिंग साइडबार (Left Column) */
+        .login-ad-sidebar {
+            background: var(--dp-sidebar-bg, #111d4a); 
+            color: #fff;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .login-ad-sidebar h3 {
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .login-ad-sidebar p {
+            font-size: 1.1rem;
+            color: var(--dp-sidebar-text, #a0aed0);
+            border-bottom: 1px solid var(--dp-sidebar-active-bg, #1a2b6d);
+            padding-bottom: 15px;
+        }
+        .login-ad-sidebar .ad-footer {
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid var(--dp-sidebar-active-bg, #1a2b6d);
+            color: var(--dp-sidebar-text, #a0aed0);
+        }
     
+        /* 4. लॉगिन कार्ड (Glass Effect) */
+        .login-card-glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 30px 40px;
+        }
+        .login-card-glass h3 {
+            color: var(--dp-text-dark, #1A202C);
+        }
+        .login-card-glass .nav-tabs {
+            border-bottom: 2px solid var(--dp-border, #E2E8F0);
+        }
+        .login-card-glass .nav-link {
+            color: var(--dp-text-light, #4A5568);
+            font-weight: 600;
+            padding: 10px 15px;
+        }
+        .login-card-glass .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: var(--dp-primary, #00b4d8);
+            border: 2px solid var(--dp-border, #E2E8F0);
+            border-bottom-color: transparent;
+            border-radius: 8px 8px 0 0;
+        }
     
+        /* 5. एनिमेटेड फीचर्स (Advertising Quotes) */
+        .features-list {
+            list-style: none;
+            padding: 0;
+            margin: 25px 0;
+            height: 250px; /* एनीमेशन के लिए ऊंचाई */
+            overflow: hidden;
+            position: relative;
+            font-size: 1.1rem; /* मुख्य टेक्स्ट का साइज़ */
+        }
+        .features-list li {
+            font-weight: 500;
+            padding: 8px 0;
+            position: absolute;
+            width: 100%;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: slide-up-fade 18s linear infinite; /* 9 items * 2s = 18s */
+            animation-delay: var(--delay);
+        }
+        .features-list li span {
+            display: block; 
+            font-size: 0.9rem; 
+            color: var(--dp-sidebar-text, #a0aed0); 
+            margin-top: 3px;
+            font-weight: 400;
+        }
     
+        /* 9 आइटम्स के लिए एनीमेशन टाइमिंग */
+        .features-list li:nth-child(1) { --delay: 0s; }
+        .features-list li:nth-child(2) { --delay: 2s; }
+        .features-list li:nth-child(3) { --delay: 4s; }
+        .features-list li:nth-child(4) { --delay: 6s; }
+        .features-list li:nth-child(5) { --delay: 8s; }
+        .features-list li:nth-child(6) { --delay: 10s; }
+        .features-list li:nth-child(7) { --delay: 12s; }
+        .features-list li:nth-child(8) { --delay: 14s; }
+        .features-list li:nth-child(9) { --delay: 16s; }
+    
+        /* सही एनीमेशन की-फ्रेम्स */
+        @keyframes slide-up-fade {
+            /* हर आइटम 18 सेकंड के लूप में सिर्फ 2 सेकंड के लिए दिखेगा */
+            0%    { opacity: 0; transform: translateY(30px); }
+            1.1%  { opacity: 1; transform: translateY(0); } /* 0.2s in */
+            10%   { opacity: 1; transform: translateY(0); } /* 1.6s hold */
+            11.1% { opacity: 0; transform: translateY(-15px); } /* 0.2s out */
+            100%  { opacity: 0; }
+        }
+    
+        /* 6. मोबाइल के लिए (बहुत महत्वपूर्ण) */
+        @media (max-width: 800px) {
+            .login-wrapper {
+                grid-template-columns: 1fr;
+                width: 95%;
+                max-width: 450px;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+            .login-ad-sidebar {
+                display: none; 
+            }
+            .login-card-glass {
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }
+        }
+    
+        /* 7. लैंडिंग पेज के बटन्स को स्टाइल करें */
+        .landing-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            padding: 20px;
+        }
+    
+        /* 8. लैंडिंग टाइटल और सबटाइटल */
+        .landing-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .landing-subtitle {
+            font-size: 1.4rem;
+            opacity: 0.9;
+            margin-bottom: 2.5rem;
+        }
+    
+        /* 9. लैंडिंग बटन्स */
+        .landing-btn {
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.3s ease;
+        }
+        .landing-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        .landing-btn.btn-primary {
+            background: var(--dp-primary, #00b4d8);
+            border-color: var(--dp-primary, #00b4d8);
+        }
+        .landing-btn.btn-success {
+            background: #1abc9c;
+            border-color: #1abc9c;
+        }
+    
+        /* 10. मोबाइल के लिए टाइटल्स को छोटा करें */
+        @media (max-width: 767.98px) {
+            .landing-title {
+                font-size: 2.5rem;
+            }
+            .landing-subtitle {
+                font-size: 1.1rem;
+            }
+        }
+        /* ======================================================== */
+        /* === 🚀 नया CSS यहाँ समाप्त होता है === */
+        /* ======================================================== */
     </style>
-
 
 </head>
 
@@ -533,8 +573,20 @@
 
 
     <div class="auth-overlay" id="auth-container-new">
+        <div class="landing-buttons" id="landing-buttons-container">
+            <h1 class="landing-title">Dukan Pro Ultimate</h1>
+            <p class="landing-subtitle">इंडिया का सबसे एडवांस बिज़नेस सूट</p>
+            <div class="d-flex flex-wrap justify-content-center gap-3">
+                <button class="btn btn-primary btn-lg landing-btn" id="show-login-btn">
+                    <i class="fas fa-sign-in-alt me-2"></i>लॉगिन करें
+                </button>
+                <button class="btn btn-success btn-lg landing-btn" id="show-register-btn">
+                    <i class="fas fa-user-plus me-2"></i>नया अकाउंट बनाएं
+                </button>
+            </div>
+        </div>
     
-    <div class="login-wrapper">
+        <div class="login-wrapper" id="login-wrapper-main">
         
         <div class="login-ad-sidebar">
             <h3 class="mb-3"><i class="fas fa-store me-2"></i>Dukan Pro Ultimate</h3>
@@ -4863,16 +4915,6 @@ const addStaffForm = document.getElementById('add-staff-form');
 
     }
 
-// 🚀🚀🚀 बैंक रिकॉन्सिलेशन लिस्नर यहाँ जोड़ें 🚀🚀🚀
-document.getElementById('reconciliation-start-form').addEventListener('submit', handleStatementUpload);
-        document.getElementById('save-reconciliation-btn').addEventListener('click', saveReconciliationReport);
-        document.getElementById('cancel-reconciliation-btn').addEventListener('click', () => {
-            if(confirm('क्या आप वाकई रिकॉन्सिलेशन रद्द करना चाहते हैं?')) {
-                renderView('bank-reconciliation'); // पेज को रीसेट करें
-            }
-        });
-        // 🚀🚀🚀 कोड यहाँ समाप्त होता है 🚀🚀🚀
-
 
 
 // ==============================================
@@ -5125,8 +5167,7 @@ async function fetchAndRenderSavedReports() {
  * Main startup logic - MODIFIED
  */
 // [ यह रहा नया और सही DOMContentLoaded - पुराने वाले को हटाकर इसे पेस्ट करें ]
-// [ यह रहा नया और सही DOMContentLoaded - पुराने वाले को हटाकर इसे पेस्ट करें ]
-// [ यह रहा नया और सही DOMContentLoaded - पुराने वाले को हटाकर इसे पेस्ट करें ]
+
 document.addEventListener('DOMContentLoaded', () => {
     const licenseModalEl = document.getElementById('licenseModal');  
     const licenseModal = new bootstrap.Modal(licenseModalEl);
@@ -5153,6 +5194,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("लाइसेंस समाप्त या गुम है। सक्रियण की आवश्यकता है।");
             showMessage('लाइसेंस आवश्यक', 'आपका लाइसेंस समाप्त हो गया है। कृपया सक्रिय करें।', 'warning');
 
+            // 🚀 फिक्स: लैंडिंग बटन को छिपाएँ
+            document.getElementById('landing-buttons-container').classList.add('hidden');
+            
+            // 🚀 फिक्स: लॉगिन रैपर (Wrapper) को दिखाएँ
+            document.getElementById('login-wrapper-main').classList.add('active'); 
+
             // 🚀 फिक्स: नया लॉगिन पेज (बैकग्राउंड के लिए) दिखाएँ
             if (newLoginContainer) newLoginContainer.classList.remove('hidden');
 
@@ -5161,7 +5208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('menu-toggle').classList.remove('locked');
             document.getElementById('main-content').classList.add('locked'); // मुख्य कंटेंट लॉक रखें
             applyRBAC(user.role);
-            licenseModal.show(); // लाइसेंस Modal को बैकग्राउंड के ऊपर दिखाएँ
+            licenseModal.show(); // लाइसेंस Modal को फॉर्म के ऊपर दिखाएँ
 
         } else {
             // --- 🚀 केस 2: सब कुछ सही है (टोकन और लाइसेंस) ---
@@ -5187,6 +5234,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- बाकी के सभी लिस्नर (Event Listeners) ---
+// --- 🚀 (नया) लैंडिंग पेज बटन लिस्नर ---
+
+const landingButtons = document.getElementById('landing-buttons-container');
+    const loginWrapper = document.getElementById('login-wrapper-main');
+    const showLoginBtn = document.getElementById('show-login-btn');
+    const showRegisterBtn = document.getElementById('show-register-btn');
+
+    // (सुनिश्चित करें कि ये टैब मौजूद हैं)
+    const loginTabBtn = document.getElementById('nav-login-tab');
+    const registerTabBtn = document.getElementById('nav-register-tab');
+    
+    // एक 'शो' फ़ंक्शन बनाएँ
+    function showLoginWrapper(tabToShow) {
+        if (!loginWrapper || !landingButtons) return;
+
+        // 1. लॉगिन बॉक्स को 'active' क्लास दें
+        loginWrapper.classList.add('active');
+        
+        // 2. लैंडिंग बटन्स को छिपाएँ (मौजूदा 'hidden' क्लास का उपयोग करके)
+        landingButtons.classList.add('hidden');
+        
+        // 3. सही टैब दिखाएँ
+        if (tabToShow === 'login' && loginTabBtn) {
+            new bootstrap.Tab(loginTabBtn).show();
+        } else if (tabToShow === 'register' && registerTabBtn) {
+            new bootstrap.Tab(registerTabBtn).show();
+        }
+    }
+
+    // 'लॉगिन' बटन पर क्लिक
+    if(showLoginBtn) {
+        showLoginBtn.addEventListener('click', () => {
+            showLoginWrapper('login');
+        });
+    }
+
+    // 'रजिस्टर' बटन पर क्लिक
+    if(showRegisterBtn) {
+        showRegisterBtn.addEventListener('click', () => {
+            showLoginWrapper('register');
+        });
+    }
+
+    // --- (यहाँ से 'बाकी के सभी लिस्नर' शुरू होते हैं) ---
+
+
+
     
     // Login Form
     document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -5358,149 +5452,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+
+// 🚀🚀🚀 बैंक रिकॉन्सिलेशन लिस्नर यहाँ जोड़ें 🚀🚀🚀
+document.getElementById('reconciliation-start-form').addEventListener('submit', handleStatementUpload);
+        document.getElementById('save-reconciliation-btn').addEventListener('click', saveReconciliationReport);
+        document.getElementById('cancel-reconciliation-btn').addEventListener('click', () => {
+            if(confirm('क्या आप वाकई रिकॉन्सिलेशन रद्द करना चाहते हैं?')) {
+                renderView('bank-reconciliation'); // पेज को रीसेट करें
+            }
+        });
+        // 🚀🚀🚀 कोड यहाँ समाप्त होता है 🚀🚀🚀
+
 });
+
+
 // [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]
 
 // [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]// [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]    // --- Registration Form Handler - MODIFIED ---
    // Registration Form Handler - MODIFIED to include mobile
-document.getElementById('register-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    // --- Get form data ---
-    const shopName = document.getElementById('register-shop-name').value;
-    const name = document.getElementById('register-name').value;
-    const email = document.getElementById('register-email').value;
-    const mobile = document.getElementById('register-mobile').value; // <<< नई लाइन जोड़ी गई
-    const password = document.getElementById('register-password').value;
-    // --- End get form data ---
-
-    const msgEl = document.getElementById('register-message');
-    const btn = document.getElementById('register-submit-btn');
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> रजिस्टर हो रहा है...`;
-
-    try {
-        const res = await fetch(__backend_url + '/api/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // --- Include mobile in the body ---
-            body: JSON.stringify({ shopName, name, email, mobile, password }) // <<< यहाँ mobile जोड़ा गया
-            // --- End include mobile ---
-        });
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-            throw new Error(data.message || 'रजिस्ट्रेशन विफल');
-        }
-
-        // ... (बाकी का कोड success handling के लिए) ...
-        msgEl.innerText = 'सफलता! ऐप लोड हो रहा है...';
-        saveAuthData(data.token, data.user);
-        startLicenseTimer(data.user.licenseExpiryDate);
-        showMessage('सफलता!', 'आपका अकाउंट बन गया है। कृपया अपना लाइसेंस सक्रिय करें।', 'success');
-        document.getElementById('auth-container').classList.add('hidden');
-        document.getElementById('sidebar').classList.remove('locked');
-        document.getElementById('menu-toggle').classList.remove('locked');
-        document.getElementById('main-content').classList.add('locked');
-        applyRBAC(data.user.role);
-        // Ensure licenseModal variable is accessible or get instance
-        const licenseModalInstance = bootstrap.Modal.getInstance(document.getElementById('licenseModal')) || new bootstrap.Modal(document.getElementById('licenseModal'));
-        licenseModalInstance.show();
-
-
-    } catch (error) {
-        msgEl.innerText = error.message;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'अकाउंट बनाएं';
-    }
-});
-    // --- License Activation Form Handler - MODIFIED ---
-    document.getElementById('license-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const key = document.getElementById("license-key-input").value.trim();
-        const messageEl = document.getElementById("license-message");
-        messageEl.innerText = 'सत्यापित किया जा रहा है...';
-
-        if (!key) { /* ... */ return; }
-
-        try {
-           // सही कोड (इसे बदलें):
-const res = await fetchApi('/api/activate-license', {
-    method: 'POST', // <<< यह POST बताता है
-    // headers are handled by fetchApi, Content-Type will be added automatically for JSON
-    body: { licenseKey: key } // <<< यह लाइसेंस Key भेजता है (key वेरिएबल पहले डिफाइन है)
-}, 'लाइसेंस सक्रिय किया जा रहा है...');
-            if (res.success) {
-                saveAuthData(res.token, res.user);
-                startLicenseTimer(res.user.licenseExpiryDate);
-                licenseModal.hide();
-                showMessage('सफलता', res.message, 'success');
-
-                // --- MODIFIED: Unlock FULLY only AFTER successful activation ---
-                unlockApplication(); // <<< UNLOCK HERE NOW
-                // --- END MODIFIED ---
-
-            } else {
-                throw new Error(res.message || 'अमान्य या समाप्त लाइसेंस।');
-            }
-        } catch (err) {
-            messageEl.innerText = '❌ ' + err.message;
-        }
-    });
-
-    // ... (rest of DOMContentLoaded listeners like logout, sidebar, etc.) ...
-
-
-        // --- Setup Other Listeners ---
-        
-        // Logout Button
-        document.getElementById('logout-btn').addEventListener('click', logout);
-
-        // Remove old admin login button listener
-             
-        // Sidebar navigation
-        document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                renderView(link.getAttribute('data-view'));
-                if (window.innerWidth < 992) document.getElementById('sidebar').classList.remove('active');
-            });
-        });
-
-        // Mobile menu toggle
-        document.getElementById('menu-toggle').addEventListener('click', () => {
-             document.getElementById('sidebar').classList.toggle('active');
-        });
-
-        // POS Search (NEW: Added 'click' listener)
-        const posSearchInput = document.getElementById('pos-item-search');
-        if (posSearchInput) {
-            posSearchInput.addEventListener('input', () => handleItemSearch(false)); 
-            posSearchInput.addEventListener('click', () => handleItemSearch(true)); 
-            // Hide results when clicking away
-            document.addEventListener('click', (e) => {
-                if (e.target.id !== 'pos-item-search') {
-                    document.getElementById('pos-search-results').innerHTML = '';
-                }
-            });
-        }
-        updatePOSCartView(); 
-
-        // Expense Date
-        const expenseDateInput = document.getElementById('expense-date');
-        if (expenseDateInput) {
-            expenseDateInput.value = new Date().toISOString().split('T')[0];
-        }
-        
-        // NEW: Barcode Scanner Listener
-        const barcodeInput = document.getElementById('barcode-scanner-input');
-        barcodeInput.addEventListener('change', handleBarcodeScan);
-        // Re-focus scanner input whenever user clicks anywhere
-       
-        // 🚀 नया फ़ंक्शन: Modal इवेंट सेटअप करता है
-   
-        
+ 
 </script>
 <div class="modal fade" id="pairingModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="pairingModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -5537,4 +5508,3 @@ const res = await fetchApi('/api/activate-license', {
 
 </body>
 </html>
-
