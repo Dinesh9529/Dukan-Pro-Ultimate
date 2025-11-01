@@ -682,14 +682,77 @@
                 </div>
                 <form id="license-form">
                     <div class="modal-body">
-                        <p>सॉफ्टवेयर का उपयोग करने के लिए कृपया अपनी लाइसेंस की दर्ज करें।</p>
                         <div class="mb-3">
                             <label for="license-key-input" class="form-label fw-bold">लाइसेंस की (License Key)</label>
-                            <input type="text" class="form-control" id="license-key-input" required autocomplete="off">
+                            <input type="text" class="form-control" id="license-key-input" required autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX">
                         </div>
-                        <div id="license-message" class="text-danger small mt-2">&nbsp;</div>
-                    </div>
-                    <div class="modal-footer">
+                        <div id="license-message" class="text-danger small mt-2 mb-3">&nbsp;</div>
+                    
+                        <div class="alert alert-success text-center">
+                            <h5 class="alert-heading mb-0">नया लाइसेंस लेने के लिए संपर्क करें</h5>
+                            <p class="mb-0 fs-4 fw-bold"><i class="fab fa-whatsapp"></i> 7303410987</p>
+                        </div>
+                    
+                        <hr>
+                        
+                        <div class="accordion" id="plansAccordion">
+                            
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBasic">
+                                        <strong>बेसिक प्लान - ₹1000/माह</strong> (AMC: ₹3000/साल)
+                                    </button>
+                                </h2>
+                                <div id="collapseBasic" class="accordion-collapse collapse" data-bs-parent="#plansAccordion">
+                                    <div class="accordion-body">
+                                        स्टॉक मैनेजमेंट, बेसिक POS, इनवॉइसिंग, खरीद, खर्च, बेसिक रिपोर्ट्स, और GST रिपोर्ट्स।
+                                    </div>
+                                </div>
+                            </div>
+                    
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMedium">
+                                        <strong>मीडियम प्लान - ₹3000/माह</strong> (AMC: ₹5000/साल)
+                                    </button>
+                                </h2>
+                                <div id="collapseMedium" class="accordion-collapse collapse" data-bs-parent="#plansAccordion">
+                                    <div class="accordion-body">
+                                        <strong>बेसिक प्लान के सभी फीचर्स +</strong><br>
+                                        CRM (ग्राहक प्रबंधन), बैंक रिकॉन्सिलिएशन, विस्तृत P&L रिपोर्टिंग, और स्टाफ प्रबंधन।
+                                    </div>
+                                </div>
+                            </div>
+                    
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePremium">
+                                        <strong>प्रीमियम प्लान - ₹7500/माah</strong> (AMC: ₹8000/साल)
+                                    </button>
+                                </h2>
+                                <div id="collapsePremium" class="accordion-collapse collapse" data-bs-parent="#plansAccordion">
+                                    <div class="accordion-body">
+                                        <strong>मीडियम प्लान के सभी फीचर्स +</strong><br>
+                                        एडवांस्ड रिपोर्टिंग, मल्टी-लोकेशन सपोर्ट, और रियल-टाइम डैशबोर्ड।
+                                    </div>
+                                </div>
+                            </div>
+                    
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOneTime">
+                                        <strong>वन-टाइम प्लान - ₹40,000</strong> (AMC: ₹15,000/साल)
+                                    </button>
+                                </h2>
+                                <div id="collapseOneTime" class="accordion-collapse collapse" data-bs-parent="#plansAccordion">
+                                    <div class="accordion-body">
+                                        प्रीमियम प्लान के सभी फीचर्स, एक बार की कीमत पर। (AMC अनिवार्य है)।
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">*5 दिन के ट्रायल में सभी फीचर्स का एक्सेस मिलता है।</p>
+                    </div>                   <div class="modal-footer">
                          <button type="button" class="btn btn-outline-secondary d-none" id="open-admin-login-from-license-btn">एडमिन लॉगिन</button>
                          <button type="submit" class="btn btn-primary" id="license-submit-btn">सत्यापित करें</button>
                     </div>
@@ -725,6 +788,31 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बाद में</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="planLockModal" tabindex="-1" aria-labelledby="planLockModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-primary border-3">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="planLockModalLabel"><i class="fas fa-lock"></i> यह फीचर आपके प्लान में शामिल नहीं है</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">यह एक <strong id="plan-lock-feature-name">एडवांस्ड</strong> फीचर है जो <strong id="plan-lock-plan-name">बेसिक</strong> प्लान में उपलब्ध नहीं है।</p>
+                    <p>इस फीचर को अनलॉक करने और अपने बिज़नेस को तेजी से बढ़ाने के लिए, कृपया अपना प्लान अपग्रेड करें।</p>
+                    
+                    <div class="alert alert-success text-center mt-4">
+                        <h5 class="alert-heading mb-0">अपग्रेड करने के लिए संपर्क करें</h5>
+                        <p class="mb-0 fs-4 fw-bold"><i class="fab fa-whatsapp"></i> 7303410987</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बाद में</button>
+                    <a href="https://wa.me/7303410987?text=Hi%2C%20I%20want%20to%20upgrade%20my%20Dukan%20Pro%20plan." target="_blank" class="btn btn-success">
+                        <i class="fab fa-whatsapp"></i> अभी अपग्रेड करें
+                    </a>
                 </div>
             </div>
         </div>
@@ -2512,6 +2600,79 @@ function processScannedSku(sku) {
     }
 
 
+
+// ==========================================================
+// ========== 🚀🚀🚀 NAYA PLAN LOCK LOGIC (YAHAN PASTE KAREIN) 🚀🚀🚀 ==========
+// ==========================================================
+
+/**
+ * Client-side checkPlan: 
+ * यह सर्वर ('checkPlan') लॉजिक की नकल करता है, यह AppState.user से पढ़ता है।
+ */
+ function checkUserPlan(requiredPlans, requiredAddOn = null) {
+    const plans = { 'PREMIUM': 4, 'ONE_TIME': 4, 'MEDIUM': 3, 'BASIC': 2, 'TRIAL': 1 };
+
+    if (!AppState.user) return false; // यूज़र लोड नहीं हुआ
+
+    const userPlan = AppState.user.plan_type || 'TRIAL';
+    const userPlanLevel = plans[userPlan.toUpperCase()] || 0;
+    const userAddOns = AppState.user.add_ons || {};
+    const expiryDate = AppState.user.licenseExpiryDate ? new Date(AppState.user.licenseExpiryDate) : null;
+    const now = new Date();
+
+    // 1. लाइसेंस चेक करें
+    if (!expiryDate || expiryDate < now) {
+        return false; // लाइसेंस एक्सपायर है
+    }
+
+    // 2. ट्रायल प्लान चेक करें (सब कुछ अलाऊ करें)
+    if (userPlan === 'TRIAL') {
+        return true;
+    }
+
+    // 3. मुख्य प्लान लेवल चेक करें (Medium/Premium)
+    const isPlanAuthorized = requiredPlans.some(plan => {
+        const requiredLevel = plans[plan.toUpperCase()] || 0;
+        return userPlanLevel >= requiredLevel;
+    });
+
+    if (isPlanAuthorized) {
+        return true; // प्लान सही है
+    }
+
+    // 4. ऐड-ऑन चेक करें (Basic + AddOn)
+    if (requiredAddOn && userPlan === 'BASIC' && userAddOns[requiredAddOn] === true) {
+        return true; // बेसिक यूज़र के पास ऐड-ऑन है
+    }
+
+    // 5. अनुमति नहीं है
+    return false;
+}
+
+/**
+ * "अपग्रेड" पॉपअप दिखाता है
+ */
+function showPlanLockModal(featureName, requiredPlanOrAddOn) {
+    if (!planLockModalInstance) {
+        planLockModalInstance = new bootstrap.Modal(document.getElementById('planLockModal'));
+    }
+
+    // Modal का टेक्स्ट बदलें
+    document.getElementById('plan-lock-feature-name').innerText = featureName;
+    document.getElementById('plan-lock-plan-name').innerText = `'${AppState.user.plan_type}'`;
+
+    // WhatsApp लिंक को अपडेट करें (वैकल्पिक)
+    const waLink = document.querySelector('#planLockModal .btn-success');
+    const message = `नमस्ते, मैं अपना Dukan Pro प्लान '${AppState.user.plan_type}' से अपग्रेड करके '${requiredPlanOrAddOn}' लेना चाहता हूँ। (Shop ID: ${AppState.user.shopId})`;
+    waLink.href = `https://wa.me/7303410987?text=${encodeURIComponent(message)}`;
+
+    planLockModalInstance.show();
+}
+
+// ==========================================================
+// ========== 🚀 NAYA LOGIC YAHAN SAMAPT HOTA HAI 🚀 ==========
+// ==========================================================
+
 /**
  * एक साधारण CSV टेक्स्ट को JSON ऑब्जेक्ट ऐरे में पार्स करता है
  */
@@ -2564,11 +2725,6 @@ function processScannedSku(sku) {
     }
     return items;
 }
-
-
-
-
-
 
 
 
@@ -3657,6 +3813,7 @@ function displayQrModal() {
 // STAFF MANAGEMENT FUNCTIONS (NEW)
 // ===================================
 let staffEditModal = null; // To hold the modal instance
+let planLockModalInstance = null; // 🚀 NAYA: Plan Lock Modal
 
 async function renderStaff() {
     // Only admin can see and manage staff
@@ -3759,58 +3916,6 @@ async function handleAddStaff(event) {
 
 
 
-/**
- * एक साधारण CSV टेक्स्ट को JSON ऑब्जेक्ट ऐरे में पार्स करता है
- */
- function parseCSV(csvText) {
-    const lines = csvText.split('\n');
-    if (lines.length === 0) return [];
-    
-    // हेडर (Date, Description, Debit, Credit) का पता लगाएँ
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    
-    // कॉलम इंडेक्स ढूँढें
-    const dateIdx = headers.findIndex(h => h.includes('date'));
-    const descIdx = headers.findIndex(h => h.includes('description') || h.includes('narration'));
-    const debitIdx = headers.findIndex(h => h.includes('debit') || h.includes('withdrawal'));
-    const creditIdx = headers.findIndex(h => h.includes('credit') || h.includes('deposit'));
-
-    if (dateIdx === -1 || descIdx === -1 || debitIdx === -1 || creditIdx === -1) {
-        showMessage('CSV एरर', 'CSV में Date, Description, Debit/Withdrawal, या Credit/Deposit कॉलम नहीं मिले।', 'danger');
-        throw new Error('Invalid CSV headers');
-    }
-
-    const items = [];
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line) continue;
-        
-        const values = line.split(',');
-        
-        const dateStr = values[dateIdx];
-        // तारीख को YYYY-MM-DD में बदलें (मान लें कि यह DD/MM/YYYY या MM/DD/YYYY है)
-        let dateObj;
-        if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            // मान लें कि यह MM/DD/YYYY है (इसे अपने बैंक के अनुसार बदलें)
-            // अगर DD/MM/YYYY है, तो new Date(parts[2], parts[1] - 1, parts[0]) का उपयोग करें
-            dateObj = new Date(parts[2], parts[0] - 1, parts[1]); 
-        } else {
-            dateObj = new Date(dateStr); // ISO 8601 (YYYY-MM-DD)
-        }
-        
-        const debitAmount = parseFloat(values[debitIdx].replace(/[^0-9.]/g, '')) || 0;
-        const creditAmount = parseFloat(values[creditIdx].replace(/[^0-9.]/g, '')) || 0;
-
-        items.push({
-            date: dateObj.toISOString().split('T')[0],
-            description: values[descIdx],
-            debit: debitAmount,
-            credit: creditAmount
-        });
-    }
-    return items;
-}
 
 
 
@@ -5402,7 +5507,7 @@ const landingButtons = document.getElementById('landing-buttons-container');
     document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            renderView(link.getAttribute('data-view'));
+            handleNavClick(link.getAttribute('data-view'));
             if (window.innerWidth < 992) document.getElementById('sidebar').classList.remove('active');
         });
     });
