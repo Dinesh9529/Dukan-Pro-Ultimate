@@ -84,17 +84,22 @@ async function createTables() {
         }
 
         // 2. Stock Table (Fixing the UNIQUE constraint and missing columns for ON CONFLICT)
-        await client.query('CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, sku TEXT NOT NULL, name TEXT NOT NULL, quantity NUMERIC NOT NULL, unit TEXT, purchase_price NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, cost_price NUMERIC DEFAULT 0, category TEXT, gst NUMERIC DEFAULT 0, hsn_code TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL, UNIQUE (shop_id, sku));');
-        // FIX: Add the composite UNIQUE constraint safely if it was missing (Fixes ON CONFLICT Error)
+       // 🚀🚀🚀 यह रहा परमानेंट फिक्स 🚀🚀🚀
+        // यह पुराने, गलत 'sku' नियम को हटाता है और सही 'shop_id + sku' नियम को लागू करता है
         await client.query(`
             DO $$ BEGIN
+                -- 1. पहले, किसी भी पुराने और गलत "सिर्फ-sku" वाले नियम को हटा दें (अगर वह मौजूद है)
+                IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stock_sku_key' AND conrelid = (SELECT oid FROM pg_class WHERE relname = 'stock')) THEN
+                    ALTER TABLE stock DROP CONSTRAINT stock_sku_key;
+                END IF;
+                
+                -- 2. अब, सही "shop_id + sku" वाले नियम को जोड़ें (अगर वह पहले से मौजूद नहीं है)
                 IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stock_shop_id_sku_key' AND conrelid = (SELECT oid FROM pg_class WHERE relname = 'stock')) THEN
                     ALTER TABLE stock ADD CONSTRAINT stock_shop_id_sku_key UNIQUE (shop_id, sku);
                 END IF;
             END $$;
         `);
-        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='stock') AND attname='last_sale_date') THEN ALTER TABLE stock ADD COLUMN last_sale_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='stock') AND attname='hsn_code') THEN ALTER TABLE stock ADD COLUMN hsn_code TEXT; END IF; END $$;`);
-
+        // 🚀🚀🚀 फिक्स समाप्त 🚀🚀🚀
         // 3. Customers Table (Fixing the missing balance column for Balance Sheet Error)
         await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, gstin TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
         // FIX: Add the missing balance column safely (Fixes Balance Sheet Error)
@@ -2981,6 +2986,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
