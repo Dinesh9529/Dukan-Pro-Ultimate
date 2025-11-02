@@ -2790,7 +2790,51 @@ function fetchAndPopulateShopData() {
     }// यह भी सुनिश्चित करें कि 'renderReports' फ़ंक्शन के अंदर API कॉल के बाद 
 // यह फ़ंक्शन कॉल हो रहा है, जैसा कि नीचे है:
 
+// (Multiuser.html में लाइन 2049 के आसपास, renderView से ठीक पहले)
 
+    /**
+     * 🚀 NAYA FUNCTION: Plan-Aadhaar par Navigation ko Handle karta hai
+     * Yeh function sidebar clicks ko rokta hai aur plan check karta hai.
+     * Yahi aapki "Problem 1" ka solution hai.
+     */
+     function handleNavClick(viewId) {
+        // 1. Un views ko define karein jinke liye plan ki aavashyakta hai
+        // (Yeh aapke server-side 'checkPlan' logic se mel khana chahiye)
+        const planRequirements = {
+            'crm': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'CRM (ग्राहक प्रबंधन)' },
+            'reports': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Advanced Reports' },
+            'gst-reports': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'GST Reports' },
+            'bank-reconciliation': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Bank Reconciliation' },
+            'daily-closing': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_closing', featureName: 'Daily Closing' },
+            'data-backup': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_backup', featureName: 'Data Backup' },
+            'staff': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Staff Management' }
+            
+            // Views not listed: dashboard, stock, sales, invoice-generator,
+            // purchases, expenses, shop-settings sabke liye available hain.
+        };
+
+        const req = planRequirements[viewId];
+
+        if (req) {
+            // 2. Is view ke liye plan check karein
+            // 'checkUserPlan' फ़ंक्शन आपके कोड में पहले से मौजूद है (लाइन 1968)
+            if (checkUserPlan(req.plans, req.addOn)) {
+                renderView(viewId); // Anumati hai
+            } else {
+                // 3. Anumati nahi hai - Lock modal dikhayein
+                const requiredName = req.addOn ? req.featureName : req.plans.join('/');
+                // 'showPlanLockModal' फ़ंक्शन आपके कोड में पहले से मौजूद है (लाइन 2000)
+                showPlanLockModal(req.featureName, requiredName);
+            }
+        } else {
+            // 4. Is view ke liye koi plan requirement nahi hai
+            renderView(viewId);
+        }
+    }
+    // --- Yahaan naya function samapt hota hai ---
+
+
+   
     // --- RENDER FUNCTIONS FOR EACH SECTION ---
     const renderView = (viewId) => {
         AppState.currentView = viewId;
@@ -3080,18 +3124,16 @@ function fetchAndPopulateShopData() {
         }
     }
     
+    // [ पुराने renderDashboard() फ़ंक्शन को इस नए फ़ंक्शन से पूरी तरह बदल दें ]
+
     async function renderDashboard() {
         // --- 1. Get Summary Cards Data ---
         try {
-            // Use the new multi-tenant endpoint [cite: 214]
+            // (यह कॉल सुरक्षित है, क्योंकि सर्वर पर 'checkPlan' नहीं है)
             const data = await fetchApi('/api/dashboard/summary', { method: 'GET' }, 'मुख्य आँकड़े लोड हो रहे हैं...');
             if (data.success) {
-                // Use the correct response keys from server.cjs [cite: 225]
                 document.getElementById('total-sales-revenue').innerText = formatCurrency(data.summary.totalSales);
                 document.getElementById('total-stock-value').innerText = formatCurrency(data.summary.currentStockValue);
-                // totalCustomers is not in this summary, we need to fetch it separately or remove it
-                // Let's modify the server endpoint logic slightly in our head...
-                // ...or just fetch the data from the other endpoints
             } else {
                 showMessage('त्रुटि', data.message, 'danger');
             }
@@ -3099,22 +3141,40 @@ function fetchAndPopulateShopData() {
             showMessage('सर्वर त्रुटि', `डैशबोर्ड आँकड़े लोड नहीं हो सके: ${error.message}`, 'danger');
         }
 
-        // --- 2. Load other tables (Your existing logic is fine, but needs new endpoints) ---
+        // --- 2. Load other tables (SMARTLY) ---
         try {
-            // [cite: 187] [cite_start]for customers, [cite: 168] for sales
-            const [lowStockRes, salesRes, customersRes] = await Promise.all([
-                fetchApi('/api/stock', { method: 'GET' }, 'कम स्टॉक आइटम्स लोड हो रहे हैं...'), // Assuming low stock is just stock
-                fetchApi('/api/invoices', { method: 'GET' }, 'हाल की बिक्री लोड हो रही है...'), 
-                fetchApi('/api/customers', { method: 'GET' }, 'हाल के ग्राहक लोड हो रहे हैं...')
-            ]);
-            
-            // Low Stock Table (Filter from full stock list)
+            // 🚀🚀🚀 फिक्स: पहले यूज़र का प्लान चेक करें
+            // checkUserPlan (लाइन 1968) पहले से मौजूद है
+            const canAccessCRM = checkUserPlan(['MEDIUM', 'PREMIUM']); // यह 'TRIAL' के लिए भी true देगा
+
+            // API कॉल्स की लिस्ट को डायनामिक रूप से बनाएँ
+            let apiCalls = [
+                fetchApi('/api/stock', { method: 'GET' }, null), // कम स्टॉक के लिए
+                fetchApi('/api/invoices', { method: 'GET' }, null) // हाल की बिक्री के लिए
+            ];
+
+            if (canAccessCRM) {
+                // अगर प्लान 'MEDIUM', 'PREMIUM' या 'TRIAL' है, तभी 'customers' को कॉल करें
+                console.log("CRM एक्सेस की अनुमति है, ग्राहक डेटा लोड हो रहा है...");
+                apiCalls.push(fetchApi('/api/customers', { method: 'GET' }, null));
+            } else {
+                console.log("CRM एक्सेस की अनुमति नहीं है ('BASIC' प्लान), ग्राहक डेटा को छोड़ा जा रहा है।");
+            }
+
+            // कॉल्स को एक साथ चलाएँ
+            const results = await Promise.all(apiCalls);
+
+            // 🚀 फिक्स: परिणामों को सही ढंग से असाइन करें
+            const lowStockRes = results[0];
+            const salesRes = results[1];
+            // customersRes अब सशर्त (conditional) है
+            const customersRes = canAccessCRM ? results[2] : { success: false, customers: [] };
+
+            // Low Stock Table (यह सही काम कर रहा है)
             const lowStockBody = document.getElementById('low-stock-table-body');
             lowStockBody.innerHTML = '';
-            const lowStockItems = lowStockRes.success ? lowStockRes.stock.filter(item => item.quantity < 10) : []; // 10 को थ्रेशोल्ड मानें
-            
-            document.getElementById('low-stock-count').innerText = lowStockItems.length; // Update low stock count
-            
+            const lowStockItems = lowStockRes.success ? lowStockRes.stock.filter(item => item.quantity < 10) : [];
+            document.getElementById('low-stock-count').innerText = lowStockItems.length;
             if (lowStockItems.length > 0) {
                 lowStockItems.forEach(item => {
                     lowStockBody.innerHTML += `<tr><td>${item.sku}</td><td>${item.name}</td><td>${item.quantity}</td></tr>`;
@@ -3123,47 +3183,49 @@ function fetchAndPopulateShopData() {
                 lowStockBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">कोई कम स्टॉक आइटम नहीं</td></tr>`;
             }
 
-            // Recent Sales Table
+            // Recent Sales Table (यह सही काम कर रहा है)
             const recentSalesBody = document.getElementById('recent-sales-table-body');
             recentSalesBody.innerHTML = '';
             if (salesRes.success && salesRes.sales.length > 0) {
-                // Update total customers count
-                document.getElementById('total-sales-revenue').innerText = formatCurrency(salesRes.sales.reduce((acc, s) => acc + parseFloat(s.total_amount), 0));
-                
-                salesRes.sales.slice(0, 10).forEach(sale => { // Show 10 recent
+                salesRes.sales.slice(0, 10).forEach(sale => {
                     recentSalesBody.innerHTML += `<tr><td>INV-${sale.id}</td><td>${sale.customer_name}</td><td>${formatCurrency(sale.total_amount)}</td><td>${new Date(sale.created_at).toLocaleDateString()}</td></tr>`;
                 });
             } else {
                 recentSalesBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">कोई बिक्री नहीं</td></tr>`;
             }
 
-            // Recent Customers Table
+            // 🚀 फिक्स: Recent Customers Table (अब यह सशर्त है)
             const recentCustomersBody = document.getElementById('recent-customers-table-body');
-            recentCustomersBody.innerHTML = '';
-            if (customersRes.success && customersRes.customers.length > 0) {
-                // Update total customers count
-                document.getElementById('total-customers').innerText = customersRes.customers.length;
-                
-                customersRes.customers.slice(0, 10).forEach(cust => { // Show 10 recent
+            const totalCustomersEl = document.getElementById('total-customers');
+            
+            if (canAccessCRM && customersRes.success && customersRes.customers.length > 0) {
+                // 'MEDIUM'/'PREMIUM'/'TRIAL' यूज़र
+                totalCustomersEl.innerText = customersRes.customers.length;
+                recentCustomersBody.innerHTML = '';
+                customersRes.customers.slice(0, 10).forEach(cust => {
                     recentCustomersBody.innerHTML += `<tr><td>${cust.name}</td><td>${cust.phone || 'N/A'}</td><td>${new Date(cust.created_at).toLocaleDateString()}</td></tr>`;
                 });
             } else {
-                recentCustomersBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">कोई ग्राहक नहीं</td></tr>`;
+                // 'BASIC' यूज़र
+                totalCustomersEl.innerText = 'N/A'; // 'N/A' दिखाएँ
+                recentCustomersBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">CRM इस प्लान में नहीं है।</td></tr>`; // मैसेज दिखाएँ
             }
             
-            // Update stock value from stock endpoint
-             document.getElementById('total-stock-value').innerText = formatCurrency(lowStockRes.success ? lowStockRes.stock.reduce((acc, item) => acc + (item.purchase_price * item.quantity), 0) : 0);
+            // Update stock value (यह सही काम कर रहा है)
+            document.getElementById('total-stock-value').innerText = formatCurrency(lowStockRes.success ? lowStockRes.stock.reduce((acc, item) => acc + (item.purchase_price * item.quantity), 0) : 0);
             
-            // --- NEW: Load Sales Chart ---
+            // --- Sales Chart ---
             renderSalesChart();
 
-            console.log("✅ Dashboard fully updated.");
+            console.log("✅ Dashboard 'BASIC' प्लान के लिए सुरक्षित रूप से अपडेट हो गया। (लॉगआउट नहीं होगा)");
 
         } catch (error) {
+            // यह अब तभी कॉल होगा जब '/api/stock' या '/api/invoices' जैसा कोई ज़रूरी API फेल हो
             showMessage('सर्वर त्रुटि', `डैशबोर्ड तालिकाएँ लोड नहीं हो सकीं: ${error.message}`, 'danger');
         }
     } 
-    
+
+    // [ नया renderDashboard() फ़ंक्शन यहाँ समाप्त होता है ]    
   // NEW: Render Sales Chart (Uses server endpoint [cite: 271-282])
     let salesChartInstance = null; // To hold the chart object
     async function renderSalesChart(days = 30) {
@@ -5579,7 +5641,9 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
 // [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]// [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]    // --- Registration Form Handler - MODIFIED ---
    // Registration Form Handler - MODIFIED to include mobile
  
+
 </script>
+
 <div class="modal fade" id="pairingModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="pairingModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
