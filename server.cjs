@@ -2031,6 +2031,8 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), check
     if (!startDate || !endDate) {
         return res.status(400).json({ success: false, message: 'StartDate और EndDate आवश्यक हैं.' });
     }
+	const endDateObj = new Date(endDate);
+    endDateObj.setDate(endDateObj.getDate() + 1);
 
     const client = await pool.connect();
     try {
@@ -2040,17 +2042,17 @@ app.get('/api/reports/profit-loss', authenticateJWT, checkRole('MANAGER'), check
                 COALESCE(SUM(total_amount), 0) AS total_sales,
                 COALESCE(SUM(total_cost), 0) AS total_cogs
              FROM invoices
-             WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3`,
-            [shopId, startDate, endDate]
+            WHERE shop_id = $1 AND created_at >= $2 AND created_at < $3`,
+		    [shopId, startDate, endDateObj] 
         );
 
         // 2. खर्च (Expenses) - श्रेणी के अनुसार (By Category)
         const expenseResult = await client.query(
             `SELECT category, COALESCE(SUM(amount), 0) AS total_amount
              FROM expenses
-             WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3
+             WHERE shop_id = $1 AND created_at >= $2 AND created_at < $3
              GROUP BY category`,
-            [shopId, startDate, endDate]
+            [shopId, startDate, endDateObj]
         );
         
         const { total_sales, total_cogs } = salesResult.rows[0];
