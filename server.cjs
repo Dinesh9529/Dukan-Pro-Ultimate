@@ -2333,7 +2333,7 @@ app.post('/api/shop/company-profile', authenticateJWT, checkRole('ADMIN'), async
     }
 });
 
-app.get('/api/shop/company-profile', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+app.get('/api/shop/company-profile', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
     const shopId = req.shopId;
     try {
         const result = await pool.query('SELECT * FROM company_profile WHERE shop_id = $1', [shopId]);
@@ -2986,6 +2986,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
