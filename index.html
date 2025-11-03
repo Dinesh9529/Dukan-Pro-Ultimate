@@ -322,6 +322,7 @@
         @media print {
             body * { visibility: hidden; }
             .printable, .printable * { visibility: visible; }
+          .report-print-header, .report-print-header * { visibility: visible; }
             .printable { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 15px; border: none; box-shadow: none; }
             .no-print { display: none; }
         }
@@ -365,7 +366,7 @@
         .login-wrapper {
             width: 100%;
             max-width: 950px;
-            display: grid;
+            
             grid-template-columns: 40% 60%; 
             border-radius: 20px;
             overflow: hidden;
@@ -2202,19 +2203,18 @@
         </div>
 		
 		
-		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+				<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="./qrcode.min.js"></script>
-
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+                  
 
 <script>
-    // --- CONFIGURATION AND GLOBAL STATE ---
-   // --- CONFIGURATION AND GLOBAL STATE ---
-// --- CONFIGURATION AND GLOBAL STATE ---
-    // ... (अन्य वेरिएबल्स) ...
+    
+
     let posWebSocket = null;
     let qrCodeDataUrl = null; // 🚀 नया: QR कोड इमेज डेटा रखने के लिए
     let isWaitingForQr = false; // 🚀 नया: बताएगा कि QR का इंतज़ार हो रहा है
@@ -3125,6 +3125,10 @@ function fetchAndPopulateShopData() {
     }
     
     // [ पुराने renderDashboard() फ़ंक्शन को इस नए फ़ंक्शन से पूरी तरह बदल दें ]
+    // [ multiuser.html में लाइन 2174 पर पेस्ट करें ]
+
+
+    // [ पुराने renderDashboard() फ़ंक्शन को इस नए फ़ंक्शन से पूरी तरह बदल दें ]
 
     async function renderDashboard() {
         // --- 1. Get Summary Cards Data ---
@@ -3224,64 +3228,7 @@ function fetchAndPopulateShopData() {
             showMessage('सर्वर त्रुटि', `डैशबोर्ड तालिकाएँ लोड नहीं हो सकीं: ${error.message}`, 'danger');
         }
     } 
-
-    // [ नया renderDashboard() फ़ंक्शन यहाँ समाप्त होता है ]    
-  // NEW: Render Sales Chart (Uses server endpoint [cite: 271-282])
-    let salesChartInstance = null; // To hold the chart object
-    async function renderSalesChart(days = 30) {
-        try {
-            const res = await fetchApi(`/api/dashboard/sales-by-day?days=${days}`, { method: 'GET' });
-            if (res.success) {
-                const ctx = document.getElementById('salesChart').getContext('2d');
-                const labels = res.data.map(d => d.date);
-                const salesData = res.data.map(d => d.sales);
-                const profitData = res.data.map(d => d.profit);
-
-                if (salesChartInstance) {
-                    salesChartInstance.destroy(); // Destroy old chart before creating new one
-                }
-                
-                salesChartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'बिक्री (Sales)',
-                                data: salesData,
-                                borderColor: '#0d6efd',
-                                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                                fill: true,
-                                tension: 0.3
-                            },
-                            {
-                                label: 'लाभ (Profit)',
-                                data: profitData,
-                                borderColor: '#198754',
-                                backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                                fill: true,
-                                tension: 0.3
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    callback: function(value) { return '₹' + value; }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        } catch (e) {
-            console.error("Sales chart error:", e.message);
-        }
-    }
-
+    // [ नया renderDashboard() फ़ंक्शन यहाँ समाप्त होता है ]
     // ==========================================================
 // ========== UPDATED: renderReports (Bank-Style Detail) ==========
 // ==========================================================
@@ -3292,6 +3239,15 @@ async function renderReports() {
 
     try {
         // 2. Fetch P&L Report first
+     
+// [ लाइन 2274 से ठीक पहले यह 4 लाइनें जोड़ें ]
+if (!checkUserPlan(['MEDIUM', 'PREMIUM'])) {
+    document.getElementById('pl-card').querySelectorAll('tbody')[0].innerHTML = '<tr><td colspan="2" class="text-center text-muted">P&L रिपोर्ट इस प्लान में नहीं है।</td></tr>';
+    document.getElementById('bs-card').querySelectorAll('tbody')[0].innerHTML = '<tr><td colspan="2" class="text-center text-muted">बैलेंस शीट के लिए P&L आवश्यक है।</td></tr>';
+    return; // 'BASIC' यूज़र के लिए फंक्शन को यहीं रोक दें
+}
+      
+      
         const plRes = await fetchApi(`/api/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' }, 'P&L रिपोर्ट लोड हो रही है...');
         
         if (!plRes.success) {
@@ -3778,8 +3734,7 @@ async function fetchAndRenderStockList() {
                     // 🚀 यह नई लाइन यहाँ जोड़ें
                     data.balance = document.getElementById('customer-balance').value || 0;
 
-                } else if (formId === 'add-purchase-form') {
-               // ... (लाइन 1944 के आसपास)
+              
             } else if (formId === 'add-purchase-form') {
                     // 🚀 नया GST-सक्षम लॉजिक
                     data.supplier_name = document.getElementById('purchase-supplier').value;
@@ -4063,7 +4018,10 @@ async function handleDeleteStaff(staffId) {
         // ... (आदि) ...
         
         applyRBAC(AppState.user.role);
-        setupForm('add-stock-form', '/api/stock', () => { /* ... */ });
+     setupForm('add-stock-form', '/api/stock', fetchAndRenderStockList);
+  setupForm('add-customer-form', '/api/customers', fetchAndRenderCustomers); 
+setupForm('add-purchase-form', '/api/purchases', fetchAndRenderPurchases);
+setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
         renderView('dashboard');
     };
@@ -4121,6 +4079,42 @@ async function handleDeleteStaff(staffId) {
         if (action === 'print') {
             document.querySelectorAll('.printable').forEach(el => el.classList.remove('printable'));
             reportElement.classList.add('printable');
+  
+const headerHtml = `
+
+    <div class="printable text-center mb-3">
+
+        <h3>${AppState.user.shopName}</h3>
+
+        <p class="mb-0">रिपोर्ट: ${reportType.replace('_', ' ')}</p>
+
+        <p class="mb-0">तारीख: ${new Date().toLocaleDateString()}</p>
+
+    </div>
+
+`;
+
+// चेक करें कि हेडर पहले से मौजूद है या नहीं
+
+let headerDiv = reportElement.querySelector('.report-print-header');
+
+if (headerDiv) {
+
+    headerDiv.innerHTML = headerHtml;
+
+} else {
+
+    headerDiv = document.createElement('div');
+
+    headerDiv.className = 'report-print-header';
+
+    headerDiv.innerHTML = headerHtml;
+
+    reportElement.prepend(headerDiv);
+
+}        
+          
+          
             window.print();
         } else if (action === 'download') {
             showMessage('Info', 'PDF बनाया जा रहा है, कृपया प्रतीक्षा करें...', 'info');
@@ -5595,7 +5589,32 @@ const landingButtons = document.getElementById('landing-buttons-container');
     }
     const barcodeInput = document.getElementById('barcode-scanner-input');
     barcodeInput.addEventListener('change', () => handleBarcodeScan(null));
-    document.body.addEventListener('click', focusBarcodeScanner);
+    // [ यह आपका फिक्स है - उस एक लाइन की जगह इसे पेस्ट करें ]
+document.body.addEventListener('click', (e) => {
+    // यह जाँचता है कि आपने कहाँ क्लिक किया
+    const targetElement = e.target;
+    const targetTagName = targetElement.tagName.toUpperCase();
+
+    // यह जाँचता है कि क्या क्लिक करने योग्य तत्व (input, button, etc.) पर क्लिक किया गया था
+    const isClickable = (
+        targetTagName === 'INPUT' ||
+        targetTagName === 'TEXTAREA' ||
+        targetTagName === 'SELECT' ||
+        targetTagName === 'BUTTON' ||
+        targetElement.closest('a') || // कोई भी लिंक
+        targetElement.closest('.nav-link') || // नेविगेशन लिंक
+        targetElement.closest('.list-group-item-action') // POS सर्च रिजल्ट
+    );
+
+    // अगर आपने किसी इनपुट, बटन, या लिंक पर क्लिक *नहीं* किया है,
+    // (यानि पेज के खाली हिस्से पर क्लिक किया है)
+    // तभी बारकोड स्कैनर पर फोकस करें।
+    if (!isClickable) {
+        focusBarcodeScanner();
+    }
+    // अगर आपने 'pos-customer' जैसे इनपुट पर क्लिक किया है, 
+    // तो यह कुछ नहीं करेगा और आप आसानी से टाइप कर पाएँगे।
+});
 
     // postMessage Listener
     window.addEventListener('message', function(event) {
