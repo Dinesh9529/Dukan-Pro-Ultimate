@@ -1708,8 +1708,9 @@ app.post('/api/shop/settings', authenticateJWT, async (req, res) => {
         );
 
         // यूज़र का डेटा पुनः प्राप्त करें (क्योंकि 'shopName' बदल गया होगा)
+       // [ ✅ Sahi Query (Ise Line 346 par Paste Karein) ]
         const updatedUserResult = await pool.query(
-            'SELECT u.*, s.shop_name, s.shop_logo FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
+            'SELECT u.*, s.shop_name, s.shop_logo, s.license_expiry_date, s.plan_type, s.add_ons FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
             [userId]
         );
       // [ ✅ Sahi Token Object (Ise Upar Wale Ki Jagah Paste Karein) ]
@@ -2991,6 +2992,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
