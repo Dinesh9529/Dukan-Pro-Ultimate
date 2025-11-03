@@ -170,7 +170,16 @@ async function createTables() {
         await client.query('CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (shop_id, name));');
 
         // 10. Company Profile Table
-        await client.query(`CREATE TABLE IF NOT EXISTS company_profile (shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE, legal_name TEXT, gstin TEXT, address TEXT, updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
+        await client.query(`
+    CREATE TABLE IF NOT EXISTS company_profile (
+        shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE,
+        legal_name TEXT,
+        gstin TEXT,
+        address TEXT,
+        opening_capital NUMERIC DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+`);
 
         //11. createTables() फ़ंक्शन के अंदर, company_profile टेबल बनाने के बाद इसे जोड़ें:
         await client.query(`
