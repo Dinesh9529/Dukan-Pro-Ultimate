@@ -276,17 +276,7 @@ async function createTables() {
             END $$;
         `);
 
-        // 5. GSTR रिपोर्टिंग के लिए शॉप की कंपनी प्रोफाइल (GSTIN, नाम)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS company_profile (
-                shop_id INTEGER PRIMARY KEY REFERENCES shops(id) ON DELETE CASCADE,
-                legal_name TEXT,
-                gstin TEXT,
-                address TEXT,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
+      
         // 6. लाइसेंस रिन्यूअल अनुरोधों को ट्रैक करने के लिए नई टेबल
         await client.query(`
             CREATE TABLE IF NOT EXISTS renewal_requests (
