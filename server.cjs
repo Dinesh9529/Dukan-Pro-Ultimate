@@ -860,10 +860,11 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         console.log(`DEBUG ACTIVATE: Verified updated shop expiry: ${updatedShopExpiryDate} | Verified Plan: ${updatedPlanType}`);
 
         // 7. Fetch user data again (shop_name needed for payload)
-        const updatedUserResult = await client.query(
-            'SELECT u.*, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
-            [userId]
-        );
+       // [ ✅ Sahi Query (Ise Upar Wale Ki Jagah Paste Karein) ]
+const updatedUserResult = await pool.query(
+    'SELECT u.*, s.shop_name, s.shop_logo, s.license_expiry_date, s.plan_type, s.add_ons FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
+    [userId]
+);
         const updatedUser = updatedUserResult.rows[0];
 
         // 8. 🚀 FIX: नए टोकन में 'plan_type' और 'add_ons' जोड़ें
@@ -1711,20 +1712,24 @@ app.post('/api/shop/settings', authenticateJWT, async (req, res) => {
             'SELECT u.*, s.shop_name, s.shop_logo FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
             [userId]
         );
-        const updatedUser = updatedUserResult.rows[0];
+      // [ ✅ Sahi Token Object (Ise Upar Wale Ki Jagah Paste Karein) ]
+const updatedUser = updatedUserResult.rows[0];
 
-        // नया टोकन जनरेट करें जिसमें नया shopName और shopLogo हो
-        const tokenUser = {
-            id: updatedUser.id,
-            email: updatedUser.email,
-            shopId: updatedUser.shop_id,
-            name: updatedUser.name,
-            role: updatedUser.role,
-            shopName: updatedUser.shop_name, // (Updated)
-            shopLogo: updatedUser.shop_logo, // (Updated)
-            licenseExpiryDate: updatedUser.license_expiry_date,
-            status: updatedUser.status
-        };
+const tokenUser = {
+    id: updatedUser.id,
+    email: updatedUser.email,
+    shopId: updatedUser.shop_id,
+    name: updatedUser.name,
+    role: updatedUser.role,
+    shopName: updatedUser.shop_name, // (Updated)
+    shopLogo: updatedUser.shop_logo, // (Updated)
+    status: updatedUser.status,
+    
+    // --- 🚀 FIX: Yeh 3 lines jodi gayi hain ---
+    licenseExpiryDate: updatedUser.license_expiry_date, // Ab yeh 'shops' table se aa raha hai
+    plan_type: updatedUser.plan_type || 'TRIAL',        // Ab yeh 'shops' table se aa raha hai
+    add_ons: updatedUser.add_ons || {}                // Ab yeh 'shops' table se aa raha hai
+};
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         res.json({
@@ -2986,6 +2991,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
