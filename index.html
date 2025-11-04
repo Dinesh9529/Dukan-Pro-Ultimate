@@ -4023,6 +4023,7 @@ async function handleDeleteStaff(staffId) {
 setupForm('add-purchase-form', '/api/purchases', fetchAndRenderPurchases);
 setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
+        setupNewFormHandlers();
         renderView('dashboard');
     };
 
