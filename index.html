@@ -4589,6 +4589,10 @@ if (headerDiv) {
             const startDate = document.getElementById('product-report-start-date').value;
             const endDate = document.getElementById('product-report-end-date').value;
           
+        if (!startDate || !endDate) {
+        return showMessage('तारीख चुनें', "CSV डाउनलोड के लिए कृपया तारीख चुनें।", 'warning');
+        }
+
             // Use the dedicated server endpoint [cite: 331]
             const url = `${__backend_url}/api/reports/product-sales/download?startDate=${startDate}&endDate=${endDate}&token=${AppState.token}`;
             // Hacky way to download with token (GET request)
