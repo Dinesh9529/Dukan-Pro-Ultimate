@@ -1937,7 +1937,9 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['
 
     const shopId = req.shopId;
     // आज की तारीख सर्वर टाइमज़ोन के अनुसार
-    const today = new Date().toISOString().split('T')[0];
+   const today = new Date(); // Local time
+   const startDate = new Date(today.setHours(0, 0, 0, 0)); // Aaj subah 00:00
+   const endDate = new Date(today.setHours(23, 59, 59, 999)); // Aaj raat 23:59
 
     const client = await pool.connect();
     try {
@@ -1958,16 +1960,16 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['
         const salesResult = await client.query(
             `SELECT COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(total_cost), 0) AS cogs
              FROM invoices
-             WHERE shop_id = $1 AND DATE(created_at) = $2`,
-             [shopId, today]
+             ... WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3`,
+             [shopId, startDate, endDate] // Params badal gaye
         );
         const { sales, cogs } = salesResult.rows[0];
         // 3. आज के खर्च (Expenses) की गणना करें
         const expensesResult = await client.query(
             `SELECT COALESCE(SUM(amount), 0) AS expenses
              FROM expenses
-             WHERE shop_id = $1 AND DATE(created_at) = $2`,
-            [shopId, today]
+           ... WHERE shop_id = $1 AND created_at >= $2 AND created_at <= $3`,
+          [shopId, startDate, endDate] // Params badal gaye
         );
         const { expenses } = expensesResult.rows[0];
 
@@ -2240,18 +2242,28 @@ app.get('/api/reports/product-sales', authenticateJWT, checkRole('MANAGER'), asy
     }
 });
 
+// [ ✅ Is Poore Naye Function ko Line 442 par Paste Karein ]
+
 // 14.4 Download Product-wise Sales Report (CSV)
 app.get('/api/reports/product-sales/download', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
     const shopId = req.shopId;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate } = req.query; // Yeh "" (khaali string) ho sakti hai
 
-    if (!startDate || !endDate) {
-        return res.status(400).json({ success: false, message: 'StartDate और EndDate आवश्यक हैं.' });
+    // SQL query ko dynamic banayein
+    let queryParams = [shopId];
+    let dateFilter = ""; // Default: koi filter nahi
+
+    // Agar dono date di gayi hain, tabhi filter lagayein
+    if (startDate && endDate) {
+        queryParams.push(startDate);
+        queryParams.push(endDate);
+        // 1 din jod dein taaki 'endDate' shaamil ho
+        dateFilter = ` AND i.created_at >= $2 AND i.created_at < (DATE '$3' + INTERVAL '1 day')`;
     }
 
     try {
-        const result = await pool.query(
-            `SELECT
+        const queryText = `
+            SELECT
                 ii.item_name,
                 ii.item_sku,
                 SUM(ii.quantity) AS total_quantity_sold,
@@ -2260,20 +2272,22 @@ app.get('/api/reports/product-sales/download', authenticateJWT, checkRole('MANAG
                 SUM(ii.quantity * (ii.sale_price - ii.purchase_price)) AS total_profit
              FROM invoice_items ii
              JOIN invoices i ON ii.invoice_id = i.id
-             WHERE i.shop_id = $1 AND i.created_at >= $2 AND i.created_at <= $3
+             WHERE i.shop_id = $1 ${dateFilter}
              GROUP BY ii.item_name, ii.item_sku
-             ORDER BY ii.item_name ASC`,
-            [shopId, startDate, endDate]
-        );
+             ORDER BY ii.item_name ASC`;
 
-        // CSV डेटा बनाएँ
+        const result = await pool.query(queryText, queryParams);
+
+        // CSV data banaayein
         let csv = "SKU,ItemName,QuantitySold,TotalRevenue,TotalCost,TotalProfit\n";
         for (const row of result.rows) {
             csv += `${row.item_sku},"${row.item_name}",${row.total_quantity_sold},${row.total_revenue},${row.total_cost},${row.total_profit}\n`;
         }
 
         res.header('Content-Type', 'text/csv');
-        res.attachment(`product_sales_report_${startDate}_to_${endDate}.csv`);
+        // File ka naam bhi dynamic rakhein
+        const fileName = `product_sales_${startDate || 'all'}_to_${endDate || 'all'}.csv`;
+        res.attachment(fileName);
         res.send(csv);
 
     } catch (err) {
@@ -2281,7 +2295,6 @@ app.get('/api/reports/product-sales/download', authenticateJWT, checkRole('MANAG
         res.status(500).json({ success: false, message: 'रिपोर्ट डाउनलोड करने में विफल: ' + err.message });
     }
 });
-
 // 14.5 Get Recently Sold Items (For POS SKU List)
 app.get('/api/reports/recently-sold-items', authenticateJWT, async (req, res) => {
     const shopId = req.shopId;
