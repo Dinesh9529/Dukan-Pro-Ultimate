@@ -1932,6 +1932,7 @@ app.post('/api/admin/sql-console', authenticateJWT, checkRole('ADMIN'), async (r
 // -----------------------------------------------------------------------------
 
 
+// [ ✅ Yeh Sahi Code Hai - Ise Line 380 par Paste Karein ]
 
 // 13.1 Run Daily Closing (PLAN LOCKED)
 app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM'], 'has_closing'), async (req, res) => {
@@ -1939,8 +1940,10 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['
 
     // --- 🚀 YEH HAI AAPKA FIX (Timezone galti theek ki gayi) ---
     const today = new Date(); // Maan lijiye abhi 10 baje hain
-    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0); // Aaj subah 00:00
-    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999); // Aaj raat 23:59
+    // 'startDate' hamesha "aaj subah 00:00" hoga
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0); 
+    // 'endDate' hamesha "aaj raat 23:59" hoga
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999); 
     // --- FIX END ---
 
     const client = await pool.connect();
@@ -1948,9 +1951,10 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['
         await client.query('BEGIN');
 
         // 1. Check if closing already ran (Using startDate for the check)
+        // 🚀 FIX: Yahaan 'today' ki jagah 'startDate' ka istemaal karein
         const checkResult = await client.query(
             'SELECT id FROM daily_closings WHERE shop_id = $1 AND closing_date = $2',
-            [shopId, startDate] // Use startDate (which is today's date at 00:00)
+            [shopId, startDate] // 🚀 FIX
         );
 
         if (checkResult.rows.length > 0) {
@@ -1980,10 +1984,11 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['
         const netProfit = parseFloat(sales) - parseFloat(cogs) - parseFloat(expenses);
 
         // 5. Save Closing Report (Using startDate as the 'closing_date')
+        // 🚀 FIX: Yahaan 'today' ki jagah 'startDate' ka istemaal karein
         await client.query(
             `INSERT INTO daily_closings (shop_id, closing_date, total_sales, total_cogs, total_expenses, net_profit)
              VALUES ($1, $2, $3, $4, $5, $6)`,
-            [shopId, startDate, parseFloat(sales), parseFloat(cogs), parseFloat(expenses), netProfit]
+            [shopId, startDate, parseFloat(sales), parseFloat(cogs), parseFloat(expenses), netProfit] // 🚀 FIX
         );
 
         await client.query('COMMIT');
@@ -2006,7 +2011,6 @@ app.post('/api/closing/run', authenticateJWT, checkRole('MANAGER'), checkPlan(['
         client.release();
     }
 });
-
 
 // 13.2 Get All Closing Reports (PLAN LOCKED)
 app.get('/api/closing/reports', authenticateJWT, checkRole('MANAGER'), checkPlan(['MEDIUM', 'PREMIUM'], 'has_closing'), async (req, res) => {
@@ -3011,7 +3015,6 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
-
 
 
 
