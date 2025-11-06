@@ -3279,7 +3279,94 @@ function fetchAndPopulateShopData() {
             hideLoader();
         }
     }
-    
+
+
+	// [ ✅ Is Poore Naye Function ko Line 2611 se pehle Paste Karein ]
+
+async function renderSalesChart() {
+    try {
+        // 1. Chart data API se laayein
+        const res = await fetchApi('/api/dashboard/sales-by-day?days=30', { method: 'GET' }, null); 
+
+        if (!res.success || !res.data) {
+            throw new Error(res.message || 'Sales chart data not found');
+        }
+
+        const chartData = res.data;
+
+        // 2. Data ko Chart.js ke liye process karein
+        const labels = chartData.map(d => new Date(d.date).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' }));
+        const salesValues = chartData.map(d => d.sales);
+        const profitValues = chartData.map(d => d.profit);
+
+        // 3. Canvas element ko pakdein
+        const ctx = document.getElementById('salesChart').getContext('2d');
+
+        // 4. Purana chart (agar hai) toh destroy karein
+        if (mySalesChart) {
+            mySalesChart.destroy();
+        }
+
+        // 5. Naya chart banayein
+        mySalesChart = new Chart(ctx, {
+            type: 'line', 
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'बिक्री (Sales)',
+                        data: salesValues,
+                        borderColor: 'rgba(0, 180, 216, 1)',
+                        backgroundColor: 'rgba(0, 180, 216, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'लाभ (Profit)',
+                        data: profitValues,
+                        borderColor: 'rgba(26, 188, 156, 1)',
+                        backgroundColor: 'rgba(26, 188, 156, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) { return '₹' + value; }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatCurrency(context.raw);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error("Error rendering sales chart:", error.message);
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.font = '16px Poppins';
+            ctx.fillStyle = '#dc3545';
+            ctx.textAlign = 'center';
+            ctx.fillText('चार्ट लोड करने में विफल: ' + error.message, ctx.canvas.width / 2, ctx.canvas.height / 2);
+        }
+    }
+}
+
     // [ पुराने renderDashboard() फ़ंक्शन को इस नए फ़ंक्शन से पूरी तरह बदल दें ]
     // [ multiuser.html में लाइन 2174 पर पेस्ट करें ]
 
