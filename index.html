@@ -4,7 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
-    
+
+
+    <script>
+    // Yeh script har uss user ke liye chalega jo aapki site kholega
+    // Yeh browser ko majboor karega ki woh purana, ziddi cache delete kar de.
+
+    // 1. Sabhi "Service Workers" (Zombie) ko unregister karein
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            if (registrations.length > 0) {
+                console.log('Bypassing cache: Purane Service Workers ko unregister kiya ja raha hai...');
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            }
+        }).catch(function(err) {
+            console.log('Service Worker unregistration failed: ', err);
+        });
+    }
+
+    // 2. Sabhi "Cache Storage" (Ziddi Cache) ko delete karein
+    if (window.caches) {
+        caches.keys().then(function(names) {
+            if (names.length > 0) {
+                console.log('Bypassing cache: Purane Cache Storage ko delete kiya ja raha hai...');
+                for (let name of names) {
+                    caches.delete(name);
+                }
+            }
+        });
+    }
+</script>
+
+
+
+	
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
