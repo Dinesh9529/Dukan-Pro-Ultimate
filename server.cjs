@@ -1149,6 +1149,44 @@ app.get('/api/get-stock-item/:sku', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: 'स्टॉक आइटम प्राप्त करने में विफल.' });
     }
 });
+
+// [ ✅ Is Naye Code ko Line 245 ke baad Paste Karein ]
+
+// 7.4.1 (NEW) Get Next Available Numeric SKU (Point 3)
+// Yeh API 'stock' table mein sabse bada numeric SKU dhoondhta hai aur +1 return karta hai
+app.get('/api/stock/next-sku', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
+    const shopId = req.shopId;
+
+    try {
+        // Yeh query sirf un SKUs ko dekhegi jo poori tarah se numbers hain
+        const result = await pool.query(
+            `SELECT sku FROM stock 
+             WHERE shop_id = $1 AND sku ~ '^[0-9]+$' 
+             ORDER BY LENGTH(sku) DESC, sku DESC 
+             LIMIT 1`,
+            [shopId]
+        );
+
+        let nextSku = "1001"; // Default, agar koi numeric SKU nahi hai
+
+        if (result.rows.length > 0) {
+            const lastSku = result.rows[0].sku;
+            const lastSkuNumber = parseInt(lastSku, 10);
+            if (!isNaN(lastSkuNumber)) {
+                nextSku = (lastSkuNumber + 1).toString();
+            }
+        }
+
+        res.json({ success: true, nextSku: nextSku });
+
+    } catch (error) {
+        console.error("Error fetching next SKU:", error.message);
+        res.status(500).json({ success: false, message: 'अगला SKU प्राप्त करने में विफल: ' + error.message });
+    }
+});
+
+
+
 // 7.5 Stock Management - Delete Item (SCOPED)
 app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, res) => { // Requires ADMIN/OWNER
     const { sku } = req.params;
@@ -3015,7 +3053,6 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
-
 
 
 

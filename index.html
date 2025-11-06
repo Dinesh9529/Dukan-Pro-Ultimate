@@ -1152,6 +1152,9 @@
                                             <i class="fas fa-qrcode"></i> मोबाइल स्कैनर
                                         </button>
                                     </div>
+                                    <button class="btn btn-info" type="button" id="manual-add-item-btn" title="Naya Item Manually Jodein">
+                                        <i class="fas fa-plus"></i> नया आइटम
+                                    </button>
 
                                     <div id="inline-pairing-box" class="mt-2 p-2 border border-warning rounded bg-light text-center" style="display: none;">
                                         <p class="mb-1 small text-muted">स्कैनर कनेक्ट करने के लिए यह कोड मोबाइल में डालें:</p>
@@ -2210,13 +2213,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
                   
 
 <script>
     
 
     let posWebSocket = null;
-	let mySalesChart = null;
     let qrCodeDataUrl = null; // 🚀 नया: QR कोड इमेज डेटा रखने के लिए
     let isWaitingForQr = false; // 🚀 नया: बताएगा कि QR का इंतज़ार हो रहा है
     
@@ -2434,78 +2437,229 @@ function addSKUToCart(sku) {
  */
 // बदलने वाला कोड: handleBarcodeScan (पूरा फंक्शन बदलें)
 // यह सुनिश्चित करता है कि यह फ़ंक्शन इनपुट से या मोबाइल स्कैनर से SKU स्वीकार करता है।
-async function handleBarcodeScan(skuFromScanner = null) {
+// [ ✅ Is Poore Naye "Smart Scan" Code ko Line 2307 par Paste Karein ]
+
+/**
+ * NAYA "SMART SCAN" HANDLER (Point 1, 2, 4)
+ * Yeh function sab kuchh handle karta hai:
+ * 1. Physical scanner (null SKU)
+ * 2. WebSocket scanner (scanned SKU)
+ * 3. Smart QR (JSON data)
+ * 4. Naya item (404 Error)
+ */
+ async function handleBarcodeScan(skuFromScanner = null) {
     let sku;
-    
-    // चेक करें कि SKU मोबाइल स्कैनर या फिजिकल इनपुट से आया है
+
     if (skuFromScanner) {
+        // Case 1: SKU mobile WebSocket scanner se aaya hai
         sku = skuFromScanner;
     } else {
+        // Case 2: SKU physical barcode scanner (computer se) aaya hai
         const barcodeInput = document.getElementById('barcode-scanner-input');
         sku = barcodeInput.value.trim();
-        barcodeInput.value = ''; // इनपुट को तुरंत साफ़ करें
+        barcodeInput.value = ''; // Input ko turant saaf karein
     }
 
-    if (!sku) return;
+    if (!sku) return; // Khaali scan ko ignore karein
 
-    const existingItemIndex = posCart.findIndex(item => item.sku === sku);
+    // --- Point 2: Smart QR Code Check ---
+    // Check karein ki scan kiya gaya data ek JSON object (QR Code) hai ya nahi
+    if (sku.startsWith('{') && sku.endsWith('}')) {
+        try {
+            const smartData = JSON.parse(sku);
 
-    if (existingItemIndex !== -1) {
-        // आइटम पहले से कार्ट में है, मात्रा बढ़ाएँ
-        posCart[existingItemIndex].quantity += 1;
-        showMessage('कार्ट अपडेट', `${posCart[existingItemIndex].name} की मात्रा बढ़ी (+1)।`, 'success');
-        updatePOSCartView();
-        return;
-    }
+            // Check karein ki zaroori data (sku, name, price) hai ya nahi
+            if (smartData.sku && smartData.name && smartData.sale_price) {
 
-    // स्टॉक से आइटम डेटा लाएँ
-    const stockItem = await fetchApi(`/api/get-stock-item/${sku}`);
-    
-    if (stockItem.success && stockItem.data) { // Ensure stockItem.data exists
-        const item = stockItem.data; // Note: Ensure your API returns 'data' property
-        if (item.quantity <= 0) {
-            showMessage('स्टॉक अलर्ट', `${item.name} स्टॉक में नहीं है।`, 'warning');
-            return;
+                // Is naye item ko direct "Stock Prabandhan" mein add karein
+                const itemData = {
+                    sku: smartData.sku,
+                    name: smartData.name,
+                    sale_price: smartData.sale_price,
+                    purchase_price: smartData.purchase_price || 0,
+                    quantity: 1,
+                    unit: 'Pcs'
+                };
+
+                showLoader('Smart QR se naya item add ho raha hai...');
+                // Stock Prabandhan (Database) mein add karein
+                const res = await fetchApi('/api/stock', { method: 'POST', body: itemData }, null);
+
+                if (!res.success) {
+                     // Agar SKU pehle se hi database mein hai
+                    if (res.message.includes('डुप्लिकेट कुंजी') || res.message.includes('duplicate key')) {
+                         // Toh use "Puraana Item" maanein aur Kadam 3 par jaakar fetch karein
+                         // (Neeche wala API call)
+                         console.log('Smart QR SKU pehle se hi stock mein hai. Ise cart mein add kar rahe hain...');
+                    } else {
+                        throw new Error(res.message);
+                    }
+                } else {
+                    // Agar naya item safalta se save ho gaya hai
+                    currentStock.push(res.stock); // 'currentStock' array ko update karein
+                }
+
+                // Ab item ko POS Cart mein add karein
+                addSKUToCart(smartData.sku); // Function ko call karein
+                hideLoader();
+                return; // Function ko yahin rok dein
+
+            }
+        } catch (e) {
+            console.warn('Scan ek JSON jaisa tha, par parse nahi hua:', e.message);
+            // Ise normal SKU ki tarah process hone dein
         }
-        
-        posCart.push({
-            sku: sku, // Use the provided SKU
-            name: item.name,
-            sale_price: parseFloat(item.sale_price),
-            purchase_price: parseFloat(item.purchase_price || 0),
-            gst: parseFloat(item.gst_rate || 0), // Use gst_rate from server
-            quantity: 1
-        });
-        showMessage('सफलता', `${item.name} कार्ट में जोड़ा गया।`, 'success');
-        updatePOSCartView();
+    }
 
-    } else {
-        showMessage('त्रुटि', `SKU ${sku} स्टॉक में नहीं मिला।`, 'danger');
+    // --- Point 1: Standard Barcode (Dumb) Check ---
+    // (Yeh "Smart QR" check fail hone par ya normal scan hone par chalega)
+
+    try {
+        // Server se SKU ki jaankaari laayein
+        const stockItem = await fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, null);
+
+        if (stockItem.success) {
+            // SUCCESS: Item database mein mil gaya
+            addSKUToCart(sku); // Helper function ko call karein
+        } else {
+            // Yeh tab chalega jab server 'success: false' bhejta hai (lekin 404 nahi)
+            throw new Error(stockItem.message);
+        }
+
+    } catch (error) {
+        // --- YEH AAPKA "POINT 1" (Naya Item) HAI ---
+        // Agar error '404' (Not Found) hai (ya 'SKU स्टॉक में नहीं मिला')
+        if (error.message.includes('404') || error.message.includes('SKU स्टॉक में नहीं मिला')) {
+
+            // Naya "Quick Add" Modal kholein
+            const modalElement = document.getElementById('quickAddItemModal');
+            const quickAddModal = new bootstrap.Modal(modalElement);
+
+            // Form reset karein
+            document.getElementById('quick-add-item-form').reset();
+
+            // SKU ko automatic bhar dein
+            document.getElementById('quick-add-sku').value = sku;
+
+            // Modal dikhayein
+            quickAddModal.show();
+
+            // Focus "Item Name" par karein
+            modalElement.addEventListener('shown.bs.modal', () => {
+                document.getElementById('quick-add-name').focus();
+            }, { once: true });
+
+        } else {
+            // Koi doosra error (jaise 500, network fail)
+            showMessage('त्रुटि', `आइटम लाने में विफल: ${error.message}`, 'danger');
+        }
     }
 }
 
 
-
       
-    // 🚀 नया: WebSocket शुरू करता है और इंतज़ार करता है
-    function openMobileScanner() {
-    const inlineBox = document.getElementById('inline-pairing-box');
-    if (!inlineBox) {
-        console.error("Inline pairing box not found!");
-        return;
+   // [ ✅ Is Poore Naye Code ko Line 2290 par Paste Karein ]
+
+// Global variable naye (Kadam 7) local scanner ke liye
+let localScanControls = null;
+let localScannerModalInstance = null;
+
+/**
+ * KADAM 7: Naya "Smart Scan" Button Logic
+ * Yeh check karta hai ki user computer par hai ya mobile par
+ */
+function openMobileScanner() {
+    if (isMobile()) {
+        // SCENARIO 1: User mobile par hai
+        // -> Direct isi mobile ka camera kholein
+        console.log("Mobile device detected. Opening local camera scanner...");
+        startLocalScanner();
+    } else {
+        // SCENARIO 2: User computer par hai
+        // -> Purana WebSocket pairing system chalu karein
+        console.log("Desktop device detected. Opening WebSocket pairing modal...");
+
+        // (Yeh aapka purana 'openMobileScanner' function ka code hai)
+        const inlineBox = document.getElementById('inline-pairing-box');
+        if (!inlineBox) {
+            console.error("Inline pairing box not found!");
+            return;
+        }
+        inlineBox.style.display = 'block';
+        const spinner = document.getElementById('inline-pairing-spinner');
+        const codeDisplay = document.getElementById('inline-pairing-code');
+        const statusDisplay = document.getElementById('inline-pairing-status');
+        if(spinner) spinner.style.display = 'inline-block';
+        if(codeDisplay) codeDisplay.textContent = '------';
+        if(statusDisplay) statusDisplay.style.display = 'none';
+        initPosWebSocket(); //
     }
+}
 
-    // बॉक्स दिखाएँ और UI रीसेट करें
-    inlineBox.style.display = 'block';
-    const spinner = document.getElementById('inline-pairing-spinner');
-    const codeDisplay = document.getElementById('inline-pairing-code');
-    const statusDisplay = document.getElementById('inline-pairing-status');
-    if(spinner) spinner.style.display = 'inline-block'; // स्पिनर दिखाएँ
-    if(codeDisplay) codeDisplay.textContent = '------'; // कोड रीसेट करें
-    if(statusDisplay) statusDisplay.style.display = 'none'; // स्टेटस छिपाएँ
+/**
+ * KADAM 7: Local Mobile Camera ko Chalu Karta Hai
+ */
+async function startLocalScanner() {
+    try {
+        if (!localScannerModalInstance) {
+            localScannerModalInstance = new bootstrap.Modal(document.getElementById('localScannerModal'));
+        }
 
-    // WebSocket शुरू करें (यह कोड जनरेट करने का अनुरोध भेजेगा)
-    initPosWebSocket(); 
+        const messageEl = document.getElementById('local-scanner-message');
+        messageEl.innerText = "कैमरा शुरू हो रहा है... कृपया अनुमति (Allow) दें।";
+        messageEl.style.display = 'block';
+        localScannerModalInstance.show();
+
+        const codeReader = new zxingBrowser.BrowserMultiFormatReader();
+        const videoElement = document.getElementById('local-scanner-video');
+
+        // Camera chalu karein
+        localScanControls = await codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
+            if (result) {
+                // SUCCESS: Barcode scan ho gaya
+                console.log("Local Scan Result:", result.getText());
+
+                // Scanner ko band karein
+                stopLocalScanner(); 
+
+                // Scan kiye gaye SKU ko hamare main "Smart Scan" function (Kadam 5 waala) ko bhej dein
+                handleBarcodeScan(result.getText()); //
+            }
+
+            if (err && !(err instanceof zxingBrowser.NotFoundException)) {
+                console.error("Local Scanner Error:", err);
+                messageEl.innerText = `स्कैन एरर: ${err.message}`;
+                messageEl.className = 'alert alert-danger m-2';
+            } else {
+                // Camera safalta se chalu ho gaya
+                messageEl.style.display = 'none'; // Message ko hata dein
+            }
+        });
+
+        // Modal ke 'Close' buttons ko setup karein
+        document.getElementById('local-scanner-close-btn').onclick = stopLocalScanner;
+        document.getElementById('local-scanner-cancel-btn').onclick = stopLocalScanner;
+
+    } catch (e) {
+        console.error("Failed to start local scanner:", e);
+        showMessage('कैमरा एरर', `कैमरा शुरू करने में विफल: ${e.message}`, 'danger');
+        stopLocalScanner();
+    }
+}
+
+/**
+ * KADAM 7: Local Mobile Camera ko Band Karta Hai
+ */
+function stopLocalScanner() {
+    if (localScanControls) {
+        localScanControls.stop(); // Camera track band karein
+        localScanControls = null;
+    }
+    if (localScannerModalInstance) {
+        localScannerModalInstance.hide(); // Modal band karein
+    }
+    document.getElementById('local-scanner-message').style.display = 'none';
+    document.getElementById('local-scanner-video').srcObject = null; // Video feed band karein
 }
 // नया फ़ंक्शन: पोस्ट मैसेज से प्राप्त SKU को प्रोसेस करता है
 function processScannedSku(sku) {
@@ -3124,91 +3278,7 @@ function fetchAndPopulateShopData() {
             hideLoader();
         }
     }
-
-
-
-
-	async function renderSalesChart() {
-    try {
-        // 1. Chart data API se laayein
-        const res = await fetchApi('/api/dashboard/sales-by-day?days=30', { method: 'GET' }, null); 
-
-        if (!res.success || !res.data) {
-            throw new Error(res.message || 'Sales chart data not found');
-        }
-
-        const chartData = res.data;
-
-        // 2. Data ko Chart.js ke liye process karein
-        const labels = chartData.map(d => new Date(d.date).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' }));
-        const salesValues = chartData.map(d => d.sales);
-        const profitValues = chartData.map(d => d.profit);
-
-        // 3. Canvas element ko pakdein
-        const ctx = document.getElementById('salesChart').getContext('2d');
-
-        // 4. Purana chart (agar hai) toh destroy karein
-        if (mySalesChart) {
-            mySalesChart.destroy();
-        }
-
-        // 5. Naya chart banayein
-        mySalesChart = new Chart(ctx, {
-            type: 'line', 
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'बिक्री (Sales)',
-                        data: salesValues,
-                        borderColor: 'rgba(0, 180, 216, 1)',
-                        backgroundColor: 'rgba(0, 180, 216, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'लाभ (Profit)',
-                        data: profitValues,
-                        borderColor: 'rgba(26, 188, 156, 1)',
-                        backgroundColor: 'rgba(26, 188, 156, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) { return '₹' + value; }
-                        }
-                    }
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.dataset.label + ': ' + formatCurrency(context.raw);
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error("Error rendering sales chart:", error.message);
-        const ctx = document.getElementById('salesChart').getContext('2d');
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        ctx.font = '16px Poppins';
-        ctx.fillStyle = '#dc3545';
-        ctx.textAlign = 'center';
-        ctx.fillText('चार्ट लोड करने में विफल: ' + error.message, ctx.canvas.width / 2, ctx.canvas.height / 2);
-    }
-	}
+    
     // [ पुराने renderDashboard() फ़ंक्शन को इस नए फ़ंक्शन से पूरी तरह बदल दें ]
     // [ multiuser.html में लाइन 2174 पर पेस्ट करें ]
 
@@ -4673,11 +4743,9 @@ if (headerDiv) {
         } else if (type === 'csv') {
             const startDate = document.getElementById('product-report-start-date').value;
             const endDate = document.getElementById('product-report-end-date').value;
-          
-        if (!startDate || !endDate) {
-        return showMessage('तारीख चुनें', "CSV डाउनलोड के लिए कृपया तारीख चुनें।", 'warning');
-        }
-
+            if (!startDate || !endDate) {
+                return showMessage('तारीख चुनें', "कृपया उत्पाद बिक्री CSV के लिए 'Reports' टैब में तारीख चुनें।", 'warning');
+            }
             // Use the dedicated server endpoint [cite: 331]
             const url = `${__backend_url}/api/reports/product-sales/download?startDate=${startDate}&endDate=${endDate}&token=${AppState.token}`;
             // Hacky way to download with token (GET request)
@@ -5080,7 +5148,117 @@ function removeShopLogo() {
         document.getElementById('download-json-backup-btn').addEventListener('click', () => handleBackupDownloads('json'));
         document.getElementById('download-excel-backup-btn').addEventListener('click', () => handleBackupDownloads('excel'));
         document.getElementById('download-product-sales-csv-btn').addEventListener('click', () => handleBackupDownloads('csv'));
+        // [ ✅ Is Naye Code ko Line 2915 par Paste Karein ]
+
+// Naya "Manual Entry" Button Listener (Point 3 & 5)
+document.getElementById('manual-add-item-btn').addEventListener('click', async () => {
+    try {
+        // 1. Server se agla available SKU laayein (Kadam 1 ka API)
+        showLoader('अगला SKU लोड हो रहा है...');
+        const res = await fetchApi('/api/stock/next-sku', { method: 'GET' }, null);
+        hideLoader();
+
+        if (!res.success) {
+            throw new Error(res.message || 'Server se SKU nahi mila');
+        }
+
+        // 2. Naya Modal (Kadam 2 waala) kholein
+        const modalElement = document.getElementById('quickAddItemModal');
+        const quickAddModal = new bootstrap.Modal(modalElement);
+
+        // 3. Modal ke form ko reset karein
+        document.getElementById('quick-add-item-form').reset();
+
+        // 4. SKU ko automatic bhar dein
+        document.getElementById('quick-add-sku').value = res.nextSku;
+
+        // 5. Modal dikhayein
+        quickAddModal.show();
+
+        // 6. Focus "Item Name" par karein
+        modalElement.addEventListener('shown.bs.modal', () => {
+            document.getElementById('quick-add-name').focus();
+        }, { once: true });
+
+    } catch (e) {
+        hideLoader();
+        showMessage('त्रुटि', `अगला SKU लाने में विफल: ${e.message}`, 'danger');
+    }
+});
         
+// [ ✅ Is Naye Code ko pichhle code ke baad (Line ~2945) Paste Karein ]
+
+// Naya "Quick Add Modal" Save Button Listener (Point 4)
+document.getElementById('quick-add-save-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('quick-add-save-btn');
+    const originalBtnText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> सेव हो रहा है...`;
+
+    // 1. Modal se data nikalein
+    const itemData = {
+        sku: document.getElementById('quick-add-sku').value,
+        name: document.getElementById('quick-add-name').value,
+        sale_price: document.getElementById('quick-add-sale-price').value,
+        purchase_price: document.getElementById('quick-add-purchase-price').value,
+        quantity: 1, // Quick Add hamesha 1 quantity add karta hai
+        unit: 'Pcs'  // Default unit
+    };
+
+    // 2. Jaanch karein ki data bhara hai ya nahi
+    if (!itemData.sku || !itemData.name || !itemData.sale_price || !itemData.purchase_price) {
+        showMessage('त्रुटि', 'कृपया सभी फ़ील्ड (SKU, नाम, बिक्री मूल्य, खरीद मूल्य) भरें।', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = originalBtnText;
+        return;
+    }
+
+    try {
+        // 3. "Stock Prabandhan" mein item save karein (Server API Call)
+        // Yeh wahi API hai jo aapka 'Stock Management' page istemaal karta hai
+        const res = await fetchApi('/api/stock', {
+            method: 'POST',
+            body: itemData
+        }, 'नया आइटम सेव किया जा रहा है...');
+
+        if (!res.success) {
+            // Agar server ne error diya (jaise SKU pehle se hai)
+            throw new Error(res.message);
+        }
+
+        // 4. "Bikri (POS) Cart" mein item add karein
+        // Hum server se mile data ka istemaal karenge
+        const newItemForCart = {
+            sku: res.stock.sku,
+            name: res.stock.name,
+            sale_price: parseFloat(res.stock.sale_price),
+            purchase_price: parseFloat(res.stock.purchase_price || 0),
+            gst: parseFloat(res.stock.gst || 0),
+            quantity: 1
+        };
+
+        // 'currentStock' list ko bhi update karein (taaki quantity check kaam kare)
+        currentStock.push(res.stock);
+
+        // 'posCart' array mein add karein
+        posCart.push(newItemForCart);
+        updatePOSCartView(); // POS Cart table ko refresh karein
+
+        // 5. Modal band karein
+        const quickAddModal = bootstrap.Modal.getInstance(document.getElementById('quickAddItemModal'));
+        quickAddModal.hide();
+
+        showMessage('सफलता', `${itemData.name} को स्टॉक में जोड़ा गया और कार्ट में शामिल किया गया।`, 'success');
+
+    } catch (e) {
+        showMessage('त्रुटि', `आइटम सेव करने में विफल: ${e.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnText;
+    }
+});
+
+
         // Shop Settings Forms
         document.getElementById('company-profile-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -5782,7 +5960,66 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
         </div>
     </div>
 </div>
+<div class="modal fade" id="quickAddItemModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="quickAddItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="quickAddItemModalLabel"><i class="fas fa-plus-circle me-2"></i>नया आइटम तुरंत जोड़ें</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quick-add-item-form">
+                    <div class="mb-3">
+                        <label for="quick-add-sku" class="form-label">SKU / Barcode Number</label>
+                        <input type="text" class="form-control" id="quick-add-sku" required>
+                    </div>
 
+                    <div class="mb-3">
+                        <label for="quick-add-name" class="form-label">आइटम का नाम</label>
+                        <input type="text" class="form-control" id="quick-add-name" required>
+                    </div>
 
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label for="quick-add-sale-price" class="form-label">बिक्री मूल्य (Sale Price) (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="quick-add-sale-price" required min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="quick-add-purchase-price" class="form-label">खरीद मूल्य (Purchase Price) (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="quick-add-purchase-price" required min="0">
+                        </div>
+                    </div>
+
+                    <div class="modal-footer pb-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">रद्द करें</button>
+                        <button type="button" class="btn btn-success" id="quick-add-save-btn">
+                            <i class="fas fa-save me-2"></i>सेव करें और कार्ट में जोड़ें
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="localScannerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="localScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="localScannerModalLabel"><i class="fas fa-camera me-2"></i>Live Barcode Scanner</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="local-scanner-close-btn"></button>
+            </div>
+            <div class="modal-body" style="padding: 0; min-height: 250px;">
+                <video id="local-scanner-video" style="width: 100%; height: auto;"></video>
+
+                <div id="local-scanner-message" class="alert alert-info m-2" style="display: none;">
+                    कैमरा शुरू हो रहा है...
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="local-scanner-cancel-btn">रद्द करें</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
