@@ -64,7 +64,7 @@ async function createTables() {
     try {
         console.log('Attempting to ensure all tables and columns exist...');
 
-		await client.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS shops (
                 id SERIAL PRIMARY KEY,
                 shop_name TEXT NOT NULL,
@@ -75,21 +75,129 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-		
+        
         // 0. Shops / Tenant Table & License Expiry
-		await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN ALTER TABLE shops ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; END $$;`);
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN ALTER TABLE shops ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'shop_logo') THEN ALTER TABLE shops ADD COLUMN shop_logo TEXT; END IF; END $$;`);        
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='plan_type') THEN ALTER TABLE shops ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='add_ons') THEN ALTER TABLE shops ADD COLUMN add_ons JSONB DEFAULT '{}'::jsonb; END IF; END $$;`);
         // 0.5. Users Table
         await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        
+        // ===================================================================
+        // [ ✅ NAYA CODE FIX YAHAN SE SHURU HOTA HAI ]
+        // Yah 6 tables dataTables loop se pehle banai ja rahi hain
+        
+        // 1. Stock Table (CREATE)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS stock (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                sku TEXT NOT NULL,
+                name TEXT NOT NULL,
+                quantity NUMERIC NOT NULL DEFAULT 0,
+                unit TEXT,
+                purchase_price NUMERIC NOT NULL DEFAULT 0,
+                sale_price NUMERIC NOT NULL DEFAULT 0,
+                cost_price NUMERIC DEFAULT 0,
+                gst NUMERIC DEFAULT 0,
+                category TEXT,
+                hsn_code TEXT,
+                product_attributes JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (shop_id, sku)
+            );
+        `);
+
+        // 2. Customers Table (CREATE)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS customers (
+                id SERIAL PRIMARY KEY, 
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, 
+                name TEXT NOT NULL, 
+                phone TEXT, 
+                email TEXT, 
+                address TEXT, 
+                gstin TEXT, 
+                balance NUMERIC DEFAULT 0, 
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 3. Invoices Table (CREATE)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS invoices (
+                id SERIAL PRIMARY KEY, 
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, 
+                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL, 
+                total_amount NUMERIC NOT NULL, 
+                total_cost NUMERIC DEFAULT 0, 
+                customer_gstin TEXT,
+                place_of_supply TEXT,
+                is_reconciled BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 4. Invoice Items Table (CREATE)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id SERIAL PRIMARY KEY, 
+                invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, 
+                item_name TEXT NOT NULL, 
+                item_sku TEXT NOT NULL, 
+                quantity NUMERIC NOT NULL, 
+                sale_price NUMERIC NOT NULL, 
+                purchase_price NUMERIC, 
+                gst_rate NUMERIC DEFAULT 0, 
+                gst_amount NUMERIC DEFAULT 0,
+                cgst_amount NUMERIC DEFAULT 0,
+                sgst_amount NUMERIC DEFAULT 0,
+                igst_amount NUMERIC DEFAULT 0,
+                product_attributes JSONB
+            );
+        `);
+
+        // 5. Purchases Table (CREATE)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS purchases (
+                id SERIAL PRIMARY KEY, 
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, 
+                supplier_name TEXT NOT NULL, 
+                item_details TEXT, 
+                total_cost NUMERIC NOT NULL, 
+                gst_details JSONB, 
+                is_reconciled BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 6. Expenses Table (CREATE)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY, 
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, 
+                description TEXT NOT NULL, 
+                category TEXT, 
+                amount NUMERIC NOT NULL, 
+                is_reconciled BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        // [ ✅ NAYA CODE FIX YAHAN KHATM HOTA HAI ]
+        // ===================================================================
+
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'status') THEN ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'disabled')); END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'users') AND attname = 'mobile') THEN ALTER TABLE users ADD COLUMN mobile TEXT; END IF; END $$;`);
 
         // 1. Licenses Table (All necessary updates for shop_id, etc.)
         await client.query('CREATE TABLE IF NOT EXISTS licenses (key_hash TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL, customer_details JSONB, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, expiry_date TIMESTAMP WITH TIME ZONE, is_trial BOOLEAN DEFAULT FALSE);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'user_id') THEN ALTER TABLE licenses ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL; CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses (user_id); END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'customer_details') THEN ALTER TABLE licenses ADD COLUMN customer_details JSONB; END IF; IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'licenses') AND attname = 'shop_id') THEN ALTER TABLE licenses ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL; CREATE INDEX IF NOT EXISTS idx_licenses_shop_id ON licenses (shop_id); END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='licenses') AND attname='plan_type') THEN ALTER TABLE licenses ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
+        
         // --- Multi-tenant modification: Add shop_id to all data tables ---
+        // (Ab yah safe hai kyunki tables pehle hi ban chuki hain)
         const dataTables = ['stock', 'customers', 'invoices', 'invoice_items', 'purchases', 'expenses'];
         for (const table of dataTables) {
             await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = '${table}') AND attname = 'shop_id') THEN ALTER TABLE ${table} ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE; CREATE INDEX IF NOT EXISTS idx_${table}_shop_id ON ${table} (shop_id); END IF; END $$;`);
@@ -111,11 +219,11 @@ async function createTables() {
                 END IF;
             END $$;
         `);
-		
-		// [ ✅ Is Nayi Line ko Line 32 ke baad Paste Karein ]
+        
+        // [ ✅ Is Nayi Line ko Line 32 ke baad Paste Karein ]
 
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='stock') AND attname='product_attributes') THEN ALTER TABLE stock ADD COLUMN product_attributes JSONB; END IF; END $$;`);
-		
+        
         // 🚀🚀🚀 फिक्स समाप्त 🚀🚀🚀
         // 3. Customers Table (Fixing the missing balance column for Balance Sheet Error)
         await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, gstin TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
@@ -147,9 +255,9 @@ async function createTables() {
 
         // 5. Invoice Items
         await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);');
-        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='product_attributes') THEN ALTER TABLE invoice_items ADD COLUMN product_attributes JSONB; END IF; END $$;`);	
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='product_attributes') THEN ALTER TABLE invoice_items ADD COLUMN product_attributes JSONB; END IF; END $$;`);    
         // === TALLY UPGRADE START: Add detailed GST columns to INVOICE_ITEMS ===
-        // (Note: This combines your existing check [cite: 416] with the new Tally columns)
+        [cite_start]// (Note: This combines your existing check [cite: 416] with the new Tally columns)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
@@ -293,7 +401,7 @@ async function createTables() {
             END $$;
         `);
 
-      
+        
         // 6. लाइसेंस रिन्यूअल अनुरोधों को ट्रैक करने के लिए नई टेबल
         await client.query(`
             CREATE TABLE IF NOT EXISTS renewal_requests (
@@ -316,8 +424,7 @@ async function createTables() {
            client.release();
         }
     }
-}        
-           
+}           
   
 // --- License Utilities ---
 function hashKey(key) {
@@ -3072,6 +3179,7 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
+
 
 
 
