@@ -258,7 +258,7 @@ async function createTables() {
         await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);');
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='product_attributes') THEN ALTER TABLE invoice_items ADD COLUMN product_attributes JSONB; END IF; END $$;`);    
         // === TALLY UPGRADE START: Add detailed GST columns to INVOICE_ITEMS ===
-        [span_0](start_span)// (Note: This combines your existing check[span_0](end_span) with the new Tally columns)
+        // (Note: This combines your existing check[span_0](end_span) with the new Tally columns)
         await client.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoice_items') AND attname = 'gst_rate') THEN
