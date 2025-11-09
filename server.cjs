@@ -99,6 +99,11 @@ async function createTables() {
                 END IF;
             END $$;
         `);
+		
+		// [ ✅ Is Nayi Line ko Line 32 ke baad Paste Karein ]
+
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='stock') AND attname='product_attributes') THEN ALTER TABLE stock ADD COLUMN product_attributes JSONB; END IF; END $$;`);
+		
         // 🚀🚀🚀 फिक्स समाप्त 🚀🚀🚀
         // 3. Customers Table (Fixing the missing balance column for Balance Sheet Error)
         await client.query('CREATE TABLE IF NOT EXISTS customers (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, gstin TEXT, balance NUMERIC DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
@@ -130,7 +135,7 @@ async function createTables() {
 
         // 5. Invoice Items
         await client.query('CREATE TABLE IF NOT EXISTS invoice_items (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE, item_name TEXT NOT NULL, item_sku TEXT NOT NULL, quantity NUMERIC NOT NULL, sale_price NUMERIC NOT NULL, purchase_price NUMERIC, gst_rate NUMERIC DEFAULT 0, gst_amount NUMERIC DEFAULT 0);');
-        
+        await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='invoice_items') AND attname='product_attributes') THEN ALTER TABLE invoice_items ADD COLUMN product_attributes JSONB; END IF; END $$;`);	
         // === TALLY UPGRADE START: Add detailed GST columns to INVOICE_ITEMS ===
         // (Note: This combines your existing check [cite: 416] with the new Tally columns)
         await client.query(`
@@ -1040,7 +1045,7 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(
 
 // 7.1 Stock Management - Add/Update (SCOPED & Transactional)
 app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
-    const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category } = req.body;
+    const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes } = req.body;
     const shopId = req.shopId;
 
     if (!sku || !name || typeof quantity === 'undefined' || typeof purchase_price === 'undefined' || typeof sale_price === 'undefined') {
@@ -1060,8 +1065,8 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
     try {
         // 🔑 Query now includes shop_id in INSERT and WHERE clause for ON CONFLICT
         const result = await pool.query(
-            `INSERT INTO stock (shop_id, sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            `INSERT INTO stock (shop_id, sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
              ON CONFLICT (shop_id, sku) DO UPDATE
              SET quantity = stock.quantity + EXCLUDED.quantity,
                  name = EXCLUDED.name,
@@ -1070,10 +1075,11 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
                  gst = EXCLUDED.gst,
                  cost_price = EXCLUDED.cost_price,
                  category = EXCLUDED.category,
+				 product_attributes = EXCLUDED.product_attributes,
                  updated_at = CURRENT_TIMESTAMP
              WHERE stock.shop_id = EXCLUDED.shop_id RETURNING *;`,
             [shopId, sku, name, safeQuantity, unit,
-            safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category]
+         safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null]
         );
         res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक जोड़ा/अपडेट किया गया.' });
     } catch (err) {
@@ -1296,12 +1302,12 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             await client.query(
                 `INSERT INTO invoice_items (
                     invoice_id, item_name, item_sku, quantity, sale_price, purchase_price, 
-                    gst_rate, gst_amount, cgst_amount, sgst_amount, igst_amount
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-                [
-                    invoiceId, item.name, item.sku, safeQuantity, salePrice, safePurchasePrice,
-                    gstRate, totalGstAmount, cgst_amount, sgst_amount, igst_amount
-                ]
+                   gst_rate, gst_amount, cgst_amount, sgst_amount, igst_amount, product_attributes
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+[
+    invoiceId, item.name, item.sku, safeQuantity, salePrice, safePurchasePrice,
+    gstRate, totalGstAmount, cgst_amount, sgst_amount, igst_amount, item.product_attributes || null
+]
             );
             
             // 🔑 Update stock quantity (आपका मौजूदा कोड)
@@ -1349,14 +1355,15 @@ app.get('/api/invoices', authenticateJWT, async (req, res) => {
                 i.id, 
                 i.total_amount, 
                 i.created_at, 
-                COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name, 
-                i.total_cost,
+               COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name,
+			   c.phone AS customer_phone, 
+			   i.total_cost,
                 COALESCE(SUM(ii.gst_amount), 0) AS total_gst
             FROM invoices i 
             LEFT JOIN customers c ON i.customer_id = c.id
             LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
             WHERE i.shop_id = $1 
-            GROUP BY i.id, c.name
+            GROUP BY i.id, c.name, c.phone
             ORDER BY i.created_at DESC 
             LIMIT 100
         `, [shopId]);
@@ -1396,10 +1403,10 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
         // फिक्स: SELECT में gst_rate और gst_amount को जोड़ा गया
         const itemsResult = await pool.query(
            `SELECT 
-                item_name, item_sku, quantity, sale_price, purchase_price, 
-                gst_rate, gst_amount 
-            FROM invoice_items 
-            WHERE invoice_id = $1`,
+    item_name, item_sku, quantity, sale_price, purchase_price, 
+    gst_rate, gst_amount, product_attributes
+ FROM invoice_items 
+ WHERE invoice_id = $1`,
             [invoiceId]
         );
 
