@@ -1121,6 +1121,19 @@
                             <label for="stock-hsn-code" class="form-label">HSN कोड (वैकल्पिक)</label>
                             <input type="text" class="form-control" id="stock-hsn-code">
                         </div>
+                        <hr class="my-3 col-12">
+<h6 class="col-12 text-info small">**अतिरिक्त विवरण (Optional)**</h6>
+<p class="col-12 text-muted small">Chasme ke liye (SPH, CYL) ya Jooton ke liye (Color, Size) jaise extra field yahaan jodein.</p>
+<div id="stock-custom-fields-container" class="col-12">
+    </div>
+<div class="col-12">
+    <button type="button" class="btn btn-sm btn-outline-info" id="add-custom-field-btn">
+        <i class="fas fa-plus me-1"></i> Naya Field Jodein
+    </button>
+</div>
+<hr class="my-3 col-12">
+
+
                         <div class="col-12 mt-4">
                             <button type="submit" class="btn btn-primary w-100">स्टॉक में आइटम जोड़ें</button>
                         </div>
@@ -2418,54 +2431,6 @@ function closePosWebSocket() {
         document.getElementById('loading-overlay').classList.add('hidden');
     };
     
-// ==========================================================
-
-// --- 🚀 नया: मोबाइल डिटेक्शन फ़ंक्शन ---
-
-
-// ========== बारकोड स्कैनिंग और POS लॉजिक (CORE) ==========
-// ==========================================================
-
-// --- POS Section State (सुनिश्चित करें कि ये वेरिएबल्स मौजूद हैं) ---
-
-/**
- * SKU (बारकोड) को कार्ट में जोड़ने का मुख्य फ़ंक्शन।
- */
-function addSKUToCart(sku) {
-    const selectedItem = currentStock.find(item => item.sku === sku);
-        
-    if (selectedItem) {
-        // स्टॉक की मात्रा जाँचें
-        if(selectedItem.quantity <= 0) {
-            return showMessage('स्टॉक नहीं है', `${selectedItem.name} स्टॉक में समाप्त हो गया है।`, 'danger');
-        }
-        
-        const existingCartItem = posCart.find(item => item.sku === sku);
-        if (existingCartItem) {
-            // कार्ट के मुकाबले स्टॉक की जाँच करें
-            if(existingCartItem.quantity >= selectedItem.quantity) {
-                return showMessage('स्टॉक सीमित है', `आपके पास स्टॉक में केवल ${selectedItem.quantity} ${selectedItem.name} हैं।`, 'warning');
-            }
-            existingCartItem.quantity++;
-        } else {
-            posCart.push({ 
-                ...selectedItem, 
-                quantity: 1,
-                purchase_price: parseFloat(selectedItem.purchase_price || 0),
-                gst: parseFloat(selectedItem.gst || 0),
-                sale_price: parseFloat(selectedItem.sale_price || 0)
-            });
-        }
-        updatePOSCartView(); // Cart view अपडेट करें
-    } else {
-         showMessage('नहीं मिला', `SKU ${sku} स्टॉक में नहीं मिला।`, 'warning');
-    }
-    
-    // इनपुट साफ करें और रि-फोकस करें (यह सुनिश्चित करेगा कि अगला स्कैन काम करे)
-    document.getElementById('pos-item-search').value = '';
-    document.getElementById('pos-search-results').innerHTML = '';
-    document.getElementById('pos-item-search').focus();
-}
 
 
 /**
@@ -3219,7 +3184,10 @@ function fetchAndPopulateShopData() {
                 itemRows += `
                     <tr>
                         <td>${index + 1}</td>
-                        <td style="text-align: left;">${item.item_name}</td>
+                        <td style="text-align: left;">
+    ${item.item_name}
+    <small class="d-block" style="color: #555;">${formatAttributes(item.product_attributes)}</small>
+</td>
                         <td>${item.quantity}</td>
                         <td>${formatCurrency(item.sale_price)}</td>
                         <td>${item.gst_rate || 0}%</td> 
@@ -3662,6 +3630,7 @@ async function fetchAndRenderStockList() {
                         <td>${formatCurrency(item.sale_price)}</td>
                         <td>${item.gst || 0}%</td>
                         <td>${new Date(item.updated_at).toLocaleString()}</td>
+                        <td>${formatAttributes(item.product_attributes)}</td>
                         <td>
                             <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${item.sku}')">हटाएं</button>
                         </td>
@@ -3828,10 +3797,11 @@ async function fetchAndRenderStockList() {
                 existingCartItem.quantity++;
             } else {
                 posCart.push({ 
-                    ...selectedItem, 
-                    quantity: 1,
-                    purchase_price: parseFloat(selectedItem.purchase_price || 0)
-                });
+    ...selectedItem, 
+    quantity: 1,
+    purchase_price: parseFloat(selectedItem.purchase_price || 0),
+    product_attributes: selectedItem.product_attributes // <-- YEH NAYI LINE HAI
+});
             }
             updatePOSCartView();
         } else {
@@ -3856,9 +3826,12 @@ async function fetchAndRenderStockList() {
                 const maxStock = stockItem ? stockItem.quantity : item.quantity; // Get current stock level
                 
                 return `
-                    <tr>
-                        <td>${item.name}</td>
-                        <td>
+    <tr>
+        <td>
+            ${item.name}
+            <small class="d-block text-info">${formatAttributes(item.product_attributes)}</small>
+        </td>
+        <td>
                             <input 
                                 type="number" 
                                 class="form-control form-control-sm" 
@@ -3950,7 +3923,8 @@ async function fetchAndRenderStockList() {
         quantity: item.quantity,
         sale_price: item.sale_price,
         purchase_price: parseFloat(item.purchase_price || 0),
-        gst: item.gst
+        gst: item.gst,
+product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
     }));
 
     const saleData = {
@@ -4014,6 +3988,18 @@ async function fetchAndRenderStockList() {
                     data.sale_price = document.getElementById('stock-sale-price').value;
                     data.gst = document.getElementById('stock-gst').value;
                     data.hsn_code = document.getElementById('stock-hsn-code').value; // NEW
+                    // [ ✅ Naya "Custom Fields" JSON Code yahaan (Line 2522) add karein ]
+
+data.product_attributes = {};
+document.querySelectorAll('#stock-custom-fields-container .custom-field-row').forEach(row => {
+    const key = row.querySelector('.stock-custom-field-key').value;
+    const value = row.querySelector('.stock-custom-field-value').value;
+    if (key && value) {
+        data.product_attributes[key] = value;
+    }
+});
+// JSON bundling khatm
+
                 } else if (formId === 'add-customer-form') {
                     data.name = document.getElementById('customer-name').value;
                     data.phone = document.getElementById('customer-phone').value;
@@ -4888,6 +4874,29 @@ if (headerDiv) {
         }
     }
 
+// [ ✅ Naya Helper Function yahaan (Line 2505) add karein ]
+
+function formatAttributes(attrs) {
+    if (!attrs || Object.keys(attrs).length === 0) return '';
+
+    // Chasme waale case ko pehle handle karein
+    if (attrs.sph_od || attrs.cyl_od || attrs.sph_os || attrs.cyl_os) {
+         let parts = [];
+         if (attrs.sph_od || attrs.cyl_od) parts.push(`OD: ${attrs.sph_od || '0'} / ${attrs.cyl_od || '0'} / ${attrs.axs_od || '0'}`);
+         if (attrs.sph_os || attrs.cyl_os) parts.push(`OS: ${attrs.sph_os || '0'} / ${attrs.cyl_os || '0'} / ${attrs.axs_os || '0'}`);
+         return parts.join('<br>');
+    }
+
+    // Baaki sab (Joote/Color) ke liye
+    let parts = [];
+    for (const key in attrs) {
+        if (attrs[key]) {
+            parts.push(`<strong>${key}:</strong> ${attrs[key]}`);
+        }
+    }
+    return parts.join('<br>');
+}
+
 
     // अपने अन्य JavaScript फंक्शन्स के साथ इसे जोड़ें
 function removeShopLogo() {
@@ -5478,6 +5487,33 @@ const addStaffForm = document.getElementById('add-staff-form');
         }
 
     }
+
+// [ ✅ Is Naye Listener ko Line 2912 par (function ke andar) Paste Karein ]
+
+document.getElementById('add-custom-field-btn').addEventListener('click', () => {
+    const container = document.getElementById('stock-custom-fields-container');
+    const newFieldRow = document.createElement('div');
+    newFieldRow.className = 'row g-2 mb-2 custom-field-row';
+    newFieldRow.innerHTML = `
+        <div class="col-5">
+            <input type="text" class="form-control form-control-sm stock-custom-field-key" placeholder="Field ka Naam (jaise: Color)">
+        </div>
+        <div class="col-5">
+            <input type="text" class="form-control form-control-sm stock-custom-field-value" placeholder="Field ki Value (jaise: Red)">
+        </div>
+        <div class="col-2">
+            <button type="button" class="btn btn-sm btn-danger w-100" onclick="removeCustomField(this)">हटाएँ</button>
+        </div>
+    `;
+    container.appendChild(newFieldRow);
+});
+
+// [ ✅ Is Naye Function ko Line 3078 par Paste Karein ]
+
+function removeCustomField(button) {
+    button.closest('.custom-field-row').remove();
+}
+
 
 
 
