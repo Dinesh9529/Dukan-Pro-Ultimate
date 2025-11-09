@@ -2691,6 +2691,32 @@ function stopLocalScanner() {
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amount);
     }
     
+// [ ✅ 1. इस नए फ़ंक्शन को formatCurrency के बाद (लाइन 2203 के आसपास) पेस्ट करें ]
+
+function sendWhatsAppMessage(phone, name) {
+        if (!phone || phone === 'N/A') {
+            return showMessage('त्रुटि', 'इस ग्राहक के लिए कोई फ़ोन नंबर सेव नहीं है।', 'danger');
+        }
+
+        // फ़ोन नंबर को साफ़ करें और '91' (India code) जोड़ें
+        let cleanPhone = phone.replace(/[^0-9]/g, ''); // सिर्फ नंबर रखें
+        
+        if (cleanPhone.length === 10) {
+            cleanPhone = '91' + cleanPhone; // 10 अंकों वाले नंबर पर 91 लगाएँ
+        } else if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
+            // नंबर पहले से ही सही है (91XXXXXXXXXX)
+        } else {
+            // अमान्य नंबर
+            return showMessage('त्रुटि', `यह एक अमान्य फ़ोन नंबर (${phone}) है।`, 'warning');
+        }
+
+        const message = `नमस्ते ${name},`; // आप मैसेज को बदल सकते हैं
+        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+        
+        // WhatsApp को नए टैब में खोलें
+        window.open(whatsappUrl, '_blank');
+    }
+
     // NEW: Function to format dates as YYYY-MM-DD
     function getISODate(date = new Date()) {
         return date.toISOString().split('T')[0];
@@ -3066,7 +3092,9 @@ function fetchAndPopulateShopData() {
         // --- 🚀 कमेंट खत्म ---
     };
 
-    async function fetchAndRenderSales() {
+   // [ ✅ इस पूरे फ़ंक्शन को अपने पुराने fetchAndRenderSales से बदलें ]
+
+   async function fetchAndRenderSales() {
         const salesTableBody = document.getElementById('sales-table-body');  
         salesTableBody.innerHTML = ''; // Clear previous entries
         try {
@@ -3074,27 +3102,6 @@ function fetchAndPopulateShopData() {
             if (salesRes.success && salesRes.sales && salesRes.sales.length > 0) {
                 salesRes.sales.forEach(sale => {
                     
-                    // --- पुराना लॉजिक (कमेंटेड) ---
-                    /*
-                    salesTableBody.innerHTML += `
-                        <tr>
-                            <td>INV-${sale.id}</td> <td>${sale.customer_name}</td>
-                            <td>${formatCurrency(sale.total_gst)}</td> 
-                            <td>${formatCurrency(sale.total_amount)}</td>
-                            <td>${new Date(sale.created_at).toLocaleDateString()}</td>
-                            <td>
-                                <button class="btn btn-sm btn-info py-0 px-1" onclick="showInvoiceDetail(${sale.id})" title="विवरण देखें">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-secondary py-0 px-1 ms-1" onclick="printPOSInvoice(${sale.id})" title="इनवॉइस प्रिंट करें">
-                                    <i class="fas fa-print"></i>
-                                </button>
-                               </td>
-                        </tr>
-                    `;
-                    */
-                    // --- पुराना लॉजिक समाप्त ---
-
                     // --- 🚀 नया और सही कोड (6 कॉलम के लिए) ---
                     salesTableBody.innerHTML += `
                         <tr>
@@ -3110,7 +3117,15 @@ function fetchAndPopulateShopData() {
                                 <button class="btn btn-sm btn-secondary py-0 px-1 ms-1" onclick="printPOSInvoice(${sale.id})" title="इनवॉइस प्रिंट करें">
                                     <i class="fas fa-print"></i>
                                 </button>
-                               </td>
+                                
+                                <button 
+                                    class="btn btn-sm btn-success py-0 px-1 ms-1" 
+                                    onclick="sendWhatsAppMessage('${sale.customer_phone || ''}', '${sale.customer_name}')" 
+                                    ${!(sale.customer_phone) ? 'disabled' : ''} 
+                                    title="Send WhatsApp Message">
+                                    <i class="fab fa-whatsapp"></i>
+                                </button>
+                                </td>
                         </tr>
                     `;
                     // --- नया कोड समाप्त ---
@@ -3652,6 +3667,8 @@ async function fetchAndRenderStockList() {
         }
     }
 
+    // [ ✅ 2. इस पूरे फ़ंक्शन को अपने पुराने fetchAndRenderCustomers (लाइन 2404) से बदलें ]
+
     async function fetchAndRenderCustomers() {
         const tableBody = document.getElementById('crm-table-body');
         tableBody.innerHTML = `<tr><td colspan="6" class="text-center">लोड हो रहा है...</td></tr>`;
@@ -3668,6 +3685,13 @@ async function fetchAndRenderStockList() {
                         <td>${c.address || 'N/A'}</td>
                         <td>${new Date(c.created_at).toLocaleDateString()}</td>
                         <td>
+                           <button 
+                                class="btn btn-sm btn-success py-0 px-1" 
+                                onclick="sendWhatsAppMessage('${c.phone || ''}', '${c.name}')" 
+                                ${!(c.phone) ? 'disabled' : ''} 
+                                title="Send WhatsApp Message">
+                                <i class="fab fa-whatsapp"></i>
+                            </button>
                            </td>
                     `;
                 });
@@ -3677,8 +3701,7 @@ async function fetchAndRenderStockList() {
         } catch (e) {
             tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
         }
-    }
-	
+    }	
 	
     // --- (... पिछला जावास्क्रिप्ट कोड पार्ट 2 से जारी ...) ---
 
