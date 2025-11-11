@@ -4372,67 +4372,80 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         }
     }
     // --- REPORT ACTION HANDLER ---
+    //
+
     function handleReportAction(reportType, action) {
-        const reportCardId = reportType === 'profit_loss' ? 'pl-card' : 'bs-card';
+        const reportCardId = reportType === 'profit_loss'? 'pl-card' : 'bs-card';
         const reportElement = document.getElementById(reportCardId);
 
         if (action === 'print') {
+            // --- PRINT LOGIC (इसे नहीं बदला गया है) ---
             document.querySelectorAll('.printable').forEach(el => el.classList.remove('printable'));
             reportElement.classList.add('printable');
   
-const headerHtml = `
+            const headerHtml = `
+                <div class="printable text-center mb-3">
+                    <h3>${AppState.user.shopName}</h3>
+                    <p class="mb-0">रिपोर्ट: ${reportType.replace('_', ' ')}</p>
+                    <p class="mb-0">तारीख: ${new Date().toLocaleDateString()}</p>
+                </div>
+            `;
 
-    <div class="printable text-center mb-3">
-
-        <h3>${AppState.user.shopName}</h3>
-
-        <p class="mb-0">रिपोर्ट: ${reportType.replace('_', ' ')}</p>
-
-        <p class="mb-0">तारीख: ${new Date().toLocaleDateString()}</p>
-
-    </div>
-
-`;
-
-// चेक करें कि हेडर पहले से मौजूद है या नहीं
-
-let headerDiv = reportElement.querySelector('.report-print-header');
-
-if (headerDiv) {
-
-    headerDiv.innerHTML = headerHtml;
-
-} else {
-
-    headerDiv = document.createElement('div');
-
-    headerDiv.className = 'report-print-header';
-
-    headerDiv.innerHTML = headerHtml;
-
-    reportElement.prepend(headerDiv);
-
-}        
-          
+            let headerDiv = reportElement.querySelector('.report-print-header');
+            if (headerDiv) {
+                headerDiv.innerHTML = headerHtml;
+            } else {
+                headerDiv = document.createElement('div');
+                headerDiv.className = 'report-print-header';
+                headerDiv.innerHTML = headerHtml;
+                reportElement.prepend(headerDiv);
+            }        
           
             window.print();
+            
         } else if (action === 'download') {
-            showMessage('Info', 'PDF बनाया जा रहा है, कृपया प्रतीक्षा करें...', 'info');
-            html2canvas(reportElement, { scale: 2 }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const ratio = canvas.height / canvas.width;
-                const pdfHeight = pdfWidth * ratio;
-                pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth - 20, pdfHeight - 20);
-                pdf.save(`${reportType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
-            }).catch(err => {
-                showMessage('त्रुटि', 'PDF बनाने में विफल: ' + err.message, 'danger');
-            });
+            
+            // --- 🚀 नया EXCEL DOWNLOAD LOGIC यहाँ से शुरू होता है ---
+            
+            showMessage('Info', 'Excel (.xlsx) फ़ाइल बनाई जा रही है, कृपया प्रतीक्षा करें...', 'info');
+
+            try {
+                // 1. नया Excel Workbook (खाली फ़ाइल) बनाएँ
+                const wb = XLSX.utils.book_new();
+
+                // 2. रिपोर्ट कार्ड के अंदर की सभी टेबल्स को ढूँढें
+                const tables = reportElement.querySelectorAll('table');
+                
+                // 3. हर टेबल को अलग-अलग शीट में डालें
+                tables.forEach((table, index) => {
+                    // 4. HTML टेबल से डेटा निकालकर एक वर्कशीट बनाएँ
+                    const ws = XLSX.utils.table_to_sheet(table);
+                    
+                    // 5. शीट को एक नाम दें
+                    let sheetName = '';
+                    if (reportType === 'profit_loss') {
+                        sheetName = (index === 0)? 'Debit (Kharche)' : 'Credit (Aay)';
+                    } else if (reportType === 'balance_sheet') {
+                        sheetName = (index === 0)? 'Liabilities ( देनदारी)' : 'Assets (संपत्ति)';
+                    } else {
+                        sheetName = `Sheet ${index + 1}`;
+                    }
+
+                    // 6. वर्कशीट को खाली फ़ाइल (Workbook) में जोड़ें
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                });
+
+                // 7. फ़ाइल को यूज़र के कंप्यूटर पर डाउनलोड करें
+                XLSX.writeFile(wb, `${reportType}_report_${getISODate()}.xlsx`);
+
+            } catch (err) {
+                showMessage('त्रुटि', 'Excel फ़ाइल बनाने में विफल: ' + err.message, 'danger');
+                console.error("Excel download error:", err);
+            }
+            
+            // --- 🚀 नया EXCEL DOWNLOAD LOGIC यहाँ खत्म होता है ---
         }
     }
-
     // --- UNIVERSAL DELETE FUNCTION ---
    async function deleteEntry(type, id) {
         // 'id' is now the primary key or SKU
