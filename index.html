@@ -4374,7 +4374,10 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
     // --- REPORT ACTION HANDLER ---
     //
 
+  //
+
     function handleReportAction(reportType, action) {
+        // प्रिंट लॉजिक के लिए रिपोर्ट कार्ड का ID
         const reportCardId = reportType === 'profit_loss'? 'pl-card' : 'bs-card';
         const reportElement = document.getElementById(reportCardId);
 
@@ -4405,7 +4408,7 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
             
         } else if (action === 'download') {
             
-            // --- 🚀 नया EXCEL DOWNLOAD LOGIC यहाँ से शुरू होता है ---
+            // --- 🚀 नया और सही EXCEL DOWNLOAD LOGIC यहाँ से शुरू होता है ---
             
             showMessage('Info', 'Excel (.xlsx) फ़ाइल बनाई जा रही है, कृपया प्रतीक्षा करें...', 'info');
 
@@ -4413,29 +4416,34 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
                 // 1. नया Excel Workbook (खाली फ़ाइल) बनाएँ
                 const wb = XLSX.utils.book_new();
 
-                // 2. रिपोर्ट कार्ड के अंदर की सभी टेबल्स को ढूँढें
-                const tables = reportElement.querySelectorAll('table');
-                
-                // 3. हर टेबल को अलग-अलग शीट में डालें
-                tables.forEach((table, index) => {
-                    // 4. HTML टेबल से डेटा निकालकर एक वर्कशीट बनाएँ
-                    const ws = XLSX.utils.table_to_sheet(table);
-                    
-                    // 5. शीट को एक नाम दें
-                    let sheetName = '';
-                    if (reportType === 'profit_loss') {
-                        sheetName = (index === 0)? 'Debit (Kharche)' : 'Credit (Aay)';
-                    } else if (reportType === 'balance_sheet') {
-                        sheetName = (index === 0)? 'Liabilities ( देनदारी)' : 'Assets (संपत्ति)';
-                    } else {
-                        sheetName = `Sheet ${index + 1}`;
-                    }
+                if (reportType === 'profit_loss') {
+                    // P&L के लिए, दोनों टेबल्स को ID से ढूँढें
+                    const debitTable = document.getElementById('pl-debit-table');
+                    const creditTable = document.getElementById('pl-credit-table');
 
-                    // 6. वर्कशीट को खाली फ़ाइल (Workbook) में जोड़ें
-                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-                });
+                    // 2. दोनों टेबल्स को अलग-अलग वर्कशीट में बदलें
+                    const ws_debit = XLSX.utils.table_to_sheet(debitTable);
+                    const ws_credit = XLSX.utils.table_to_sheet(creditTable);
 
-                // 7. फ़ाइल को यूज़र के कंप्यूटर पर डाउनलोड करें
+                    // 3. दोनों शीट्स को Workbook में सही नाम से जोड़ें
+                    XLSX.utils.book_append_sheet(wb, ws_debit, 'Debit (Kharche)');
+                    XLSX.utils.book_append_sheet(wb, ws_credit, 'Credit (Aay)');
+
+                } else if (reportType === 'balance_sheet') {
+                    // Balance Sheet के लिए, दोनों टेबल्स को ID से ढूँढें
+                    const liabTable = document.getElementById('bs-liabilities-table');
+                    const assetTable = document.getElementById('bs-assets-table');
+
+                    // 2. दोनों टेबल्स को अलग-अलग वर्कशीट में बदलें
+                    const ws_liab = XLSX.utils.table_to_sheet(liabTable);
+                    const ws_asset = XLSX.utils.table_to_sheet(assetTable);
+
+                    // 3. दोनों शीट्स को Workbook में सही नाम से जोड़ें
+                    XLSX.utils.book_append_sheet(wb, ws_liab, 'Liabilities (देनदारी)');
+                    XLSX.utils.book_append_sheet(wb, ws_asset, 'Assets (संपत्ति)');
+                }
+
+                // 4. फ़ाइल को यूज़र के कंप्यूटर पर डाउनलोड करें
                 XLSX.writeFile(wb, `${reportType}_report_${getISODate()}.xlsx`);
 
             } catch (err) {
@@ -4443,9 +4451,10 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
                 console.error("Excel download error:", err);
             }
             
-            // --- 🚀 नया EXCEL DOWNLOAD LOGIC यहाँ खत्म होता है ---
+            // --- 🚀 नया और सही EXCEL DOWNLOAD LOGIC यहाँ खत्म होता है ---
         }
     }
+
     // --- UNIVERSAL DELETE FUNCTION ---
    async function deleteEntry(type, id) {
         // 'id' is now the primary key or SKU
