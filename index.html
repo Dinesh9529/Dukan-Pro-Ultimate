@@ -4376,6 +4376,8 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
 
   //
 
+   //
+
     function handleReportAction(reportType, action) {
         // प्रिंट लॉजिक के लिए रिपोर्ट कार्ड का ID
         const reportCardId = reportType === 'profit_loss'? 'pl-card' : 'bs-card';
@@ -4454,7 +4456,8 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
             // --- 🚀 नया और सही EXCEL DOWNLOAD LOGIC यहाँ खत्म होता है ---
         }
     }
-
+	
+	
     // --- UNIVERSAL DELETE FUNCTION ---
    async function deleteEntry(type, id) {
         // 'id' is now the primary key or SKU
