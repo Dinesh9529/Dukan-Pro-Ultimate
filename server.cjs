@@ -82,9 +82,7 @@ async function createTables() {
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'shop_logo') THEN ALTER TABLE shops ADD COLUMN shop_logo TEXT; END IF; END $$;`);        
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='plan_type') THEN ALTER TABLE shops ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='add_ons') THEN ALTER TABLE shops ADD COLUMN add_ons JSONB DEFAULT '{}'::jsonb; END IF; END $$;`);
-        // 0.5. Users Table
-        [इस कोड को server.cjs में लाइन 98 के पास बदलें]
-
+       
         // 0.5. Users Table
         // 🚀 FIX: 'ACCOUNTANT' रोल को CHECK constraint में जोड़ा गया
         await client.query(`
