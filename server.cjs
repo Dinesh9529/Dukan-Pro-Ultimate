@@ -83,7 +83,31 @@ async function createTables() {
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='plan_type') THEN ALTER TABLE shops ADD COLUMN plan_type TEXT DEFAULT 'TRIAL'; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='shops') AND attname='add_ons') THEN ALTER TABLE shops ADD COLUMN add_ons JSONB DEFAULT '{}'::jsonb; END IF; END $$;`);
         // 0.5. Users Table
-        await client.query('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT DEFAULT \'CASHIER\' CHECK (role IN (\'ADMIN\', \'MANAGER\', \'CASHIER\')), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);');
+        [इस कोड को server.cjs में लाइन 98 के पास बदलें]
+
+        // 0.5. Users Table
+        // 🚀 FIX: 'ACCOUNTANT' रोल को CHECK constraint में जोड़ा गया
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY, 
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE, 
+                email TEXT UNIQUE NOT NULL, 
+                password_hash TEXT NOT NULL, 
+                name TEXT NOT NULL, 
+                role TEXT DEFAULT 'CASHIER' CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT')), 
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        // (यह सुनिश्चित करता है कि पुराने यूज़र्स के लिए भी यह काम करे)
+        await client.query(`
+            DO $$ BEGIN
+                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+                ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT'));
+            EXCEPTION WHEN duplicate_object THEN
+                -- कंस्ट्रेंट पहले से ही मौजूद है या दूसरी टेबल द्वारा उपयोग में है, कोई बात नहीं
+            END $$;
+        `);
         
         // ===================================================================
         // [ ✅ NAYA CODE FIX YAHAN SE SHURU HOTA HAI ]
@@ -486,7 +510,7 @@ const authenticateJWT = (req, res, next) => {
  */
 /* [Line 86] - यह आपका मौजूदा checkRole फ़ंक्शन है */
 const checkRole = (requiredRole) => (req, res, next) => {
-    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'CASHIER': 1 };
+    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1 };
     const userRoleValue = roles[req.userRole];
     const requiredRoleValue = roles[requiredRole.toUpperCase()];
 
@@ -1040,7 +1064,7 @@ app.post('/api/users', authenticateJWT, checkRole('ADMIN'), checkPlan(['MEDIUM',
     const { name, email, password, role = 'CASHIER', status = 'pending' } = req.body;
     const shopId = req.shopId;
 
-    if (!name || !email || !password || !['ADMIN', 'MANAGER', 'CASHIER'].includes(role.toUpperCase())) {
+    if (!name || !email || !password || !['ADMIN', 'MANAGER', 'CASHIER','ACCOUNTANT'].includes(role.toUpperCase())) {
         return res.status(400).json({ success: false, message: 'मान्य नाम, ईमेल, पासवर्ड और रोल आवश्यक है।' });
     }
 
