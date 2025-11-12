@@ -4372,22 +4372,18 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         }
     }
     // --- REPORT ACTION HANDLER ---
-    //
 
-  //
-
-   //
-
+    
     function handleReportAction(reportType, action) {
         // प्रिंट लॉजिक के लिए रिपोर्ट कार्ड का ID
-        const reportCardId = reportType === 'profit_loss'? 'pl-card' : 'bs-card';
+        const reportCardId = reportType === 'profit_loss' ? 'pl-card' : 'bs-card';
         const reportElement = document.getElementById(reportCardId);
 
         if (action === 'print') {
             // --- PRINT LOGIC (इसे नहीं बदला गया है) ---
             document.querySelectorAll('.printable').forEach(el => el.classList.remove('printable'));
             reportElement.classList.add('printable');
-  
+
             const headerHtml = `
                 <div class="printable text-center mb-3">
                     <h3>${AppState.user.shopName}</h3>
@@ -4404,49 +4400,90 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
                 headerDiv.className = 'report-print-header';
                 headerDiv.innerHTML = headerHtml;
                 reportElement.prepend(headerDiv);
-            }        
-          
+            }
+
             window.print();
-            
+
         } else if (action === 'download') {
-            
-            // --- 🚀 नया और सही EXCEL DOWNLOAD LOGIC यहाँ से शुरू होता है ---
+
+            // --- 🚀 यह रहा आपका फिक्स EXCEL DOWNLOAD LOGIC ---
             
             showMessage('Info', 'Excel (.xlsx) फ़ाइल बनाई जा रही है, कृपया प्रतीक्षा करें...', 'info');
 
             try {
                 // 1. नया Excel Workbook (खाली फ़ाइल) बनाएँ
                 const wb = XLSX.utils.book_new();
+                
+                // 🚀 NAYA HELPER: दो टेबलों को अगल-बगल मर्ज करने के लिए
+                const mergeTablesSideBySide = (table1, table2) => {
+                    const t1Rows = table1.querySelectorAll('tr');
+                    const t2Rows = table2.querySelectorAll('tr');
+                    const maxRows = Math.max(t1Rows.length, t2Rows.length);
+                    const mergedData = [];
+
+                    for (let i = 0; i < maxRows; i++) {
+                        const newRow = [];
+                        
+                        // 1. Get Left Table Data (Cols A, B)
+                        if (t1Rows[i]) {
+                            const cells = t1Rows[i].querySelectorAll('th, td');
+                            newRow.push(cells[0] ? cells[0].innerText.trim() : ''); // Col A
+                            newRow.push(cells[1] ? cells[1].innerText.trim() : ''); // Col B
+                        } else {
+                            newRow.push('', ''); // Empty placeholders
+                        }
+
+                        // 2. Get Spacer (Col C)
+                        newRow.push(''); // Blank column
+
+                        // 3. Get Right Table Data (Cols D, E)
+                        if (t2Rows[i]) {
+                            const cells = t2Rows[i].querySelectorAll('th, td');
+                            newRow.push(cells[0] ? cells[0].innerText.trim() : ''); // Col D
+                            newRow.push(cells[1] ? cells[1].innerText.trim() : ''); // Col E
+                        } else {
+                            newRow.push('', ''); // Empty placeholders
+                        }
+                        
+                        mergedData.push(newRow);
+                    }
+                    return mergedData;
+                };
+                // 🚀 NAYA HELPER YAHAN KHATM HOTA HAI
 
                 if (reportType === 'profit_loss') {
-                    // P&L के लिए, दोनों टेबल्स को ID से ढूँढें
-                    const debitTable = document.getElementById('pl-debit-table');
-                    const creditTable = document.getElementById('pl-credit-table');
+                    // --- P&L टेबल्स को उनके कार्ड से ढूँढें ---
+                    const plCard = document.getElementById('pl-card');
+                    const plTables = plCard.querySelectorAll('table.report-table'); // दोनों P&L टेबल चुनें
+                    if (plTables.length < 2) throw new Error('P&L टेबल्स नहीं मिलीं।');
+                    
+                    const mergedPLData = mergeTablesSideBySide(plTables[0], plTables[1]);
+                    const ws_pl = XLSX.utils.aoa_to_sheet(mergedPLData);
+                    ws_pl['!cols'] = [ { wch: 30 }, { wch: 20 }, { wch: 5 }, { wch: 30 }, { wch: 20 } ];
+                    
+                    XLSX.utils.book_append_sheet(wb, ws_pl, 'Profit & Loss (Side-by-Side)');
+                    XLSX.writeFile(wb, `P&L_report_${getISODate()}.xlsx`);
 
-                    // 2. दोनों टेबल्स को अलग-अलग वर्कशीट में बदलें
-                    const ws_debit = XLSX.utils.table_to_sheet(debitTable);
-                    const ws_credit = XLSX.utils.table_to_sheet(creditTable);
-
-                    // 3. दोनों शीट्स को Workbook में सही नाम से जोड़ें
-                    XLSX.utils.book_append_sheet(wb, ws_debit, 'Debit (Kharche)');
-                    XLSX.utils.book_append_sheet(wb, ws_credit, 'Credit (Aay)');
 
                 } else if (reportType === 'balance_sheet') {
-                    // Balance Sheet के लिए, दोनों टेबल्स को ID से ढूँढें
-                    const liabTable = document.getElementById('bs-liabilities-table');
-                    const assetTable = document.getElementById('bs-assets-table');
+                    // --- Balance Sheet टेबल्स को उनके कार्ड से ढूँढें ---
+                    const bsCard = document.getElementById('bs-card');
+                    const bsTables = bsCard.querySelectorAll('table.report-table'); // दोनों BS टेबल चुनें
+                    if (bsTables.length < 2) throw new Error('बैलेंस शीट टेबल्स नहीं मिलीं।');
 
-                    // 2. दोनों टेबल्स को अलग-अलग वर्कशीट में बदलें
-                    const ws_liab = XLSX.utils.table_to_sheet(liabTable);
-                    const ws_asset = XLSX.utils.table_to_sheet(assetTable);
+                    // 🚀 NAYA LOGIC: दोनों को मर्ज करें
+                    const mergedBSData = mergeTablesSideBySide(bsTables[0], bsTables[1]);
+                    
+                    // 4. Create worksheet from the merged data
+                    const ws_bs = XLSX.utils.aoa_to_sheet(mergedBSData);
+                    
+                    // (Optional but good) Adjust column widths
+                    ws_bs['!cols'] = [ { wch: 30 }, { wch: 20 }, { wch: 5 }, { wch: 30 }, { wch: 20 } ];
 
-                    // 3. दोनों शीट्स को Workbook में सही नाम से जोड़ें
-                    XLSX.utils.book_append_sheet(wb, ws_liab, 'Liabilities (देनदारी)');
-                    XLSX.utils.book_append_sheet(wb, ws_asset, 'Assets (संपत्ति)');
+                    // 5. Create workbook and download
+                    XLSX.utils.book_append_sheet(wb, ws_bs, 'Balance Sheet (Side-by-Side)');
+                    XLSX.writeFile(wb, `balance_sheet_side_by_side_${getISODate()}.xlsx`);
                 }
-
-                // 4. फ़ाइल को यूज़र के कंप्यूटर पर डाउनलोड करें
-                XLSX.writeFile(wb, `${reportType}_report_${getISODate()}.xlsx`);
 
             } catch (err) {
                 showMessage('त्रुटि', 'Excel फ़ाइल बनाने में विफल: ' + err.message, 'danger');
@@ -4456,7 +4493,9 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
             // --- 🚀 नया और सही EXCEL DOWNLOAD LOGIC यहाँ खत्म होता है ---
         }
     }
-	
+
+
+
 	
     // --- UNIVERSAL DELETE FUNCTION ---
    async function deleteEntry(type, id) {
