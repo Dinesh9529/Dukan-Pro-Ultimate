@@ -1457,9 +1457,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
     } catch (err) {
 // ...
 
-        res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री सफलतापूर्वक दर्ज की गई और स्टॉक अपडेट किया गया.' });
-    
-    } catch (err) {
+       
         await client.query('ROLLBACK');
         // Rollback on any error
         console.error("Error processing invoice:", err.message, err.stack); // Added stack trace
