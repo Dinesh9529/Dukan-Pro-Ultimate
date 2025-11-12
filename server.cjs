@@ -1203,6 +1203,7 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
             [shopId, sku, name, safeQuantity, unit,
          safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null]
         );
+		broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'stock' }));
         res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक जोड़ा/अपडेट किया गया.' });
     } catch (err) {
         console.error("Error adding stock:", err.message);
@@ -1444,7 +1445,17 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             `UPDATE invoices SET total_cost = $1 WHERE id = $2`,
             [calculatedTotalCost, invoiceId]
         );
+		
+        // ... (POST /api/invoices का कोड)
         await client.query('COMMIT'); // Transaction End
+
+        // 🚀 NAYA: Dashboard को अपडेट करने के लिए ब्रॉडकास्ट करें
+        broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
+
+        res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री सफलतापूर्वक दर्ज की गई और स्टॉक अपडेट किया गया.' });
+    
+    } catch (err) {
+// ...
 
         res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री सफलतापूर्वक दर्ज की गई और स्टॉक अपडेट किया गया.' });
     
@@ -1651,6 +1662,7 @@ app.post('/api/expenses', authenticateJWT, checkRole('MANAGER'), async (req, res
             'INSERT INTO expenses (shop_id, description, category, amount, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *',
             [shopId, description, category, safeAmount, created_at]
         );
+		broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'expenses' }));
         res.json({ success: true, expense: result.rows[0], message: 'खर्च सफलतापूर्वक जोड़ा गया.' });
     } catch (err) {
         console.error("Error adding expense:", err.message);
@@ -3065,15 +3077,23 @@ server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा �
 // 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
 const wss = new WebSocketServer({ server });
 
+// [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
+
 // 3. पेयरिंग के लिए कनेक्शन स्टोर करें
 const pairingMap = new Map(); // pairCode -> posSocket
 const scannerToPosMap = new Map(); // scannerSocket -> posSocket
-const posToScannerMap = new Map(); // posSocket -> scannerSocket
+const posToScannerMap = new Map(); // posSocket -> posSocket
+
+// 🚀 NAYA: Live Dashboard के लिए क्लाइंट स्टोर करें
+// Map<shopId, Set<ws>>
+const dashboardClients = new Map();
 
 function generatePairCode() {
     // 6 अंकों का रैंडम कोड
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
+
+// [ पुराने wss.on('connection', ...) को इस पूरे नए ब्लॉक से बदलें ]
 
 wss.on('connection', (ws) => {
     console.log('WebSocket Client Connected');
@@ -3088,13 +3108,45 @@ wss.on('connection', (ws) => {
         }
 
         switch (data.type) {
-            // केस 1: POS (कंप्यूटर) रजिस्टर करता है
+            
+            // --- 🚀 NAYA: Live Dashboard का केस ---
+            case 'REGISTER_DASHBOARD':
+                try {
+                    // टोकन को वेरिफाई करके shopId निकालें
+                    const decoded = jwt.verify(data.token, JWT_SECRET);
+                    const shopId = decoded.shopId;
+                    
+                    if (!shopId) {
+                        throw new Error('टोकन में ShopID नहीं है');
+                    }
+
+                    // ws (क्लाइंट) पर shopId को स्टोर करें (डिस्कनेक्ट होने पर हटाने के लिए)
+                    ws.shopId = shopId; 
+
+                    // Map में shopId के लिए Set ढूँढें या बनाएँ
+                    if (!dashboardClients.has(shopId)) {
+                        dashboardClients.set(shopId, new Set());
+                    }
+                    
+                    // इस क्लाइंट (ws) को उस दुकान के Set में जोड़ें
+                    dashboardClients.get(shopId).add(ws);
+                    
+                    console.log(`Dashboard client registered for ShopID: ${shopId}. Total clients for this shop: ${dashboardClients.get(shopId).size}`);
+                    ws.send(JSON.stringify({ type: 'DASHBOARD_REGISTERED', message: 'Live Dashboard कनेक्ट हो गया है।' }));
+
+                } catch (err) {
+                    console.error('Dashboard registration failed:', err.message);
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Dashboard ऑथेंटिकेशन विफल: ' + err.message }));
+                    ws.close();
+                }
+                break;
+
+            // --- पुराना मोबाइल स्कैनर लॉजिक (जैसा था वैसा ही) ---
             case 'REGISTER_POS':
                 try {
-                    // (वैकल्पिक: यहाँ टोकन को वेरिफाई करें, अभी के लिए हम भरोसा कर रहे हैं)
                     const pairCode = generatePairCode();
-                    pairingMap.set(pairCode, ws); // कोड के साथ POS को मैप करें
-                    posToScannerMap.set(ws, null); // अभी कोई स्कैनर नहीं है
+                    pairingMap.set(pairCode, ws); 
+                    posToScannerMap.set(ws, null); 
                     console.log(`POS Registered. Pair Code: ${pairCode}`);
                     ws.send(JSON.stringify({ type: 'PAIR_CODE_GENERATED', pairCode }));
                 } catch (e) {
@@ -3102,16 +3154,14 @@ wss.on('connection', (ws) => {
                 }
                 break;
 
-            // केस 2: मोबाइल स्कैनर रजिस्टर करता है
             case 'REGISTER_SCANNER':
                 const posSocket = pairingMap.get(data.pairCode);
                 if (posSocket) {
                     console.log('Scanner Paired successfully!');
-                    scannerToPosMap.set(ws, posSocket); // स्कैनर -> POS
-                    posToScannerMap.set(posSocket, ws); // POS -> स्कैनर
-                    pairingMap.delete(data.pairCode); // कोड का काम हो गया, उसे हटा दें
+                    scannerToPosMap.set(ws, posSocket); 
+                    posToScannerMap.set(posSocket, ws); 
+                    pairingMap.delete(data.pairCode); 
 
-                    // दोनों को बताएँ कि वे कनेक्ट हो गए हैं
                     posSocket.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
                     ws.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
                 } else {
@@ -3120,27 +3170,41 @@ wss.on('connection', (ws) => {
                 }
                 break;
 
-            // केस 3: मोबाइल स्कैनर ने एक SKU भेजा
             case 'SCAN_SKU':
                 const pairedPosSocket = scannerToPosMap.get(ws);
                 if (pairedPosSocket) {
                     console.log(`Relaying SKU ${data.sku} to paired POS`);
-                    // SKU को सीधे POS (कंप्यूटर) को भेजें
                     pairedPosSocket.send(JSON.stringify({ type: 'SKU_SCANNED', sku: data.sku }));
                 } else {
                     console.log('SKU received from unpaired scanner');
                     ws.send(JSON.stringify({ type: 'ERROR', message: 'Not Paired' }));
                 }
                 break;
+            
+            default:
+                console.warn(`Unknown WS message type: ${data.type}`);
         }
     });
 
     ws.on('close', () => {
         console.log('WebSocket Client Disconnected');
-        
-        // मैप्स को साफ़ करें
+
+        // --- 🚀 NAYA: Dashboard क्लाइंट को Map से हटाएँ ---
+        if (ws.shopId) {
+            const shopId = ws.shopId;
+            if (dashboardClients.has(shopId)) {
+                const clients = dashboardClients.get(shopId);
+                clients.delete(ws); // Set से इस क्लाइंट को हटाएँ
+                console.log(`Dashboard client disconnected for ShopID: ${shopId}. Remaining: ${clients.size}`);
+                // अगर यह उस दुकान का आखिरी क्लाइंट था, तो Map से shopId को ही हटा दें
+                if (clients.size === 0) {
+                    dashboardClients.delete(shopId);
+                }
+            }
+        }
+
+        // --- पुराना मोबाइल स्कैनर लॉजिक (जैसा था वैसा ही) ---
         if (posToScannerMap.has(ws)) {
-            // यह एक POS था जो डिस्कनेक्ट हुआ
             const pairedScannerSocket = posToScannerMap.get(ws);
             if (pairedScannerSocket) {
                 pairedScannerSocket.send(JSON.stringify({ type: 'POS_DISCONNECTED' }));
@@ -3148,7 +3212,6 @@ wss.on('connection', (ws) => {
             }
             posToScannerMap.delete(ws);
         } else if (scannerToPosMap.has(ws)) {
-            // यह एक स्कैनर था जो डिस्कनेक्ट हुआ
             const pairedPosSocket = scannerToPosMap.get(ws);
             if (pairedPosSocket) {
                 pairedPosSocket.send(JSON.stringify({ type: 'SCANNER_DISCONNECTED' }));
@@ -3156,7 +3219,6 @@ wss.on('connection', (ws) => {
             }
             scannerToPosMap.delete(ws);
         }
-        // पेंडिंग pairCodes को भी साफ़ करें
         pairingMap.forEach((socket, code) => {
             if (socket === ws) {
                 pairingMap.delete(code);
@@ -3164,7 +3226,25 @@ wss.on('connection', (ws) => {
         });
     });
 });
+
 // --- 🚀 WEBSOCKET सर्वर लॉजिक END ---
+
+
+function broadcastToShop(shopId, message) {
+    if (!dashboardClients.has(shopId)) {
+        // इस दुकान का कोई डैशबोर्ड नहीं खुला है
+        return;
+    }
+
+    const clients = dashboardClients.get(shopId);
+    console.log(`Broadcasting to ${clients.size} dashboard clients for shopId: ${shopId}`);
+
+    clients.forEach(wsClient => {
+        if (wsClient.readyState === 1) { // 1 मतलब OPEN
+            wsClient.send(message);
+        }
+    });
+}
 
 
 // Start the server after ensuring database tables are ready
@@ -3182,63 +3262,3 @@ createTables().then(() => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
