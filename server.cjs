@@ -3269,6 +3269,95 @@ function broadcastToShop(shopId, message) {
 }
 
 
+
+// [ यह नया API अपनी server.cjs फ़ाइल के अंत में पेस्ट करें ]
+
+// -----------------------------------------------------------------------------
+// --- 🚀 18. AI INSIGHTS API (Oracle Bypass) ---
+// -----------------------------------------------------------------------------
+app.get('/api/ai/stock-insights', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM'], 'has_ai_insights'), async (req, res) => {
+    // 🚀 NAYA: Plan check yahaan lagaya gaya hai (Medium/Premium ya Add-on)
+    
+    const shopId = req.shopId;
+    const client = await pool.connect();
+    
+    try {
+        // 1. पिछले 30 दिनों की बिक्री की रफ़्तार (Sales Velocity) निकालें
+        const velocityQuery = `
+            SELECT 
+                item_sku,
+                SUM(quantity) AS total_sold_30d,
+                (SUM(quantity) / 30.0) AS avg_sales_per_day
+            FROM invoice_items ii
+            JOIN invoices i ON ii.invoice_id = i.id
+            WHERE i.shop_id = $1 AND i.created_at >= (CURRENT_DATE - INTERVAL '30 days')
+            GROUP BY item_sku
+        `;
+        const velocityResult = await client.query(velocityQuery, [shopId]);
+        const salesVelocityMap = new Map();
+        velocityResult.rows.forEach(row => {
+            salesVelocityMap.set(row.item_sku, parseFloat(row.avg_sales_per_day));
+        });
+
+        // 2. पूरा स्टॉक (Current Stock) और "डेड स्टॉक" (Dead Stock) निकालें
+        const stockQuery = `
+            SELECT 
+                s.sku, s.name, s.quantity, s.purchase_price,
+                (s.quantity * s.purchase_price) AS stock_value,
+                (SELECT MAX(i.created_at) 
+                 FROM invoices i 
+                 JOIN invoice_items ii ON i.id = ii.invoice_id 
+                 WHERE i.shop_id = s.shop_id AND ii.item_sku = s.sku) AS last_sold_date
+            FROM stock s
+            WHERE s.shop_id = $1 AND s.quantity > 0
+        `;
+        const stockResult = await client.query(stockQuery, [shopId]);
+
+        // 3. AI सलाह (Insights) तैयार करें
+        const fastMovingAlerts = [];
+        const deadStockAlerts = [];
+        const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30));
+
+        for (const item of stockResult.rows) {
+            const velocity = salesVelocityMap.get(item.sku);
+            
+            if (velocity && velocity > 0) {
+                // --- फास्ट मूविंग (Fast Moving) ---
+                const days_left = parseFloat(item.quantity) / velocity;
+                if (days_left < 3) { // 3 दिन से कम का स्टॉक
+                    fastMovingAlerts.push({
+                        title: `'${item.name}' जल्द खत्म होगा!`,
+                        text: `यह तेज़ी से बिक रहा है और ~${Math.ceil(days_left)} दिन में खत्म हो जाएगा। (अभी ${Math.floor(item.quantity)} पीस हैं)`
+                    });
+                }
+            } else if (!item.last_sold_date || new Date(item.last_sold_date) < thirtyDaysAgo) {
+                // --- डेड स्टॉक (Dead Stock) ---
+                if (parseFloat(item.stock_value) > 500) { // 500 रुपये से ज़्यादा का फँसा हुआ माल
+                    deadStockAlerts.push({
+                        title: `'${item.name}' में पैसे फँसे हैं!`,
+                        text: `यह 30+ दिनों से नहीं बिका है। इसमें आपके ₹${Math.round(item.stock_value)} फँसे हैं। छूट देकर निकालें।`
+                    });
+                }
+            }
+        }
+        
+        res.json({ 
+            success: true, 
+            insights: {
+                fast_moving: fastMovingAlerts,
+                dead_stock: deadStockAlerts
+            }
+        });
+
+    } catch (err) {
+        console.error("Error generating AI insights:", err.message);
+        res.status(500).json({ success: false, message: 'AI सलाह बनाने में विफल: ' + err.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
