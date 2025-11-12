@@ -2432,7 +2432,75 @@ function closePosWebSocket() {
     };
     
 
+// [ यह कोड अपने HTML की <script> में डालें ]
 
+    let dashboardSocket = null; // Dashboard WebSocket के लिए नया वेरिएबल
+
+/**
+ * 🚀 NAYA: Live Dashboard WebSocket को शुरू करता है
+ */
+function initDashboardSocket() {
+    // अगर पहले से कनेक्ट है, तो कुछ न करें
+    if (dashboardSocket && dashboardSocket.readyState === WebSocket.OPEN) {
+        return;
+    }
+
+    // सर्वर URL को http से ws/wss में बदलें
+    const wsUrl = __backend_url.replace('https', 'wss').replace('http', 'ws');
+    dashboardSocket = new WebSocket(wsUrl);
+
+    // 1. कनेक्शन खुलने पर
+    dashboardSocket.onopen = () => {
+        console.log("✅ Live Dashboard WebSocket कनेक्ट हो गया।");
+        // सर्वर को अपना टोकन भेजकर खुद को रजिस्टर करें
+        dashboardSocket.send(JSON.stringify({
+            type: 'REGISTER_DASHBOARD',
+            token: AppState.token // आपका लॉगिन टोकन
+        }));
+    };
+
+    // 2. सर्वर से मैसेज मिलने पर
+    dashboardSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'DASHBOARD_REGISTERED') {
+            console.log("सर्वर ने पुष्टि की:", data.message);
+        }
+
+        // 3. 🚀 यह सबसे महत्वपूर्ण है!
+        if (data.type === 'DASHBOARD_UPDATE') {
+            console.log('🔥 Live Update प्राप्त हुआ! डेटा रीफ्रेश किया जा रहा है...', data.view);
+            
+            // (एक छोटा सा मैसेज दिखाएँ)
+            showMessage('लाइव अपडेट', `एक नई '${data.view}' दर्ज हुई है, डैशबोर्ड अपडेट हो रहा है...`, 'info');
+
+            // 4. अपने डैशबोर्ड को रीफ्रेश करने वाला मुख्य फंक्शन चलाएँ
+            // (यह फंक्शन आपके HTML में पहले से मौजूद है)
+            if (typeof renderDashboard === 'function') {
+                renderDashboard();
+            }
+            
+            // (वैकल्पिक: यदि आप केवल विशिष्ट हिस्सों को रीफ्रेश करना चाहते हैं)
+            // if (data.view === 'sales' && typeof fetchAndRenderSales === 'function') {
+            //     fetchAndRenderSales();
+            // }
+        }
+    };
+
+    // 3. कनेक्शन बंद होने पर
+    dashboardSocket.onclose = () => {
+        console.log("❌ Live Dashboard WebSocket डिस्कनेक्ट हो गया। 5 सेकंड में पुनः प्रयास किया जाएगा...");
+        dashboardSocket = null;
+        // 5 सेकंड बाद फिर से कनेक्ट करने का प्रयास करें
+        setTimeout(initDashboardSocket, 5000);
+    };
+
+    // 4. एरर होने पर
+    dashboardSocket.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        dashboardSocket.close(); // बंद करें (onclose इसे रीस्टार्ट करेगा)
+    };
+}
 /**
  * स्कैन किए गए डेटा को हैंडल करने वाला फ़ंक्शन।
  */
@@ -4324,6 +4392,15 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
         setupNewFormHandlers();
         renderView('dashboard');
+
+        applyRBAC(AppState.user.role);
+        setupForm('add-stock-form', '/api/stock', fetchAndRenderStockList);
+        // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
+        setupNewFormHandlers();
+        renderView('dashboard');
+
+        // 🚀 NAYA: Live Dashboard WebSocket को यहाँ से शुरू करें
+        initDashboardSocket(); 
     };
 
 
