@@ -3109,6 +3109,8 @@ wss.on('connection', (ws) => {
 
         switch (data.type) {
             
+           [नीचे दिए गए पूरे कोड को कॉपी करें]
+
             // --- 🚀 NAYA: Live Dashboard का केस ---
             case 'REGISTER_DASHBOARD':
                 try {
@@ -3134,7 +3136,7 @@ wss.on('connection', (ws) => {
                     console.log(`Dashboard client registered for ShopID: ${shopId}. Total clients for this shop: ${dashboardClients.get(shopId).size}`);
                     ws.send(JSON.stringify({ type: 'DASHBOARD_REGISTERED', message: 'Live Dashboard कनेक्ट हो गया है।' }));
 
-                } catch (err) {
+                } catch (err) { // 🚀 FIX: 'try' ब्लॉक का क्लोजिंग '}' यहाँ (catch से ठीक पहले) जोड़ा गया है
                     console.error('Dashboard registration failed:', err.message);
                     ws.send(JSON.stringify({ type: 'ERROR', message: 'Dashboard ऑथेंटिकेशन विफल: ' + err.message }));
                     ws.close();
