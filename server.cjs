@@ -3276,82 +3276,167 @@ function broadcastToShop(shopId, message) {
 // --- 🚀 18. AI INSIGHTS API (Oracle Bypass) ---
 // -----------------------------------------------------------------------------
 app.get('/api/ai/stock-insights', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM'], 'has_ai_insights'), async (req, res) => {
-    // 🚀 NAYA: Plan check yahaan lagaya gaya hai (Medium/Premium ya Add-on)
-    
+
     const shopId = req.shopId;
     const client = await pool.connect();
-    
+
     try {
-        // 1. पिछले 30 दिनों की बिक्री की रफ़्तार (Sales Velocity) निकालें
+        // 1) पिछले 30 दिनों की बिक्री (Sales Velocity)
         const velocityQuery = `
             SELECT 
-                item_sku,
-                SUM(quantity) AS total_sold_30d,
-                (SUM(quantity) / 30.0) AS avg_sales_per_day
+                ii.item_sku,
+                SUM(ii.quantity) AS total_sold_30d,
+                (SUM(ii.quantity) / 30.0) AS avg_per_day,
+                AVG(ii.selling_price) AS avg_sale_price
             FROM invoice_items ii
             JOIN invoices i ON ii.invoice_id = i.id
-            WHERE i.shop_id = $1 AND i.created_at >= (CURRENT_DATE - INTERVAL '30 days')
-            GROUP BY item_sku
+            WHERE i.shop_id = $1 
+            AND i.created_at >= (CURRENT_DATE - INTERVAL '30 days')
+            GROUP BY ii.item_sku
         `;
-        const velocityResult = await client.query(velocityQuery, [shopId]);
-        const salesVelocityMap = new Map();
-        velocityResult.rows.forEach(row => {
-            salesVelocityMap.set(row.item_sku, parseFloat(row.avg_sales_per_day));
-        });
+        const vRes = await client.query(velocityQuery, [shopId]);
+        const velocity = new Map();
+        vRes.rows.forEach(r => velocity.set(r.item_sku, {
+            avg_per_day: parseFloat(r.avg_per_day || 0),
+            avg_sale_price: parseFloat(r.avg_sale_price || 0)
+        }));
 
-        // 2. पूरा स्टॉक (Current Stock) और "डेड स्टॉक" (Dead Stock) निकालें
+        // 2) स्टॉक + purchase price + sale price + last sold
         const stockQuery = `
             SELECT 
-                s.sku, s.name, s.quantity, s.purchase_price,
+                s.sku, s.name, s.quantity, s.purchase_price, s.sale_price,
                 (s.quantity * s.purchase_price) AS stock_value,
-                (SELECT MAX(i.created_at) 
-                 FROM invoices i 
-                 JOIN invoice_items ii ON i.id = ii.invoice_id 
-                 WHERE i.shop_id = s.shop_id AND ii.item_sku = s.sku) AS last_sold_date
+                (
+                    SELECT MAX(i.created_at)
+                    FROM invoices i
+                    JOIN invoice_items ii ON i.id = ii.invoice_id
+                    WHERE i.shop_id = s.shop_id AND ii.item_sku = s.sku
+                ) AS last_sold_date
             FROM stock s
             WHERE s.shop_id = $1 AND s.quantity > 0
         `;
-        const stockResult = await client.query(stockQuery, [shopId]);
+        const sRes = await client.query(stockQuery, [shopId]);
 
-        // 3. AI सलाह (Insights) तैयार करें
-        const fastMovingAlerts = [];
-        const deadStockAlerts = [];
-        const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30));
+        const fastMoving = [];
+        const deadStock = [];
+        const restockSuggestions = [];
+        const profitability = [];
 
-        for (const item of stockResult.rows) {
-            const velocity = salesVelocityMap.get(item.sku);
-            
-            if (velocity && velocity > 0) {
-                // --- फास्ट मूविंग (Fast Moving) ---
-                const days_left = parseFloat(item.quantity) / velocity;
-                if (days_left < 3) { // 3 दिन से कम का स्टॉक
-                    fastMovingAlerts.push({
-                        title: `'${item.name}' जल्द खत्म होगा!`,
-                        text: `यह तेज़ी से बिक रहा है और ~${Math.ceil(days_left)} दिन में खत्म हो जाएगा। (अभी ${Math.floor(item.quantity)} पीस हैं)`
+        let totalStockValue = 0;
+        let totalPotentialProfit = 0;
+        let deadStockValue = 0;
+
+        const leadTimeDays = 7; 
+        const safetyFactor = 1.5;
+
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+        for (const item of sRes.rows) {
+            const sku = item.sku;
+            const qty = parseFloat(item.quantity);
+            const purchase = parseFloat(item.purchase_price || 0);
+            const sale = parseFloat(item.sale_price || velocity.get(sku)?.avg_sale_price || 0);
+
+            totalStockValue += qty * purchase;
+
+            const v = velocity.get(sku);
+            const avgDay = v ? v.avg_per_day : 0;
+
+            const days_left = avgDay > 0 ? qty / avgDay : Infinity;
+
+            // Restock Suggestion
+            const suggested_reorder = avgDay > 0 ?
+                Math.max(Math.ceil((avgDay * leadTimeDays * safetyFactor) - qty), 0) :
+                0;
+
+            if (suggested_reorder > 0) {
+                restockSuggestions.push({
+                    sku,
+                    name: item.name,
+                    current_qty: qty,
+                    avg_per_day: avgDay,
+                    suggested_reorder
+                });
+            }
+
+            // Fast Moving
+            if (avgDay > 0 && days_left < 5) {
+                fastMoving.push({
+                    sku,
+                    name: item.name,
+                    days_left: Math.round(days_left * 10) / 10,
+                    qty
+                });
+            }
+
+            // Dead Stock
+            const lastSold = item.last_sold_date ? new Date(item.last_sold_date) : null;
+            if (!lastSold || lastSold < thirtyDaysAgo) {
+                if (qty * purchase > 500) {
+                    deadStock.push({
+                        sku,
+                        name: item.name,
+                        qty,
+                        stock_value: Math.round(qty * purchase)
                     });
-                }
-            } else if (!item.last_sold_date || new Date(item.last_sold_date) < thirtyDaysAgo) {
-                // --- डेड स्टॉक (Dead Stock) ---
-                if (parseFloat(item.stock_value) > 500) { // 500 रुपये से ज़्यादा का फँसा हुआ माल
-                    deadStockAlerts.push({
-                        title: `'${item.name}' में पैसे फँसे हैं!`,
-                        text: `यह 30+ दिनों से नहीं बिका है। इसमें आपके ₹${Math.round(item.stock_value)} फँसे हैं। छूट देकर निकालें।`
-                    });
+                    deadStockValue += qty * purchase;
                 }
             }
+
+            // Profitability
+            const margin = sale > 0 ? ((sale - purchase) / sale) * 100 : 0;
+            const potentialProfit = (sale - purchase) * qty;
+            totalPotentialProfit += potentialProfit;
+
+            profitability.push({
+                sku,
+                name: item.name,
+                qty,
+                purchase,
+                sale,
+                margin: Math.round(margin * 100) / 100,
+                potentialProfit: Math.round(potentialProfit)
+            });
         }
-        
-        res.json({ 
-            success: true, 
+
+        // Business Health Score
+        const totalSold30d = vRes.rows.reduce((s, r) => s + parseFloat(r.total_sold_30d || 0), 0);
+        const avgStockUnits = sRes.rows.reduce((s, r) => s + parseFloat(r.quantity || 0), 0) || 1;
+        const stock_turnover = totalSold30d / avgStockUnits;
+        const dead_ratio = deadStockValue / (totalStockValue || 1);
+        const avg_margin = profitability.length
+            ? (profitability.reduce((s, p) => s + p.margin, 0) / profitability.length)
+            : 0;
+
+        let score = 50;
+        score += Math.max(-25, Math.min((stock_turnover - 0.5) * 10, 25));
+        score += Math.max(-25, Math.min((0.2 - dead_ratio) * 100, 25));
+        score += Math.max(-20, Math.min(avg_margin / 2, 20));
+        score = Math.max(0, Math.min(score, 100));
+
+        // Response
+        res.json({
+            success: true,
             insights: {
-                fast_moving: fastMovingAlerts,
-                dead_stock: deadStockAlerts
+                fast_moving: fastMoving,
+                dead_stock: deadStock,
+                restock: restockSuggestions,
+                profitability,
+                totals: {
+                    total_stock_value: Math.round(totalStockValue),
+                    total_potential_profit: Math.round(totalPotentialProfit),
+                    total_sold_30d: Math.round(totalSold30d)
+                },
+                business_health_score: score
             }
         });
 
     } catch (err) {
-        console.error("Error generating AI insights:", err.message);
-        res.status(500).json({ success: false, message: 'AI सलाह बनाने में विफल: ' + err.message });
+        console.error("AI v2 Error:", err);
+        res.status(500).json({
+            success: false,
+            message: "AI Insights बनाते समय त्रुटि: " + err.message
+        });
     } finally {
         if (client) client.release();
     }
