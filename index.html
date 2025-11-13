@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
 
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
     // Yeh script har uss user ke liye chalega jo aapki site kholega
     // Yeh browser ko majboor karega ki woh purana, ziddi cache delete kar de.
@@ -914,8 +914,14 @@
                     <a href="#" class="nav-link" data-view="bank-reconciliation" data-role="MANAGER"> <i class="fas fa-university"></i> बैंक रिकॉन्सिलेशन
                     </a>
                 </li>
-
-                <li class="nav-item">
+                <ul class="nav nav-tabs" id="main-nav-tabs">
+                    <li class="nav-item" data-role="MANAGER">
+                        <a class="nav-link" href="#" data-view="ai-insights">
+                            <i class="fas fa-brain me-1"></i> AI सलाह
+                        </a>
+                    </li>
+                              
+               <li class="nav-item">
                     <a href="#" class="nav-link" data-view="daily-closing" data-role="MANAGER"> <i class="fas fa-calendar-check"></i> डेली क्लोजिंग
                     </a>
                 </li>
@@ -1715,6 +1721,7 @@
                             <select id="staff-role" class="form-select">
                                 <option value="CASHIER" selected>कैशियर (Cashier)</option>
                                 <option value="MANAGER">मैनेजर (Manager)</option>
+                                <option value="ACCOUNTANT">Accountant (CA Access)</option>
                                 <option value="ADMIN">एडमिन (Admin)</option>
                             </select>
                         </div>
@@ -1784,6 +1791,7 @@
                             <select id="edit-staff-role" class="form-select">
                                 <option value="CASHIER">कैशियर (Cashier)</option>
                                 <option value="MANAGER">मैनेजर (Manager)</option>
+                                <option value="ACCOUNTANT">Accountant (CA Access)</option>
                                 <option value="ADMIN">एडमिन (Admin)</option>
                             </select>
                           </div>
@@ -3155,12 +3163,80 @@ function fetchAndPopulateShopData() {
             case 'data-backup': break; 
             case 'shop-settings': fetchAndRenderShopSettings(); break; 
             case 'staff': renderStaff(); break; 
+            case 'ai-insights':
+                renderAiInsights();
+                break;
         }
         
         // --- 🚀 कमेंट खत्म ---
     };
 
-   // [ ✅ इस पूरे फ़ंक्शन को अपने पुराने fetchAndRenderSales से बदलें ]
+
+    /**
+     * 🚀 NAYA: AI Insights व्यू को रेंडर करता है
+     */
+     const renderAiInsights = async () => {
+        const contentDiv = document.getElementById('ai-insights-content');
+        contentDiv.innerHTML = `<div class="text-center p-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">AI विश्लेषण कर रहा है...</p></div>`;
+
+        try {
+            const response = await fetchApi('/api/ai/stock-insights', { method: 'GET' });
+            
+            if (!response.success) {
+                throw new Error(response.message);
+            }
+
+            const { fast_moving, dead_stock } = response.insights;
+            let html = '<div class="row g-4">';
+
+            // 1. डेड स्टॉक (Dead Stock) कार्ड्स
+            if (dead_stock.length > 0) {
+                html += '<h4><i class="fas fa-exclamation-triangle text-danger me-2"></i>पैसे बचाने की सलाह (डेड स्टॉक)</h4>';
+                dead_stock.forEach(item => {
+                    html += `
+                        <div class="col-md-6">
+                            <div class="card border-danger shadow-sm h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title text-danger">${item.title}</h5>
+                                    <p class="card-text">${item.text}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<p>बधाई हो! आपका कोई भी पैसा डेड स्टॉक में नहीं फँसा है।</p>';
+            }
+
+            // 2. फास्ट मूविंग (Fast Moving) कार्ड्स
+            if (fast_moving.length > 0) {
+                html += '<h4 class="mt-5"><i class="fas fa-shipping-fast text-success me-2"></i>बिक्री बढ़ाने की सलाह (फास्ट मूविंग)</h4>';
+                fast_moving.forEach(item => {
+                    html += `
+                        <div class="col-md-6">
+                            <div class="card border-success shadow-sm h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title text-success">${item.title}</h5>
+                                    <p class="card-text">${item.text}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<p>आपका स्टॉक नियंत्रण में है। अभी कोई आइटम तुरंत खत्म नहीं हो रहा है।</p>';
+            }
+
+            html += '</div>'; // row
+            contentDiv.innerHTML = html;
+
+        } catch (error) {
+            contentDiv.innerHTML = `<div class="alert alert-danger">AI सलाह लोड करने में विफल: ${error.message}</div>`;
+        }
+    };
+
+
+
 
    async function fetchAndRenderSales() {
         const salesTableBody = document.getElementById('sales-table-body');  
@@ -4391,40 +4467,119 @@ setupForm('add-purchase-form', '/api/purchases', fetchAndRenderPurchases);
 setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
         setupNewFormHandlers();
-        renderView('dashboard');
+      // ... (setupNewFormHandlers(); के ठीक बाद)
 
-        applyRBAC(AppState.user.role);
-        setupForm('add-stock-form', '/api/stock', fetchAndRenderStockList);
-        // ... (आपके सभी setupForm और setupNewFormHandlers कॉल्स) ...
-        setupNewFormHandlers();
-        renderView('dashboard');
-
-        // 🚀 NAYA: Live Dashboard WebSocket को यहाँ से शुरू करें
-        initDashboardSocket(); 
+        // 🚀 NAYA FIX: Role के हिसाब से पहला पेज दिखाएँ
+        if (AppState.user.role === 'ACCOUNTANT') {
+            renderView('reports'); // CA को सीधे रिपोर्ट्स दिखाएँ
+        } else {
+            renderView('dashboard'); // बाकी सबको डैशबोर्ड (POS) दिखाएँ
+        }
+        
+        initDashboardSocket();
     };
-
 
     /**
      * Hides/Shows UI elements based on user role
      * Roles: ADMIN (3) > MANAGER (2) > CASHIER (1)
      */
      function applyRBAC(role) {
-        const roles = { 'ADMIN': 3, 'MANAGER': 2, 'CASHIER': 1, 'ANY': 0 };
-        const userLevel = roles[role.toUpperCase()] || 0; // Get user's level
-
-        // Loop through all elements that require a role
-        document.querySelectorAll('[data-role]').forEach(el => {
-            const requiredRole = el.dataset.role.toUpperCase();
-            const requiredLevel = roles[requiredRole];
-            
-            if(requiredRole === 'ANY' || userLevel >= requiredLevel) {
-                 el.classList.remove('d-none'); // Show element
-            } else {
-                el.classList.add('d-none'); // Hide element
-            }
-        });
-    }
     
+    // 1. Role levels ko define karein
+    // (Accountant, Manager ke barabar hai, yaani Level 2)
+    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1, 'ANY': 0 };
+    
+    const userRole = role.toUpperCase();
+    const userLevel = roles[userRole] || 0;
+
+    // 2. Sabhi [data-role] wale elements ko check karein
+    document.querySelectorAll('[data-role]').forEach(el => {
+        const requiredRole = el.dataset.role.toUpperCase();
+        
+        // Agar data-role define nahi hai, to use 'ANY' maanein
+        const requiredLevel = roles[requiredRole] || 0; 
+
+        let show = false; // Default: Sab chhupa do
+
+        // 3. Logic: Kise kya dikhana hai?
+        if (userRole === 'ACCOUNTANT') {
+            
+            // --- 🚀 ACCOUNTANT KA LOGIC ---
+            // CA sirf 'ANY', 'ACCOUNTANT', ya 'MANAGER' (reports ke liye)
+            // wali cheezein dekh sakta hai.
+            if (requiredRole === 'ANY' || requiredRole === 'ACCOUNTANT' || requiredRole === 'MANAGER') {
+                show = true;
+            }
+            // --- Yeh Line Sabse Zaroori Hai ---
+            // Agar element 'CASHIER' ka hai, to CA ko *mat* dikhao
+            if (requiredRole === 'CASHIER') {
+                show = false;
+            }
+
+        } else {
+            // --- 🚀 ADMIN/MANAGER/CASHIER KA PURANA LOGIC ---
+            // (Level-based: Admin > Manager > Cashier)
+            if (requiredRole === 'ANY' || userLevel >= requiredLevel) {
+                show = true;
+            }
+        }
+
+        // 4. Faisla laagu (apply) karein
+        if (show) {
+            el.classList.remove('d-none'); // Dikhao
+        } else {
+            el.classList.add('d-none'); // Chhupao
+        }
+    });
+
+// [ YEH NAYA CODE YAHAN PASTE KAREIN ]
+
+    // --- 🚀 NAYA FIX (v4): CA KE LIYE ACTION FORMS/BUTTONS ALAG SE CHHUPAO ---
+    // (Yeh code [data-role] loop ke *baad* chalta hai)
+
+       // Sabhi "Add" forms ke ID
+    // Sabhi "Add" forms ke ID
+        const allActionForms = [
+        '#add-stock-form', '#add-expense-form', '#add-purchase-form', 
+        '#add-staff-form', '#company-profile-form', 
+        '#daily-closing'
+    ];
+    
+    // Sabhi "Edit/Delete/Submit" buttons ke Class/Selectors
+    // (List ko file [SAgar SAGArLatest 2 (2)(1).html] ke hisaab se update kiya gaya hai)
+    const allActionButtons = document.querySelectorAll(
+        '.edit-stock-btn, button[onclick^="deleteStock"], .delete-stock-btn,' +
+        '.edit-customer-btn, .delete-customer-btn,' +
+        '.edit-expense-btn, .delete-expense-btn,' +
+        '.edit-purchase-btn, .delete-purchase-btn,' +
+        '.edit-staff-btn, .delete-staff-btn, button[onclick^="deleteStaff"],' +
+        'button[onclick^="editStaff"], button[type="submit"],' +
+        '#editStaffModal .modal-footer .btn-primary,' +
+        'a[onclick^="showEditCustomerModal"], #editCustomerModal .modal-footer .btn-primary,' +
+        'a[onclick^="showEditStockModal"], #editStockModal .modal-footer .btn-primary'
+    );
+
+    if (userRole === 'ACCOUNTANT') {
+        // Agar CA hai, to sabhi forms aur action buttons ko chhupao
+        allActionForms.forEach(selector => {
+            const el = document.querySelector(selector);
+            if (el) el.classList.add('d-none');
+        });
+        allActionButtons.forEach(btn => btn.classList.add('d-none'));
+
+    } else {
+        // Agar CA nahi hai, to sabhi ko (wapas) dikhao
+        // (Yeh zaroori hai agar user logout karke Admin jaisa login kare)
+        allActionForms.forEach(selector => {
+            const el = document.querySelector(selector);
+            if (el) el.classList.remove('d-none');
+        });
+        allActionButtons.forEach(btn => btn.classList.remove('d-none'));
+    }
+    // --- NAYA FIX YAHAN KHATM HOTA HAI ---
+}
+
+
     // --- INVOICE GENERATOR FUNCTIONS ---
     function initializeQRUpload() {
         console.log("Initializing QR Upload...");
@@ -6355,5 +6510,113 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
         </div>
     </div>
 </div>
+
+<section id="ai-insights" class="section">
+    <div class="ai-header-box">
+        <div>
+            <h2 class="ai-title"><i class="fas fa-brain me-2"></i> AI स्मार्ट सलाह (Insights)</h2>
+            <p class="ai-subtitle">आपकी दुकान के डेटा पर आधारित AI की उन्नत स्मार्ट रिपोर्ट</p>
+        </div>
+        <button class="ai-refresh-btn" onclick="renderAiInsightsFinal()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+
+    <div id="ai-insights-content">
+        <div class="ai-loading">
+            <div class="spinner-border text-primary"></div>
+            <p>AI आपकी दुकान का गहराई से विश्लेषण कर रहा है...</p>
+        </div>
+    </div>
+</section>
+
+
+<script>
+    async function renderAiInsightsFinal(){
+        const box = document.getElementById("ai-insights-content");
+    
+        box.innerHTML = `
+            <div class="ai-loading">
+                <div class="spinner-border text-primary"></div>
+                <p>AI Analysis चल रहा है...</p>
+            </div>
+        `;
+    
+        try{
+    
+            const response = await fetchApi('/api/ai/stock-insights',{method:'GET'});
+            if(!response.success){
+                box.innerHTML = `<div class='alert alert-danger'>${response.message}</div>`;
+                return;
+            }
+    
+            const i = response.insights;
+    
+            box.innerHTML = `
+                <div class="ai-health-box">
+                    <h3>Business Health Score: <b>${i.business_health_score}/100</b></h3>
+                    <div class="ai-progress"><div class="ai-progress-inner" style="width:${i.business_health_score}%"></div></div>
+                </div>
+    
+                <div class="ai-card">
+                    <h4>📦 Fast Moving Items 
+                        <span class="ai-badge ai-badge-yellow">${i.fast_moving.length}</span>
+                    </h4>
+                    ${i.fast_moving.length ? 
+                        i.fast_moving.map(item => `
+                            <div class="alert alert-warning">
+                                <b>${item.name}</b> (SKU: ${item.sku})  
+                                <br>⏳ खत्म होने का समय: <b>${item.days_left} दिन</b>  
+                                <br>📌 स्टॉक: ${item.current_qty} pcs  
+                            </div>
+                        `).join('')
+                    : `<p class='text-muted'>कोई fast moving item नहीं है</p>`}
+                </div>
+    
+                <div class="ai-card">
+                    <h4>🛑 Dead Stock 
+                        <span class="ai-badge ai-badge-red">${i.dead_stock.length}</span>
+                    </h4>
+                    ${i.dead_stock.length ?
+                        i.dead_stock.map(item => `
+                            <div class="alert alert-danger">
+                                <b>${item.name}</b> (SKU: ${item.sku})  
+                                <br>🚫 पिछले 30 दिनों में नहीं बिका  
+                                <br>💰 फँसा हुआ पैसा: ₹${item.stock_value}  
+                            </div>
+                        `).join('')
+                    : `<p class='text-muted'>Dead stock नहीं है</p>`}
+                </div>
+    
+                <div class="ai-card">
+                    <h4>🔄 Restock Suggestions 
+                        <span class="ai-badge ai-badge-blue">${i.restock.length}</span>
+                    </h4>
+                    ${i.restock.length ?
+                        i.restock.map(item => `
+                            <div class="alert alert-info">
+                                <b>${item.name}</b> (SKU: ${item.sku})  
+                                <br>📌 Current: ${item.current_qty} pcs  
+                                <br>⭕ Suggested Reorder: <b>${item.suggested_reorder}</b> pcs  
+                            </div>
+                        `).join('')
+                    : `<p class='text-muted'>किसी भी item की अभी restock जरूरत नहीं</p>`}
+                </div>
+            `;
+        }
+        catch(err){
+            box.innerHTML = `<div class='alert alert-danger'>Error: ${err.message}</div>`;
+        }
+    }
+    
+    // When clicking AI sidebar → load insights
+    document.querySelector('[data-view="ai-insights"]').addEventListener("click",()=>{
+        showSection("ai-insights");
+        renderAiInsightsFinal();
+    });
+    </script>
+        
+        
+
 </body>
 </html>
