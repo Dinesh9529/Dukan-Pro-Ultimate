@@ -3406,6 +3406,511 @@ app.get('/api/ai/stock-insights', authenticateJWT, checkPlan(['MEDIUM','PREMIUM'
 });
 
 
+// ===========================================
+// REAL CUSTOMER INTELLIGENCE API
+// ===========================================
+app.get('/api/ai/customers-intel', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    // 1) हर ग्राहक ने क्या खरीदा + कितनी बार खरीदा
+    const purchaseQuery = `
+      SELECT 
+        c.id AS customer_id,
+        c.name AS customer_name,
+        ii.item_sku,
+        ii.item_name,
+        COUNT(ii.item_sku) AS buy_count,
+        MAX(i.created_at) AS last_buy
+      FROM customers c
+      LEFT JOIN invoices i ON c.id = i.customer_id
+      LEFT JOIN invoice_items ii ON ii.invoice_id = i.id
+      WHERE c.shop_id = $1
+      GROUP BY c.id, c.name, ii.item_sku, ii.item_name
+      ORDER BY c.name ASC;
+    `;
+    const result = await client.query(purchaseQuery, [shopId]);
+
+    // Group by customer
+    const customers = {};
+    result.rows.forEach(r => {
+      if (!customers[r.customer_id]) {
+        customers[r.customer_id] = {
+          id: r.customer_id,
+          name: r.customer_name,
+          last_buy: r.last_buy,
+          items: []
+        };
+      }
+      if (r.item_sku) {
+        customers[r.customer_id].items.push({
+          sku: r.item_sku,
+          name: r.item_name,
+          buy_count: Number(r.buy_count)
+        });
+      }
+    });
+
+    // Convert object to array
+    const data = Object.values(customers);
+
+    res.json({ success: true, customers: data });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// ===========================================
+// REAL PRODUCT INTELLIGENCE API
+// ===========================================
+app.get('/api/ai/products-intel', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    const query = `
+      SELECT 
+        s.sku,
+        s.name,
+        s.quantity,
+        s.purchase_price,
+        s.sale_price,
+        (SELECT SUM(ii.quantity)
+         FROM invoice_items ii
+         JOIN invoices i ON ii.invoice_id = i.id
+         WHERE ii.item_sku = s.sku AND i.shop_id = $1) AS total_sold,
+        (SELECT MAX(i.created_at)
+         FROM invoices i 
+         JOIN invoice_items ii ON i.id = ii.invoice_id
+         WHERE ii.item_sku = s.sku AND i.shop_id = $1) AS last_sold
+      FROM stock s
+      WHERE s.shop_id = $1;
+    `;
+
+    const result = await client.query(query, [shopId]);
+
+    res.json({ success: true, products: result.rows });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// ===========================================
+// SALES + STOCK PREDICTION AI
+// ===========================================
+app.get('/api/ai/prediction', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    const query = `
+      SELECT 
+        DATE(i.created_at) AS day,
+        SUM(i.total_amount) AS total_sales
+      FROM invoices i
+      WHERE i.shop_id = $1
+      AND i.created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(i.created_at)
+      ORDER BY DATE(i.created_at);
+    `;
+
+    const result = await client.query(query, [shopId]);
+
+    res.json({ success: true, sales: result.rows });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+// ===============================================
+// WHATSAPP ADVISOR AI (REAL CUSTOMER DATA)
+// ===============================================
+app.get('/api/ai/clients-whatsapp', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    const q = `
+      SELECT 
+        c.id,
+        c.name,
+        c.phone,
+        MAX(i.created_at) AS last_purchase,
+        SUM(i.total_amount) AS total_spent,
+        (SELECT item_name FROM invoice_items ii 
+            JOIN invoices ix ON ii.invoice_id = ix.id
+            WHERE ix.customer_id = c.id 
+            ORDER BY ix.created_at DESC LIMIT 1) AS last_item
+      FROM customers c
+      LEFT JOIN invoices i ON c.id = i.customer_id
+      WHERE c.shop_id = $1
+      GROUP BY c.id, c.name, c.phone
+      ORDER BY c.name ASC;
+    `;
+
+    const result = await client.query(q, [shopId]);
+
+    res.json({ success: true, clients: result.rows });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// ===============================================
+// AI CUSTOMER PROBABILITY + OFFER ENGINE
+// ===============================================
+app.get('/api/ai/customer-probability', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    const q = `
+      SELECT 
+        c.id,
+        c.name,
+        c.phone,
+        MAX(i.created_at) AS last_purchase,
+        COUNT(i.id) AS total_bills,
+        SUM(i.total_amount) AS total_spent,
+        (SELECT item_name FROM invoice_items ii 
+          JOIN invoices ix ON ii.invoice_id = ix.id
+          WHERE ix.customer_id = c.id
+          ORDER BY ix.created_at DESC LIMIT 1) AS last_item,
+        (SELECT item_name 
+          FROM invoice_items ii 
+          JOIN invoices ix ON ii.invoice_id = ix.id
+          WHERE ix.customer_id = c.id
+          GROUP BY item_name 
+          ORDER BY COUNT(*) DESC LIMIT 1) AS frequent_item
+      FROM customers c
+      LEFT JOIN invoices i ON c.id = i.customer_id
+      WHERE c.shop_id = $1
+      GROUP BY c.id, c.name, c.phone
+      ORDER BY c.name ASC;
+    `;
+
+    const result = await client.query(q, [shopId]);
+    const customers = result.rows.map(c => {
+      let daysInactive = c.last_purchase 
+          ? Math.floor((Date.now() - new Date(c.last_purchase)) / (1000*60*60*24))
+          : 999;
+
+      // --- Probability (AI Formula) ---
+      let p = 80;
+      p -= daysInactive * 2;
+      p += c.total_bills * 1.5;
+      p += c.total_spent > 20000 ? 10 : 0;
+
+      if (p < 5) p = 5;
+      if (p > 95) p = 95;
+
+      // --- Offer suggestion logic ---
+      let offer;
+      if (p >= 70) {
+        offer = "5% छूट — High Probability Customer";
+      } else if (p >= 40) {
+        offer = "₹50 Cashback Offer";
+      } else {
+        offer = "Exclusive Reminder Message";
+      }
+
+      return {
+        ...c,
+        inactive_days: daysInactive,
+        probability: Math.round(p),
+        offer
+      };
+    });
+
+    res.json({ success: true, customers });
+
+  } catch (err) {
+    res.status(500).json({ success:false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// ========================================================
+// FULL BUSINESS AI CHAT (Real Data + Smart Advisor)
+// ========================================================
+app.post('/api/ai/business-chat', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+  const userQuery = req.body.question || "";
+
+  try {
+    // 1) Fetch all business data
+    const stock = await client.query(`SELECT * FROM stock WHERE shop_id=$1`, [shopId]);
+    const invoices = await client.query(`SELECT * FROM invoices WHERE shop_id=$1`, [shopId]);
+    const invoiceItems = await client.query(`
+      SELECT * FROM invoice_items 
+      WHERE invoice_id IN (SELECT id FROM invoices WHERE shop_id=$1)
+    `, [shopId]);
+    const customers = await client.query(`SELECT * FROM customers WHERE shop_id=$1`, [shopId]);
+
+    // Combine data
+    const inputData = {
+      question: userQuery,
+      stock: stock.rows,
+      invoices: invoices.rows,
+      invoice_items: invoiceItems.rows,
+      customers: customers.rows
+    };
+
+    // *** BASIC AI ENGINE (NO OPENAI) ***
+    // Custom rule-based AI for Hindi responses
+
+    let answer = "मैं आपके डेटा को समझ रहा हूँ...";
+
+    if (userQuery.includes("profit") || userQuery.includes("मुनाफा")) {
+      let totalSales = invoices.rows.reduce((a,b)=>a+Number(b.total_amount||0),0);
+      let totalCost = invoices.rows.reduce((a,b)=>a+Number(b.total_cost||0),0);
+      let profit = totalSales - totalCost;
+
+      answer = `आपका कुल अनुमानित मुनाफा ₹${profit} है।
+मुनाफा बढ़ाने के सुझाव:
+• Fast-moving items का stock बढ़ाएँ
+• Dead stock को डिस्काउंट में निकालें
+• Top ग्राहकों को WhatsApp offer भेजें`;
+    }
+
+    else if (userQuery.includes("dead") || userQuery.includes("न बिकने")) {
+      const dead = stock.rows.filter(s => Number(s.quantity) > 0 && Number(s.sale_price) == 0);
+      answer = `आपके dead stock की संख्या: ${dead.length}.
+सलाह: इन प्रोडक्ट्स को Offer में निकालें या Combo pack बनाएं।`;
+    }
+
+    else if (userQuery.includes("customer") || userQuery.includes("ग्राहक")) {
+      let high = customers.rows.filter(c => Number(c.balance) > 1000).length;
+      answer = `आपके ${high} high-value ग्राहक हैं।
+सलाह: इन्हें WhatsApp पर Special Discount भेजें।`;
+    }
+
+    else {
+      answer = `आपने पूछा: "${userQuery}".  
+मैंने आपके बिजनेस डेटा का विश्लेषण किया है।  
+AI सलाह:  
+• Fast moving items बनाए रखें  
+• Dead stock निकालें  
+• High-value customers को टारगेट करें  
+• WhatsApp marketing शुरू करें  
+अगर आप किसी खास प्रोडक्ट/ग्राहक के बारे में पूछें तो मैं उसके हिसाब से जवाब दूँगा।`;
+    }
+
+    res.json({ success:true, answer });
+
+  } catch (err) {
+    res.status(500).json({ success:false, message:err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// ===========================================
+// MONTHLY / FESTIVAL STRATEGY AI
+// Returns Hindi strategy, reorder suggestions, ad-calendar, top items
+// ===========================================
+app.get('/api/ai/monthly-strategy', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    // params (optional): month and year (default = current month)
+    const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    // 1) basic sales aggregates: last 90 days sales per item + last 30 days avg per day
+    const salesQuery = `
+      SELECT 
+        ii.item_sku AS sku,
+        ii.item_name AS name,
+        SUM(ii.quantity) AS total_qty_90d,
+        (SUM(ii.quantity) / 90.0) AS avg_day_90d
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE i.shop_id = $1 AND i.created_at >= (CURRENT_DATE - INTERVAL '90 days')
+      GROUP BY ii.item_sku, ii.item_name
+      ORDER BY SUM(ii.quantity) DESC
+      LIMIT 200;
+    `;
+    const salesRes = await client.query(salesQuery, [shopId]);
+
+    // 2) stock snapshot (to compute reorder)
+    const stockQuery = `SELECT sku, name, quantity, purchase_price, sale_price, category FROM stock WHERE shop_id=$1`;
+    const stockRes = await client.query(stockQuery, [shopId]);
+
+    // 3) category sales last 90 days (if category exists)
+    const catQuery = `
+      SELECT COALESCE(s.category, 'अनिर्दिष्ट') AS category,
+             SUM(ii.quantity * COALESCE(ii.sale_price, s.sale_price, 0)) AS revenue
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN stock s ON ii.item_sku = s.sku AND s.shop_id = i.shop_id
+      WHERE i.shop_id = $1 AND i.created_at >= (CURRENT_DATE - INTERVAL '90 days')
+      GROUP BY COALESCE(s.category, 'अनिर्दिष्ट')
+      ORDER BY revenue DESC;
+    `;
+    const catRes = await client.query(catQuery, [shopId]);
+
+    // 4) daily average sales last 30 days (global)
+    const dailyQuery = `
+      SELECT DATE(i.created_at) as day, SUM(i.total_amount) as total
+      FROM invoices i
+      WHERE i.shop_id=$1 AND i.created_at >= (CURRENT_DATE - INTERVAL '30 days')
+      GROUP BY DATE(i.created_at)
+      ORDER BY DATE(i.created_at);
+    `;
+    const dailyRes = await client.query(dailyQuery, [shopId]);
+
+    // 5) identify fast movers and dead stock using existing heuristics
+    const fast_movers = [];
+    const dead_stock = [];
+    const thirtyDaysAgo = new Date(Date.now() - 30*24*3600*1000);
+
+    const salesMap = new Map(); // sku -> avg_day_90d
+    salesRes.rows.forEach(r => salesMap.set(r.sku, Number(r.avg_day_90d || 0)));
+
+    const stockMap = new Map(); // sku -> stock row
+    stockRes.rows.forEach(s => stockMap.set(s.sku, s));
+
+    for (const [sku, stockRow] of stockMap.entries()) {
+      const qty = Number(stockRow.quantity || 0);
+      const avgDay = salesMap.get(sku) || 0;
+      const days_left = avgDay > 0 ? qty / avgDay : Infinity;
+
+      if (avgDay > 0 && days_left < 7) {
+        fast_movers.push({
+          sku,
+          name: stockRow.name,
+          current_qty: qty,
+          avg_day: Number(avgDay.toFixed(2)),
+          days_left: Math.round(days_left*10)/10
+        });
+      }
+
+      // dead: not sold in last 30 days OR total sold 90d == 0 and stock value > threshold
+      const sold90 = salesRes.rows.find(r=>r.sku===sku);
+      if ((!sold90 || Number(sold90.total_qty_90d || 0) === 0) && qty > 0 && (qty * Number(stockRow.purchase_price || 0) > 500)) {
+        dead_stock.push({
+          sku, name: stockRow.name, current_qty: qty,
+          stock_value: Math.round(qty * Number(stockRow.purchase_price || 0))
+        });
+      }
+    }
+
+    // 6) Reorder suggestions based on avg_day_90d * leadTime * safetyFactor
+    const leadTimeDays = 7;
+    const safetyFactor = 1.5;
+    const reorder = [];
+    salesRes.rows.forEach(it => {
+      const sku = it.sku;
+      const avgDay = Number(it.avg_day_90d || 0);
+      const s = stockMap.get(sku);
+      const currentQty = s ? Number(s.quantity || 0) : 0;
+      const suggested = Math.max(0, Math.ceil((avgDay * leadTimeDays * safetyFactor) - currentQty));
+      if (suggested > 0) {
+        reorder.push({
+          sku,
+          name: it.name,
+          current_qty: currentQty,
+          suggested_reorder: suggested,
+          avg_day: Number(avgDay.toFixed(2))
+        });
+      }
+    });
+
+    // 7) Top categories to promote (top 3 by revenue)
+    const topCategories = (catRes.rows || []).slice(0,3).map(r => ({ category: r.category, revenue: Math.round(Number(r.revenue||0)) }));
+
+    // 8) Simple monthly forecast: avg daily sales * days in month (last 30 days avg)
+    const dailyTotals = dailyRes.rows.map(r => Number(r.total || 0));
+    const avgDaily = dailyTotals.length ? Math.round(dailyTotals.reduce((a,b)=>a+b,0)/dailyTotals.length) : 0;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const forecastMonth = Math.round(avgDaily * daysInMonth);
+
+    // 9) Festival detection by month (simple mapping)
+    const festivalMap = {
+      1: ['मकर संक्रांति'],
+      2: ['वैलेंटाइन डे'],
+      3: ['होली'],
+      4: ['राम नवमी','ईस्टर'],
+      5: ['अनेक लोकल त्यौहार'],
+      6: ['गर्मी सेल'],
+      7: ['राखी (कभी अगस्त)'],
+      8: ['रक्षा बंधन','स्वतंत्रता दिवस'],
+      9: ['नवरात्रि'],
+      10: ['दिवाली'],
+      11: ['दिवाली/छठ'],
+      12: ['नया साल','क्रिसमस']
+    };
+    const festivals = festivalMap[month] || [];
+
+    // 10) Build campaign calendar recommendations (weekly)
+    const campaign = [];
+    campaign.push({ week:1, action: `Fast-moving items पर Social पोस्ट और Reels` });
+    campaign.push({ week:2, action: `Top categories (${topCategories.map(t=>t.category).join(', ') || '—'}) पर 10% ऑफ़र` });
+    campaign.push({ week:3, action: `Dead stock पर BOGO/Combo और local WhatsApp blast` });
+    campaign.push({ week:4, action: `High-value ग्राहकों के लिए Exclusive coupon भेजें` });
+
+    // 11) Final Hindi strategy text (short)
+    let strategyText = `इस महीने की संक्षिप्त रणनीति:\n`;
+    strategyText += `• उम्मीद की कुल बिक्री (अनुमान) : ₹${forecastMonth}\n`;
+    if (festivals.length) strategyText += `• मुख्य त्यौहार: ${festivals.join(', ')}\n`;
+    strategyText += `• तेज़-चलने वाले: ${fast_movers.slice(0,5).map(f=>f.name).join(', ') || '—'}\n`;
+    strategyText += `• हटाने/डील के लिए (Dead stock): ${dead_stock.slice(0,5).map(d=>d.name).join(', ') || '—'}\n`;
+    strategyText += `• सुझाव: महीने की पहली 2 सप्ताह में विज्ञापन बढ़ाएँ; त्यौहार से 10-15 दिन पहले स्टॉक सुनिश्चित करें।`;
+
+    // response
+    res.json({
+      success: true,
+      month,
+      year,
+      forecast_month_amount: forecastMonth,
+      avg_daily_sales: avgDaily,
+      top_categories: topCategories,
+      fast_movers,
+      dead_stock,
+      reorder,
+      campaign_calendar: campaign,
+      festivals,
+      strategy_text: strategyText
+    });
+
+  } catch (err) {
+    console.error("monthly-strategy error:", err.stack || err);
+    res.status(500).json({ success:false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें

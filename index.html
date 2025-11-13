@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
 
+
+   
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script>
     // Yeh script har uss user ke liye chalega jo aapki site kholega
     // Yeh browser ko majboor karega ki woh purana, ziddi cache delete kar de.
@@ -39,7 +43,7 @@
 
 
 
-	
+   
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -6511,27 +6515,141 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
     </div>
 </div>
 
+<!-- ========================== -->
+<!--   ULTIMATE AI INSIGHTS     -->
+<!-- ========================== -->
+
 <section id="ai-insights" class="section">
+
+    <!-- TOP HEADER -->
     <div class="ai-header-box">
         <div>
-            <h2 class="ai-title"><i class="fas fa-brain me-2"></i> AI स्मार्ट सलाह (Insights)</h2>
-            <p class="ai-subtitle">आपकी दुकान के डेटा पर आधारित AI की उन्नत स्मार्ट रिपोर्ट</p>
+            <h2 class="ai-title"><i class="fas fa-brain me-2"></i> Ultimate AI Insights</h2>
+            <p class="ai-subtitle">Your Business — Deep AI Analysis, Predictions & Strategies</p>
         </div>
-        <button class="ai-refresh-btn" onclick="renderAiInsightsFinal()">
+        <button class="ai-refresh-btn" onclick="loadUltimateAI()">
             <i class="fas fa-sync-alt"></i> Refresh
         </button>
     </div>
 
-    <div id="ai-insights-content">
-        <div class="ai-loading">
-            <div class="spinner-border text-primary"></div>
-            <p>AI आपकी दुकान का गहराई से विश्लेषण कर रहा है...</p>
+    <!-- MAIN CONTENT -->
+    <div id="ai-insights-container">
+
+        <!-- BUSINESS HEALTH -->
+        <div id="ai-business-health" class="ai-box">
+            <h3><i class="fas fa-heartbeat"></i> Business Health Overview</h3>
+            <div id="ai-health-content">
+                <div class="ai-loading">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Analyzing business performance...</p>
+                </div>
+            </div>
         </div>
+
+        <!-- CUSTOMER INTELLIGENCE -->
+        <div id="ai-customer-intel" class="ai-box">
+            <h3><i class="fas fa-users"></i> Customer Intelligence</h3>
+            <div id="ai-customer-content">
+                <div class="ai-loading">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Analyzing customer patterns...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRODUCT INTELLIGENCE -->
+        <div id="ai-product-intel" class="ai-box">
+            <h3><i class="fas fa-box-open"></i> Product Intelligence</h3>
+            <div id="ai-product-content">
+                <div class="ai-loading">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Checking product performance...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- FESTIVAL STRATEGY -->
+        <div id="ai-festival-strategy" class="ai-box">
+            <h3><i class="fas fa-fireworks"></i> Festival Strategy</h3>
+            <div id="ai-festival-content">
+                <div class="ai-loading">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Preparing festival recommendations...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MARKETING / ADS AI -->
+        <div id="ai-marketing-intel" class="ai-box">
+            <h3><i class="fas fa-bullhorn"></i> Marketing & Advertisement AI</h3>
+            <div id="ai-marketing-content">
+                <div class="ai-loading">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Generating ad ideas...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SALES PREDICTION -->
+        <div id="ai-prediction" class="ai-box">
+            <h3><i class="fas fa-chart-line"></i> Sales & Stock Prediction</h3>
+            <div id="ai-prediction-content">
+                <div class="ai-loading">
+                    <div class="spinner-border text-primary"></div>
+                    <p>Generating predictions...</p>
+                </div>
+            </div>
+        </div>
+
     </div>
+
+    
+<div class="ai-box" id="ai-chat-box">
+    <h3><i class="fas fa-comments"></i> AI व्यवसाय सलाह</h3>
+  
+    <div id="ai-chat-response" class="ai-chat-response">
+       <p class="text-muted-small">AI आपके सवालों का विश्लेषण करेगा...</p>
+    </div>
+  
+    <div class="ai-chat-input">
+      <input id="ai-chat-question" type="text" placeholder="अपना सवाल लिखें... (जैसे - मेरा profit कैसे बढ़े?)">
+      <button onclick="askBusinessAI()" class="ai-refresh-btn">पूछें</button>
+    </div>
+  </div>
+  
 </section>
 
 
+
+
+
 <script>
+
+
+async function askBusinessAI(){
+  const q = document.getElementById("ai-chat-question").value.trim();
+  if(!q) return;
+
+  document.getElementById("ai-chat-response").innerHTML = `
+    <p class="text-muted-small">सोच रहा हूँ...</p>
+  `;
+
+  const res = await fetchApi("/api/ai/business-chat", {
+    method: "POST",
+    body: JSON.stringify({ question: q })
+  });
+
+  if(res.success){
+    document.getElementById("ai-chat-response").innerHTML = `
+      <p>${res.answer.replace(/\n/g,"<br>")}</p>
+    `;
+  } else {
+    document.getElementById("ai-chat-response").innerHTML = 
+      `<p class="text-danger">${res.message}</p>`;
+  }
+}
+
+
     async function renderAiInsightsFinal(){
         const box = document.getElementById("ai-insights-content");
     
@@ -6616,7 +6734,376 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
     });
     </script>
         
+        <script>
+            /* ================================
+               ULTIMATE AI INSIGHTS – MAIN LOGIC
+               ================================ */
+            
         
+async function loadUltimateAI() {
+  try {
+    // show loading
+    const ids = [
+      "ai-health-content",
+      "ai-customer-content",
+      "ai-product-content",
+      "ai-festival-content",
+      "ai-marketing-content",
+      "ai-prediction-content"
+    ];
+    ids.forEach(id => {
+      document.getElementById(id).innerHTML = `
+        <div class="ai-loading">
+          <div class="spinner-border text-primary"></div>
+          <p>डाटा लोड हो रहा है...</p>
+        </div>`;
+    });
+
+    // 🔹 3 REAL API CALLS
+    const stockData = await fetchApi("/api/ai/stock-insights", { method:"GET" });
+    const customerData = await fetchApi("/api/ai/customers-intel", { method:"GET" });
+    const productData = await fetchApi("/api/ai/products-intel", { method:"GET" });
+    const predictionData = await fetchApi("/api/ai/prediction", { method:"GET" });
+    const whatsappData = await fetchApi("/api/ai/clients-whatsapp", { method:"GET" });
+    const probData = await fetchApi("/api/ai/customer-probability", { method:"GET" });
+    const monthlyData = await fetchApi("/api/ai/monthly-strategy", { method:"GET" });
+
+
+
+
+
+    // Render sections
+    renderBusinessHealth(stockData);
+    renderCustomerIntel(customerData);
+    renderProductIntel(productData, stockData);
+    renderFestivalStrategy(productData);
+    renderMarketingIdeas(productData);
+    renderPrediction(predictionData);
+    renderCustomerProbability(probData);
+    renderMonthlyStrategy(monthlyData);
+
+
+    // Render WhatsApp Advisor
+renderWhatsappAdvisor(whatsappData);
+
+
+  } catch (err) {
+    alert("AI Error: "+err.message);
+  }
+}
+            
+            /* =============== SECTION 1 =============== */
+            function renderBusinessHealth(stock) {
+  const el = document.getElementById("ai-health-content");
+
+  const fast = stock.insights.fast_moving.length;
+  const dead = stock.insights.dead_stock.length;
+
+  // Business score logic
+  let score = 100;
+  score -= dead * 5;
+  score += fast * 3;
+  if(score<20) score=20;
+
+  el.innerHTML = `
+    <div class="ai-health-card">
+      <div class="ai-score-circle">${score}</div>
+      <div class="ai-health-meta">
+        <p><b>व्यापार स्वास्थ्य:</b> ${score >=80 ? "बहुत अच्छा" : "सामान्य"}</p>
+        <p>तेजी से बिकने वाले सामान: <b>${fast}</b></p>
+        <p>फँसा हुआ स्टॉक: <b>${dead}</b></p>
+      </div>
+    </div>
+  `;
+}
+            
+            /* =============== SECTION 2 =============== */
+            function renderCustomerIntel(data){
+  const el=document.getElementById("ai-customer-content");
+
+  let html="";
+
+  data.customers.forEach(c=>{
+
+    // सबसे ज्यादा खरीदी गई वस्तु ढूंढें
+    let topItem = "-";
+    let topCount = 0;
+    c.items.forEach(it=>{
+      if(it.buy_count > topCount){
+        topItem = it.name;
+        topCount = it.buy_count;
+      }
+    });
+
+    html+=`
+      <div class="ai-card-alert ai-alert-info">
+        <div>
+          <b>${c.name}</b><br>
+          आखरी खरीद: ${c.last_buy ? c.last_buy.split("T")[0] : "—"}<br>
+          सबसे ज्यादा खरीदा: <b>${topItem}</b>
+        </div>
+        <span class="ai-badge ai-badge-blue">${c.items.length} प्रोडक्ट्स</span>
+      </div>
+    `;
+  });
+
+  html += `<p class='text-muted-small'>सलाह: टॉप ग्राहकों को 2% डिस्काउंट ऑफ़र भेजें।</p>`;
+  el.innerHTML=html;
+}
+
+            
+            /* =============== SECTION 3 =============== */
+            function renderProductIntel(pData, stockData){
+  const el=document.getElementById("ai-product-content");
+  let html="";
+
+  const fast = stockData.insights.fast_moving;
+  const dead = stockData.insights.dead_stock;
+
+  if(fast.length){
+    html+=`<h4>🚀 तेज़ी से बिकने वाले प्रोडक्ट</h4>`;
+    fast.forEach(f=>{
+      html+=`
+        <div class="ai-card-alert ai-alert-warning">
+          <div><b>${f.title}</b><br>${f.text}</div>
+        </div>`;
+    });
+  }
+
+  if(dead.length){
+    html+=`<h4>🛑 न बिकने वाला (Dead) स्टॉक</h4>`;
+    dead.forEach(d=>{
+      html+=`
+        <div class="ai-card-alert ai-alert-danger">
+          <div><b>${d.title}</b><br>${d.text}</div>
+        </div>`;
+    });
+  }
+
+  if(!fast.length && !dead.length){
+    html+="<p>सभी प्रोडक्ट सामान्य प्रदर्शन कर रहे हैं।</p>";
+  }
+
+  el.innerHTML=html;
+}
+            
+            /* =============== SECTION 4 =============== */
+            function renderFestivalStrategy(pData){
+  const el=document.getElementById("ai-festival-content");
+
+  const month = new Date().getMonth()+1;
+  let festival = "आने वाला त्यौहार";
+
+  if(month===10) festival="दीवाली";
+  if(month===3) festival="होली";
+  if(month===12) festival="नया साल";
+
+  el.innerHTML=`
+    <div class="ai-card-alert ai-alert-info">
+      <div>
+        <b>${festival} विशेष रणनीति</b><br>
+        • तेज़ी से बिकने वाला स्टॉक बढ़ाएँ<br>
+        • WhatsApp पर 10% OFF कूपन भेजें<br>
+        • Dead stock पर Buy 1 Get 1 ऑफर रखें
+      </div>
+    </div>`;
+}
+            
+            /* =============== SECTION 5 =============== */
+            function renderMarketingIdeas(pData){
+  const el=document.getElementById("ai-marketing-content");
+
+  el.innerHTML = `
+    <div class="ai-card-alert ai-alert-info">
+      <div>
+        <b>इस सप्ताह की मार्केटिंग रणनीति</b><br>
+        • Fast Moving items का Reel बनाएं<br>
+        • Dead Stock पर “धीमी कीमतें” पोस्ट करें<br>
+        • हर दूसरे दिन एक छोटा ऐड चलाएँ<br>
+      </div>
+    </div>
+    <p class="text-muted-small">AI सुझाव: शाम 6–9 बजे पोस्ट करें।</p>
+  `;
+}
+            
+            /* =============== SECTION 6 =============== */
+            function renderPrediction(data){
+  const el=document.getElementById("ai-prediction-content");
+
+  const labels = data.sales.map(r=>r.day);
+  const values = data.sales.map(r=>Number(r.total_sales));
+
+  el.innerHTML=`<canvas id="salesPredictionChart" class="ai-chart"></canvas>`;
+  const ctx=document.getElementById("salesPredictionChart").getContext("2d");
+
+  new Chart(ctx,{
+    type:"line",
+    data:{
+      labels:labels,
+      datasets:[{
+        label:"पिछले 30 दिनों की बिक्री",
+        data:values,
+        borderColor:"#007bff",
+        backgroundColor:"rgba(0,123,255,0.1)",
+        fill:true,
+        tension:0.3
+      }]
+    },
+    options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+  });
+}
+
+function renderWhatsappAdvisor(data){
+  const el = document.getElementById("ai-marketing-content");
+
+  let html = `<h4>📲 WhatsApp ऑटो मैसेजिंग</h4>`;
+
+  data.clients.forEach(c => {
+    const last = c.last_purchase ? c.last_purchase.split("T")[0] : "—";
+    const inactiveDays = c.last_purchase ? 
+        Math.floor((Date.now() - new Date(c.last_purchase)) / (1000*60*60*24)) : 999;
+
+    // Personalized Message
+    let msg = `नमस्ते ${c.name}, 
+आपकी पिछली खरीदी (${c.last_item || "—"}) को काफ़ी समय हो गया है। 
+आज आपके लिए 5% विशेष छूट उपलब्ध है। 
+अगर आपको कुछ चाहिए तो रिप्लाई करें।`;
+
+    html += `
+      <div class="ai-card-alert ai-alert-info">
+        <div>
+            <b>${c.name}</b> (${c.phone || "नंबर नहीं"})
+            <br>आख़री खरीदी: ${last}
+            <br>Inactive: <b>${inactiveDays} दिन</b>
+        </div>
+        <button 
+            onclick="sendWhatsapp('${c.phone}','${encodeURIComponent(msg)}')"
+            class="ai-refresh-btn"
+            style="padding:6px 12px;font-size:0.8rem;">
+            WhatsApp भेजें
+        </button>
+      </div>
+    `;
+  });
+
+  el.innerHTML = html + `
+    <p class='text-muted-small'>
+    AI सुझाव: Inactive ग्राहकों को हल्का ऑफ़र देना सबसे अच्छे results देता है।
+    </p>
+  `;
+}
+
+
+function renderCustomerProbability(data){
+  const el = document.getElementById("ai-customer-content");
+
+  let html = `<h4>🔥 ग्राहक खरीदने की संभावना (AI Prediction)</h4>`;
+
+  data.customers.forEach(c => {
+
+    const color = c.probability >= 70 ? "ai-badge-green" :
+                  c.probability >= 40 ? "ai-badge-yellow" :
+                  "ai-badge-red";
+
+    const msg = `नमस्ते ${c.name}, आपको ${c.frequent_item} पर ${
+        c.offer.includes("%") ? "विशेष "+c.offer : ""
+    } ऑफ़र उपलब्ध है।`;
+
+    html += `
+      <div class="ai-card-alert ai-alert-info">
+        <div>
+           <b>${c.name}</b><br>
+           आखरी खरीदी: ${c.last_purchase ? c.last_purchase.split("T")[0] : "—"}<br>
+           पसंदीदा सामान: <b>${c.frequent_item || "—"}</b><br>
+           सलाह: ${c.offer}
+        </div>
+
+        <div style="text-align:right;">
+          <span class="ai-badge ${color}" style="margin-bottom:5px;">
+            ${c.probability}% संभावना
+          </span>
+          <br>
+          <button 
+            onclick="sendWhatsapp('${c.phone}', '${encodeURIComponent(msg)}')"
+            class="ai-refresh-btn"
+            style="padding:6px 10px;font-size:0.8rem;">
+            WP भेजें
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  el.innerHTML = html + `
+    <p class="text-muted-small">
+      AI सुझाव: High-probability ग्राहकों को हल्का ऑफ़र दें।
+    </p>`;
+}
+
+
+function sendWhatsapp(phone, msg){
+  if(!phone || phone=="null"){
+    return alert("इस ग्राहक का मोबाइल नंबर सेव नहीं है।");
+  }
+  window.open(`https://wa.me/91${phone}?text=${msg}`, "_blank");
+}
+
+
+function renderMonthlyStrategy(data){
+  const el = document.getElementById("ai-festival-content");
+  if(!data || !data.success){
+    el.innerHTML = `<div class="ai-card-alert ai-alert-danger">महीने की रणनीति लोड नहीं हो सकी।</div>`;
+    return;
+  }
+
+  const d = data;
+  const topCats = (d.top_categories || []).map(t=>`${t.category} (₹${t.revenue})`).join(', ') || '—';
+  const fastList = (d.fast_movers || []).slice(0,6).map(f=>`${f.name} (${f.current_qty} stk)`).join(', ') || '—';
+  const deadList = (d.dead_stock || []).slice(0,6).map(x=>`${x.name} (${x.current_qty})`).join(', ') || '—';
+
+  let html = `
+    <div class="ai-card">
+      <h4>📅 ${d.month} / ${d.year} के लिए संक्षेप रणनीति</h4>
+      <p><b>अनुमानित मासिक बिक्री:</b> ₹${d.forecast_month_amount}</p>
+      <p><b>दिन का औसत बिक्री (पिछले 30d):</b> ₹${d.avg_daily_sales}</p>
+      <p><b>मुख्य कैटेगरी (Top):</b> ${topCats}</p>
+      <p><b>तेज़ी से बिकने वाले (Top):</b> ${fastList}</p>
+      <p><b>Dead stock (निकलवाने के लिए):</b> ${deadList}</p>
+      <hr>
+      <h5>📣 Campaign Calendar (Weekly)</h5>
+      <ul>
+        ${ (d.campaign_calendar || []).map(c => `<li><b>Week ${c.week}:</b> ${c.action}</li>`).join('') }
+      </ul>
+      <hr>
+      <h5>🎉 त्योहार</h5>
+      <p>${ (d.festivals && d.festivals.length) ? d.festivals.join(', ') : 'कोई प्रमुख त्यौहार नहीं' }</p>
+
+      <h5>🔧 Reorder सुझाव (Top 6)</h5>
+      <table class="ai-mini-table">
+        <thead><tr><th>Item</th><th>Current</th><th>Suggest</th></tr></thead>
+        <tbody>
+          ${ (d.reorder || []).slice(0,6).map(r => `<tr><td>${r.name}</td><td>${r.current_qty}</td><td>${r.suggested_reorder}</td></tr>`).join('') }
+        </tbody>
+      </table>
+
+      <hr>
+      <p><b>AI सुझाव — संक्षेप:</b><br> ${ (d.strategy_text || '').replace(/\n/g,'<br>') }</p>
+    </div>
+  `;
+
+  el.innerHTML = html;
+}
+
+
+            
+            /* optional: auto-load when user clicks menu */
+            document.querySelector('[data-view="ai-insights"]')
+              ?.addEventListener("click",()=>{
+                 showSection("ai-insights");
+                 loadUltimateAI();
+              });
+            </script>
+                
 
 </body>
 </html>
