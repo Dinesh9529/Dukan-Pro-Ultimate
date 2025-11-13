@@ -105,93 +105,201 @@ body {
 }
 
 /* ============================= */
-/* AI INSIGHTS SECTION STYLES   */
+/* ULTIMATE AI INSIGHTS — PREMIUM */
+/* Paste this at the very end of style.css */
 /* ============================= */
 
+/* Layout containers */
+#ai-insights-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    padding: 18px 0;
+}
+
+/* single column on small screens */
+@media (max-width: 980px) {
+    #ai-insights-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Header box (kept consistent with root colors) */
 .ai-header-box{
     display:flex;
     justify-content:space-between;
     align-items:center;
-    background:linear-gradient(90deg,#005bea,#00c6fb);
-    padding:20px;
+    background: linear-gradient(90deg, var(--primary-color), #00c6fb);
+    padding:18px;
     border-radius:12px;
     color:#fff;
-    margin-bottom:20px;
+    margin-bottom:16px;
+    box-shadow: var(--card-shadow);
 }
 
+/* Header texts */
 .ai-title{
-    font-size:28px;
+    font-size:1.5rem;
     margin:0;
+    font-weight:700;
+    letter-spacing:0.2px;
 }
-
 .ai-subtitle{
     margin:0;
-    opacity:0.9;
+    font-size:0.9rem;
+    opacity:0.95;
 }
 
+/* Refresh button */
 .ai-refresh-btn{
-    background:white;
-    color:#005bea;
-    padding:8px 16px;
+    background: #fff;
+    color: var(--primary-color);
+    padding:8px 14px;
     border:none;
     border-radius:8px;
     cursor:pointer;
-    font-weight:bold;
-    box-shadow:0 2px 4px rgba(0,0,0,0.2);
+    font-weight:600;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
 }
-.ai-refresh-btn:hover{
-    background:#f1f1f1;
-}
+.ai-refresh-btn i{ margin-right:8px; }
+.ai-refresh-btn:hover{ transform: translateY(-2px); transition: transform .15s ease; }
 
-.ai-card{
-    background:white;
-    padding:18px;
-    border-radius:12px;
-    margin-bottom:15px;
-    box-shadow:0 2px 6px rgba(0,0,0,0.1);
-}
-
-.ai-card h4{
-    color:#003c8f;
-    margin-bottom:12px;
+/* Boxes / cards */
+.ai-box{
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid rgba(0,0,0,0.03);
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
 }
 
-.ai-badge{
-    padding:4px 10px;
-    border-radius:6px;
-    font-size:13px;
-    color:white;
-    margin-left:6px;
+/* Box header */
+.ai-box h3{
+    margin:0 0 10px 0;
+    font-size:1.05rem;
+    color: #233a66;
+    display:flex;
+    align-items:center;
 }
+.ai-box h3 i { margin-right:10px; color: var(--primary-color); }
 
-.ai-badge-green{background:#28a745;}
-.ai-badge-yellow{background:#FFC107;}
-.ai-badge-red{background:#dc3545;}
-.ai-badge-blue{background:#007bff;}
-
+/* Loading state */
 .ai-loading{
     text-align:center;
-    padding:40px;
+    padding: 36px 12px;
+    color: var(--secondary-color);
 }
 
-.ai-health-box{
-    background:#002b7f;
-    color:white;
-    padding:20px;
-    border-radius:12px;
-    margin-bottom:20px;
+/* Health card (bigger) */
+#ai-health-content .ai-health-card{
+    display:flex;
+    gap:18px;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
 }
 
-.ai-progress{
-    height:10px;
+/* Circular score */
+.ai-score-circle{
+    width:120px;
+    height:120px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: linear-gradient(180deg, rgba(0,0,0,0.03), rgba(0,0,0,0.02));
+    box-shadow: inset 0 -6px 12px rgba(0,0,0,0.02);
+    font-size:1.6rem;
+    font-weight:700;
+    color:var(--primary-color);
+}
+
+/* Health details */
+.ai-health-meta{
+    flex:1;
+    min-width:220px;
+}
+.ai-health-meta p{
+    margin:6px 0;
+    color:#556;
+    font-size:0.95rem;
+}
+
+/* small stat list */
+.ai-stat-list{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:8px;
+}
+.ai-stat{
+    background:#f7fbff;
+    border-radius:8px;
+    padding:8px 10px;
+    font-weight:600;
+    color:#234;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+}
+
+/* Alerts inside cards */
+.ai-card-alert{
+    padding:12px;
+    border-radius:8px;
+    margin-bottom:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+/* yellow / red / info alerts */
+.ai-alert-warning{ background: linear-gradient(90deg,#fff9e6,#fff2d1); border:1px solid #ffecb5; color:#8a6b00; }
+.ai-alert-danger{ background: linear-gradient(90deg,#fff0f0,#ffecec); border:1px solid #ffcdcd; color:#7a1b1b; }
+.ai-alert-info{ background: linear-gradient(90deg,#eef9ff,#e6f3ff); border:1px solid #cfeefd; color:#065a7f; }
+
+/* badges */
+.ai-badge{
+    display:inline-block;
+    padding:6px 10px;
+    border-radius:8px;
+    font-weight:700;
+    font-size:0.82rem;
+    color:#fff;
+}
+.ai-badge-green{ background: #28a745; }
+.ai-badge-yellow{ background: #FFC107; color:#3a2b00; }
+.ai-badge-red{ background: #dc3545; }
+.ai-badge-blue{ background: #007bff; }
+
+/* Small tables inside cards */
+.ai-mini-table{
     width:100%;
-    background:#95b6ff;
-    border-radius:6px;
-    margin-top:10px;
+    border-collapse:collapse;
+    margin-top:8px;
+    font-size:0.92rem;
+}
+.ai-mini-table th, .ai-mini-table td{
+    text-align:left;
+    padding:8px 10px;
+    border-bottom:1px solid rgba(0,0,0,0.04);
 }
 
-.ai-progress-inner{
-    height:100%;
-    background:#00ffcc;
-    border-radius:6px;
+/* Charts sizing (if Chart.js canvases used) */
+.ai-chart {
+    width:100% !important;
+    max-height:260px;
 }
+
+/* responsive tweaks */
+@media (max-width: 680px){
+    .ai-score-circle{ width:100px; height:100px; font-size:1.2rem; }
+    .ai-header-box{ padding:14px; }
+}
+
+/* subtle hover for alerts */
+.ai-card-alert:hover{ transform: translateY(-3px); transition: transform .12s ease; }
+
+/* small helper */
+.text-muted-small { font-size:0.88rem; color:#6c757d; }
