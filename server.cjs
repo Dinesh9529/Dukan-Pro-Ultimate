@@ -3283,17 +3283,17 @@ app.get('/api/ai/stock-insights', authenticateJWT, checkPlan(['MEDIUM', 'PREMIUM
     try {
         // 1) पिछले 30 दिनों की बिक्री (Sales Velocity)
         const velocityQuery = `
-            SELECT 
-                ii.item_sku,
-                SUM(ii.quantity) AS total_sold_30d,
-                (SUM(ii.quantity) / 30.0) AS avg_per_day,
-                AVG(ii.selling_price) AS avg_sale_price
-            FROM invoice_items ii
-            JOIN invoices i ON ii.invoice_id = i.id
-            WHERE i.shop_id = $1 
-            AND i.created_at >= (CURRENT_DATE - INTERVAL '30 days')
-            GROUP BY ii.item_sku
-        `;
+    SELECT 
+        ii.item_sku,
+        SUM(ii.quantity) AS total_sold_30d,
+        (SUM(ii.quantity) / 30.0) AS avg_per_day,
+        AVG(COALESCE(ii.selling_price, ii.sale_price, ii.price, ii.rate)) AS avg_sale_price
+    FROM invoice_items ii
+    JOIN invoices i ON ii.invoice_id = i.id
+    WHERE i.shop_id = $1 AND i.created_at >= (CURRENT_DATE - INTERVAL '30 days')
+    GROUP BY ii.item_sku
+`;
+
         const vRes = await client.query(velocityQuery, [shopId]);
         const velocity = new Map();
         vRes.rows.forEach(r => velocity.set(r.item_sku, {
