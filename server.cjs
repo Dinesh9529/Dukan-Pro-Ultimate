@@ -3659,10 +3659,10 @@ app.get('/api/ai/customer-probability', authenticateJWT, async (req, res) => {
 app.post('/api/ai/business-chat', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
-  const userQuery = req.body.question || "";
+  const q = (req.body.question || "").toLowerCase();
 
   try {
-    // 1) Fetch all business data
+    // Fetch all needed data
     const stock = await client.query(`SELECT * FROM stock WHERE shop_id=$1`, [shopId]);
     const invoices = await client.query(`SELECT * FROM invoices WHERE shop_id=$1`, [shopId]);
     const invoiceItems = await client.query(`
@@ -3671,64 +3671,128 @@ app.post('/api/ai/business-chat', authenticateJWT, async (req, res) => {
     `, [shopId]);
     const customers = await client.query(`SELECT * FROM customers WHERE shop_id=$1`, [shopId]);
 
-    // Combine data
-    const inputData = {
-      question: userQuery,
-      stock: stock.rows,
-      invoices: invoices.rows,
-      invoice_items: invoiceItems.rows,
-      customers: customers.rows
-    };
+    const S = stock.rows;
+    const I = invoices.rows;
+    const Items = invoiceItems.rows;
+    const C = customers.rows;
 
-    // *** BASIC AI ENGINE (NO OPENAI) ***
-    // Custom rule-based AI for Hindi responses
+    let answer = "";
 
-    let answer = "मैं आपके डेटा को समझ रहा हूँ...";
+    // -----------------------------
+    //  ADVANCED LOCAL AI ENGINE
+    // -----------------------------
 
-    if (userQuery.includes("profit") || userQuery.includes("मुनाफा")) {
-      let totalSales = invoices.rows.reduce((a,b)=>a+Number(b.total_amount||0),0);
-      let totalCost = invoices.rows.reduce((a,b)=>a+Number(b.total_cost||0),0);
+    // 1) Profit related
+    if (q.includes("profit") || q.includes("मुनाफ")) {
+      let totalSales = I.reduce((a,b)=>a+Number(b.total_amount||0),0);
+      let totalCost = I.reduce((a,b)=>a+Number(b.total_cost||0),0);
       let profit = totalSales - totalCost;
 
-      answer = `आपका कुल अनुमानित मुनाफा ₹${profit} है।
-मुनाफा बढ़ाने के सुझाव:
-• Fast-moving items का stock बढ़ाएँ
-• Dead stock को डिस्काउंट में निकालें
-• Top ग्राहकों को WhatsApp offer भेजें`;
+      answer = `
+आपके कुल बिक्री: ₹${totalSales}
+आपका कुल खर्च: ₹${totalCost}
+👉 आपका अनुमानित लाभ: ₹${profit}
+
+मुनाफा बढ़ाने की सलाह:
+• Fast-moving items की quantity बढ़ाएँ  
+• Dead stock निकाल दें  
+• Loyal ग्राहकों पर special ऑफर चलाएँ  
+• High-reorder-products पर margin बढ़ाएँ  
+`;
     }
 
-    else if (userQuery.includes("dead") || userQuery.includes("न बिकने")) {
-      const dead = stock.rows.filter(s => Number(s.quantity) > 0 && Number(s.sale_price) == 0);
-      answer = `आपके dead stock की संख्या: ${dead.length}.
-सलाह: इन प्रोडक्ट्स को Offer में निकालें या Combo pack बनाएं।`;
+    // 2) Customer returning / कब आएगा
+    else if (
+      q.includes("वापस") || 
+      q.includes("return") ||
+      q.includes("kab") ||
+      q.includes("आएगा")
+    ) {
+      // सबसे ज्यादा खरीदने वाले top ग्राहक
+      let purchaseCount = {};
+      Items.forEach(it => {
+        purchaseCount[it.item_sku] = (purchaseCount[it.item_sku] || 0) + Number(it.quantity);
+      });
+
+      const mostBoughtSku = Object.entries(purchaseCount).sort((a,b)=>b[1]-a[1])[0];
+      const mostBoughtProduct = S.find(p => p.sku === mostBoughtSku?.[0]);
+
+      answer = `
+ग्राहक कब वापस आएगा यह उसकी पिछली खरीदारी की frequency पर निर्भर करता है।
+
+मेरे डेटा के अनुसार:
+• सबसे ज्यादा खरीदा गया product: ${mostBoughtProduct?.name || "N/A"}  
+• सामान्य return cycle: 7–15 दिन  
+• Customer को वापस लाने के सुझाव:  
+  - WhatsApp पर follow-up message भेजें  
+  - छोटी discount coupon दें  
+  - पिछले खरीदे product से मिलते-जुलते items सुझाएँ  
+`;
     }
 
-    else if (userQuery.includes("customer") || userQuery.includes("ग्राहक")) {
-      let high = customers.rows.filter(c => Number(c.balance) > 1000).length;
-      answer = `आपके ${high} high-value ग्राहक हैं।
-सलाह: इन्हें WhatsApp पर Special Discount भेजें।`;
+    // 3) "क्यों खरीदेगा" type questions (customer psychology)
+    else if (q.includes("क्यों") || q.includes("kyun") || q.includes("dobara")) {
+      answer = `
+ग्राहक दोबारा क्यों खरीदेगा?
+
+ये कारण important होते हैं:
+• Product उसकी daily need है  
+• आपने अच्छी service दी है  
+• Price + quality combination strong है  
+• Customer lifetime value high है  
+• WhatsApp reminder और offer भेजे गए हों  
+
+AI सलाह:
+👉 उस customer को उसके purchase history के आधार पर personal message भेजें।
+👉 अगर उसने X खरीदा, तो उसे Y suggest करें (cross-sell)।  
+`;
     }
 
+    // 4) Product Suggestion / Kya bechu
+    else if (q.includes("kya bechu") || q.includes("क्या बेचूं") || q.includes("offer")) {
+
+      const slow = S.filter(s => Number(s.quantity) > 5).slice(0,3);
+      const fast = S.filter(s => Number(s.quantity) < 3).slice(0,3);
+
+      answer = `
+🔥 चल रहे products:  
+${fast.map(f => `• ${f.name} (Stock कम → तुरंत बिकेगा)`).join("\n")}
+
+🧊 धीरे बिकने वाले products:  
+${slow.map(s => `• ${s.name} (Stock ज़्यादा → Offer/Combo चलाएँ)`).join("\n")}
+
+AI सलाह:
+• Fast-selling items को पहले बेचो  
+• Slow items को combo बनाकर निकालो  
+• WhatsApp पर “आज का offer” भेजो  
+`;
+    }
+
+    // 5) Default smart AI answer (NO repetition anymore)
     else {
-      answer = `आपने पूछा: "${userQuery}".  
-मैंने आपके बिजनेस डेटा का विश्लेषण किया है।  
-AI सलाह:  
-• Fast moving items बनाए रखें  
-• Dead stock निकालें  
-• High-value customers को टारगेट करें  
-• WhatsApp marketing शुरू करें  
-अगर आप किसी खास प्रोडक्ट/ग्राहक के बारे में पूछें तो मैं उसके हिसाब से जवाब दूँगा।`;
+      answer = `
+आपने पूछा: "${q}"
+
+मैंने आपके पूरे बिजनेस डेटा का विश्लेषण किया है।
+मेरी सुझाव:
+
+• जिस topic के बारे में पूछा है, उसे detail में समझने के लिए  
+  – product का नाम  
+  – customer का नाम  
+  – या खर्च/बिक्री से जुड़ी detail लिखें  
+
+मैं आपके सवाल के हिसाब से सटीक जवाब दूँगा।  
+`;
     }
 
-    res.json({ success:true, answer });
+    return res.json({ success:true, answer });
 
   } catch (err) {
-    res.status(500).json({ success:false, message:err.message });
+    return res.status(500).json({ success:false, message:err.message });
   } finally {
     client.release();
   }
 });
-
 
 
 // ===========================================

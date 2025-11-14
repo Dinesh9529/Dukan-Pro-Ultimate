@@ -2815,63 +2815,79 @@ function sendWhatsAppMessage(phone, name) {
     };
 
     async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
-        showLoader(loadingMessage);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
+    showLoader(loadingMessage);
 
-        // 1. Get token from AppState or localStorage
-        const token = AppState.token || localStorage.getItem('authToken');
-        
-        const headers = {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
 
-        // 2. Add Authorization header if token exists [cite: 39]
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-        }
+    // 1. Token निकालो
+    const token = AppState.token || localStorage.getItem('authToken');
 
-        // NEW: Handle file uploads ( FormData )
-        let body = options.body;
-        if (!(body instanceof FormData)) {
-            // Keep default JSON behavior
-            body = body ? JSON.stringify(body) : null;
-        } else {
-            // If body is FormData, remove Content-Type. Fetch API sets it automatically.
-            delete headers['Content-Type'];
-        }
+    // 2. Default headers
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
 
-        try {
-            const response = await fetch(__backend_url + path, {
-                ...options,
-                headers: headers, // Use the new headers
-                body: body, // Use the modified body
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-
-            const responseData = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                // 401/403 means token is bad or expired, log the user out
-                if (response.status === 401 || response.status === 403) {
-                    showMessage('सत्र समाप्त', 'आपका सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'danger');
-                    logout(); // Log out the user
-                }
-                throw new Error(responseData.message || `सर्वर एरर: ${response.status}`);
-            }
-            
-            return responseData; // Return the JSON data
-            
-        } catch (error) {
-            if (error.name === 'AbortError') throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
-            throw error;
-        } finally {
-            hideLoader();
-        }
+    // 3. Authorization header जोड़ें
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // -----------------------------
+    // 4. Body को सुरक्षित तरीके से संभालें
+    // -----------------------------
+    let body = options.body;
+
+    if (body instanceof FormData) {
+        // FormData के लिए Content-Type हटानी जरूरी है
+        delete headers['Content-Type'];
+    } 
+    else if (body != null) {
+        // अगर string है → वैसा ही रहने दो
+        // अगर object है → stringify करो
+        if (typeof body === "string") {
+            body = body;
+        } else {
+            body = JSON.stringify(body);
+        }
+    } else {
+        body = null;
+    }
+
+    try {
+        const response = await fetch(__backend_url + path, {
+            ...options,
+            headers: headers,
+            body: body,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        const responseData = await response.json().catch(() => ({}));
+
+        // Error है?  
+        if (!response.ok) {
+            // 401/403 → logout
+            if (response.status === 401 || response.status === 403) {
+                showMessage('सत्र समाप्त', 'आपका सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'danger');
+                logout();
+            }
+            throw new Error(responseData.message || `सर्वर एरर: ${response.status}`);
+        }
+
+        return responseData;
+
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
+        }
+        throw error;
+    } finally {
+        hideLoader();
+    }
+}
 
 
 
@@ -6613,7 +6629,7 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
   
     <div class="ai-chat-input">
       <input id="ai-chat-question" type="text" placeholder="अपना सवाल लिखें... (जैसे - मेरा profit कैसे बढ़े?)">
-      <button onclick="askBusinessAI()" class="ai-refresh-btn">पूछें</button>
+      <button type="button" onclick="askBusinessAI()" class="ai-refresh-btn">पूछें</button>
     </div>
   </div>
   
@@ -6635,9 +6651,10 @@ async function askBusinessAI(){
   `;
 
   const res = await fetchApi("/api/ai/business-chat", {
-    method: "POST",
-    body: JSON.stringify({ question: q })
-  });
+  method: "POST",
+  body: { question: q }   // <-- भेजो plain object, fetchApi उससे JSON.stringify करेगा
+});
+
 
   if(res.success){
     document.getElementById("ai-chat-response").innerHTML = `
