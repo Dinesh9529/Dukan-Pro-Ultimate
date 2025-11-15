@@ -1132,78 +1132,82 @@
                             <input type="text" class="form-control" id="stock-hsn-code">
                         </div>
                         <hr class="my-3 col-12">
-<h6 class="col-12 text-info small">**अतिरिक्त विवरण (Optional)**</h6>
-<p class="col-12 text-muted small">Chasme ke liye (SPH, CYL) ya Jooton ke liye (Color, Size) jaise extra field yahaan jodein.</p>
-
-<div id="prescription-fields-container" class="col-12" style="display: none;">
-    
-    <div class="row g-3">
-        
-        <div class="col-md-6">
-            <h6 class="text-center text-primary" style="font-size: 0.9rem;">Right Eye (RE) - दाईं आँख</h6>
-            <table class="table table-bordered table-sm text-center">
-                <thead class="table-light">
-                    <tr>
-                        <th style="font-size: 0.8rem;"></th>
-                        <th style="font-size: 0.8rem;">SPH</th>
-                        <th style="font-size: 0.8rem;">CYL</th>
-                        <th style="font-size: 0.8rem;">AXLS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="fw-bold" style="font-size: 0.8rem;">Distance (दूर)</td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_od_dist"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_od_dist"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_od_dist"></td>
-                    </tr>
-                    <tr>
-                        <td class="fw-bold" style="font-size: 0.8rem;">Near (नज़दीक)</td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_od_near"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_od_near"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_od_near"></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="col-md-6">
-            <h6 class="text-center text-primary" style="font-size: 0.9rem;">Left Eye (LE) - बाईं आँख</h6>
-            <table class="table table-bordered table-sm text-center">
-                <thead class="table-light">
-                    <tr>
-                        <th style="font-size: 0.8rem;"></th>
-                        <th style="font-size: 0.8rem;">SPH</th>
-                        <th style="font-size: 0.8rem;">CYL</th>
-                        <th style="font-size: 0.8rem;">AXLS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="fw-bold" style="font-size: 0.8rem;">Distance (दूर)</td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_os_dist"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_os_dist"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_os_dist"></td>
-                    </tr>
-                    <tr>
-                        <td class="fw-bold" style="font-size: 0.8rem;">Near (नज़दीक)</td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_os_near"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_os_near"></td>
-                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_os_near"></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div> <div class="text-center mt-3">
-        <h4 style="font-weight: bold; color: #444; letter-spacing: 2px;">ADD</h4>
-    </div>
-    </div> <div class="col-12">
-    <button type="button" class="btn btn-sm btn-outline-info" id="add-custom-field-btn">
-        <i class="fas fa-plus me-1"></i> Naya Field Jodein (Optical)
-    </button>
-</div>
-
-
+                        <h6 class="col-12 text-info small">**अतिरिक्त विवरण (Optional)**</h6>
+                        <p class="col-12 text-muted small">Chasme ke liye (SPH, CYL) ya Jooton ke liye (Color, Size) jaise extra field yahaan jodein.</p>
+                        
+                        <div id="prescription-fields-container" class="col-12" style="display: none;">
+                            
+                            <div class="row g-3">
+                                
+                                <div class="col-md-6">
+                                    <h6 class="text-center text-primary" style="font-size: 0.9rem;">Right Eye (RE) - दाईं आँख</h6>
+                                    <table class="table table-bordered table-sm text-center">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="font-size: 0.8rem;"></th>
+                                                <th style="font-size: 0.8rem;">SPH</th>
+                                                <th style="font-size: 0.8rem;">CYL</th>
+                                                <th style="font-size: 0.8rem;">AXLS</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="fw-bold" style="font-size: 0.8rem;">Distance (दूर)</td>
+                                                
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_sph_od_dist"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_cyl_od_dist"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_axs_od_dist"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold" style="font-size: 0.8rem;">Near (नज़दीक)</td>
+                                                
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_sph_od_near"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_cyl_od_near"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_axs_od_near"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                        
+                                <div class="col-md-6">
+                                    <h6 class="text-center text-primary" style="font-size: 0.9rem;">Left Eye (LE) - बाईं आँख</h6>
+                                    <table class="table table-bordered table-sm text-center">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="font-size: 0.8rem;"></th>
+                                                <th style="font-size: 0.8rem;">SPH</th>
+                                                <th style="font-size: 0.8rem;">CYL</th>
+                                                <th style="font-size: 0.8rem;">AXLS</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="fw-bold" style="font-size: 0.8rem;">Distance (दूर)</td>
+                                                
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_sph_os_dist"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_cyl_os_dist"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_axs_os_dist"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold" style="font-size: 0.8rem;">Near (नज़दीक)</td>
+                                                
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_sph_os_near"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_cyl_os_near"></td>
+                                                <td><input type="text" inputmode="text" class="form-control form-control-sm" id="stock_axs_os_near"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div> <div class="text-center mt-3">
+                                <h4 style="font-weight: bold; color: #444; letter-spacing: 2px;">ADD</h4>
+                            </div>
+                            </div> <div class="col-12">
+                            <button type="button" class="btn btn-sm btn-outline-info" id="add-custom-field-btn">
+                                <i class="fas fa-plus me-1"></i> Naya Field Jodein (Optical)
+                            </button>
+                        </div>
+                        
+                    
 <hr class="my-3 col-12">
 
 
