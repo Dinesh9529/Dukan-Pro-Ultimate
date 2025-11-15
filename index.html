@@ -1134,13 +1134,76 @@
                         <hr class="my-3 col-12">
 <h6 class="col-12 text-info small">**अतिरिक्त विवरण (Optional)**</h6>
 <p class="col-12 text-muted small">Chasme ke liye (SPH, CYL) ya Jooton ke liye (Color, Size) jaise extra field yahaan jodein.</p>
-<div id="stock-custom-fields-container" class="col-12">
+
+<div id="prescription-fields-container" class="col-12" style="display: none;">
+    
+    <div class="row g-3">
+        
+        <div class="col-md-6">
+            <h6 class="text-center text-primary" style="font-size: 0.9rem;">Right Eye (RE) - दाईं आँख</h6>
+            <table class="table table-bordered table-sm text-center">
+                <thead class="table-light">
+                    <tr>
+                        <th style="font-size: 0.8rem;"></th>
+                        <th style="font-size: 0.8rem;">SPH</th>
+                        <th style="font-size: 0.8rem;">CYL</th>
+                        <th style="font-size: 0.8rem;">AXLS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="fw-bold" style="font-size: 0.8rem;">Distance (दूर)</td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_od_dist"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_od_dist"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_od_dist"></td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold" style="font-size: 0.8rem;">Near (नज़दीक)</td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_od_near"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_od_near"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_od_near"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="col-md-6">
+            <h6 class="text-center text-primary" style="font-size: 0.9rem;">Left Eye (LE) - बाईं आँख</h6>
+            <table class="table table-bordered table-sm text-center">
+                <thead class="table-light">
+                    <tr>
+                        <th style="font-size: 0.8rem;"></th>
+                        <th style="font-size: 0.8rem;">SPH</th>
+                        <th style="font-size: 0.8rem;">CYL</th>
+                        <th style="font-size: 0.8rem;">AXLS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="fw-bold" style="font-size: 0.8rem;">Distance (दूर)</td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_os_dist"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_os_dist"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_os_dist"></td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold" style="font-size: 0.8rem;">Near (नज़दीक)</td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_sph_os_near"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_cyl_os_near"></td>
+                        <td><input type="text" class="form-control form-control-sm" id="stock_axs_os_near"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div> <div class="text-center mt-3">
+        <h4 style="font-weight: bold; color: #444; letter-spacing: 2px;">ADD</h4>
     </div>
-<div class="col-12">
+    </div> <div class="col-12">
     <button type="button" class="btn btn-sm btn-outline-info" id="add-custom-field-btn">
-        <i class="fas fa-plus me-1"></i> Naya Field Jodein
+        <i class="fas fa-plus me-1"></i> Naya Field Jodein (Optical)
     </button>
 </div>
+
+
 <hr class="my-3 col-12">
 
 
@@ -4177,14 +4240,39 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                     data.hsn_code = document.getElementById('stock-hsn-code').value; // NEW
                     // [ ✅ Naya "Custom Fields" JSON Code yahaan (Line 2522) add karein ]
 
-data.product_attributes = {};
-document.querySelectorAll('#stock-custom-fields-container .custom-field-row').forEach(row => {
-    const key = row.querySelector('.stock-custom-field-key').value;
-    const value = row.querySelector('.stock-custom-field-value').value;
-    if (key && value) {
-        data.product_attributes[key] = value;
+// [ ✅ NAYA "अतिरिक्त विवरण" (चश्मे का) सेव करने का कोड ]
+
+// एक हेल्पर फ़ंक्शन जो सिर्फ़ भरी हुई वैल्यू को ही ऑब्जेक्ट में जोड़ेगा
+const addAttr = (obj, key, id) => {
+    const value = document.getElementById(id).value;
+    if (value && value.trim() !== '') {
+        obj[key] = value.trim();
     }
-});
+};
+
+// 1. एक खाली ऑब्जेक्ट बनाएँ
+data.product_attributes = {};
+const attrs = data.product_attributes;
+
+// 2. Right Eye (RE) का डेटा इकट्ठा करें (अगर फॉर्म खुला है तो)
+if (document.getElementById('prescription-fields-container').style.display === 'block') {
+    addAttr(attrs, 'sph_od_dist', 'stock_sph_od_dist');
+    addAttr(attrs, 'cyl_od_dist', 'stock_cyl_od_dist');
+    addAttr(attrs, 'axs_od_dist', 'stock_axs_od_dist');
+    addAttr(attrs, 'sph_od_near', 'stock_sph_od_near');
+    addAttr(attrs, 'cyl_od_near', 'stock_cyl_od_near');
+    addAttr(attrs, 'axs_od_near', 'stock_axs_od_near');
+
+    // 3. Left Eye (LE) का डेटा इकट्ठा करें
+    addAttr(attrs, 'sph_os_dist', 'stock_sph_os_dist');
+    addAttr(attrs, 'cyl_os_dist', 'stock_cyl_os_dist');
+    addAttr(attrs, 'axs_os_dist', 'stock_axs_os_dist');
+    addAttr(attrs, 'sph_os_near', 'stock_sph_os_near');
+    addAttr(attrs, 'cyl_os_near', 'stock_cyl_os_near');
+    addAttr(attrs, 'axs_os_near', 'stock_axs_os_near');
+}
+
+// JSON बंडलिंग खत्म
 // JSON bundling khatm
 
                 } else if (formId === 'add-customer-form') {
@@ -5215,18 +5303,53 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
 
 // [ ✅ Naya Helper Function yahaan (Line 2505) add karein ]
 
+// [ ✅ इस पूरे पुराने फ़ंक्शन को नए वाले से बदलें ]
+
 function formatAttributes(attrs) {
     if (!attrs || Object.keys(attrs).length === 0) return '';
 
-    // Chasme waale case ko pehle handle karein
-    if (attrs.sph_od || attrs.cyl_od || attrs.sph_os || attrs.cyl_os) {
-         let parts = [];
-         if (attrs.sph_od || attrs.cyl_od) parts.push(`OD: ${attrs.sph_od || '0'} / ${attrs.cyl_od || '0'} / ${attrs.axs_od || '0'}`);
-         if (attrs.sph_os || attrs.cyl_os) parts.push(`OS: ${attrs.sph_os || '0'} / ${attrs.cyl_os || '0'} / ${attrs.axs_os || '0'}`);
-         return parts.join('<br>');
+    // 🚀 NAYA, ZYADA SMART "CHASHME WALA" CHECK
+    // Ab hum _dist ya _near keys ko check karenge
+    const hasDist = attrs.sph_od_dist || attrs.cyl_od_dist || attrs.sph_os_dist || attrs.cyl_os_dist;
+    const hasNear = attrs.sph_od_near || attrs.cyl_od_near || attrs.sph_os_near || attrs.cyl_os_near;
+
+    if (hasDist || hasNear) {
+        let parts = [];
+        
+        // 1. Right Eye (OD) - DISTANCE
+        if (attrs.sph_od_dist || attrs.cyl_od_dist || attrs.axs_od_dist) {
+            parts.push(
+                // "Right" (OD) का मतलब है "दाईं आँख"
+                `<strong>Right (Dist):</strong> ${attrs.sph_od_dist || '-'} / ${attrs.cyl_od_dist || '-'} / ${attrs.axs_od_dist || '-'}`
+            );
+        }
+        
+        // 2. Left Eye (OS) - DISTANCE
+        if (attrs.sph_os_dist || attrs.cyl_os_dist || attrs.axs_os_dist) {
+            parts.push(
+                // "Left" (OS) का मतलब है "बाईं आँख"
+                `<strong>Left (Dist):</strong> ${attrs.sph_os_dist || '-'} / ${attrs.cyl_os_dist || '-'} / ${attrs.axs_os_dist || '-'}`
+            );
+        }
+
+        // 3. Right Eye (OD) - NEAR
+        if (attrs.sph_od_near || attrs.cyl_od_near || attrs.axs_od_near) {
+            parts.push(
+                `<strong>Right (Near):</strong> ${attrs.sph_od_near || '-'} / ${attrs.cyl_od_near || '-'} / ${attrs.axs_od_near || '-'}`
+            );
+        }
+
+        // 4. Left Eye (OS) - NEAR
+        if (attrs.sph_os_near || attrs.cyl_os_near || attrs.axs_os_near) {
+            parts.push(
+                `<strong>Left (Near):</strong> ${attrs.sph_os_near || '-'} / ${attrs.cyl_os_near || '-'} / ${attrs.axs_os_near || '-'}`
+            );
+        }
+
+        return parts.join('<br>'); // Har entry ko nayi line par dikhao
     }
 
-    // Baaki sab (Joote/Color) ke liye
+    // Purana fallback logic (Color/Size ke liye)
     let parts = [];
     for (const key in attrs) {
         if (attrs[key]) {
@@ -5235,7 +5358,6 @@ function formatAttributes(attrs) {
     }
     return parts.join('<br>');
 }
-
 
     // अपने अन्य JavaScript फंक्शन्स के साथ इसे जोड़ें
 function removeShopLogo() {
@@ -5829,30 +5951,18 @@ const addStaffForm = document.getElementById('add-staff-form');
 
 // [ ✅ Is Naye Listener ko Line 2912 par (function ke andar) Paste Karein ]
 
+// [ ✅ NAYA "Naya Field Jodein" बटन का लॉजिक (Optical फॉर्म दिखाने के लिए) ]
+
 document.getElementById('add-custom-field-btn').addEventListener('click', () => {
-    const container = document.getElementById('stock-custom-fields-container');
-    const newFieldRow = document.createElement('div');
-    newFieldRow.className = 'row g-2 mb-2 custom-field-row';
-    newFieldRow.innerHTML = `
-        <div class="col-5">
-            <input type="text" class="form-control form-control-sm stock-custom-field-key" placeholder="Field ka Naam (jaise: Color)">
-        </div>
-        <div class="col-5">
-            <input type="text" class="form-control form-control-sm stock-custom-field-value" placeholder="Field ki Value (jaise: Red)">
-        </div>
-        <div class="col-2">
-            <button type="button" class="btn btn-sm btn-danger w-100" onclick="removeCustomField(this)">हटाएँ</button>
-        </div>
-    `;
-    container.appendChild(newFieldRow);
+    // 1. छिपे हुए चश्मे वाले फॉर्म को दिखाएँ
+    const container = document.getElementById('prescription-fields-container');
+    container.style.display = 'block';
+    
+    // 2. "+ Naya Field Jodein" बटन को छिपा दें (ताकि दोबारा क्लिक न हो)
+    document.getElementById('add-custom-field-btn').style.display = 'none';
 });
 
-// [ ✅ Is Naye Function ko Line 3078 par Paste Karein ]
-
-function removeCustomField(button) {
-    button.closest('.custom-field-row').remove();
-}
-
+// removeCustomField फ़ंक्शन की अब ज़रूरत नहीं है, इसलिए उसे हटा दिया गया है।
 
 
 
