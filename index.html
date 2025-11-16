@@ -2883,60 +2883,57 @@ function sendWhatsAppMessage(phone, name) {
 
     async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
     showLoader(loadingMessage);
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
 
-    // 1. Token निकालो
+    // get token
     const token = AppState.token || localStorage.getItem('authToken');
 
-    // 2. Default headers
+    // start with default headers, keep any provided headers
     const headers = {
         'Content-Type': 'application/json',
         ...options.headers,
     };
 
-    // 3. Authorization header जोड़ें
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // -----------------------------
-    // 4. Body को सुरक्षित तरीके से संभालें
-    // -----------------------------
-    let body = options.body;
+    // Prepare body:
+    let body = options.body === undefined ? null : options.body;
 
+    // If body is FormData -> let fetch set Content-Type (remove header)
     if (body instanceof FormData) {
-        // FormData के लिए Content-Type हटानी जरूरी है
         delete headers['Content-Type'];
-    } 
-    else if (body != null) {
-        // अगर string है → वैसा ही रहने दो
-        // अगर object है → stringify करो
-        if (typeof body === "string") {
-            body = body;
+    } else if (body !== null) {
+        // If user already passed a string (JSON string), use it as-is
+        if (typeof body === 'string') {
+            // assume valid JSON string
         } else {
-            body = JSON.stringify(body);
+            // otherwise stringify a plain object / number / array safely
+            try {
+                body = JSON.stringify(body);
+            } catch (err) {
+                // fallback: keep as-is (so we don't break existing behaviour)
+                console.warn('fetchApi: body stringify failed, sending raw body', err);
+            }
         }
-    } else {
-        body = null;
     }
 
     try {
         const response = await fetch(__backend_url + path, {
             ...options,
-            headers: headers,
-            body: body,
+            headers,
+            body,
             signal: controller.signal
         });
 
         clearTimeout(timeoutId);
 
-        const responseData = await response.json().catch(() => ({}));
+        // try parse JSON even if body empty
+        const text = await response.text().catch(() => '');
+        let responseData = {};
+        try { responseData = text ? JSON.parse(text) : {}; } catch (e) { responseData = {}; }
 
-        // Error है?  
         if (!response.ok) {
-            // 401/403 → logout
             if (response.status === 401 || response.status === 403) {
                 showMessage('सत्र समाप्त', 'आपका सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'danger');
                 logout();
@@ -2945,17 +2942,13 @@ function sendWhatsAppMessage(phone, name) {
         }
 
         return responseData;
-
     } catch (error) {
-        if (error.name === 'AbortError') {
-            throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
-        }
+        if (error.name === 'AbortError') throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
         throw error;
     } finally {
         hideLoader();
     }
 }
-
 
 
 // ==========================================================
@@ -6760,23 +6753,21 @@ async function askBusinessAI(){
   const q = document.getElementById("ai-chat-question").value.trim();
   if(!q) return;
 
-  document.getElementById("ai-chat-response").innerHTML = `
-    <p class="text-muted-small">सोच रहा हूँ...</p>
-  `;
+  document.getElementById("ai-chat-response").innerHTML = `<p class="text-muted-small">सोच रहा हूँ...</p>`;
 
-  const res = await fetchApi("/api/ai/business-chat", {
-  method: "POST",
-  body: { question: q }   // <-- भेजो plain object, fetchApi उससे JSON.stringify करेगा
-});
+  try {
+    const res = await fetchApi("/api/ai/business-chat", {
+      method: "POST",
+      body: { question: q }   // pass as object — fetchApi will stringify safely
+    });
 
-
-  if(res.success){
-    document.getElementById("ai-chat-response").innerHTML = `
-      <p>${res.answer.replace(/\n/g,"<br>")}</p>
-    `;
-  } else {
-    document.getElementById("ai-chat-response").innerHTML = 
-      `<p class="text-danger">${res.message}</p>`;
+    if(res && res.success){
+      document.getElementById("ai-chat-response").innerHTML = `<p>${res.answer.replace(/\n/g,"<br>")}</p>`;
+    } else {
+      document.getElementById("ai-chat-response").innerHTML = `<p class="text-danger">${res.message || 'कोई उत्तर नहीं मिला'}</p>`;
+    }
+  } catch (err) {
+    document.getElementById("ai-chat-response").innerHTML = `<p class="text-danger">Error: ${err.message}</p>`;
   }
 }
 
@@ -7233,7 +7224,113 @@ function renderMonthlyStrategy(data){
                  showSection("ai-insights");
                  loadUltimateAI();
               });
-            </script>
+
+
+
+
+          
+async function renderFestivalStrategy() {
+  const box = document.getElementById('ai-festival-content');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="padding:30px; text-align:center;">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2">त्योहार रणनीति तैयार की जा रही है...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetchApi('/api/ai/festival-strategy', { method: 'GET' });
+    if (!res || !res.success) {
+      box.innerHTML = `<div class="alert alert-warning">${(res && res.message) ? res.message : 'तीर्थ डेटा उपलब्ध नहीं है।'}</div>`;
+      return;
+    }
+
+    const festivals = res.festivals || [];
+    if (!festivals.length) {
+      box.innerHTML = `<div class="p-3">कोई festival data उपलब्ध नहीं है।</div>`;
+      return;
+    }
+
+    // Build HTML
+    let html = `<div class="festival-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px;">`;
+
+    festivals.forEach(f => {
+      html += `
+        <div class="card" style="padding:15px; border-radius:8px; box-shadow:var(--card-shadow); background:#fff;">
+          <h5 style="margin:0 0 6px 0;">${f.name} — Next: ${f.nextDate}</h5>
+          <p style="margin:0 0 8px 0; color:#666; font-size:0.9rem;">Top products (by festival lift)</p>
+          <div style="font-size:0.9rem; color:#333; line-height:1.4;">
+            ${ (f.topProducts && f.topProducts.length) ? f.topProducts.slice(0,6).map(p => `
+              <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+                <b>${shortText(p.name || p.sku, 33)}</b><br>
+                lift: ${p.liftPercent}% • estRevenue: ₹${p.revenue} • samples:${p.samples}
+              </div>
+            `).join('') : `<div style="color:#888">No clear winners</div>` }
+          </div>
+
+          <div style="margin-top:10px; font-size:0.9rem; color:#444;">
+            <b>Suggestions:</b>
+            <pre style="white-space:pre-wrap; font-family:inherit; font-size:0.9rem; background:#f8f9fa; padding:8px; border-radius:6px;">${f.recommendationText || 'No suggestions'}</pre>
+          </div>
+
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn btn-sm btn-primary" onclick='createWhatsAppCampaign(${JSON.stringify(f.suggestions || []).replace(/'/g,"\\'")})'>WhatsApp Campaign</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick='showPurchasePlan(${JSON.stringify(f.suggestions || []).replace(/'/g,"\\'")})'>Purchase Plan</button>
+          </div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+    box.innerHTML = html;
+
+  } catch (err) {
+    box.innerHTML = `<div class="alert alert-danger">एरर: ${err.message}</div>`;
+  }
+}
+
+// small helper for UI
+function shortText(s, n=40){ if(!s) return ''; return (s.length>n)? s.slice(0,n-1)+'…':s; }
+
+// Action handlers (example - frontend helpers)
+function createWhatsAppCampaign(suggestions) {
+  // suggestions = [{sku, suggestedQty, liftPercent, revenue}, ...]
+  // Build a simple message and open wa share (demo)
+  if(!suggestions || !suggestions.length) {
+    alert('कोई सुझाव उपलब्ध नहीं।');
+    return;
+  }
+  const top = suggestions[0];
+  const msg = `Special Offer: इस ${top.sku} पर सीमित समय के लिए ऑफ़र रखें — सिर्फ ${top.suggestedQty} यूनिट रेकोमेंड किए गए। जल्दी आइए!`;
+  // For demo: open WhatsApp (phone number optional) - user will edit before send
+  const waUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, '_blank');
+}
+
+function showPurchasePlan(suggestions) {
+  if(!suggestions || !suggestions.length) {
+    alert('कोई सुझाव उपलब्ध नहीं।');
+    return;
+  }
+  let txt = 'Suggested purchase plan (1-week buffer):\n\n';
+  suggestions.forEach(s =>{
+    txt += `SKU:${s.sku} → Qty: ${s.suggestedQty} (lift:${s.liftPercent}%)\n`;
+  });
+  alert(txt);
+}
+
+// Optionally call this on load of AI insights (if you have a global loader)
+document.querySelector('[data-view="ai-insights"]')?.addEventListener('click', () => {
+  // When AI Insights tab clicked, also render festival strategy
+  // (you might already call renderAiInsightsV2; ensure this is included)
+  renderFestivalStrategy();
+});
+</script>
+
+
+
+           
                 
 
 </body>

@@ -3660,232 +3660,170 @@ app.get('/api/ai/customer-probability', authenticateJWT, async (req, res) => {
 // ULTIMATE LOCAL AI: Business + World Answers (No OpenAI Key required)
 // Replace any existing app.post('/api/ai/business-chat' ...) block with this.
 // ==============================
+// -------------------------
+// AI: Business Chat (Rule-based, DB-driven, Hindi)
+// -------------------------
 app.post('/api/ai/business-chat', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
-  // Safety: normalize incoming question
-  const rawQ = (req.body && (typeof req.body.question === 'string' ? req.body.question : (req.body.q || ''))) || '';
-  const userQuery = rawQ.trim();
-  const q = userQuery.toLowerCase();
-
-  // Helper utilities (localized Hindi friendly)
-  const safeNum = v => isNaN(Number(v)) ? 0 : Number(v);
-  const short = (s, n=80) => (s && s.length>n) ? s.slice(0,n-1)+'…' : (s||'—');
-
-  // Small NLP-ish helpers (rule-based)
-  const containsAny = (arr) => arr.some(x => q.includes(x));
-  const parseDate = d => d ? new Date(d) : null;
+  const userQuery = (req.body && req.body.question) ? String(req.body.question).trim() : "";
 
   try {
-    // Fetch required data once (keep queries lightweight)
-    const [stockRes, invoicesRes, invoiceItemsRes, customersRes] = await Promise.all([
-      client.query('SELECT * FROM stock WHERE shop_id=$1', [shopId]),
-      client.query('SELECT * FROM invoices WHERE shop_id=$1 ORDER BY created_at DESC LIMIT 1000', [shopId]),
-      client.query(`SELECT * FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE shop_id=$1)`, [shopId]),
-      client.query('SELECT * FROM customers WHERE shop_id=$1', [shopId])
-    ]);
+    if (!userQuery) return res.status(400).json({ success:false, message: 'प्रश्न रिक्त है। कृपया कुछ लिखें।' });
 
-    const STOCK = stockRes.rows || [];
-    const INVOICES = invoicesRes.rows || [];
-    const ITEMS = invoiceItemsRes.rows || [];
-    const CUST = customersRes.rows || [];
+    // 1) Fetch lightweight datasets (only required columns) — keep queries small for speed
+    const stockQ = await client.query(`SELECT sku, name, quantity, purchase_price, sale_price FROM stock WHERE shop_id=$1`, [shopId]);
+    const invoicesQ = await client.query(`SELECT id, total_amount, total_cost, created_at, customer_id FROM invoices WHERE shop_id=$1 ORDER BY created_at DESC LIMIT 500`, [shopId]);
+    const invoiceItemsQ = await client.query(`SELECT invoice_id, item_sku, item_name, quantity, sale_price, purchase_price FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE shop_id=$1)`, [shopId]);
+    const customersQ = await client.query(`SELECT id, name, phone, balance FROM customers WHERE shop_id=$1`, [shopId]);
 
-    // Build quick indexes
-    const invoicesByCustomer = {};
-    INVOICES.forEach(inv => {
-      if (!invoicesByCustomer[inv.customer_id]) invoicesByCustomer[inv.customer_id] = [];
-      invoicesByCustomer[inv.customer_id].push(inv);
-    });
+    const stock = stockQ.rows || [];
+    const invoices = invoicesQ.rows || [];
+    const invoiceItems = invoiceItemsQ.rows || [];
+    const customers = customersQ.rows || [];
 
-    const itemsBySku = {};
-    STOCK.forEach(s => itemsBySku[s.sku] = s);
+    // 2) Basic derived metrics (fast calculations)
+    const totals = {
+      sales: invoices.reduce((s, r) => s + Number(r.total_amount || 0), 0),
+      cost: invoices.reduce((s, r) => s + Number(r.total_cost || 0), 0)
+    };
+    totals.profit = totals.sales - totals.cost;
 
-    // SOME AGGREGATIONS
-    const totalSales = INVOICES.reduce((a,b)=>a+safeNum(b.total_amount), 0);
-    const totalCost  = INVOICES.reduce((a,b)=>a+safeNum(b.total_cost), 0);
-    const profit = Math.round(totalSales - totalCost);
-
-    // Sales frequency per SKU
-    const soldCount = {};
-    ITEMS.forEach(it => {
-      soldCount[it.item_sku] = (soldCount[it.item_sku]||0) + safeNum(it.quantity);
-    });
-
-    // Top items (by soldCount)
-    const topItems = Object.entries(soldCount)
-      .map(([sku,qty]) => ({ sku, qty, name: (itemsBySku[sku] && itemsBySku[sku].name) || sku }))
-      .sort((a,b)=>b.qty - a.qty)
-      .slice(0,8);
-
-    // Dead stock heuristics
-    const deadStock = STOCK.filter(s => {
-      const sold = soldCount[s.sku] || 0;
-      // if not sold in last 60 days or stock value big and sold==0
-      return (sold === 0 && safeNum(s.quantity) > 0 && (safeNum(s.quantity)*safeNum(s.purchase_price) > 500));
-    }).slice(0,20);
-
-    // Customer scoring (simple)
-    const customerScores = CUST.map(c => {
-      const invs = invoicesByCustomer[c.id] || [];
-      const totalSpent = invs.reduce((a,b)=>a+safeNum(b.total_amount),0);
-      const lastInv = invs.length ? invs[0] : null;
-      const lastDate = lastInv ? new Date(lastInv.created_at) : null;
-      const daysInactive = lastDate ? Math.floor((Date.now()-lastDate)/86400000) : 9999;
-      const bills = invs.length;
-      // score heuristic
-      let score = 10 + Math.min(50, bills*3) + (totalSpent > 10000 ? 20 : 0) - Math.min(60, daysInactive*0.5);
-      if (score < 0) score = 1;
-      return { id: c.id, name: c.name, phone: c.phone, totalSpent, bills, lastDate, daysInactive, score: Math.round(score) };
-    }).sort((a,b)=>b.score - a.score);
-
-    // Utility: Suggest WhatsApp message for a customer
-    function makeWhatsAppMessageForCustomer(customer, reasonObj={}) {
-      const lastItem = (INVOICE_LAST_ITEM_FOR_CUSTOMER(customer.id) || {}).name || 'पिछला प्रोडक्ट';
-      let msg = `नमस्ते ${customer.name || ''},\n`;
-      if (reasonObj.type === 'reengage') {
-        msg += `हमें आपकी कमी महसूस हो रही है — आप पिछले बार ${lastItem} खरीद चुके हैं। अभी हमारी तरफ़ से आपके लिए खास 5% छूट है। वापसी के लिए रिप्लाई करें।`;
-      } else if (reasonObj.type === 'offer') {
-        msg += `Special Offer: ${reasonObj.offerText || '10% OFF'} सिर्फ आज के लिए। ${lastItem} पर उपलब्ध।`;
-      } else {
-        msg += `हमारी नई डील्स देखिए — आपकी पसंद के प्रोडक्ट्स उपलब्ध हैं।`;
-      }
-      return encodeURIComponent(msg);
+    // 3) Helper functions
+    function topFastMoving(n=5) {
+      // compute sold qty per SKU from invoiceItems
+      const map = new Map();
+      invoiceItems.forEach(it => {
+        const qty = Number(it.quantity || 0);
+        map.set(it.item_sku, (map.get(it.item_sku) || 0) + qty);
+      });
+      const arr = Array.from(map.entries()).map(([sku, qty]) => {
+        const s = stock.find(st => st.sku === sku) || {};
+        return { sku, name: s.name || sku, qtySold: qty, current_qty: Number(s.quantity || 0) };
+      });
+      arr.sort((a,b)=>b.qtySold - a.qtySold);
+      return arr.slice(0,n);
     }
 
-    // helper: last item for customer
-    function INVOICE_LAST_ITEM_FOR_CUSTOMER(custId) {
-      const invs = invoicesByCustomer[custId] || [];
-      if (!invs.length) return null;
-      const inv = invs[0];
-      const invItems = ITEMS.filter(it => it.invoice_id === inv.id);
-      return invItems.length ? invItems[invItems.length-1] : null;
+    function findCustomerByName(nameFragment) {
+      const q = String(nameFragment || "").toLowerCase();
+      return customers.find(c => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q));
     }
 
-    // Small probability engine: returns 0-100 chance that customer will return in next 7 days
-    function purchaseProbabilityForCustomer(cust) {
-      const base = 20;
-      const score = cust.score || 10;
-      const s = Math.min(95, base + Math.round(score*0.6));
-      // if bought same item frequently, bump
-      const invs = invoicesByCustomer[cust.id] || [];
-      if (invs.length > 3) return Math.min(98, s+10);
-      return s;
-    }
+    // 4) Intent detection (simple, pattern-based)
+    const qLower = userQuery.toLowerCase();
 
-    // -----------------------
-    // Responding logic START
-    // -----------------------
-    let answer = '';
-    let meta = {}; // structured advice that frontend can use if needed
-
-    // QUICK intent classification (robust set)
-    const intent = {
-      profit: containsAny(['profit', 'मुनाफ', 'कमाई', 'लाभ']),
-      deadstock: containsAny(['dead', 'dead stock', 'न बिक', 'न बिकने', 'फँसा', 'फसं']),
-      customer: containsAny(['customer','ग्राहक','rahul','name','कौन','वापस','आएगा','आएगी','chala','दूसरी','खो','भेज']),
-      product_suggestion: containsAny(['क्या बेचूं','kya bechu','क्या बेचु','suggest','सुझा']),
-      marketing: containsAny(['whatsapp','ad','ads','marketing','प्रमोशन','प्रचार','offer','कूपन']),
-      world: true // fallback: treat everything as possible world/general question
+    // Common intents
+    const intents = {
+      profit: /profit|munafa|मुनाफा|लाभ|profit|कमाई/,
+      deadStock: /dead|न बिक|dead stock|फँसा|न बिकने|न बिकता/,
+      customerInfo: /customer|ग्राहक|कस्टमर|किसने|कौन/ ,
+      offer: /offer|discount|ऑफ़र|डिस्काउंट|छूट/,
+      productInfo: /product|product name|प्रोडक्ट|कौन सा सामान|कौनसा सामान|कौनसा/,
+      retention: /wont come|न आएगा|वापस|वापिस|dobara|दोबारा/,
+      whatsapp: /whatsapp|व्हाट्स|message|मैसेज|संदेश/,
+      generic: /.*/
     };
 
-    // 1) PROFIT / FINANCE
-    if (intent.profit && q.length > 0) {
-      answer = `आपका कुल अनुमानित मुनाफा: ₹${profit} (बिक्री ₹${Math.round(totalSales)}, लागत ₹${Math.round(totalCost)})\n\nसलाह:\n• तेज़ बिकने वाले आइटम के स्टॉक्स बढ़ाएँ\n• मुनाफा कम करने वाले SKU पर margin/price adjust करें\n• High-value ग्राहकों के लिए loyalty ऑफ़र रखें\n• हर 30 दिनों में top 10 items की सूची देखें और low-performers को रिमूव/ऑफर पर रखें\n`;
-      meta = { totalSales, totalCost, profit };
+    // Decide applicable intent
+    let matchedIntent = 'generic';
+    for (const [k, pattern] of Object.entries(intents)) {
+      if (pattern.test(qLower)) { matchedIntent = k; break; }
     }
 
-    // 2) DEAD STOCK
-    else if (intent.deadstock && q.length > 0) {
-      const sample = deadStock.slice(0,6).map(d => ({ sku:d.sku, name:d.name, qty:d.quantity || 0, value: Math.round((d.quantity||0)*(d.purchase_price||0)) }));
-      answer = `Detected ${deadStock.length} items possibly stuck as dead-stock. Top suggestions:\n• इन्हें combo/discount पर निकालें\n• Local WhatsApp blast करें\n• Shelf placement बदलकर offer दें\n\nSample:\n${sample.map(s=>`• ${s.name} — ${s.qty} पीस (₹${s.value})`).join('\n')}`;
-      meta = { deadStockCount: deadStock.length, sampleDead: sample };
+    // 5) Response builders per intent (rich, Hindi)
+    let answer = '';
+
+    if (matchedIntent === 'profit') {
+      answer = `मैंने हाल के रिकॉर्ड (जिनकी गणना उपलब्ध रही) से आपका संक्षेप निकाला है:\n\n`;
+      answer += `• अनुमानित कुल बिक्री: ₹${Math.round(totals.sales)}\n`;
+      answer += `• अनुमानित कुल लागत: ₹${Math.round(totals.cost)}\n`;
+      answer += `• अनुमानित कुल मुनाफा: ₹${Math.round(totals.profit)}\n\n`;
+      answer += `तेज़ सुझाव:\n• जो आइटम तेज़ बिक रहे हैं (Top ${Math.min(5, topFastMoving(5).length)}): ${topFastMoving(5).map(i=>i.name).join(', ') || '—'} — इनकी स्टॉक बनाए रखें।\n`;
+      answer += `• पाँच बड़े कस्टमर को targeted WhatsApp ऑफर दें और weekend/tyohar पर combo offers रखें।\n`;
+      answer += `अगर आप चाहें तो मैं detailed margin-by-product निकाल दूँ — बस पूछिए "product wise profit बताओ"।`;
     }
 
-    // 3) CUSTOMER related (specific name or churn)
-    else if (intent.customer && q.length > 0) {
-      // If question mentions a particular customer name, try to find them
-      const nameMatch = CUST.find(c => q.includes((c.name||'').toLowerCase()));
-      if (nameMatch) {
-        const cust = customerScores.find(cc => cc.id === nameMatch.id) || { id: nameMatch.id, name: nameMatch.name, score: 10, daysInactive:9999 };
-        const prob = purchaseProbabilityForCustomer(cust);
-        answer = `ग्राहक: ${cust.name}\n• अनुमानित खरीदने की संभावना (7 दिनों में): ${prob}%\n• आख़री खरीद: ${cust.lastDate ? cust.lastDate.toISOString().split('T')[0] : 'नहीं मिली'}\n• कुल खर्च: ₹${Math.round(cust.totalSpent||0)}\nसलाह:\n1) तुरंत personalized WhatsApp भेजें\n2) 2%–5% छोटा ऑफ़र दें\n3) यदि फास्ट-मूविंग आइटम था तो उसे target करें\n`;
-        meta = { customer: cust, probability: prob, wa: makeWhatsAppMessageForCustomer(cust, {type:'reengage'}) };
+    else if (matchedIntent === 'deadStock') {
+      // heuristics: not sold in last 30 days OR stock_value>threshold
+      const thirtyAgo = new Date(Date.now() - 30*24*60*60*1000);
+      // compute last sold per sku from invoices/invoiceItems
+      const lastSold = {};
+      invoiceItems.forEach(ii=>{
+        // find invoice date
+        const inv = invoices.find(iv => iv.id === ii.invoice_id);
+        const date = inv ? new Date(inv.created_at) : null;
+        if (!lastSold[ii.item_sku] || (date && date > lastSold[ii.item_sku])) lastSold[ii.item_sku] = date;
+      });
+      const dead = stock.filter(s=>{
+        const last = lastSold[s.sku];
+        return (!last || last < thirtyAgo) && Number(s.quantity || 0) > 0;
+      }).map(s=>({ sku:s.sku, name:s.name, qty: Number(s.quantity||0), stock_value: Math.round(Number(s.quantity||0)*Number(s.purchase_price||0)) }));
+
+      answer = `Dead stock analysis:\n• ऐसे ${dead.length} आइटम मिले जो 30+ दिनों से नहीं बिके।\n`;
+      if (dead.length) {
+        answer += dead.slice(0,8).map(d=>`  - ${d.name} (SKU:${d.sku}) — Qty: ${d.qty}, फँसा पैसा: ₹${d.stock_value}`).join('\n') + '\n\n';
+        answer += 'सलाह:\n• इनपर 10–25% का limited-time discount डालें या bundle/combo बनाकर बेचें।\n• Social/WhatsApp पर daily special में इन्हें include करें।';
       } else {
-        // churn analysis overview
-        const atRisk = customerScores.filter(c => c.daysInactive >= 15).slice(0,8);
-        answer = `सामान्य ग्राहक-रिस्क रिपोर्ट:\n• कुल ग्राहक: ${CUST.length}\n• High-value top: ${customerScores.slice(0,3).map(x=>x.name).join(', ') || '—'}\n• 15+ दिन से inactive (risk) : ${atRisk.length}\nसलाह:\n• इनको WhatsApp + call से re-engage करें\n• छोटे coupon देकर वापस लाएँ\n`;
-        meta = { atRiskCount: atRisk.length, atRiskSample: atRisk };
+        answer += 'कोई प्रमुख dead stock नहीं दिख रहा।';
       }
     }
 
-    // 4) Product suggestion / inventory
-    else if (intent.product_suggestion && q.length > 0) {
-      const lowStock = STOCK.filter(s => safeNum(s.quantity) <= 3).slice(0,6);
-      const highStock = STOCK.filter(s => safeNum(s.quantity) > 20).slice(0,6);
-      answer = `Stock recommendation:\n• Low stock (रिप्लेन जरूरी):\n${lowStock.map(s=>` - ${s.name} (SKU:${s.sku}) — ${s.quantity} पीस`).join('\n') || '—'}\n\n• Overstock (offer/combo सुझाएँ):\n${highStock.map(s=>` - ${s.name} — ${s.quantity} पीस`).join('\n') || '—'}\n\nMarketing tip: Fast-moving की micro-ads बनाओ; slow-moving का combo तैयार करो.`;
-      meta = { lowStock, highStock };
+    else if (matchedIntent === 'customerInfo' || matchedIntent === 'retention' || matchedIntent === 'whatsapp') {
+      // try to extract customer name or phone from query (simple)
+      const nameMatch = (userQuery.match(/[A-Z][a-z]+|[A-Za-z]+|[^\s]+/g) || []).slice(0,3).join(' ');
+      const cust = findCustomerByName(nameMatch) || null;
+
+      if (cust) {
+        // compute purchases by this customer
+        const custInvoices = invoices.filter(iv => Number(iv.customer_id) === Number(cust.id));
+        const totalSpent = custInvoices.reduce((s,r)=>s+Number(r.total_amount||0),0);
+        answer = `ग्राहक: ${cust.name} (${cust.phone || 'N/A'})\n• पिछले खरीदारी रिकॉर्ड: ${custInvoices.length} बिल, कुल खर्च ~ ₹${Math.round(totalSpent)}\n`;
+        answer += `Retention idea:\n• इस ग्राहक के लिए personalised offer भेजें: "₹${Math.max(50, Math.round(totalSpent*0.05))} का immediate discount on next purchase" — WhatsApp broadcast से सबसे ज़्यादा असर मिलता है।`;
+      } else {
+        // generic steps to recover lost customer
+        answer = `मुझे ग्राहक की पहचान नहीं मिली। कृपया ग्राहक का नाम या मोबाइल बताइए (या invoice न. दें)।\nसामान्य रणनीति जब ग्राहक दूसरी दुकान चला जाए:\n• SMS/WhatsApp पर 'हम आपको मिस करते हैं' का short coupon भेजें\n• उसके खरीदे सामान के आधार पर relevant bundle भेजें\n• 7 दिन के भीतर repeat-visit पर extra incentive दें`;
+      }
     }
 
-    // 5) Marketing / WhatsApp automation
-    else if (intent.marketing && q.length > 0) {
-      // top 3 items for reels
-      const top3 = topItems.slice(0,3).map(t=>t.name);
-      answer = `Marketing ideas for your shop:\n• Top items for reels: ${top3.join(', ') || '—'}\n• WhatsApp template: "नमस्ते {name}, आज केवल आपके लिए ${top3[0] || 'हमारी नई डील'} पर 10% OFF!"\n• Run short 3-day micro-ads before weekend\n`;
-      meta = { reels: top3, sampleWhatsApp: encodeURIComponent(`नमस्ते, आज केवल आपके लिए ${top3[0]||''} पर 10% OFF!`) };
+    else if (matchedIntent === 'productInfo') {
+      // attempt to find product mentioned
+      const words = userQuery.split(/\s+/).slice(0,6).join(' ');
+      let found = stock.find(s => (s.name || '').toLowerCase().includes(words.toLowerCase()));
+      if (!found) {
+        // try best-effort by SKU patterns
+        found = stock.find(s => (userQuery.toLowerCase().includes(s.sku ? s.sku.toLowerCase() : '')));
+      }
+      if (found) {
+        // compute last sold and sold count
+        const soldQty = invoiceItems.filter(ii => ii.item_sku === found.sku).reduce((a,b)=>a+Number(b.quantity||0),0);
+        answer = `Product: ${found.name} (SKU: ${found.sku})\n• Current stock: ${found.quantity}\n• Total sold (available data): ${soldQty}\n`;
+        if (Number(found.quantity) < 5) answer += 'Recommendation: तुरंत reorder करें — यह fast-moving लग रहा है।';
+        else answer += 'Recommendation: stock ठीक है।';
+      } else {
+        answer = `उस प्रोडक्ट का सही मिलान नहीं हुआ। कृपया product का पूरा नाम या SKU दें।`;
+      }
     }
 
-    // 6) WORLD / GENERAL / ANY-TOPIC (powerful rule-based knowledge)
     else {
-      // Try to answer general knowledge using strong rule-based templates and computed data
-      // category detection
-      let category = 'general';
-      if (containsAny(['health','doctor','pain','बुखार','दवा','hospital'])) category = 'health';
-      else if (containsAny(['history','when','kab','कब','who','kaun'])) category = 'history';
-      else if (containsAny(['why','how','kya','क्या','math','calculate','solve'])) category = 'explain';
-      else if (containsAny(['marketing','ads','campaign','instagram','facebook'])) category = 'marketing';
-      else if (containsAny(['love','relationship','relationship','life'])) category = 'advice';
-
-      if (category === 'health') {
-        answer = `स्वास्थ्य सवाल: सामान्य सुझाव — किसी भी गंभीर लक्षण पर डॉक्टर दिखाएँ। नींद, पानी, और diet सब से बड़ा असर पड़ता है। अगर specific symptom बताएँ तो मैं step-by-step बताऊँगा।`;
-      } else if (category === 'history') {
-        answer = `इतिहास: अगर आप किसी विशेष घटना/तिथि के बारे में पूछना चाहें तो उसका नाम/वर्ष बताइए — मैं संक्षेप में और तथ्यों के साथ बताऊँगा।`;
-      } else if (category === 'explain') {
-        // Math / How to
-        if (containsAny(['calculate','%','percent','how many','kitna','कितना'])) {
-          // crude math parser: find numbers in query
-          const nums = (q.match(/-?\d+(\.\d+)?/g) || []).map(x=>Number(x));
-          if (nums.length >= 2 && q.includes('% of')) {
-            const a = nums[0], b = nums[1];
-            const val = (a/100)*b;
-            answer = `गणित: ${a}% of ${b} = ${val}`;
-          } else {
-            answer = `अगर आप गणित को specific लिखेंगे (जैसे "45% of 780") तो मैं तुरन्त हल दे दूँगा।`;
-          }
-        } else {
-          answer = `पूछा गया प्रश्न: "${short(userQuery, 240)}"\nमैं इस विषय पर detail उत्तर दे सकता हूँ — कृपया specific प्रश्न लिखें।`;
-        }
-      } else if (category === 'marketing') {
-        answer = `Marketing general: Customer first approach, test small ads, measure CTR, double down on what works.`;
-      } else {
-        answer = `आपने पूछा: "${short(userQuery, 400)}"\nमैंने आपके व्यवसाय के आँकड़े और सामान्य ज्ञान के आधार पर यह सलाह दी है। कृपया प्रश्न को थोड़ा specific करें (उदाहरण: 'Rahul कितने दिन में वापस आएगा?' या 'Kis product par ad chalaye') ताकि मैं exact steps दे सकूँ।`;
-      }
+      // generic: smart summary + call-to-action
+      const topFast = topFastMoving(4);
+      answer = `मैंने आपके बिजनेस डेटा का संक्षेप निकाला है — quick actionable insights:\n\n`;
+      answer += `• Estimated profit (available records): ₹${Math.round(totals.profit)}\n• Fast-moving (Top ${topFast.length}): ${topFast.map(i=>i.name).join(', ') || '—'}\n`;
+      answer += `• Dead stock: (उपलब्ध डेटा के हिसाब से analyze करें) — आप 'dead stock दिखाओ' पूछें।\n\n`;
+      answer += `अगला कदम सुझाएँ? — आप ये पूछ सकते हैं:\n• 'Rahul का पूरा record दिखाओ' (किसी ग्राहक पर स्पेसिफिक)\n• 'Top 5 profit-margin items बताओ'\n• 'WhatsApp campaign बनाओ — 2 लाइन का message बनाओ'`;
     }
 
-    // Final safety formatting: trim and ensure not empty
-    if (!answer || typeof answer !== 'string') answer = 'माफ़ कीजिये — मैं इस सवाल का विश्लेषण नहीं कर पाया। कृपया और detail दें।';
+    // add small variation / personalization so answer not always identical
+    answer += `\n\n(सूचना: यह सुझाव आपके उपलब्ध रिकॉर्ड पर आधारित हैं — और अधिक सटीकता के लिए specific SKU/Customer/Date-range पूछें)`;
 
-    // Return both human text and structured meta (optional for frontend features)
-    return res.json({
-      success: true,
-      answer: answer.trim(),
-      meta
-    });
+    return res.json({ success:true, answer });
 
   } catch (err) {
-    console.error('business-chat (ultimate) error:', err);
-    return res.status(500).json({ success:false, message: err.message || 'Server error' });
+    console.error('AI Chat Error:', err);
+    return res.status(500).json({ success:false, message: 'AI चैट में त्रुटि: ' + (err.message || 'unknown') });
   } finally {
-    try { client.release(); } catch(e) {}
+    try { client.release(); } catch(e){}
   }
 });
 
@@ -4065,6 +4003,169 @@ app.get('/api/ai/monthly-strategy', authenticateJWT, async (req, res) => {
     res.status(500).json({ success:false, message: err.message });
   } finally {
     client.release();
+  }
+});
+
+
+
+// ===============================
+// FESTIVAL STRATEGY (AI INSIGHTS)
+// ===============================
+// Add / replace this route in server.cjs
+app.get('/api/ai/festival-strategy', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  // Config: festival list (month-day). You can extend this list.
+  const FESTIVALS = [
+    { key:'diwali', name:'Diwali', month:10, day:24 },     // example (update if needed)
+    { key:'holi', name:'Holi', month:3, day:25 },
+    { key:'raksha', name:'Raksha Bandhan', month:8, day:19 },
+    { key:'navratri', name:'Navratri', month:10, day:15 },
+    { key:'eid', name:'Eid', month:6, day:5 },
+    { key:'christmas', name:'Christmas', month:12, day:25 }
+  ];
+
+  try {
+    // 1) Fetch invoice & invoice_items for past 730 days (2 years) for this shop
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setDate(twoYearsAgo.getDate() - 730);
+    const invoicesRes = await client.query(
+      `SELECT id, created_at FROM invoices WHERE shop_id=$1 AND created_at >= $2`,
+      [shopId, twoYearsAgo.toISOString()]
+    );
+    const invoiceIds = invoicesRes.rows.map(r=>r.id);
+    if (!invoiceIds.length) {
+      return res.json({ success:true, festivals: [], message: 'कोई पिछले 2 वर्षों के invoice रिकॉर्ड नहीं मिले।' });
+    }
+
+    // Fetch invoice_items for those invoices
+    const invoiceItemsRes = await client.query(
+      `SELECT invoice_id, item_sku, item_name, quantity, sale_price, purchase_price 
+       FROM invoice_items WHERE invoice_id = ANY($1::int[])`,
+      [invoiceIds]
+    );
+    const items = invoiceItemsRes.rows || [];
+
+    // Utility: convert date to YYYY-MM-DD
+    const toYMD = d => {
+      const dt = new Date(d);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,'0');
+      const day = String(dt.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    };
+
+    // Build a map: date -> { sku -> qty, revenue, count }
+    const dailyMap = new Map();
+    for (const it of items) {
+      const inv = invoicesRes.rows.find(iv => iv.id === it.invoice_id);
+      if (!inv) continue;
+      const dateKey = toYMD(inv.created_at);
+      if (!dailyMap.has(dateKey)) dailyMap.set(dateKey, {});
+      const sku = it.item_sku || it.item_name || 'UNKNOWN';
+      const entry = dailyMap.get(dateKey);
+      if (!entry[sku]) entry[sku] = { qty:0, revenue:0 };
+      entry[sku].qty += Number(it.quantity || 0);
+      entry[sku].revenue += Number(it.sale_price || 0) * Number(it.quantity || 0);
+    }
+
+    // Helper to sum qty/revenue in window around a given date for each SKU
+    function aggregateWindowAround(month, day, yearWindow = [ -2, -1, 0 ]) {
+      // yearWindow: relative years to consider (e.g., -2,-1)
+      const resultBySku = new Map();
+      const now = new Date();
+      const thisYear = now.getFullYear();
+      for (const rel of yearWindow) {
+        const y = thisYear + rel;
+        // target date
+        const dt = new Date(y, month-1, day); // month-1 because JS months 0-indexed
+        if (isNaN(dt)) continue;
+        // window +/-7 days (configurable)
+        for (let offset=-7; offset<=7; offset++) {
+          const d = new Date(dt);
+          d.setDate(dt.getDate() + offset);
+          const key = toYMD(d);
+          const dayObj = dailyMap.get(key);
+          if (!dayObj) continue;
+          for (const [sku, stats] of Object.entries(dayObj)) {
+            if (!resultBySku.has(sku)) resultBySku.set(sku, { qty:0, revenue:0, samples:0 });
+            const r = resultBySku.get(sku);
+            r.qty += stats.qty;
+            r.revenue += stats.revenue;
+            r.samples += 1;
+            resultBySku.set(sku, r);
+          }
+        }
+      }
+      return resultBySku; // Map sku -> aggregated stats
+    }
+
+    // Compute baseline daily average for each sku over the entire period
+    const baseline = new Map(); // sku -> { totalQty, totalDaysSeen }
+    for (const [dateKey, skuObj] of dailyMap.entries()) {
+      for (const [sku, s] of Object.entries(skuObj)) {
+        if (!baseline.has(sku)) baseline.set(sku, { totalQty:0, days:0 });
+        const b = baseline.get(sku);
+        b.totalQty += s.qty;
+        b.days += 1;
+        baseline.set(sku, b);
+      }
+    }
+    // Convert baseline to avg per day
+    const baselineAvg = new Map();
+    for (const [sku, b] of baseline.entries()) {
+      baselineAvg.set(sku, b.days ? (b.totalQty / b.days) : 0);
+    }
+
+    // For each festival compute aggregated stats and detect top rising SKUs
+    const festivalsOut = [];
+    for (const fest of FESTIVALS) {
+      const agg = aggregateWindowAround(fest.month, fest.day, [-2, -1]); // last 2 years
+      // Convert Map -> array and compute lift vs baseline
+      const arr = [];
+      for (const [sku, s] of agg.entries()) {
+        const avg = baselineAvg.get(sku) || 0.0001; // avoid divide by zero
+        // samples is number of days data seen for that sku in the windows across years
+        // compute avg daily qty in festival window = s.qty / s.samples
+        const avgFestival = s.samples ? (s.qty / s.samples) : 0;
+        const liftPercent = avg ? Math.round(((avgFestival - avg) / (avg || 1)) * 100) : 0;
+        arr.push({ sku, qty: s.qty, revenue: Math.round(s.revenue), samples: s.samples, avgFestival: Math.round(avgFestival*100)/100, baselineAvg: Math.round(avg*100)/100, liftPercent });
+      }
+      arr.sort((a,b)=>b.liftPercent - a.liftPercent);
+      const top = arr.slice(0,8);
+
+      // Suggest stock days: if avgFestival > 0 then suggestedQty = avgFestival * leadDays (7)
+      const suggested = top.map(t => {
+        const suggestedQty = Math.ceil((t.avgFestival || 0) * 7); // keep a week's buffer
+        return { sku: t.sku, liftPercent: t.liftPercent, suggestedQty, revenue: t.revenue, samples: t.samples };
+      });
+
+      // build human-friendly recommendation
+      const rec = suggested.slice(0,5).map(s => `SKU:${s.sku} — suggest keep ${s.suggestedQty} units (lift ~${s.liftPercent}%)`).join('\n');
+
+      // next festival date (compute upcoming date for this festival in current or next year)
+      const now = new Date();
+      let nextDate = new Date(now.getFullYear(), fest.month-1, fest.day);
+      if (nextDate < now) nextDate = new Date(now.getFullYear()+1, fest.month-1, fest.day);
+
+      festivalsOut.push({
+        key: fest.key,
+        name: fest.name,
+        nextDate: nextDate.toISOString().split('T')[0],
+        topProducts: top,
+        suggestions: suggested,
+        recommendationText: rec
+      });
+    }
+
+    return res.json({ success:true, festivals: festivalsOut });
+
+  } catch (err) {
+    console.error('festival-strategy error:', err);
+    return res.status(500).json({ success:false, message: err.message || 'Server error' });
+  } finally {
+    try { client.release(); } catch(e){}
   }
 });
 
