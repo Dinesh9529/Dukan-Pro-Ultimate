@@ -7326,6 +7326,98 @@ document.querySelector('[data-view="ai-insights"]')?.addEventListener('click', (
   // (you might already call renderAiInsightsV2; ensure this is included)
   renderFestivalStrategy();
 });
+
+
+
+
+async function renderMarketingAI() {
+  const box = document.getElementById('ai-marketing-content');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="padding:30px; text-align:center;">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2">Marketing & Ads ideas तैयार किए जा रहे हैं...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetchApi('/api/ai/marketing-ads', { method: 'GET' });
+    if (!res || !res.success) {
+      box.innerHTML = `<div class="alert alert-warning">${res && res.message ? res.message : 'No marketing data'}</div>`;
+      return;
+    }
+
+    const { topProducts, segments, adIdeas, timeframeDays } = res;
+    let html = `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px;">`;
+
+    // Left: Top Products
+    html += `<div class="card" style="padding:12px;">
+      <h5>Top Products (last ${timeframeDays} days)</h5>
+      <ul style="padding-left:16px;">${
+        (topProducts && topProducts.length) ? topProducts.slice(0,8).map(p=>`<li><b>${shortText(p.name,40)}</b> — sold: ${p.qty} • rev: ₹${p.revenue} • avg/day: ${p.avgPerDay}</li>`).join('') : '<li>No data</li>'
+      }</ul>
+    </div>`;
+
+    // Middle: Segments
+    html += `<div class="card" style="padding:12px;">
+      <h5>Customer Segments</h5>
+      <p><b>Top customers:</b> ${segments.topCustomers.map(c=>shortText(c.name||'—',20)).join(', ') || '—'}</p>
+      <p><b>At-risk (inactive):</b> ${segments.atRisk.map(c=>shortText(c.name||'—',20)).join(', ') || '—'}</p>
+      <button class="btn btn-sm btn-primary" onclick="openSegmentDialog()">View segments</button>
+    </div>`;
+
+    // Right: Ad Ideas
+    html += `<div class="card" style="padding:12px;">
+      <h5>Ad Ideas & Campaigns</h5>
+      ${adIdeas.map((a,idx)=>`
+        <div style="margin-bottom:8px; padding:8px; border-radius:6px; background:#f8f9fa;">
+          <b>${a.title}</b>
+          <p style="margin:6px 0;">${shortText(a.script || '', 140)}</p>
+          <small>Budget ≈ ₹${a.budgetSuggestion} • expected uplift ≈ ${a.expectedUpliftPercent}%</small>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button class="btn btn-sm btn-outline-secondary" onclick='copyText(${JSON.stringify(a.script).replace(/'/g,"\\'")})'>Copy Script</button>
+            <button class="btn btn-sm btn-primary" onclick='openWhatsAppForAd(${JSON.stringify(a.script).replace(/'/g,"\\'")})'>Open WhatsApp</button>
+            <button class="btn btn-sm btn-success" onclick='createAdCampaign(${JSON.stringify(a).replace(/'/g,"\\'")})'>Create Campaign</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+
+    html += `</div>`;
+    box.innerHTML = html;
+
+    // helper small UI functions (ensure these declared globally once)
+    window.shortText = (s,n=60) => { if(!s) return ''; return s.length>n? s.slice(0,n-1)+'…': s; };
+    window.copyText = txt => {
+      navigator.clipboard?.writeText(txt).then(()=> alert('Script copied to clipboard'));
+    };
+    window.openWhatsAppForAd = (txt) => {
+      const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(txt)}`;
+      window.open(url,'_blank');
+    };
+    window.createAdCampaign = (idea) => {
+      // Simple demo: store campaign in localStorage or call backend (optional)
+      const campaigns = JSON.parse(localStorage.getItem('dp_campaigns' || '[]') || '[]');
+      campaigns.push({ idea, created_at: new Date().toISOString() });
+      localStorage.setItem('dp_campaigns', JSON.stringify(campaigns));
+      alert('Campaign created (demo). Use Campaigns page to review.');
+    };
+
+  } catch (err) {
+    box.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+  }
+}
+
+// Call when AI tab clicked (add into your existing click handler)
+document.querySelector('[data-view="ai-insights"]')?.addEventListener('click', ()=>{
+  renderMarketingAI();
+});
+
+
+
+
+
+
 </script>
 
 

@@ -4170,6 +4170,169 @@ app.get('/api/ai/festival-strategy', authenticateJWT, async (req, res) => {
 });
 
 
+// ===============================
+// MARKETING & ADS AI (Backend)
+// ===============================
+app.get('/api/ai/marketing-ads', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    // timeframe
+    const daysWindow = 90;
+    const since = new Date(Date.now() - daysWindow * 24*60*60*1000);
+
+    // 1) fetch invoices + items + customers (lightweight)
+    const invoicesRes = await client.query(
+      `SELECT id, created_at, total_amount, customer_id FROM invoices WHERE shop_id=$1 AND created_at >= $2 ORDER BY created_at DESC`,
+      [shopId, since.toISOString()]
+    );
+    const invoiceIds = invoicesRes.rows.map(r => r.id);
+    const itemsRes = invoiceIds.length ? await client.query(
+      `SELECT invoice_id, item_sku, item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = ANY($1::int[])`,
+      [invoiceIds]
+    ) : { rows: [] };
+    const customersRes = await client.query(`SELECT id, name, phone FROM customers WHERE shop_id=$1`, [shopId]);
+
+    const invoices = invoicesRes.rows || [];
+    const items = itemsRes.rows || [];
+    const customers = customersRes.rows || [];
+
+    // 2) aggregate metrics
+    const productMap = new Map(); // sku -> { name, qty, revenue, daysSeen }
+    const dateSet = new Set();
+    for (const inv of invoices) dateSet.add((new Date(inv.created_at)).toISOString().split('T')[0]);
+
+    for (const it of items) {
+      const sku = it.item_sku || it.item_name || 'UNKNOWN';
+      if (!productMap.has(sku)) productMap.set(sku, { sku, name: it.item_name || sku, qty:0, revenue:0, daysSeen: new Set() });
+      const p = productMap.get(sku);
+      p.qty += Number(it.quantity || 0);
+      p.revenue += Number(it.sale_price || 0) * Number(it.quantity || 0);
+      // mark day seen
+      const inv = invoices.find(iv => iv.id === it.invoice_id);
+      if (inv) p.daysSeen.add((new Date(inv.created_at)).toISOString().split('T')[0]);
+    }
+
+    // convert productMap -> array and compute avg/day
+    const totalDays = Math.max(1, dateSet.size);
+    const products = Array.from(productMap.values()).map(p => ({
+      sku: p.sku,
+      name: p.name,
+      qty: p.qty,
+      revenue: Math.round(p.revenue),
+      avgPerDay: Math.round((p.qty / totalDays) * 100)/100,
+      daysSeen: p.daysSeen.size
+    })).sort((a,b)=>b.qty - a.qty);
+
+    // 3) customer RFM segmentation (Recency, Frequency, Monetary)
+    // build invoices by customer
+    const invByCust = {};
+    invoices.forEach(inv => {
+      if (!invByCust[inv.customer_id]) invByCust[inv.customer_id] = [];
+      invByCust[inv.customer_id].push(inv);
+    });
+
+    const now = Date.now();
+    const customersRFM = customers.map(c => {
+      const invs = invByCust[c.id] || [];
+      const freq = invs.length;
+      const monetary = invs.reduce((s,i)=>s+Number(i.total_amount||0),0);
+      const lastDate = invs.length ? new Date(invs[0].created_at) : null;
+      const recency = lastDate ? Math.floor((now - lastDate.getTime())/(24*60*60*1000)) : 9999;
+      return { id: c.id, name: c.name, phone: c.phone, recency, frequency: freq, monetary };
+    });
+
+    // simple scoring and segments
+    const rfmScored = customersRFM.map(c => {
+      let score = 0;
+      // recency score
+      if (c.recency <= 7) score += 40;
+      else if (c.recency <= 30) score += 25;
+      else if (c.recency <= 90) score += 10;
+      // frequency
+      if (c.frequency >= 5) score += 30;
+      else if (c.frequency >= 2) score += 15;
+      // monetary
+      if (c.monetary >= 5000) score += 30;
+      else if (c.monetary >= 1000) score += 15;
+      return { ...c, score };
+    }).sort((a,b)=>b.score - a.score);
+
+    // top segments
+    const topCustomers = rfmScored.slice(0,10);
+    const atRisk = rfmScored.filter(c => c.recency > 30 && c.score < 30).slice(0,10);
+
+    // 4) generate marketing ideas (heuristic templates)
+    const top3Products = products.slice(0,3);
+    const adIdeas = [];
+
+    // Idea A: Local Reel / Short-Video (product push)
+    if (top3Products.length) {
+      adIdeas.push({
+        type: 'reel',
+        title: `Top seller: ${top3Products[0].name} — Quick Reel Idea`,
+        script: `Video: ${top3Products[0].name} close-up → price tag → customer smiling\nCaption: "आज का स्पेशल ${top3Products[0].name} — सिर्फ आज! #LocalDeals"`,
+        budgetSuggestion: Math.max(300, Math.round(top3Products[0].revenue*0.02)), // heuristic
+        expectedUpliftPercent: 8 + Math.min(25, Math.round(top3Products[0].qty/10))
+      });
+    }
+
+    // Idea B: WhatsApp re-engage for at-risk customers
+    adIdeas.push({
+      type: 'whatsapp_reengage',
+      title: `Re-engage lost customers`,
+      script: `नमस्ते {name}, आपका हम पर भरोसा है — आपकी याद के लिए 10% OFF on next purchase. Use code: COMEBACK10`,
+      targetCount: atRisk.length,
+      budgetSuggestion: Math.max(200, atRisk.length * 5), // small incentive cost per customer
+      expectedUpliftPercent: 12
+    });
+
+    // Idea C: Bundle offer for slow moving / high stock items
+    const slowMoving = products.filter(p => p.daysSeen <= Math.max(1, Math.floor(totalDays*0.2))).slice(0,4);
+    if (slowMoving.length) {
+      adIdeas.push({
+        type: 'bundle',
+        title: 'Combo Offer for slow-moving items',
+        script: `Bundle: ${slowMoving.map(x=>x.name).slice(0,3).join(' + ')} — flat 15% off for 3 days`,
+        budgetSuggestion: 300,
+        expectedUpliftPercent: 10
+      });
+    }
+
+    // Idea D: Weekend flash sale focusing on high-margin item
+    const highRevenue = products.slice(0,6).sort((a,b)=>b.revenue - a.revenue)[0];
+    if (highRevenue) {
+      adIdeas.push({
+        type: 'flash_sale',
+        title: `Weekend Flash on ${highRevenue.name}`,
+        script: `यह weekend सिर्फ ${highRevenue.name} पर एक्स्ट्रा ऑफर! limited stock. Hurry!`,
+        budgetSuggestion: 400,
+        expectedUpliftPercent: 15
+      });
+    }
+
+    // 5) response
+    return res.json({
+      success: true,
+      timeframeDays: daysWindow,
+      metrics: { totalProducts: products.length, totalCustomers: customers.length },
+      topProducts: products.slice(0,12),
+      segments: { topCustomers, atRisk },
+      adIdeas
+    });
+
+  } catch (err) {
+    console.error('marketing-ads error:', err);
+    return res.status(500).json({ success:false, message: err.message || 'Server error' });
+  } finally {
+    try { client.release(); } catch(e){}
+  }
+});
+
+
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
