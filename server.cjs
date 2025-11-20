@@ -4333,6 +4333,241 @@ app.get('/api/ai/marketing-ads', authenticateJWT, async (req, res) => {
 
 
 
+// ===============================
+// STEP 13: LOSS FINDER ENGINE (AI)
+// ===============================
+app.get('/api/ai/loss-finder', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    // ---- समय सीमा ----
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // 1) पिछले 24 घंटे के invoices + items
+    const invoices24Res = await client.query(
+      `SELECT id, created_at, total_amount, total_cost
+       FROM invoices
+       WHERE shop_id = $1 AND created_at >= $2`,
+      [shopId, yesterday.toISOString()]
+    );
+    const inv24Ids = invoices24Res.rows.map(r => r.id);
+
+    let items24 = [];
+    if (inv24Ids.length) {
+      const itemsRes = await client.query(
+        `SELECT ii.invoice_id, ii.item_sku, ii.item_name, ii.quantity,
+                ii.sale_price, ii.purchase_price
+         FROM invoice_items ii
+         WHERE ii.invoice_id = ANY($1::int[])`,
+        [inv24Ids]
+      );
+      items24 = itemsRes.rows || [];
+    }
+
+    // 2) पूरा stock (dead/excess stock के लिए)
+    const stockRes = await client.query(
+      `SELECT s.sku, s.name, s.quantity, s.purchase_price, s.sale_price,
+              (s.quantity * s.purchase_price) AS stock_value,
+              (SELECT MAX(i.created_at)
+               FROM invoices i
+               JOIN invoice_items ii ON i.id = ii.invoice_id
+               WHERE i.shop_id = s.shop_id AND ii.item_sku = s.sku) AS last_sold_date
+       FROM stock s
+       WHERE s.shop_id = $1 AND s.quantity > 0`,
+      [shopId]
+    );
+    const stockRows = stockRes.rows || [];
+
+    // 3) Customers for outstanding (उधार)
+    const custRes = await client.query(
+      `SELECT id, name, mobile, balance
+       FROM customers
+       WHERE shop_id = $1`,
+      [shopId]
+    );
+    const customers = custRes.rows || [];
+
+    // -----------------------------
+    // (A) Rate Mistakes (पिछले 24 घंटे)
+    // -----------------------------
+    const rateMistakes = [];
+    let rateMistakeLoss = 0;
+
+    for (const it of items24) {
+      const sp = Number(it.sale_price || 0);
+      const pp = Number(it.purchase_price || 0);
+      const qty = Number(it.quantity || 0);
+
+      if (pp > 0 && sp < pp) {
+        const loss = (pp - sp) * qty;
+        rateMistakeLoss += loss;
+
+        rateMistakes.push({
+          item_name: it.item_name || it.item_sku,
+          sku: it.item_sku,
+          qty,
+          purchase_price: pp,
+          sale_price: sp,
+          loss: Math.round(loss)
+        });
+      }
+    }
+
+    // -----------------------------
+    // (B) Zero / Low Profit Items (overall)
+    // -----------------------------
+    const lowMarginItems = [];
+    const lowMarginRes = await client.query(
+      `SELECT ii.item_sku, ii.item_name,
+              SUM(ii.quantity) AS total_qty,
+              AVG(ii.purchase_price) AS avg_pp,
+              AVG(ii.sale_price) AS avg_sp
+       FROM invoice_items ii
+       JOIN invoices i ON i.id = ii.invoice_id
+       WHERE i.shop_id = $1
+       GROUP BY ii.item_sku, ii.item_name
+       HAVING AVG(ii.sale_price) <= AVG(ii.purchase_price) * 1.05`,   -- 5% से कम margin
+      [shopId]
+    );
+
+    for (const r of lowMarginRes.rows) {
+      const avg_pp = Number(r.avg_pp || 0);
+      const avg_sp = Number(r.avg_sp || 0);
+      const marginPercent = avg_pp ? ((avg_sp - avg_pp) / avg_pp) * 100 : 0;
+      lowMarginItems.push({
+        sku: r.item_sku,
+        name: r.item_name,
+        total_qty: Number(r.total_qty || 0),
+        avg_purchase: Math.round(avg_pp),
+        avg_sale: Math.round(avg_sp),
+        margin_percent: Math.round(marginPercent * 10) / 10
+      });
+    }
+
+    // -----------------------------
+    // (C) Dead Stock (30+ दिन से नहीं बिका)
+    // -----------------------------
+    const deadStock = [];
+    let deadLockedValue = 0;
+
+    for (const s of stockRows) {
+      const lastSold = s.last_sold_date ? new Date(s.last_sold_date) : null;
+      const isDead = !lastSold || lastSold < thirtyDaysAgo;
+      const stockValue = Number(s.stock_value || 0);
+
+      if (isDead && stockValue > 0) {
+        deadStock.push({
+          sku: s.sku,
+          name: s.name,
+          qty: Number(s.quantity || 0),
+          stock_value: Math.round(stockValue),
+          last_sold_date: lastSold ? lastSold.toISOString().split('T')[0] : null
+        });
+        deadLockedValue += stockValue;
+      }
+    }
+
+    // -----------------------------
+    // (D) Excess Stock (बहुत ज्यादा quantity)
+    // Simple heuristic: quantity > 90 days अनुमानित बिक्री
+    // -----------------------------
+    // Sales velocity last 60 days
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const velRes = await client.query(
+      `SELECT ii.item_sku,
+              SUM(ii.quantity) AS total_qty
+       FROM invoice_items ii
+       JOIN invoices i ON i.id = ii.invoice_id
+       WHERE i.shop_id = $1 AND i.created_at >= $2
+       GROUP BY ii.item_sku`,
+      [shopId, sixtyDaysAgo.toISOString()]
+    );
+    const velocity = new Map(); // sku -> avg per day
+    const days60 = 60;
+    for (const v of velRes.rows) {
+      const perDay = Number(v.total_qty || 0) / days60;
+      velocity.set(v.item_sku, perDay);
+    }
+
+    const excessStock = [];
+    for (const s of stockRows) {
+      const perDay = velocity.get(s.sku) || 0;
+      if (perDay <= 0) continue;
+      const maxRecommended = perDay * 90; // 90 days का buffer
+      const qty = Number(s.quantity || 0);
+      if (qty > maxRecommended * 1.3) { // 30% ज्यादा
+        const extraQty = qty - maxRecommended;
+        const extraValue = extraQty * Number(s.purchase_price || 0);
+        excessStock.push({
+          sku: s.sku,
+          name: s.name,
+          qty,
+          approx_daily_sales: Math.round(perDay * 100) / 100,
+          recommended_max: Math.round(maxRecommended),
+          extra_qty: Math.round(extraQty),
+          extra_value: Math.round(extraValue)
+        });
+      }
+    }
+
+    // -----------------------------
+    // (E) Risky Customers (उधार वाला रिस्क)
+    // -----------------------------
+    const riskyCustomers = [];
+    let totalOutstanding = 0;
+
+    for (const c of customers) {
+      const bal = Number(c.balance || 0);
+      if (bal > 0) {
+        totalOutstanding += bal;
+        if (bal >= 2000) {   // threshold configurable
+          riskyCustomers.push({
+            id: c.id,
+            name: c.name,
+            mobile: c.mobile,
+            balance: Math.round(bal)
+          });
+        }
+      }
+    }
+
+    // -----------------------------
+    // SUMMARY बनाएं
+    // -----------------------------
+    const summary = {
+      rate_mistake_loss_24h: Math.round(rateMistakeLoss),
+      dead_stock_locked_value: Math.round(deadLockedValue),
+      risky_customers_count: riskyCustomers.length,
+      risky_customers_outstanding: Math.round(totalOutstanding),
+      low_margin_item_count: lowMarginItems.length,
+      excess_stock_count: excessStock.length
+    };
+
+    return res.json({
+      success: true,
+      summary,
+      rate_mistakes_24h: rateMistakes.slice(0, 50),
+      dead_stock: deadStock.slice(0, 50),
+      low_margin_items: lowMarginItems.slice(0, 50),
+      excess_stock: excessStock.slice(0, 50),
+      risky_customers: riskyCustomers.slice(0, 50)
+    });
+
+  } catch (err) {
+    console.error('LOSS FINDER ERROR:', err);
+    return res.status(500).json({ success: false, message: 'Loss Finder में त्रुटि: ' + err.message });
+  } finally {
+    try { client.release(); } catch (e) {}
+  }
+});
+
+
+
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {

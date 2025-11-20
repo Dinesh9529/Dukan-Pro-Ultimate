@@ -6691,6 +6691,19 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
             </div>
         </div>
 
+
+<!-- LOSS FINDER BOX -->
+<div id="ai-loss-finder" class="ai-box">
+    <h3><i class="fas fa-exclamation-triangle"></i> Loss Finder (नुकसान पकड़ने वाला AI)</h3>
+    <div id="ai-loss-content">
+        <div class="ai-loading">
+            <div class="spinner-border text-danger"></div>
+            <p>नुकसान का विश्लेषण हो रहा है...</p>
+        </div>
+    </div>
+</div>
+
+
         <!-- FESTIVAL STRATEGY -->
         <div id="ai-festival-strategy" class="ai-box">
             <h3><i class="fas fa-fireworks"></i> Festival Strategy</h3>
@@ -6889,6 +6902,7 @@ async function loadUltimateAI() {
     const whatsappData = await fetchApi("/api/ai/clients-whatsapp", { method:"GET" });
     const probData = await fetchApi("/api/ai/customer-probability", { method:"GET" });
     const monthlyData = await fetchApi("/api/ai/monthly-strategy", { method:"GET" });
+    const lossData = await fetchApi("/api/ai/loss-finder", { method: "GET" });
 
 
 
@@ -6903,6 +6917,7 @@ async function loadUltimateAI() {
     renderPrediction(predictionData);
     renderCustomerProbability(probData);
     renderMonthlyStrategy(monthlyData);
+    renderLossFinder(lossData);
 
 
     // Render WhatsApp Advisor
@@ -7416,14 +7431,157 @@ document.querySelector('[data-view="ai-insights"]')?.addEventListener('click', (
 
 
 
+async function renderLossFinder() {
+  const box = document.getElementById('ai-loss-content');
+  if (!box) return;
+
+  box.innerHTML = `
+    <div style="padding:24px; text-align:center;">
+      <div class="spinner-border text-danger" role="status"></div>
+      <p class="mt-2">नुकसान की रिपोर्ट तैयार की जा रही है...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetchApi('/api/ai/loss-finder', { method: 'GET' });
+    if (!res || !res.success) {
+      box.innerHTML = `<div class="alert alert-warning">${res && res.message ? res.message : 'Loss Finder डेटा नहीं मिला।'}</div>`;
+      return;
+    }
+
+    const s = res.summary || {};
+    const rateMistakes = res.rate_mistakes_24h || [];
+    const deadStock = res.dead_stock || [];
+    const lowMargin = res.low_margin_items || [];
+    const excess = res.excess_stock || [];
+    const riskyCust = res.risky_customers || [];
+
+    // SUMMARY TOP
+    let html = `
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card p-3 border-danger">
+            <h6 class="text-danger mb-1">पिछले 24 घंटे का अनुमानित नुकसान</h6>
+            <h3 class="mb-0">₹${s.rate_mistake_loss_24h || 0}</h3>
+            <small>गलत rate / गलत billing से</small>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3 border-warning">
+            <h6 class="text-warning mb-1">Dead Stock में फँसा पैसा</h6>
+            <h3 class="mb-0">₹${s.dead_stock_locked_value || 0}</h3>
+            <small>30+ दिन से न बिकने वाला stock</small>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3 border-info">
+            <h6 class="text-info mb-1">उधार पर अटका हुआ पैसा</h6>
+            <h3 class="mb-0">₹${s.risky_customers_outstanding || 0}</h3>
+            <small>${s.risky_customers_count || 0} risky ग्राहक</small>
+          </div>
+        </div>
+      </div>
+
+      <hr class="my-3">
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h5>Rate Mistake (पिछले 24 घंटे)</h5>
+          <div style="max-height:220px; overflow:auto; font-size:0.9rem;">
+            ${
+              rateMistakes.length
+              ? rateMistakes.map(r => `
+                <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+                  <b>${r.item_name}</b> (SKU: ${r.sku || '-'})<br>
+                  Qty: ${r.qty} • P: ₹${r.purchase_price} • S: ₹${r.sale_price}<br>
+                  <span class="text-danger">Loss ≈ ₹${r.loss}</span>
+                </div>
+              `).join('')
+              : `<div class="text-muted">पिछले 24 घंटे में कोई rate mistake detect नहीं हुई।</div>`
+            }
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <h5>Dead Stock (30+ दिन से नहीं बिका)</h5>
+          <div style="max-height:220px; overflow:auto; font-size:0.9rem;">
+            ${
+              deadStock.length
+              ? deadStock.map(d => `
+                <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+                  <b>${d.name}</b> (SKU: ${d.sku || '-'})<br>
+                  Qty: ${d.qty} • Value: ₹${d.stock_value}<br>
+                  Last Sold: ${d.last_sold_date || 'कभी नहीं'}
+                </div>
+              `).join('')
+              : `<div class="text-muted">अभी कोई बड़ा dead stock नहीं दिख रहा।</div>`
+            }
+          </div>
+        </div>
+      </div>
+
+      <hr class="my-3">
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h5>Low / Zero Profit Items</h5>
+          <div style="max-height:220px; overflow:auto; font-size:0.9rem;">
+            ${
+              lowMargin.length
+              ? lowMargin.map(i => `
+                <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+                  <b>${i.name}</b> (SKU: ${i.sku || '-'})<br>
+                  Avg P: ₹${i.avg_purchase} • Avg S: ₹${i.avg_sale}<br>
+                  Margin ≈ ${i.margin_percent}% • Sold Qty: ${i.total_qty}
+                </div>
+              `).join('')
+              : `<div class="text-muted">कोई clear low-margin item detect नहीं हुआ।</div>`
+            }
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <h5>Risky Customers (High Outstanding)</h5>
+          <div style="max-height:220px; overflow:auto; font-size:0.9rem;">
+            ${
+              riskyCust.length
+              ? riskyCust.map(c => `
+                <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+                  <b>${c.name}</b> • ₹${c.balance}<br>
+                  ${c.mobile ? `📞 ${c.mobile}` : ''}
+                  <button class="btn btn-sm btn-outline-primary ms-2" onclick="openWhatsAppForDue('${(c.mobile||'').replace(/'/g,'')}', '${c.name.replace(/'/g,'')}', ${c.balance})">
+                    WhatsApp Reminder
+                  </button>
+                </div>
+              `).join('')
+              : `<div class="text-muted">कोई high-risk उधार customer नहीं मिला।</div>`
+            }
+          </div>
+        </div>
+      </div>
+    `;
+
+    box.innerHTML = html;
+
+  } catch (err) {
+    box.innerHTML = `<div class="alert alert-danger">Loss Finder Error: ${err.message}</div>`;
+  }
+}
+
+// WhatsApp reminder helper (global)
+function openWhatsAppForDue(mobile, name, amount){
+  if(!mobile){
+    alert('इस customer का मोबाइल नंबर सेव नहीं है।');
+    return;
+  }
+  const msg = `Namaste ${name},\\n\\nAapka approximate baki rakam: ₹${amount}. Kripya apne suvidha anusar jama kar dijiye. Dhanyavaad.`;
+  const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
 
 
 </script>
 
-
-
-           
-                
 
 </body>
 </html>
