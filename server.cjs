@@ -4429,7 +4429,7 @@ app.get('/api/ai/loss-finder', authenticateJWT, async (req, res) => {
        JOIN invoices i ON i.id = ii.invoice_id
        WHERE i.shop_id = $1
        GROUP BY ii.item_sku, ii.item_name
-       HAVING AVG(ii.sale_price) <= AVG(ii.purchase_price) * 1.05`,   -- 5% से कम margin
+      HAVING AVG(ii.sale_price) <= AVG(ii.purchase_price) * 1.05   -- 5% से कम margin
       [shopId]
     );
 
