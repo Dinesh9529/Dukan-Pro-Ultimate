@@ -3244,8 +3244,9 @@ function fetchAndPopulateShopData() {
             case 'shop-settings': fetchAndRenderShopSettings(); break; 
             case 'staff': renderStaff(); break; 
             case 'ai-insights':
-                renderAiInsights();
-                break;
+            loadUltimateAI();
+            break;
+
         }
         
         // --- 🚀 कमेंट खत्म ---
@@ -6864,9 +6865,10 @@ async function askBusinessAI(){
     
     // When clicking AI sidebar → load insights
     document.querySelector('[data-view="ai-insights"]').addEventListener("click",()=>{
-        showSection("ai-insights");
-        renderAiInsightsFinal();
-    });
+    renderView("ai-insights");
+    loadUltimateAI();   // या renderAiInsightsFinal() → जो भी नया इस्तेमाल कर रहे हो
+});
+
     </script>
         
         <script>
@@ -7233,12 +7235,11 @@ function renderMonthlyStrategy(data){
 
 
             
-            /* optional: auto-load when user clicks menu */
-            document.querySelector('[data-view="ai-insights"]')
-              ?.addEventListener("click",()=>{
-                 showSection("ai-insights");
-                 loadUltimateAI();
-              });
+document.querySelector('[data-view="ai-insights"]')
+?.addEventListener("click", () => {
+    renderView("ai-insights");  // यह सही तरीके से section load करेगा
+    loadUltimateAI();           // यह AI Insights लोड करेगा
+});
 
 
 
