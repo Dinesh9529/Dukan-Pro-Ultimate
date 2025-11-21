@@ -4383,7 +4383,7 @@ app.get('/api/ai/loss-finder', authenticateJWT, async (req, res) => {
 
     // 3) Customers for outstanding (उधार)
     const custRes = await client.query(
-      `SELECT id, name, mobile, balance
+      `SELECT id, name, balance
        FROM customers
        WHERE shop_id = $1`,
       [shopId]
