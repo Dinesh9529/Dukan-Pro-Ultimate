@@ -4419,33 +4419,41 @@ app.get('/api/ai/loss-finder', authenticateJWT, async (req, res) => {
     // -----------------------------
     // (B) Zero / Low Profit Items (overall)
     // -----------------------------
-    const lowMarginItems = [];
-    const lowMarginRes = await client.query(
-      `SELECT ii.item_sku, ii.item_name,
-              SUM(ii.quantity) AS total_qty,
-              AVG(ii.purchase_price) AS avg_pp,
-              AVG(ii.sale_price) AS avg_sp
-       FROM invoice_items ii
-       JOIN invoices i ON i.id = ii.invoice_id
-       WHERE i.shop_id = $1
-       GROUP BY ii.item_sku, ii.item_name
-      HAVING AVG(ii.sale_price) <= AVG(ii.purchase_price) * 1.05   -- 5% से कम margin
-      [shopId]
-    );
+    // -----------------------------
+// (B) Zero / Low Profit Items (overall)
+// -----------------------------
+const lowMarginItems = [];
 
-    for (const r of lowMarginRes.rows) {
-      const avg_pp = Number(r.avg_pp || 0);
-      const avg_sp = Number(r.avg_sp || 0);
-      const marginPercent = avg_pp ? ((avg_sp - avg_pp) / avg_pp) * 100 : 0;
-      lowMarginItems.push({
-        sku: r.item_sku,
-        name: r.item_name,
-        total_qty: Number(r.total_qty || 0),
-        avg_purchase: Math.round(avg_pp),
-        avg_sale: Math.round(avg_sp),
-        margin_percent: Math.round(marginPercent * 10) / 10
-      });
-    }
+const lowMarginRes = await client.query(
+  `SELECT ii.item_sku, ii.item_name,
+          SUM(ii.quantity) AS total_qty,
+          AVG(ii.purchase_price) AS avg_pp,
+          AVG(ii.sale_price) AS avg_sp
+    FROM invoice_items ii
+    JOIN invoices i ON i.id = ii.invoice_id
+    WHERE i.shop_id = $1
+    GROUP BY ii.item_sku, ii.item_name
+    HAVING AVG(ii.sale_price) <= AVG(ii.purchase_price) * 1.05
+  `,
+  [shopId]
+);
+
+for (const r of lowMarginRes.rows) {
+  const avg_pp = Number(r.avg_pp || 0);
+  const avg_sp = Number(r.avg_sp || 0);
+
+  const marginPercent = avg_pp ? ((avg_sp - avg_pp) / avg_pp) * 100 : 0;
+
+  lowMarginItems.push({
+    sku: r.item_sku,
+    name: r.item_name,
+    total_qty: Number(r.total_qty || 0),
+    avg_purchase: Math.round(avg_pp),
+    avg_sale: Math.round(avg_sp),
+    margin_percent: Math.round(marginPercent * 10) / 10
+  });
+}
+
 
     // -----------------------------
     // (C) Dead Stock (30+ दिन से नहीं बिका)
