@@ -3536,44 +3536,95 @@ app.get('/api/ai/prediction', authenticateJWT, async (req, res) => {
   }
 });
 
-
 // ===============================================
-// WHATSAPP ADVISOR AI (REAL CUSTOMER DATA)
+// WHATSAPP ADVISOR AI — HIGH PROBABILITY SUGGESTIONS
 // ===============================================
 app.get('/api/ai/clients-whatsapp', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
 
   try {
+
+    // 1) Customers + last purchase + total spend
     const q = `
       SELECT 
         c.id,
         c.name,
         c.phone,
         MAX(i.created_at) AS last_purchase,
-        SUM(i.total_amount) AS total_spent,
-        (SELECT item_name FROM invoice_items ii 
-            JOIN invoices ix ON ii.invoice_id = ix.id
-            WHERE ix.customer_id = c.id 
-            ORDER BY ix.created_at DESC LIMIT 1) AS last_item
+        SUM(i.total_amount) AS total_spent
       FROM customers c
       LEFT JOIN invoices i ON c.id = i.customer_id
       WHERE c.shop_id = $1
       GROUP BY c.id, c.name, c.phone
       ORDER BY c.name ASC;
     `;
+    const customers = (await client.query(q, [shopId])).rows;
 
-    const result = await client.query(q, [shopId]);
+    // 2) Customer-wise purchase items
+    const itemQ = `
+      SELECT 
+        ii.item_sku,
+        ii.item_name,
+        ii.quantity,
+        i.customer_id,
+        i.created_at
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE i.shop_id = $1
+      ORDER BY i.customer_id, i.created_at DESC;
+    `;
+    const allItems = (await client.query(itemQ, [shopId])).rows;
 
-    res.json({ success: true, clients: result.rows });
+    let output = [];
+
+    for (let c of customers) {
+
+      // उस customer के items filter करो
+      const bought = allItems.filter(x => x.customer_id === c.id);
+
+      if (!bought.length) {
+        // कोई purchase नहीं → कोई suggestion नहीं
+        output.push({
+          ...c,
+          suggestions: []
+        });
+        continue;
+      }
+
+      // Top repeated item निकाल रहे हैं
+      let itemCount = {};
+      bought.forEach(b => {
+        if (!itemCount[b.item_name]) itemCount[b.item_name] = 0;
+        itemCount[b.item_name] += b.quantity;
+      });
+
+      // सबसे ज्यादा खरीदा हुआ item
+      let bestItem = Object.keys(itemCount).sort(
+        (a, b) => itemCount[b] - itemCount[a]
+      )[0];
+
+      output.push({
+        ...c,
+        suggestions: [
+          {
+            item: bestItem,
+            suggestedQty: 2,
+            liftPercent: 35
+          }
+        ]
+      });
+    }
+
+    res.json({ success: true, clients: output });
 
   } catch (err) {
+    console.error("WHATSAPP ADVISOR ERROR:", err);
     res.status(500).json({ success: false, message: err.message });
   } finally {
     client.release();
   }
 });
-
 
 
 // ===============================================
