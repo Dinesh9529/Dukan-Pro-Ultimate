@@ -4625,6 +4625,164 @@ for (const r of lowMarginRes.rows) {
 
 
 
+// ===============================
+// STEP 14 — Personalised Customer Targeting AI
+// ===============================
+app.get('/api/ai/customer-targeting', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+
+  try {
+    // 1) Basic customer list
+    const cRes = await client.query(
+      `SELECT id, name, COALESCE(phone, mobile, '') AS phone
+       FROM customers
+       WHERE shop_id = $1`,
+      [shopId]
+    );
+    const customers = cRes.rows;
+
+    // 2) Fetch invoices (id, customer_id, created_at, total_amount) for shop
+    const invRes = await client.query(
+      `SELECT id, customer_id, created_at, total_amount
+       FROM invoices
+       WHERE shop_id = $1
+       ORDER BY customer_id, created_at ASC`,
+      [shopId]
+    );
+    const invoices = invRes.rows;
+
+    // 3) Fetch invoice_items (for top items per customer)
+    const itemsRes = await client.query(
+      `SELECT i.customer_id, ii.item_sku, ii.item_name, ii.quantity, i.created_at
+       FROM invoice_items ii
+       JOIN invoices i ON ii.invoice_id = i.id
+       WHERE i.shop_id = $1
+       ORDER BY i.customer_id, i.created_at DESC`,
+      [shopId]
+    );
+    const items = itemsRes.rows;
+
+    const now = new Date();
+    const output = [];
+
+    // Helper to group invoices per customer
+    const invByCustomer = new Map();
+    invoices.forEach(inv => {
+      const arr = invByCustomer.get(inv.customer_id) || [];
+      arr.push(inv);
+      invByCustomer.set(inv.customer_id, arr);
+    });
+
+    // Items per customer
+    const itemsByCustomer = new Map();
+    items.forEach(it => {
+      const arr = itemsByCustomer.get(it.customer_id) || [];
+      arr.push(it);
+      itemsByCustomer.set(it.customer_id, arr);
+    });
+
+    // For each customer compute metrics
+    for (const c of customers) {
+      const custInvs = invByCustomer.get(c.id) || [];
+      const custItems = itemsByCustomer.get(c.id) || [];
+
+      // last purchase
+      const lastPurchase = custInvs.length ? new Date(custInvs[custInvs.length - 1].created_at) : null;
+
+      // frequency & avg interval
+      let avgIntervalDays = null;
+      if (custInvs.length >= 2) {
+        // compute diffs between consecutive purchases in days
+        const diffs = [];
+        for (let i = 1; i < custInvs.length; i++) {
+          const prev = new Date(custInvs[i-1].created_at);
+          const cur = new Date(custInvs[i].created_at);
+          const d = Math.round((cur - prev) / (1000*60*60*24));
+          if (d >= 0) diffs.push(d);
+        }
+        if (diffs.length) {
+          const sum = diffs.reduce((a,b)=>a+b,0);
+          avgIntervalDays = sum / diffs.length;
+        }
+      }
+
+      // top items (by total quantity)
+      const topMap = {};
+      custItems.forEach(it => {
+        const name = it.item_name || it.item_sku || 'UNKNOWN';
+        topMap[name] = (topMap[name] || 0) + Number(it.quantity || 0);
+      });
+      const topItems = Object.keys(topMap)
+        .map(name => ({ name, qty: topMap[name] }))
+        .sort((a,b) => b.qty - a.qty)
+        .slice(0,3);
+
+      // predict next purchase date (simple) = lastPurchase + avgInterval
+      let predictedNextDate = null;
+      let willReturnSoon = false;
+      if (lastPurchase && avgIntervalDays !== null) {
+        const next = new Date(lastPurchase.getTime() + Math.round(avgIntervalDays) * 24*60*60*1000);
+        predictedNextDate = next.toISOString().split('T')[0];
+        const diffDays = Math.round((next - now)/(1000*60*60*24));
+        // if predicted next within next 2 days -> high probability
+        if (diffDays >= 0 && diffDays <= 2) willReturnSoon = true;
+      }
+
+      // classify status
+      const daysSinceLast = lastPurchase ? Math.round((now - lastPurchase)/(1000*60*60*24)) : null;
+      const status = daysSinceLast === null ? 'no_purchase' :
+                     daysSinceLast > 90 ? 'lost' :
+                     (daysSinceLast <= 7 ? 'recent' : 'inactive');
+
+      // recommended offer item: topItems[0] or fallback popular item from their list
+      const recommendedItem = topItems.length ? topItems[0].name : (custItems[0] ? (custItems[0].item_name||custItems[0].item_sku) : null);
+
+      // create a suggested message (Hindi) — keep short
+      const message = recommendedItem ? 
+        `${c.name} जी, प्रणाम! आपने पहले ${recommendedItem} लिया था। आज हम आपको यह ऑफर दे रहे हैं: 10% छूट—अगर चाहिए तो Reply करें.` :
+        `${c.name} जी, प्रणाम! हम आपकी दुकान पर नए ऑफर लेकर आए हैं—चेक करिए और बताइए।`;
+		`${c.name} जी, ${item} के साथ आज Buy 2 Get 1 का ऑफर है। स्टॉक सीमित है — जल्दी लें।`;
+
+
+      // final probability score (simple heuristic)
+      let score = 0;
+      if (willReturnSoon) score += 60;
+      if (status === 'recent') score += 20;
+      if (topItems.length) score += 10;
+      if (avgIntervalDays !== null && avgIntervalDays <= 7) score += 10;
+      if (score > 100) score = 100;
+
+      output.push({
+        id: c.id,
+        name: c.name,
+        phone: c.phone || '',
+        last_purchase: lastPurchase ? lastPurchase.toISOString().split('T')[0] : null,
+        days_since_last: daysSinceLast,
+        total_purchases: custInvs.length,
+        avg_interval_days: avgIntervalDays === null ? null : Math.round(avgIntervalDays*10)/10,
+        predicted_next: predictedNextDate,
+        will_return_soon: willReturnSoon,
+        status,
+        top_items: topItems,
+        recommended_item: recommendedItem,
+        suggested_message: message,
+        probability_score: score
+      });
+    }
+
+    // sort by probability_score desc
+    output.sort((a,b)=>b.probability_score - a.probability_score);
+
+    res.json({ success: true, customers: output });
+
+  } catch (err) {
+    console.error('CUSTOMER TARGETING ERROR:', err);
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
 
 
 
