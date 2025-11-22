@@ -6753,6 +6753,16 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
       <button type="button" onclick="askBusinessAI()" class="ai-refresh-btn">पूछें</button>
     </div>
   </div>
+
+
+  
+<!-- (A) small HTML container — add inside your ai-insights section (where you want it to appear) -->
+<div id="ai-customer-targeting" class="ai-box">
+    <h3><i class="fas fa-bullseye"></i> Personalised Customer Targeting</h3>
+    <div id="ai-customer-targeting-content">
+      <div class="ai-loading"><div class="spinner-border text-primary"></div><p>लोगों का चयन किया जा रहा है...</p></div>
+    </div>
+  </div>
   
 </section>
 
@@ -6905,6 +6915,7 @@ async function loadUltimateAI() {
     const probData = await fetchApi("/api/ai/customer-probability", { method:"GET" });
     const monthlyData = await fetchApi("/api/ai/monthly-strategy", { method:"GET" });
     const lossData = await fetchApi("/api/ai/loss-finder", { method: "GET" });
+    const targetingData = await fetchApi("/api/ai/customer-targeting", { method: "GET" });
 
 
 
@@ -6920,6 +6931,7 @@ async function loadUltimateAI() {
     renderCustomerProbability(probData);
     renderMonthlyStrategy(monthlyData);
     renderLossFinder(lossData);
+    renderCustomerTargeting(targetingData.customers || targetingData);
 
 
     // Render WhatsApp Advisor
@@ -7568,6 +7580,62 @@ async function renderLossFinder() {
     box.innerHTML = `<div class="alert alert-danger">Loss Finder Error: ${err.message}</div>`;
   }
 }
+
+
+
+
+// (B) Fetch + render functions
+async function fetchCustomerTargeting() {
+  try {
+    const res = await fetchApi('/api/ai/customer-targeting', { method: 'GET' });
+    if (!res.success) throw new Error(res.message || 'No data');
+    return res.customers || [];
+  } catch (e) {
+    console.error('fetchCustomerTargeting error', e);
+    return [];
+  }
+}
+
+function renderCustomerTargeting(customers) {
+  const el = document.getElementById('ai-customer-targeting-content');
+  if (!customers || !customers.length) {
+    el.innerHTML = `<div class="ai-card-alert ai-alert-danger">कोई टार्गेट सुझाव उपलब्ध नहीं।</div>`;
+    return;
+  }
+
+  let html = '';
+  // top 10 customers by probability
+  customers.slice(0, 10).forEach(c => {
+    html += `
+      <div class="ai-card-alert ${c.will_return_soon ? 'ai-alert-success' : 'ai-alert-info'}">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <b>${c.name}</b> ${c.phone ? `<small>(${c.phone})</small>` : ''}
+            <div class="text-muted-small">Last: ${c.last_purchase || '—'} (${c.days_since_last === null ? '—' : c.days_since_last + 'd'})</div>
+            <div class="text-muted-small">Top: ${c.top_items.map(t=>t.name).join(', ') || '—'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="ai-badge ai-badge-blue">Score: ${c.probability_score}</div>
+            <div style="margin-top:6px;">
+              <a class="btn btn-sm btn-outline-primary" href="https://wa.me/${c.phone.replace(/[^0-9]/g,'') || ''}?text=${encodeURIComponent(c.suggested_message)}" target="_blank">WhatsApp भेजें</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  el.innerHTML = html;
+}
+
+
+
+
+
+
+
+
+
 
 // WhatsApp reminder helper (global)
 function openWhatsAppForDue(mobile, name, amount){
