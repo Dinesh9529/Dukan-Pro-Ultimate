@@ -4635,7 +4635,7 @@ app.get('/api/ai/customer-targeting', authenticateJWT, async (req, res) => {
   try {
     // 1) Basic customer list
     const cRes = await client.query(
-      `SELECT id, name, COALESCE(phone, mobile, '') AS phone
+      `SELECT id, name, COALESCE(phone, '') AS phone
        FROM customers
        WHERE shop_id = $1`,
       [shopId]
@@ -4742,8 +4742,7 @@ app.get('/api/ai/customer-targeting', authenticateJWT, async (req, res) => {
       const message = recommendedItem ? 
         `${c.name} जी, प्रणाम! आपने पहले ${recommendedItem} लिया था। आज हम आपको यह ऑफर दे रहे हैं: 10% छूट—अगर चाहिए तो Reply करें.` :
         `${c.name} जी, प्रणाम! हम आपकी दुकान पर नए ऑफर लेकर आए हैं—चेक करिए और बताइए।`;
-		`${c.name} जी, ${item} के साथ आज Buy 2 Get 1 का ऑफर है। स्टॉक सीमित है — जल्दी लें।`;
-
+		
 
       // final probability score (simple heuristic)
       let score = 0;
