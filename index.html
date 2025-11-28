@@ -2595,115 +2595,131 @@ function initDashboardSocket() {
  * 3. Smart QR (JSON data)
  * 4. Naya item (404 Error)
  */
- async function handleBarcodeScan(skuFromScanner = null) {
-    let sku;
+ // [ ✅ ULTRA-SMART SCANNER FUNCTION - इसे पेस्ट करें ]
 
+async function handleBarcodeScan(skuFromScanner = null) {
+    let scannedData;
+
+    // 1. इनपुट सोर्स चेक करें (मोबाइल या कंप्यूटर स्कैनर)
     if (skuFromScanner) {
-        // Case 1: SKU mobile WebSocket scanner se aaya hai
-        sku = skuFromScanner;
+        scannedData = skuFromScanner;
     } else {
-        // Case 2: SKU physical barcode scanner (computer se) aaya hai
         const barcodeInput = document.getElementById('barcode-scanner-input');
-        sku = barcodeInput.value.trim();
-        barcodeInput.value = ''; // Input ko turant saaf karein
-    }
-
-    if (!sku) return; // Khaali scan ko ignore karein
-
-    // --- Point 2: Smart QR Code Check ---
-    // Check karein ki scan kiya gaya data ek JSON object (QR Code) hai ya nahi
-    if (sku.startsWith('{') && sku.endsWith('}')) {
-        try {
-            const smartData = JSON.parse(sku);
-
-            // Check karein ki zaroori data (sku, name, price) hai ya nahi
-            if (smartData.sku && smartData.name && smartData.sale_price) {
-
-                // Is naye item ko direct "Stock Prabandhan" mein add karein
-                const itemData = {
-                    sku: smartData.sku,
-                    name: smartData.name,
-                    sale_price: smartData.sale_price,
-                    purchase_price: smartData.purchase_price || 0,
-                    quantity: 1,
-                    unit: 'Pcs'
-                };
-
-                showLoader('Smart QR se naya item add ho raha hai...');
-                // Stock Prabandhan (Database) mein add karein
-                const res = await fetchApi('/api/stock', { method: 'POST', body: itemData }, null);
-
-                if (!res.success) {
-                     // Agar SKU pehle se hi database mein hai
-                    if (res.message.includes('डुप्लिकेट कुंजी') || res.message.includes('duplicate key')) {
-                         // Toh use "Puraana Item" maanein aur Kadam 3 par jaakar fetch karein
-                         // (Neeche wala API call)
-                         console.log('Smart QR SKU pehle se hi stock mein hai. Ise cart mein add kar rahe hain...');
-                    } else {
-                        throw new Error(res.message);
-                    }
-                } else {
-                    // Agar naya item safalta se save ho gaya hai
-                    currentStock.push(res.stock); // 'currentStock' array ko update karein
-                }
-
-                // Ab item ko POS Cart mein add karein
-                addSKUToCart(smartData.sku); // Function ko call karein
-                hideLoader();
-                return; // Function ko yahin rok dein
-
-            }
-        } catch (e) {
-            console.warn('Scan ek JSON jaisa tha, par parse nahi hua:', e.message);
-            // Ise normal SKU ki tarah process hone dein
+        if (barcodeInput) {
+            scannedData = barcodeInput.value.trim();
+            barcodeInput.value = ''; // इनपुट साफ़ करें
         }
     }
 
-    // --- Point 1: Standard Barcode (Dumb) Check ---
-    // (Yeh "Smart QR" check fail hone par ya normal scan hone par chalega)
+    if (!scannedData) return; // खाली है तो रुक जाएं
 
+    // =========================================================
+    // 🧠 MODE 1: SMART QR (JSON DATA) - AUTO ENTRY
+    // =========================================================
+    if (scannedData.startsWith('{') && scannedData.endsWith('}')) {
+        try {
+            const itemData = JSON.parse(scannedData);
+
+            // वैलिडेशन: क्या इसमें ज़रूरी डेटा है?
+            if (itemData.sku && itemData.name && itemData.sale_price) {
+                
+                showLoader('Smart QR! आइटम प्रोसेस हो रहा है...');
+
+                // A. सर्वर पर आइटम सेव/अपडेट करें (ताकि अगली बार डेटाबेस में रहे)
+                try {
+                    const res = await fetchApi('/api/stock', {
+                        method: 'POST',
+                        body: {
+                            sku: itemData.sku,
+                            name: itemData.name,
+                            sale_price: itemData.sale_price,
+                            purchase_price: itemData.purchase_price || 0,
+                            quantity: 1, // डिफ़ॉल्ट स्टॉक
+                            unit: 'Pcs',
+                            product_attributes: {
+                                "Size": itemData.size || "N/A",
+                                "Color": itemData.color || "N/A"
+                            }
+                        }
+                    }, null); // लोडर मैसेज null रखा है ताकि UI फ्लिकर न करे
+
+                    // B. लोकल स्टॉक लिस्ट (currentStock) को अपडेट करें
+                    // अगर सर्वर ने 'duplicate' एरर दिया, तो भी हम itemData का इस्तेमाल करेंगे
+                    const finalItem = (res.success && res.stock) ? res.stock : itemData;
+                    
+                    // चेक करें कि क्या यह आइटम लोकल लिस्ट में पहले से है
+                    const existingIdx = currentStock.findIndex(s => s.sku === finalItem.sku);
+                    if (existingIdx > -1) {
+                        currentStock[existingIdx] = { ...currentStock[existingIdx], ...finalItem };
+                    } else {
+                        currentStock.push(finalItem);
+                    }
+
+                } catch (serverError) {
+                    console.log("सर्वर एंट्री स्किप हुई (शायद पहले से मौजूद है), कार्ट में सीधे जोड़ रहे हैं...");
+                    // अगर सर्वर फेल भी हो, तो हम स्मार्ट QR के डेटा पर भरोसा करके आगे बढ़ेंगे
+                    const tempItem = {
+                        ...itemData,
+                        quantity: 100, // वर्चुअल स्टॉक
+                        product_attributes: { "Size": itemData.size, "Color": itemData.color }
+                    };
+                    currentStock.push(tempItem);
+                }
+
+                // C. अंत में: आइटम को सीधे कार्ट में डालें
+                addSKUToCart(itemData.sku);
+                
+                hideLoader();
+                showMessage('सफलता', 'Smart QR: आइटम कार्ट में जुड़ गया!', 'success');
+                return; // यहाँ काम खत्म, बाहर निकलें
+            }
+        } catch (e) {
+            console.warn("QR JSON पार्स नहीं हुआ, साधारण बारकोड की तरह ट्राई कर रहे हैं...", e);
+            // अगर JSON नहीं है, तो नीचे वाला कोड चलेगा
+        }
+    }
+
+    // =========================================================
+    // 🔍 MODE 2: STANDARD BARCODE (DATABASE CHECK)
+    // =========================================================
     try {
-        // Server se SKU ki jaankaari laayein
-        const stockItem = await fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, null);
+        const stockItem = await fetchApi(`/api/get-stock-item/${scannedData}`, { method: 'GET' }, null);
 
         if (stockItem.success) {
-            // SUCCESS: Item database mein mil gaya
-            addSKUToCart(sku); // Helper function ko call karein
+            // आइटम मिल गया -> कार्ट में डालें
+            addSKUToCart(scannedData);
         } else {
-            // Yeh tab chalega jab server 'success: false' bhejta hai (lekin 404 nahi)
             throw new Error(stockItem.message);
         }
 
     } catch (error) {
-        // --- YEH AAPKA "POINT 1" (Naya Item) HAI ---
-        // Agar error '404' (Not Found) hai (ya 'SKU स्टॉक में नहीं मिला')
-        if (error.message.includes('404') || error.message.includes('SKU स्टॉक में नहीं मिला')) {
-
-            // Naya "Quick Add" Modal kholein
+        // =====================================================
+        // ➕ MODE 3: UNKNOWN ITEM (QUICK ADD FORM)
+        // =====================================================
+        // अगर 404 है, तो इसका मतलब आइटम नया है
+        if (error.message.includes('404') || error.message.includes('नहीं मिला')) {
+            
+            // "Quick Add" वाला फॉर्म खोलें
             const modalElement = document.getElementById('quickAddItemModal');
             const quickAddModal = new bootstrap.Modal(modalElement);
 
-            // Form reset karein
+            // फॉर्म को साफ़ करें और SKU भरें
             document.getElementById('quick-add-item-form').reset();
+            document.getElementById('quick-add-sku').value = scannedData;
 
-            // SKU ko automatic bhar dein
-            document.getElementById('quick-add-sku').value = sku;
-
-            // Modal dikhayein
             quickAddModal.show();
 
-            // Focus "Item Name" par karein
+            // कर्सर को सीधे "Item Name" पर रखें
             modalElement.addEventListener('shown.bs.modal', () => {
                 document.getElementById('quick-add-name').focus();
             }, { once: true });
 
         } else {
-            // Koi doosra error (jaise 500, network fail)
-            showMessage('त्रुटि', `आइटम लाने में विफल: ${error.message}`, 'danger');
+            // कोई और तकनीकी खराबी
+            showMessage('त्रुटि', `स्कैन एरर: ${error.message}`, 'danger');
         }
     }
 }
-
 
       
    // [ ✅ Is Poore Naye Code ko Line 2290 par Paste Karein ]
@@ -2749,6 +2765,8 @@ function openMobileScanner() {
  */
 // [ ✅ YEH NAYA 'startLocalScanner' FUNCTION HAI (html5-qrcode ke liye) ]
 
+// [ ✅ इस अपडेटेड फ़ंक्शन को पुराने startLocalScanner की जगह पेस्ट करें ]
+
 async function startLocalScanner() {
     if (!localScannerModalInstance) {
         localScannerModalInstance = new bootstrap.Modal(document.getElementById('localScannerModal'));
@@ -2758,57 +2776,51 @@ async function startLocalScanner() {
     const messageEl = document.getElementById('local-scanner-message');
 
     try {
-        // 'localScanControls' ko global variable mein save karein
-        localScanControls = new Html5Qrcode("local-scanner-video"); // Target the div ID
+        localScanControls = new Html5Qrcode("local-scanner-video");
 
         const onScanSuccess = (decodedText, decodedResult) => {
-            // SUCCESS: Barcode scan ho gaya
             console.log("Local Scan Result:", decodedText);
-
-            // Scanner ko band karein
             stopLocalScanner(); 
-
-            // Scan kiye gaye SKU ko hamare main "Smart Scan" function ko bhej dein
-            handleBarcodeScan(decodedText); //
+            handleBarcodeScan(decodedText); 
         };
 
         const onScanFailure = (error) => {
-            // 'QR code not found' error ko ignore karein
-            if (!error.includes("NotFound")) {
-                console.error("Local Scanner Error:", error);
-                messageEl.innerText = `स्कैन एरर: ${error}`;
-                messageEl.className = 'alert alert-danger m-2';
-                messageEl.style.display = 'block';
-            }
+            // माइनर एरर को इग्नोर करें
         };
 
-        messageEl.innerText = "कैमरा शुरू हो रहा है... कृपया अनुमति (Allow) दें।";
+        messageEl.innerText = "कैमरा शुरू हो रहा है...";
         messageEl.style.display = 'block';
 
-        // Camera chalu karein
+        // 🚀 बदलाव यहाँ है: बारकोड के लिए 'config' को बेहतर बनाया गया है
+        const config = { 
+            fps: 10, 
+            // 1. qrbox को 'चौड़ा' (Rectangular) बनाएं ताकि लंबा बारकोड फिट हो सके
+            qrbox: { width: 300, height: 150 }, 
+            // 2. मोबाइल पर बेहतर फोकस के लिए
+            aspectRatio: 1.0 
+        };
+
         await localScanControls.start(
-            { facingMode: "environment" }, // Peeche ka camera
-            { 
-                fps: 10, 
-                qrbox: { width: 250, height: 250 }, // Scan box
-                aspectRatio: 1.0
-            },
+            { facingMode: "environment" }, 
+            config,
             onScanSuccess,
             onScanFailure
         );
 
-        messageEl.style.display = 'none'; // Camera chalu hone par message hata dein
+        messageEl.style.display = 'none';
 
-        // Modal ke 'Close' buttons ko setup karein
         document.getElementById('local-scanner-close-btn').onclick = stopLocalScanner;
         document.getElementById('local-scanner-cancel-btn').onclick = stopLocalScanner;
 
     } catch (e) {
-        console.error("Failed to start html5-qrcode scanner:", e);
-        showMessage('कैमरा एरर', `कैमरा शुरू करने में विफल: ${e.message}`, 'danger');
+        console.error("Scanner Error:", e);
+        showMessage('कैमरा एरर', `कैमरा शुरू नहीं हो सका: ${e.message}`, 'danger');
         stopLocalScanner();
     }
 }
+
+
+
 /**
  * KADAM 7: Local Mobile Camera ko Band Karta Hai
  */
