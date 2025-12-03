@@ -5267,6 +5267,40 @@ app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
 });
 
 
+// [ ✅ server.cjs: इसे सबसे नीचे पेस्ट करें ]
+
+// 19. Book New Appointment (Salon)
+app.post('/api/appointments', authenticateJWT, async (req, res) => {
+    const shopId = req.shopId;
+    const { name, mobile, service, date, time } = req.body;
+
+    if (!name || !service || !date || !time) {
+        return res.status(400).json({ success: false, message: 'नाम, सर्विस, तारीख और समय आवश्यक हैं।' });
+    }
+
+    // तारीख और समय को मिलाकर Timestamp बनाएं
+    const scheduledAt = new Date(`${date}T${time}`);
+
+    const client = await pool.connect();
+    try {
+        // अपॉइंटमेंट सेव करें
+        await client.query(
+            `INSERT INTO appointments (shop_id, customer_name, customer_mobile, service_name, scheduled_at, status)
+             VALUES ($1, $2, $3, $4, $5, 'SCHEDULED')`,
+            [shopId, name, mobile, service, scheduledAt]
+        );
+
+        res.json({ success: true, message: 'अपॉइंटमेंट बुक हो गई!' });
+
+    } catch (err) {
+        console.error("Booking Error:", err);
+        res.status(500).json({ success: false, message: 'बुकिंग विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
