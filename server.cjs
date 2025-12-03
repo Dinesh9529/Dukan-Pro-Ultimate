@@ -147,6 +147,20 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
+		
+		//2.1 Mobile Table (CREATE)
+		await client.query(`
+        DO $$
+        BEGIN
+        IF NOT EXISTS (
+        SELECT 1 FROM pg_attribute
+        WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'customers')
+        AND attname = 'mobile'
+        ) THEN
+        ALTER TABLE customers ADD COLUMN mobile TEXT;
+        END IF;
+        END $$;
+        `);
 
         // 3. Invoices Table (CREATE)
         await client.query(`
