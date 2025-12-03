@@ -2549,12 +2549,17 @@ app.get('/api/reports/balance-sheet', authenticateJWT, checkRole('MANAGER'), che
 
         // --- Assets (परिसंपत्तियां) ---
         // ... (Inventory and A/R calculations - no change) ...
+        // 🚀 FIX: Services (जिनका SKU 'SVC-' है या Unit 'Session' है) को स्टॉक वैल्यू में न जोड़ें
         const stockValueResult = await client.query(
-            `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value FROM stock WHERE shop_id = $1`,
+            `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS inventory_value 
+             FROM stock 
+             WHERE shop_id = $1 
+               AND sku NOT LIKE 'SVC-%' 
+               AND unit != 'Session'`,
             [shopId]
         );
         const inventory_value = parseFloat(stockValueResult.rows[0].inventory_value);
-
+		
         const accountsReceivableResult = await client.query(
             `SELECT COALESCE(SUM(balance), 0) AS accounts_receivable FROM customers WHERE shop_id = $1 AND balance > 0`,
             [shopId]
