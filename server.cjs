@@ -1320,62 +1320,60 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(
 
 // --- 7. Stock Management ---
 
-// 7.1 Stock Management - Add/Update (SCOPED & Transactional)
+// [ ✅ FIXED: Recipe + Edit Fix (20 vs 40 issue solved) ]
+
 app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
-    // 🚀 FIX: 'recipe' को भी req.body से निकालें
-    const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes, recipe } = req.body;
+    // 🚀 1. 'action_type' को भी यहाँ निकाला गया है
+    const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes, recipe, action_type } = req.body;
     const shopId = req.shopId;
 
-    if (!sku || !name || typeof quantity === 'undefined' || typeof purchase_price === 'undefined' || typeof sale_price === 'undefined') {
-        return res.status(400).json({ success: false, message: 'SKU, नाम, मात्रा, खरीद मूल्य और बिक्री मूल्य आवश्यक हैं.' });
+    if (!sku || !name) {
+        return res.status(400).json({ success: false, message: 'SKU और नाम आवश्यक हैं.' });
     }
 
-    const safeQuantity = parseFloat(quantity);
-    const safePurchasePrice = parseFloat(purchase_price);
-    const safeSalePrice = parseFloat(sale_price);
+    const safeQuantity = parseFloat(quantity) || 0;
+    const safePurchasePrice = parseFloat(purchase_price) || 0;
+    const safeSalePrice = parseFloat(sale_price) || 0;
     const safeGst = parseFloat(gst || 0);
     const safeCostPrice = parseFloat(cost_price || safePurchasePrice);
 
     if (isNaN(safeQuantity) || isNaN(safePurchasePrice) || isNaN(safeSalePrice)) {
-        return res.status(400).json({ success: false, message: 'मात्रा, खरीद मूल्य और बिक्री मूल्य मान्य संख्याएँ होनी चाहिए.' });
+        return res.status(400).json({ success: false, message: 'मात्रा और मूल्य मान्य संख्याएँ होनी चाहिए.' });
     }
 
-    const client = await pool.connect(); // 🚀 FIX: Client बनाएँ (Transaction के लिए)
+    const client = await pool.connect();
     try {
-        await client.query('BEGIN'); // 🚀 FIX: Transaction शुरू करें
+        await client.query('BEGIN');
 
-        // 1. [OLD CODE] स्टॉक आइटम सेव करें (यह आपका पुराना लॉजिक है, बिल्कुल सेम)
-        // 🔑 Query now includes shop_id in INSERT and WHERE clause for ON CONFLICT
-        const result = await client.query(
-            `INSERT INTO stock (shop_id, sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             ON CONFLICT (shop_id, sku) DO UPDATE
-             SET quantity = stock.quantity + EXCLUDED.quantity,
-                 name = EXCLUDED.name,
-                 purchase_price = EXCLUDED.purchase_price,
-                 sale_price = EXCLUDED.sale_price,
-                 gst = EXCLUDED.gst,
-                 cost_price = EXCLUDED.cost_price,
-                 category = EXCLUDED.category,
-                 product_attributes = EXCLUDED.product_attributes,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE stock.shop_id = EXCLUDED.shop_id RETURNING *;`,
-            [shopId, sku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null]
-        );
+        // 🚀 2. यह तय करेगा कि स्टॉक जोड़ना है या रिप्लेस करना है
+        const quantityLogic = (action_type === 'set') 
+            ? 'EXCLUDED.quantity'            // Edit के लिए (Replace)
+            : 'stock.quantity + EXCLUDED.quantity'; // Add के लिए (Sum)
 
-        // ============================================================
-        // 🚀 NEW LOGIC START: RECIPE / CONSUMPTION DATA SAVE 🚀
-        // ============================================================
-        
-        // अगर फ्रंटएंड से 'recipe' डेटा आया है (जो सैलून सर्विस के लिए होता है)
+        // 🚀 3. क्वेरी में ${quantityLogic} का इस्तेमाल किया गया है
+        const queryText = `
+            INSERT INTO stock (shop_id, sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (shop_id, sku) DO UPDATE
+            SET quantity = ${quantityLogic},
+                name = EXCLUDED.name,
+                purchase_price = EXCLUDED.purchase_price,
+                sale_price = EXCLUDED.sale_price,
+                gst = EXCLUDED.gst,
+                cost_price = EXCLUDED.cost_price,
+                category = EXCLUDED.category,
+                product_attributes = EXCLUDED.product_attributes,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE stock.shop_id = EXCLUDED.shop_id RETURNING *;
+        `;
+
+        const result = await client.query(queryText, [
+            shopId, sku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null
+        ]);
+
+        // --- Recipe Logic (Consumption) - यह आपका पुराना कोड ही है ---
         if (recipe && Array.isArray(recipe) && recipe.length > 0) {
-            console.log(`Saving recipe for Service: ${sku} (Shop: ${shopId})`);
-            
-            // A. पहले इस सर्विस की पुरानी रेसिपी डिलीट करें (ताकि डुप्लीकेट न हो)
-            // (Note: service_recipes टेबल हमने createTables में बना ली है)
             await client.query('DELETE FROM service_recipes WHERE shop_id=$1 AND service_sku=$2', [shopId, sku]);
-            
-            // B. नई रेसिपी की हर लाइन को सेव करें
             for (const r of recipe) {
                 if (r.sku && r.qty) {
                     await client.query(
@@ -1386,25 +1384,21 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
                 }
             }
         }
-        // ============================================================
-        // 🚀 NEW LOGIC END 🚀
-        // ============================================================
 
-        await client.query('COMMIT'); // 🚀 FIX: Transaction पूरा करें
-
-        // Dashboard Update (Socket)
+        await client.query('COMMIT');
+        
         if (typeof broadcastToShop === 'function') {
             broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'stock' }));
         }
         
-        res.json({ success: true, stock: result.rows[0], message: 'स्टॉक/सर्विस सफलतापूर्वक सेव हो गई।' });
+        res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक अपडेट हो गया।' });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // 🚀 FIX: गलती होने पर वापस जाएँ
+        await client.query('ROLLBACK');
         console.error("Error adding stock:", err.message);
-        res.status(500).json({ success: false, message: 'स्टॉक जोड़ने में विफल: ' + err.message });
+        res.status(500).json({ success: false, message: 'Error: ' + err.message });
     } finally {
-        if (client) client.release(); // 🚀 FIX: कनेक्शन छोड़ें
+        if (client) client.release();
     }
 });
 
