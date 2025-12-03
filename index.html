@@ -701,6 +701,19 @@
                             <label for="register-password" class="form-label">नया पासवर्ड</label>
                             <input type="password" class="form-control" id="register-password" required>
                         </div>
+
+                        <!-- Add this in your shop settings / registration form -->
+<div class="form-group">
+    <label for="shop-business-type">Business Type</label>
+    <select id="shop-business-type" class="form-control">
+      <option value="RETAIL">Retail / Kirana</option>
+      <option value="SALON">Salon / Parlour</option>
+      <option value="CAFE">Cafe / Food</option>
+      <option value="SERVICE">Service (Electrician / Plumber)</option>
+    </select>
+  </div>
+  
+  
                         <div id="register-message" class="text-danger small mb-3">&nbsp;</div>
                         <button type="submit" class="btn btn-success w-100" id="register-submit-btn">अकाउंट बनाएं</button>
                     </form>
@@ -1089,7 +1102,123 @@
                     </div>
                 </div>
             </div>
+
+
+           <!-- SALON DASHBOARD — paste inside the main content (maybe near ai-insights or dashboard) -->
+           <div id="salon-dashboard" class="salon-only biz-only" style="display:none;">
+    
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="text-primary mb-0"><i class="fas fa-scissors me-2"></i>Salon Dashboard (Pro)</h2>
+                
+                <button class="btn btn-primary shadow" onclick="openAppointmentModal()">
+                    <i class="fas fa-plus-circle me-2"></i> नई बुकिंग (New Appointment)
+                </button>
+            </div>
+        
+            <div class="row g-4 mb-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white h-100 border-0 shadow-sm">
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle p-3 bg-light me-3">
+                                <i class="fas fa-rupee-sign fa-2x text-success"></i>
+                            </div>
+                            <div>
+                                <p class="text-muted mb-0 small text-uppercase fw-bold">आज की कमाई</p>
+                                <h4 class="mb-0 fw-bold text-dark" id="salon-today-sales">₹0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white h-100 border-0 shadow-sm">
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle p-3 bg-light me-3">
+                                <i class="fas fa-calendar-check fa-2x text-primary"></i>
+                            </div>
+                            <div>
+                                <p class="text-muted mb-0 small text-uppercase fw-bold">आज के ग्राहक</p>
+                                <h4 class="mb-0 fw-bold text-dark" id="salon-today-appts">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white h-100 border-0 shadow-sm">
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle p-3 bg-light me-3">
+                                <i class="fas fa-birthday-cake fa-2x text-warning"></i>
+                            </div>
+                            <div>
+                                <p class="text-muted mb-0 small text-uppercase fw-bold">बर्थडे (7 दिन)</p>
+                                <h4 class="mb-0 fw-bold text-dark" id="salon-birthdays-count">0</h4>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-link text-decoration-none mt-2 ps-0" onclick="openBirthdayList()">
+                            लिस्ट देखें <i class="fas fa-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+        
+                <div class="col-md-6 col-lg-3">
+                    <div class="card p-3 dashboard-card bg-white h-100 border-0 shadow-sm">
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle p-3 bg-light me-3">
+                                <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                            </div>
+                            <div>
+                                <p class="text-muted mb-0 small text-uppercase fw-bold">Low Stock</p>
+                                <h4 class="mb-0 fw-bold text-dark" id="salon-low-stock">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            <div class="row g-4">
+                
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-gradient-primary text-white border-bottom py-3">
+                            <h5 class="mb-0 fw-bold"><i class="fas fa-chart-line me-2"></i>पिछले 30 दिनों की कमाई</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="salonSalesChart" style="max-height: 300px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+        
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white border-bottom py-3">
+                            <h5 class="mb-0 fw-bold"><i class="fas fa-users me-2"></i>हाल के ग्राहक</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>नाम</th>
+                                            <th>मोबाइल</th>
+                                            <th>एक्शन</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="salon-recent-customers-body">
+                                        <tr><td colspan="3" class="text-center text-muted p-3">लोड हो रहा है...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         </section>
+
+
 
 
 
@@ -1099,6 +1228,7 @@
                 <div class="card-header">नया स्टॉक आइटम जोड़ें</div>
                 <div class="card-body">
                     <form id="add-stock-form" class="row g-3">
+                        <input type="hidden" id="stock-action-type" value="add">
                         <div class="col-md-3">
                             <label for="stock-sku" class="form-label">SKU / कोड</label>
                             <input type="text" class="form-control" id="stock-sku" required>
@@ -1111,17 +1241,21 @@
                             <label for="stock-quantity" class="form-label">मात्रा (Qty)</label>
                             <input type="number" class="form-control" id="stock-quantity" required min="0">
                         </div>
-                         <div class="col-md-2">
-                             <label for="stock-unit" class="form-label">इकाई</label>
-                             <input type="text" class="form-control" id="stock-unit" value="Pcs" placeholder="e.g., Pcs, Kg, Ltr" required>
-                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
+                            <label for="stock-unit" class="form-label">इकाई (Unit)</label>
+                            <input type="text" class="form-control" id="stock-unit" placeholder="जैसे: Bottle, Pcs, ml" required>
+                        </div>
+                      <div class="col-md-3">
                             <label for="stock-purchase-price" class="form-label">खरीद मूल्य (₹)</label>
                             <input type="number" step="0.01" class="form-control" id="stock-purchase-price" required min="0">
                         </div>
                         <div class="col-md-3">
                             <label for="stock-sale-price" class="form-label">बिक्री मूल्य (₹)</label>
                             <input type="number" step="0.01" class="form-control" id="stock-sale-price" required min="0">
+                        </div>
+                        <div class="col-md-2" id="stock-duration-div" style="display:none;"> 
+                            <label for="stock-duration" class="form-label">समय (Min)</label>
+                            <input type="number" class="form-control" id="stock-duration" placeholder="e.g. 30">
                         </div>
                         <div class="col-md-3">
                             <label for="stock-gst" class="form-label">GST (%)</label>
@@ -1536,6 +1670,11 @@
                             <label for="customer-phone" class="form-label">फ़ोन नंबर</label>
                             <input type="tel" class="form-control" id="customer-phone">
                         </div>
+                        <div class="form-group">
+                            <label for="cust-dob">DOB (optional)</label>
+                            <input id="cust-dob" type="date" class="form-control" placeholder="YYYY-MM-DD">
+                          </div>
+                          
                         <div class="col-md-4">
                             <label for="customer-email" class="form-label">ईमेल (वैकल्पिक)</label>
                             <input type="email" class="form-control" id="customer-email">
@@ -3642,6 +3781,47 @@ async function renderSalesChart() {
 
     async function renderDashboard() {
         // --- 1. Get Summary Cards Data ---
+
+    // ============================================================
+    // 🚀 SALON DASHBOARD CHECK (इसे सबसे ऊपर पेस्ट करें)
+    // ============================================================
+    
+    // 1. चेक करें कि क्या यह दुकान 'SALON' है
+    if (AppState.user && AppState.user.businessType === 'SALON') {
+        
+        // A. पुराने 'Retail' वाले डैशबोर्ड के सभी Rows को छिपा दें
+        // (ताकि रिटेल वाला डेटा न दिखे)
+        const retailElements = document.querySelectorAll('#dashboard > .row');
+        retailElements.forEach(el => el.style.display = 'none');
+
+        // B. नए 'Salon' डैशबोर्ड को दिखाएँ
+        const salonDash = document.getElementById('salon-dashboard');
+        if (salonDash) {
+            salonDash.style.display = 'block';
+            
+            // Salon का डेटा लोड करें
+            if (typeof loadSalonDashboard === 'function') {
+                await loadSalonDashboard();
+            }
+        }
+        
+        return; // 🛑 STOP: यहीं रुक जाएँ, ताकि नीचे वाला पुराना कोड न चले
+    } 
+    
+    // 2. अगर यह 'SALON' नहीं है (यानी Retail है), तो नॉर्मल व्यू दिखाएँ
+    else {
+        // Retail वाले हिस्सों को वापस दिखाएँ (अगर छुपे हों)
+        const retailElements = document.querySelectorAll('#dashboard > .row');
+        retailElements.forEach(el => el.style.display = 'flex'); 
+
+        // Salon वाले हिस्से को छिपा दें
+        const salonDash = document.getElementById('salon-dashboard');
+        if (salonDash) salonDash.style.display = 'none';
+    }
+    // ============================================================
+    // 🚀 यहाँ नया कोड खत्म, नीचे आपका पुराना कोड वैसे का वैसा रहेगा
+    // ============================================================
+
         try {
             // (यह कॉल सुरक्षित है, क्योंकि सर्वर पर 'checkPlan' नहीं है)
             const data = await fetchApi('/api/dashboard/summary', { method: 'GET' }, 'मुख्य आँकड़े लोड हो रहे हैं...');
@@ -3859,21 +4039,219 @@ if (!checkUserPlan(['MEDIUM', 'PREMIUM'])) {
 // ==========================================================
 
 
+
+// [ ✅ FINAL: Salon Stock Manager (Service vs Product Logic Integrated) ]
+
+// [ ✅ FINAL INTEGRATION: Salon Stock List ]
+
+// [ ✅ FIXED: अब डेटा सही दिखेगा (API Path Corrected) ]
+
+// [ ✅ FIXED: Delete Button & Edit Button Logic ]
+
+// [ ✅ FIXED: Delete Button now sends SKU instead of ID ]
+
 async function fetchAndRenderStockList() {
-        const tableBody = document.getElementById('stock-table-body');
-        const tableFoot = document.getElementById('stock-table-foot');
-        tableBody.innerHTML = `<tr><td colspan="8" class="text-center">लोड हो रहा है...</td></tr>`;
-        tableFoot.innerHTML = '';
-        try {
-            const res = await fetchApi('/api/stock', { method: 'GET' });
-            tableBody.innerHTML = '';
+    const isSalon = (AppState.user && AppState.user.businessType === 'SALON');
+    
+    // --- PART A: FORM DESIGN (SAME AS BEFORE) ---
+    // (फॉर्म के एलिमेंट्स को वैसा ही रखें)
+    const skuDiv = document.querySelector('label[for="stock-sku"]').parentElement;
+    const qtyDiv = document.querySelector('label[for="stock-quantity"]').parentElement;
+    const unitDiv = document.querySelector('label[for="stock-unit"]').parentElement;
+    const gstDiv = document.querySelector('label[for="stock-gst"]').parentElement;
+    const hsnDiv = document.querySelector('label[for="stock-hsn-code"]').parentElement;
+    const durationDiv = document.getElementById('stock-duration-div'); 
+    const nameLabel = document.querySelector('label[for="stock-name"]');
+    const pPriceLabel = document.querySelector('label[for="stock-purchase-price"]');
+    const sPriceLabel = document.querySelector('label[for="stock-sale-price"]');
+    
+    const opticalBtn = document.getElementById('add-custom-field-btn');
+    const opticalContainer = document.getElementById('prescription-fields-container');
+    let extraHeader = null, extraDesc = null, extraHr = null;
+    document.querySelectorAll('#add-stock-form > *').forEach(el => {
+        if(el.tagName === 'H6' && el.innerText.includes('अतिरिक्त विवरण')) extraHeader = el;
+        if(el.tagName === 'P' && el.innerText.includes('Chasme ke liye')) extraDesc = el;
+        if(el.tagName === 'HR' && el.classList.contains('my-3') && el.nextElementSibling === extraHeader) extraHr = el;
+    });
+
+    let typeSelectDiv = document.getElementById('stock-type-selector-area');
+    
+    if (isSalon) {
+        if (!typeSelectDiv) {
+            typeSelectDiv = document.createElement('div');
+            typeSelectDiv.id = 'stock-type-selector-area';
+            typeSelectDiv.className = 'col-12 mb-3 p-2 bg-warning bg-opacity-10 border border-warning rounded';
+            typeSelectDiv.innerHTML = `
+                <label class="fw-bold small text-dark mb-1">आप क्या जोड़ रहे हैं?</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="itemType" id="typeService" value="SERVICE" checked onchange="toggleSalonFields()">
+                        <label class="form-check-label fw-bold text-primary" for="typeService"><i class="fas fa-cut"></i> सर्विस (Service)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="itemType" id="typeProduct" value="PRODUCT" onchange="toggleSalonFields()">
+                        <label class="form-check-label fw-bold text-success" for="typeProduct"><i class="fas fa-box-open"></i> प्रोडक्ट/सामान (Inventory)</label>
+                    </div>
+                </div>
+            `;
+            const form = document.getElementById('add-stock-form');
+            form.insertBefore(typeSelectDiv, form.firstChild);
+        }
+        typeSelectDiv.style.display = 'block';
+
+        if(opticalBtn) opticalBtn.closest('.col-12').style.display = 'none'; 
+        if(opticalContainer) opticalContainer.style.display = 'none';
+        if(extraHeader) extraHeader.style.display = 'none';
+        if(extraDesc) extraDesc.style.display = 'none';
+        if(extraHr) extraHr.style.display = 'none';
+
+        nameLabel.innerText = 'नाम (Name)';
+        pPriceLabel.innerText = 'लागत (Cost)';
+        sPriceLabel.innerText = 'फीस/दाम (Price)';
+
+        let consumptionDiv = document.getElementById('consumption-ui-area');
+        if (!consumptionDiv) {
+            consumptionDiv = document.createElement('div');
+            consumptionDiv.id = 'consumption-ui-area';
+            consumptionDiv.className = 'col-12 mt-3 p-3 bg-light border rounded';
+            const submitBtnDiv = document.querySelector('#add-stock-form button[type="submit"]').parentElement;
+            document.querySelector('#add-stock-form').insertBefore(consumptionDiv, submitBtnDiv);
+        }
+        
+        consumptionDiv.innerHTML = `
+            <h6 class="text-primary"><i class="fas fa-flask me-2"></i> खपत (Consumption) जोड़ें (Optional)</h6>
+            <p class="small text-muted">जब यह सर्विस बिकेगी, तो ये चीजें स्टॉक से अपने आप कम हो जाएंगी।</p>
+            <div class="row g-2 align-items-end">
+                <div class="col-7"><label class="small">SKU</label><input type="text" id="recipe-consumable-sku" class="form-control form-control-sm" placeholder="e.g. SHAMPOO-1L"></div>
+                <div class="col-3"><label class="small">Qty</label><input type="number" id="recipe-qty" class="form-control form-control-sm" placeholder="e.g. 10"></div>
+                <div class="col-2"><button type="button" class="btn btn-sm btn-outline-success w-100" onclick="addRecipeRow()"><i class="fas fa-plus"></i></button></div>
+            </div>
+            <div id="recipe-list" class="mt-2"></div>
+            <input type="hidden" id="stock-recipe-data">
+        `;
+
+        window.toggleSalonFields = function() {
+            const isService = document.getElementById('typeService').checked;
+            hsnDiv.style.display = 'none';
+            gstDiv.style.display = 'none';
+
+            if (isService) {
+                qtyDiv.style.display = 'none';
+                unitDiv.style.display = 'none';
+                skuDiv.style.display = 'none';
+                consumptionDiv.style.display = 'block';
+                if(durationDiv) durationDiv.style.display = 'block';
+
+                document.getElementById('stock-quantity').value = '1000';
+                document.getElementById('stock-unit').value = 'Session';
+                document.getElementById('stock-sku').value = 'SVC-' + Date.now();
+            } else {
+                qtyDiv.style.display = 'block';
+                unitDiv.style.display = 'block';
+                skuDiv.style.display = 'block';
+                consumptionDiv.style.display = 'none';
+                if(durationDiv) durationDiv.style.display = 'none';
+
+                document.getElementById('stock-quantity').value = '';
+                document.getElementById('stock-unit').value = 'Pcs';
+                document.getElementById('stock-sku').value = '';
+            }
+        };
+        window.toggleSalonFields();
+
+    } else {
+        // Retail Mode
+        if (typeSelectDiv) typeSelectDiv.style.display = 'none';
+        skuDiv.style.display = 'block';
+        qtyDiv.style.display = 'block';
+        unitDiv.style.display = 'block';
+        hsnDiv.style.display = 'block';
+        gstDiv.style.display = 'block';
+        if(durationDiv) durationDiv.style.display = 'none';
+
+        if(opticalBtn) opticalBtn.closest('.col-12').style.display = 'block';
+        if(extraHeader) extraHeader.style.display = 'block';
+        if(extraDesc) extraDesc.style.display = 'block';
+        if(extraHr) extraHr.style.display = 'block';
+
+        nameLabel.innerText = 'आइटम का नाम';
+        pPriceLabel.innerText = 'खरीद मूल्य (₹)';
+        sPriceLabel.innerText = 'बिक्री मूल्य (₹)';
+        
+        const cDiv = document.getElementById('consumption-ui-area');
+        if(cDiv) cDiv.style.display = 'none';
+    }
+
+    // --- PART B: TABLE DESIGN (Data Loading) ---
+    const tableHead = document.querySelector('#stock table thead');
+    const tableBody = document.getElementById('stock-table-body');
+    const tableFoot = document.getElementById('stock-table-foot');
+
+    if (isSalon) {
+        tableHead.innerHTML = `
+            <tr>
+                <th style="width:10%">Type</th>
+                <th style="width:25%">Name</th>
+                <th style="width:15%">Stock/Unit</th> 
+                <th style="width:15%">Cost (₹)</th>
+                <th style="width:15%">Price (₹)</th>
+                <th style="width:20%">Action</th>
+            </tr>
+        `;
+    } else {
+        tableHead.innerHTML = `<tr><th>SKU</th><th>Item Name</th><th>Qty</th><th>Purchase</th><th>Sale</th><th>GST %</th><th>Updated</th><th>Attributes</th><th>Action</th></tr>`;
+    }
+
+    tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center py-3"><div class="spinner-border text-primary"></div></td></tr>`;
+    tableFoot.innerHTML = '';
+
+    try {
+        const res = await fetchApi('/api/stock', { method: 'GET' });
+        tableBody.innerHTML = '';
+        const items = res.stock || [];
+
+        if (res.success && items.length > 0) {
             let totalPurchaseValue = 0;
             let totalSaleValue = 0;
-            if (res.success && res.stock.length > 0) {
-                res.stock.forEach(item => {
+
+            items.forEach(item => {
+                const row = tableBody.insertRow();
+                
+                if (isSalon) {
+                    // --- SALON ROW ---
+                    const isSvc = (item.sku && String(item.sku).startsWith('SVC-')) || item.unit === 'Session';
+                    const typeBadge = isSvc 
+                        ? `<span class="badge bg-primary">Service</span>` 
+                        : `<span class="badge bg-success">Product</span>`;
+                    
+                    const stockDisplay = isSvc 
+                        ? `<span class="text-muted small">N/A</span>` 
+                        : `<span class="fw-bold text-dark">${item.quantity} <small class="text-muted">${item.unit}</small></span>`;
+
+                    row.innerHTML = `
+                        <td>${typeBadge}</td>
+                        <td class="fw-bold text-dark">
+                            ${item.name} <br>
+                            <small class="text-muted" style="font-size:0.75rem">${item.code || item.sku}</small>
+                        </td>
+                        <td>${stockDisplay}</td>
+                        <td>${formatCurrency(item.purchase_price || 0)}</td> 
+                        <td>${formatCurrency(item.price || item.sale_price)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editStockItem('${item.sku}')" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry('stock', '${item.sku}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                } else {
+                    // --- RETAIL ROW ---
                     totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
                     totalSaleValue += (item.sale_price || 0) * (item.quantity || 0);
-                    const row = tableBody.insertRow();
+                    const itemDataSafe = JSON.stringify({ sku: item.sku, name: item.name, sale_price: item.sale_price, purchase_price: item.purchase_price }).replace(/"/g, '&quot;');
+
                     row.innerHTML = `
                         <td>${item.sku}</td>
                         <td>${item.name}</td>
@@ -3881,64 +4259,238 @@ async function fetchAndRenderStockList() {
                         <td>${formatCurrency(item.purchase_price)}</td>
                         <td>${formatCurrency(item.sale_price)}</td>
                         <td>${item.gst || 0}%</td>
-                        <td>${new Date(item.updated_at).toLocaleString()}</td>
+                        <td>${new Date(item.updated_at).toLocaleDateString()}</td>
                         <td>${formatAttributes(item.product_attributes)}</td>
                         <td>
-                            <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${item.sku}')">हटाएं</button>
+                            <button class="btn btn-sm btn-info text-white mb-1" onclick="printItemSticker(${itemDataSafe})" title="Print QR"><i class="fas fa-qrcode"></i></button>
+                            <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${item.sku}')"><i class="fas fa-trash"></i></button>
                         </td>
                     `;
-                });
+                }
+            });
+
+            if (!isSalon) {
                 tableFoot.innerHTML = `
                     <tr class="fw-bold bg-light">
-                        <td colspan="3">कुल</td>
+                        <td colspan="3">कुल (Total)</td>
                         <td>${formatCurrency(totalPurchaseValue)}</td>
                         <td>${formatCurrency(totalSaleValue)}</td>
-                        <td colspan="3"></td>
+                        <td colspan="4"></td>
                     </tr>
                 `;
-            } else {
-                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">कोई स्टॉक आइटम नहीं है।</td></tr>`;
             }
-        } catch (e) {
-            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+
+        } else {
+            tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center text-muted py-4">कोई डेटा नहीं मिला।</td></tr>`;
+        }
+    } catch (e) {
+        console.error(e);
+        tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+    }
+}
+// [ ✅ FIXED: SKU से आइटम ढूँढने वाला Edit फ़ंक्शन ]
+
+function editStockItem(sku) {
+    // 1. SKU की मदद से असली आइटम डेटा ढूँढें (currentStock लिस्ट से)
+    // (नोट: fetchAndRenderStockList को डेटा 'currentStock' वेरिएबल में भी सेव करना चाहिए)
+    // अगर currentStock खाली है, तो हम API से दोबारा मंगा सकते हैं, लेकिन अभी के लिए DOM से काम चलाते हैं।
+    
+    // सबसे आसान तरीका: API से उस एक आइटम का डेटा मंगा लो (ताकि ताज़ा डेटा मिले)
+    fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, 'आइटम लोड हो रहा है...').then(res => {
+        if(res.success && res.data) {
+            const item = res.data;
+            
+            // 2. फॉर्म के ऊपर स्क्रॉल करें
+            const form = document.getElementById('add-stock-form');
+            form.scrollIntoView({ behavior: 'smooth' });
+
+            // 3. Type सेट करें
+            const isService = (item.sku && String(item.sku).startsWith('SVC-')) || item.unit === 'Session';
+            if (isService) {
+                document.getElementById('typeService').checked = true;
+            } else {
+                document.getElementById('typeProduct').checked = true;
+            }
+            
+            // टॉगल फंक्शन चलाएं
+            if (typeof window.toggleSalonFields === 'function') {
+                window.toggleSalonFields();
+            }
+
+            // 4. डेटा भरें
+            // नोट: API शायद अलग नाम भेज रहा हो, इसलिए चेक करें
+            document.getElementById('stock-sku').value = sku; // SKU वही है जो भेजा था
+            document.getElementById('stock-name').value = item.name || item.item_name; 
+            document.getElementById('stock-purchase-price').value = item.purchase_price;
+            document.getElementById('stock-sale-price').value = item.sale_price || item.price;
+            
+            if (!isService) {
+                document.getElementById('stock-quantity').value = item.quantity;
+                document.getElementById('stock-unit').value = item.unit || 'Pcs';
+            }
+            
+            // 🚀 5. SKU को लॉक कर दें
+            const skuInput = document.getElementById('stock-sku');
+            skuInput.value = sku;
+            skuInput.disabled = true;
+            skuInput.style.backgroundColor = '#e9ecef';
+
+            // 6. बटन बदलें
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> अपडेट करें (Update)';
+            submitBtn.classList.remove('btn-primary');
+            submitBtn.classList.add('btn-warning');
+
+            // 7. Cancel बटन
+            let cancelBtn = document.getElementById('cancel-edit-btn');
+            if (!cancelBtn) {
+                cancelBtn = document.createElement('button');
+                cancelBtn.id = 'cancel-edit-btn';
+                cancelBtn.type = 'button';
+                cancelBtn.className = 'btn btn-secondary ms-2';
+                cancelBtn.innerHTML = 'रद्द करें';
+                cancelBtn.onclick = resetStockForm;
+                submitBtn.parentElement.appendChild(cancelBtn);
+            }
+             document.getElementById('stock-action-type').value = 'set';
+        } else {
+            alert('आइटम का डेटा नहीं मिला।');
+        }
+    });
+}
+
+
+// [ ✅ MISSING FUNCTION: Form को रिसेट और अनलॉक करने के लिए ]
+
+function resetStockForm() {
+    const form = document.getElementById('add-stock-form');
+    if (!form) return;
+
+    // 1. पूरा फॉर्म खाली करें
+    form.reset();
+    
+    // 2. SKU को अनलॉक करें (ताकि नया डाल सकें)
+    const skuInput = document.getElementById('stock-sku');
+    skuInput.disabled = false;
+    skuInput.style.backgroundColor = '';
+    
+    // 3. बटन को वापस "Add" (नीला) बनाएं
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.innerHTML = 'स्टॉक में आइटम जोड़ें';
+    submitBtn.classList.remove('btn-warning');
+    submitBtn.classList.add('btn-primary');
+    
+    // 4. "Cancel" बटन हटाएं (अब उसकी जरूरत नहीं)
+    const cancelBtn = document.getElementById('cancel-edit-btn');
+    if (cancelBtn) cancelBtn.remove();
+    
+    // 5. वापस "Add Mode" में सेट करें (सबसे जरूरी)
+    const actionInput = document.getElementById('stock-action-type');
+    if (actionInput) actionInput.value = 'add';
+
+    // 6. डिफॉल्ट व्यू सेट करें (Service या Product)
+    if (typeof window.toggleSalonFields === 'function') {
+        // डिफ़ॉल्ट रूप से हम 'Service' को चेक कर देते हैं
+        const svcRadio = document.getElementById('typeService');
+        if(svcRadio) {
+            svcRadio.checked = true;
+            window.toggleSalonFields();
         }
     }
+    
+    // 7. अगर कोई एक्स्ट्रा रेसिपी लिस्ट है तो उसे भी खाली करें (अगर आपने वह कोड जोड़ा है)
+    if (typeof currentRecipe !== 'undefined') {
+        currentRecipe = [];
+        if (typeof renderRecipeList === 'function') renderRecipeList();
+    }
+}
+
 
     // [ ✅ 2. इस पूरे फ़ंक्शन को अपने पुराने fetchAndRenderCustomers (लाइन 2404) से बदलें ]
 
-    async function fetchAndRenderCustomers() {
-        const tableBody = document.getElementById('crm-table-body');
-        tableBody.innerHTML = `<tr><td colspan="6" class="text-center">लोड हो रहा है...</td></tr>`;
-        try {
-            const res = await fetchApi('/api/customers', { method: 'GET' });
-            tableBody.innerHTML = '';
-            if (res.success && res.customers.length > 0) {
-                res.customers.forEach(c => {
-                    const row = tableBody.insertRow();
-                    row.innerHTML = `
-                        <td>${c.id}</td>
-                        <td>${c.name}</td>
-                        <td>${c.phone || 'N/A'}</td>
-                        <td>${c.address || 'N/A'}</td>
-                        <td>${new Date(c.created_at).toLocaleDateString()}</td>
-                        <td>
-                           <button 
-                                class="btn btn-sm btn-success py-0 px-1" 
-                                onclick="sendWhatsAppMessage('${c.phone || ''}', '${c.name}')" 
-                                ${!(c.phone) ? 'disabled' : ''} 
-                                title="Send WhatsApp Message">
-                                <i class="fab fa-whatsapp"></i>
-                            </button>
-                           </td>
-                    `;
-                });
-            } else {
-                tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">कोई ग्राहक नहीं मिला।</td></tr>`;
-            }
-        } catch (e) {
-            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+   // [ ✅ NEW: Unified Customer/WhatsApp Ledger for All Business Types ]
+
+async function fetchAndRenderCustomers() {
+    const tableBody = document.getElementById('crm-table-body');
+    const isSalon = (AppState.user && AppState.user.businessType === 'SALON');
+    
+    // 1. टेबल हेडर्स को अपडेट करें (ताकि लेजर जैसा दिखे)
+    const tableHead = document.querySelector('#crm table thead tr');
+    if (tableHead) {
+        tableHead.innerHTML = `
+            <th>ग्राहक का नाम</th>
+            <th>मोबाइल (WhatsApp)</th>
+            <th>बिजनेस टाइप</th>
+            <th>बकाया (Balance)</th>
+            <th>जुड़ने की तारीख</th>
+            <th>एक्शन</th>
+        `;
+    }
+
+    tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary"></div><br>लेजर लोड हो रहा है...</td></tr>`;
+
+    try {
+        // 2. सभी ग्राहकों को लाएं (POS और CRM दोनों से)
+        const res = await fetchApi('/api/customers', { method: 'GET' });
+        
+        tableBody.innerHTML = '';
+        
+        if (res.success && res.customers && res.customers.length > 0) {
+            
+            // 3. जिनके पास मोबाइल नंबर है, उन्हें ऊपर दिखाएं
+            const sortedCustomers = res.customers.sort((a, b) => {
+                if (a.phone && !b.phone) return -1;
+                if (!a.phone && b.phone) return 1;
+                return 0;
+            });
+
+            sortedCustomers.forEach(c => {
+                // मोबाइल नंबर को साफ करें
+                const hasMobile = c.phone && c.phone.length >= 10;
+                const displayPhone = hasMobile 
+                    ? `<span class="fw-bold text-dark">${c.phone}</span>` 
+                    : '<span class="text-muted small">--</span>';
+                
+                // WhatsApp लिंक
+                const waButton = hasMobile 
+                    ? `<button class="btn btn-sm btn-success py-0 px-2" onclick="sendWhatsAppMessage('${c.phone}', '${c.name}')" title="WhatsApp करें">
+                         <i class="fab fa-whatsapp"></i> Msg
+                       </button>`
+                    : `<button class="btn btn-sm btn-secondary py-0 px-2" disabled><i class="fab fa-whatsapp"></i></button>`;
+
+                // बैलेंस कलर
+                const balanceClass = c.balance > 0 ? 'text-danger fw-bold' : 'text-success';
+                
+                // बिजनेस टाइप टैग (दिखावे के लिए)
+                const badge = isSalon ? '<span class="badge bg-info text-dark">Salon Client</span>' : '<span class="badge bg-primary">Retail Customer</span>';
+
+                const row = tableBody.insertRow();
+                row.innerHTML = `
+                    <td class="fw-bold">${c.name}</td>
+                    <td>
+                        ${displayPhone}
+                    </td>
+                    <td>${badge}</td>
+                    <td class="${balanceClass}">₹${formatCurrency(c.balance || 0).replace('₹', '')}</td>
+                    <td>${new Date(c.created_at).toLocaleDateString()}</td>
+                    <td>
+                        ${waButton}
+                        <a class="btn btn-sm btn-primary ms-1" onclick="showEditCustomerModal(${c.id})" title="Edit"><i class="fas fa-edit"></i></a>
+                    </td>
+                `;
+            });
+            
+            // 4. कुल ग्राहकों की संख्या दिखाएं (Optional)
+            // document.getElementById('total-crm-count').innerText = res.customers.length;
+
+        } else {
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">अभी कोई ग्राहक डाटा नहीं है। POS से बिल बनाएं या Manually जोड़ें।</td></tr>`;
         }
-    }	
+    } catch (e) {
+        console.error(e);
+        tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+    }
+}
 	
     // --- (... पिछला जावास्क्रिप्ट कोड पार्ट 2 से जारी ...) ---
 
@@ -4005,39 +4557,70 @@ async function fetchAndRenderStockList() {
     // --- POS (SALES) SECTION LOGIC ---
 
     // NEW: Modified to show all items on click (showAll = true)
-    function handleItemSearch(showAll = false) {
-        const query = document.getElementById('pos-item-search').value.toLowerCase();
-        const resultsUl = document.getElementById('pos-search-results');
-        
-        if (!showAll && query.length < 2) {
-            resultsUl.innerHTML = '';
-            return;
-        }
+    // [ ✅ SKU सर्च को स्मार्ट बनाने के लिए इसे पेस्ट करें ]
 
-        const results = (showAll && query.length === 0)
-            ? currentStock // Show all
-            : currentStock.filter(item => 
-                item.name.toLowerCase().includes(query) || (item.sku && item.sku.toLowerCase().includes(query))
-            );
-
-        if (results.length > 0) {
-            resultsUl.innerHTML = results.map(item => 
-                `<li class="list-group-item list-group-item-action" data-sku="${item.sku}">
-                    ${item.name} (${formatCurrency(item.sale_price)}) <span class="badge bg-primary float-end">${item.sku}</span>
-                </li>`
-            ).join('');
-        } else {
-            resultsUl.innerHTML = '<li class="list-group-item text-muted">कोई आइटम नहीं मिला</li>';
-        }
-    }
-
-    function handleSearchResultClick(e) {
-        if (e.target.tagName === 'LI' && e.target.dataset.sku) {
-            const sku = e.target.dataset.sku;
-            addSKUToCart(sku); // NEW: Use centralized function
-        }
-    }
+function handleItemSearch(showAll = false) {
+    // जो टाइप किया है उसे छोटा (lowercase) करें और स्पेस हटाएँ
+    const query = document.getElementById('pos-item-search').value.toLowerCase().trim();
+    const resultsUl = document.getElementById('pos-search-results');
     
+    // अगर कुछ नहीं लिखा तो लिस्ट खाली करें (अगर showAll false है)
+    if (!showAll && query.length < 1) {
+        resultsUl.innerHTML = '';
+        return;
+    }
+
+    // स्टॉक लिस्ट में ढूँढें (Name या SKU मैच करें)
+    const results = (showAll && query.length === 0)
+        ? currentStock // सब दिखाएं
+        : currentStock.filter(item => 
+            (item.name && item.name.toLowerCase().includes(query)) || 
+            (item.sku && item.sku.toLowerCase().includes(query)) // 🚀 SKU मैचिंग
+        );
+
+    // रिजल्ट दिखाएं (सिर्फ पहले 50 ताकि हैंग न हो)
+    if (results.length > 0) {
+        resultsUl.innerHTML = results.slice(0, 50).map(item => `
+            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
+                data-sku="${item.sku}" style="cursor: pointer;">
+                
+                <div>
+                    <strong>${item.name}</strong>
+                    <br>
+                    <small class="text-muted">
+                        Stock: ${item.quantity} ${item.unit || ''} 
+                        ${item.product_attributes && item.product_attributes.Size ? `| Size: ${item.product_attributes.Size}` : ''}
+                    </small>
+                </div>
+
+                <div class="text-end">
+                    <span class="badge bg-warning text-dark mb-1">${item.sku}</span>
+                    <br>
+                    <span class="fw-bold text-success">${formatCurrency(item.sale_price)}</span>
+                </div>
+
+            </li>
+        `).join('');
+    } else {
+        resultsUl.innerHTML = '<li class="list-group-item text-muted">कोई आइटम नहीं मिला (SKU चेक करें)</li>';
+    }
+}
+    // [ ✅ क्लिक फिक्स: ताकि लिस्ट में कहीं भी क्लिक करने पर आइटम ऐड हो जाए ]
+
+function handleSearchResultClick(e) {
+    // जिस एलिमेंट पर क्लिक हुआ, उसके सबसे करीबी 'li' को ढूंढें
+    const li = e.target.closest('li');
+    
+    if (li && li.dataset.sku) {
+        const sku = li.dataset.sku;
+        addSKUToCart(sku); // कार्ट में जोड़ें
+        
+        // जोड़ने के बाद सर्च बॉक्स खाली करें और लिस्ट हटाएं
+        document.getElementById('pos-item-search').value = '';
+        document.getElementById('pos-search-results').innerHTML = '';
+        document.getElementById('pos-item-search').focus(); // वापस टाइपिंग के लिए फोकस करें
+    }
+}    
     // NEW: Centralized function to add SKU to cart (used by barcode and search)
     function addSKUToCart(sku) {
         const selectedItem = currentStock.find(item => item.sku === sku);
@@ -4240,14 +4823,25 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                 const data = {};
 
                 if (formId === 'add-stock-form') {
-                    data.sku = document.getElementById('stock-sku').value;
-                    data.name = document.getElementById('stock-name').value;
-                    data.quantity = document.getElementById('stock-quantity').value;
-                    data.unit = document.getElementById('stock-unit').value;
-                    data.purchase_price = document.getElementById('stock-purchase-price').value;
-                    data.sale_price = document.getElementById('stock-sale-price').value;
-                    data.gst = document.getElementById('stock-gst').value;
-                    data.hsn_code = document.getElementById('stock-hsn-code').value; // NEW
+    data.sku = document.getElementById('stock-sku').value;
+    data.name = document.getElementById('stock-name').value;
+    data.quantity = document.getElementById('stock-quantity').value;
+    data.unit = document.getElementById('stock-unit').value;
+    data.purchase_price = document.getElementById('stock-purchase-price').value;
+    data.sale_price = document.getElementById('stock-sale-price').value;
+    data.gst = document.getElementById('stock-gst').value;
+    data.hsn_code = document.getElementById('stock-hsn-code').value;
+    data.action_type = document.getElementById('stock-action-type').value;
+    
+    // 🚀🚀🚀 FIX 1: RECIPE DATA भेजना (यह लाइन बहुत ज़रूरी है) 🚀🚀🚀
+    const recipeRaw = document.getElementById('stock-recipe-data').value;
+    if (recipeRaw) {
+        try {
+            data.recipe = JSON.parse(recipeRaw); // JSON बनाकर भेजें
+        } catch (e) {
+            console.error("Recipe parse error", e);
+        }
+    }
                     // [ ✅ Naya "Custom Fields" JSON Code yahaan (Line 2522) add karein ]
 
 // [ ✅ NAYA "अतिरिक्त विवरण" (चश्मे का) सेव करने का कोड ]
@@ -4344,7 +4938,7 @@ if (document.getElementById('prescription-fields-container').style.display === '
                         showMessage('सफलता', res.message, 'success');
                         form.reset();
                         if (successCallback) successCallback();
-                    } else {
+                   } else {
                         throw new Error(res.message);
                     }
                 } catch (error) {
@@ -4579,6 +5173,7 @@ async function handleDeleteStaff(staffId) {
         // ... (आदि) ...
         
         applyRBAC(AppState.user.role);
+        applyBusinessTypeUI(AppState.user.businessType || 'RETAIL');
      setupForm('add-stock-form', '/api/stock', fetchAndRenderStockList);
   setupForm('add-customer-form', '/api/customers', fetchAndRenderCustomers); 
 setupForm('add-purchase-form', '/api/purchases', fetchAndRenderPurchases);
@@ -6651,6 +7246,47 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
     </div>
 </div>
 
+<div class="modal fade" id="appointmentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-calendar-check me-2"></i>नई अपॉइंटमेंट बुक करें</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="appointment-form">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">ग्राहक का नाम</label>
+                        <input type="text" id="appt-name" class="form-control" required placeholder="e.g. Rahul">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">मोबाइल नंबर</label>
+                        <input type="tel" id="appt-mobile" class="form-control" placeholder="e.g. 9876543210">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">सर्विस (Service)</label>
+                        <input type="text" id="appt-service" class="form-control" required placeholder="e.g. Hair Cut">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">तारीख (Date)</label>
+                            <input type="date" id="appt-date" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">समय (Time)</label>
+                            <input type="time" id="appt-time" class="form-control" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 d-grid">
+                        <button type="submit" class="btn btn-success">बुकिंग पक्की करें (Book Now)</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ========================== -->
 <!--   ULTIMATE AI INSIGHTS     -->
 <!-- ========================== -->
@@ -6775,6 +7411,53 @@ document.getElementById('reconciliation-start-form').addEventListener('submit', 
       <div class="ai-loading"><div class="spinner-border text-primary"></div><p>लोगों का चयन किया जा रहा है...</p></div>
     </div>
   </div>
+
+  <!-- ========================= -->
+<!-- SALOON AI INSIGHTS (UI)  -->
+<!-- ========================= -->
+<div id="ai-saloon" class="ai-box">
+    <h3><i class="fas fa-scissors"></i> Saloon Dashboard</h3>
+  
+    <div id="ai-saloon-dashboard">
+      <div class="ai-loading">
+        <div class="spinner-border text-primary"></div>
+        <p>Saloon डेटा लोड हो रहा है...</p>
+      </div>
+    </div>
+  
+    <hr>
+  
+    <div id="ai-saloon-services" style="margin-top:12px;">
+      <h5><i class="fas fa-concierge-bell"></i> Services / Items</h5>
+      <div class="ai-loading">
+        <div class="spinner-border text-primary"></div>
+        <p>Services लोड हो रहे हैं...</p>
+      </div>
+    </div>
+  
+    <hr>
+  
+    <div id="ai-saloon-birthdays" style="margin-top:12px;">
+      <h5><i class="fas fa-birthday-cake"></i> Upcoming Birthdays (7 days)</h5>
+      <div class="ai-loading">
+        <div class="spinner-border text-primary"></div>
+        <p>Birthday list लोड हो रही है...</p>
+      </div>
+    </div>
+  </div>
+  
+<!-- SALOON INSIGHTS -->
+<div id="ai-saloon-box" class="ai-box">
+    <h3><i class="fas fa-scissors"></i> Salon Insights</h3>
+    <div id="ai-saloon-content">
+      <div class="ai-loading">
+        <div class="spinner-border text-primary"></div>
+        <p>Saloon data लोड हो रहा है...</p>
+      </div>
+    </div>
+  </div>
+  
+
   
 </section>
 
@@ -6899,7 +7582,7 @@ async function askBusinessAI(){
                ================================ */
             
         
-async function loadUltimateAI() {
+               async function loadUltimateAI() {
   try {
     // show loading
     const ids = [
@@ -6908,30 +7591,36 @@ async function loadUltimateAI() {
       "ai-product-content",
       "ai-festival-content",
       "ai-marketing-content",
-      "ai-prediction-content"
+      "ai-prediction-content",
+      "ai-saloon-content",
+      // 🚀 NEW: इन तीनों को भी लोडिंग लिस्ट में जोड़ा गया है
+      "ai-saloon-dashboard",
+      "ai-saloon-services",
+      "ai-saloon-birthdays"
     ];
+
     ids.forEach(id => {
-      document.getElementById(id).innerHTML = `
-        <div class="ai-loading">
-          <div class="spinner-border text-primary"></div>
-          <p>डाटा लोड हो रहा है...</p>
-        </div>`;
+      const box = document.getElementById(id);
+      if (box) {
+        box.innerHTML = `
+          <div class="ai-loading">
+            <div class="spinner-border text-primary"></div>
+            <p>डाटा लोड हो रहा है...</p>
+          </div>`;
+      }
     });
 
-    // 🔹 3 REAL API CALLS
-    const stockData = await fetchApi("/api/ai/stock-insights", { method:"GET" });
-    const customerData = await fetchApi("/api/ai/customers-intel", { method:"GET" });
-    const productData = await fetchApi("/api/ai/products-intel", { method:"GET" });
+    // API CALLS
+    const stockData      = await fetchApi("/api/ai/stock-insights", { method:"GET" });
+    const customerData   = await fetchApi("/api/ai/customers-intel", { method:"GET" });
+    const productData    = await fetchApi("/api/ai/products-intel", { method:"GET" });
     const predictionData = await fetchApi("/api/ai/prediction", { method:"GET" });
-    const whatsappData = await fetchApi("/api/ai/clients-whatsapp", { method:"GET" });
-    const probData = await fetchApi("/api/ai/customer-probability", { method:"GET" });
-    const monthlyData = await fetchApi("/api/ai/monthly-strategy", { method:"GET" });
-    const lossData = await fetchApi("/api/ai/loss-finder", { method: "GET" });
-    const targetingData = await fetchApi("/api/ai/customer-targeting", { method: "GET" });
-
-
-
-
+    const whatsappData   = await fetchApi("/api/ai/clients-whatsapp", { method:"GET" });
+    const probData       = await fetchApi("/api/ai/customer-probability", { method:"GET" });
+    const monthlyData    = await fetchApi("/api/ai/monthly-strategy", { method:"GET" });
+    const lossData       = await fetchApi("/api/ai/loss-finder", { method:"GET" });
+    const targetingData  = await fetchApi("/api/ai/customer-targeting", { method:"GET" });
+    const saloonData     = await fetchApi("/api/ai/saloon-insights", { method:"GET" });
 
     // Render sections
     renderBusinessHealth(stockData);
@@ -6945,13 +7634,21 @@ async function loadUltimateAI() {
     renderLossFinder(lossData);
     renderCustomerTargeting(targetingData.customers || targetingData);
 
+    // NEW → Saloon Insights Rendering (Bottom Part)
+    renderSaloonInsights(saloonData);
 
-    // Render WhatsApp Advisor
-renderWhatsappAdvisor(whatsappData);
-
+    // WhatsApp Advisor
+    renderWhatsappAdvisor(whatsappData);
+    
+    // 🚀🚀🚀 NEW LOGIC ADDED HERE 🚀🚀🚀
+    // (यह लाइन सैलून डैशबोर्ड, सर्विसेस और बर्थडे को लोड करेगी)
+    if (typeof loadSaloonAI === 'function') {
+        await loadSaloonAI(); 
+    }
 
   } catch (err) {
-    alert("AI Error: "+err.message);
+    alert("AI Error: " + err.message);
+    console.error(err);
   }
 }
             
@@ -7659,6 +8356,583 @@ function openWhatsAppForDue(mobile, name, amount){
   const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
 }
+
+
+
+
+
+async function saveShopSettings() {
+  // existing settings code...
+  const bt = document.getElementById('shop-business-type').value;
+  await fetchApi('/api/shop/set-business-type', { method:'POST', body: { business_type: bt }});
+  // show success
+}
+
+
+async function saveCustomer() {
+  const name = document.getElementById('cust-name').value;
+  const phone = document.getElementById('cust-phone').value;
+  const address = document.getElementById('cust-address').value;
+  const dob = document.getElementById('cust-dob').value || null;
+
+  const res = await fetchApi('/api/customers', {
+    method:'POST',
+    body: { name, phone, address, dob }
+  });
+
+  if(res.success) {
+    showMessage('ग्राहक जुड़ गया');
+    // refresh customers
+    fetchAndRenderCustomers();
+  } else {
+    showMessage('Error: '+res.message,'danger');
+  }
+}
+
+
+// call this after login when you have shop info (shop.business_type)
+function applyBusinessTypeUI(btype) {
+  // Hide all optional feature groups by default
+  document.querySelectorAll('.biz-only').forEach(el => el.style.display = 'none');
+
+  // Show default retail view
+  if(!btype || btype === 'RETAIL') {
+    // nothing special (default)
+    return;
+  }
+
+  if(btype === 'SALON') {
+    // show salon-specific sections
+    // e.g. elements with class .salon-only should be visible
+    document.querySelectorAll('.salon-only').forEach(el => el.style.display = '');
+    // hide retail-only (if any)
+    document.querySelectorAll('.retail-only').forEach(el => el.style.display = 'none');
+
+    // optionally set active menu label
+    const title = document.getElementById('header-title');
+    if(title) title.innerText = 'Dukan Pro — Salon Dashboard';
+  }
+
+  if(btype === 'CAFE') {
+    document.querySelectorAll('.cafe-only').forEach(el => el.style.display = '');
+    document.querySelectorAll('.retail-only').forEach(el => el.style.display = 'none');
+  }
+
+  // etc...
+}
+
+
+
+// Call this when you need (after applyBusinessTypeUI detects SALON) or on click
+// [ ✅ ADVANCED: Salon Dashboard Loader with Graph & Customer List ]
+
+// [ ✅ FIXED: Salon Dashboard Loader (With Date/Time Sorting) ]
+
+async function loadSalonDashboard() {
+    try {
+        // 1. डैशबोर्ड का डेटा लाएं
+        const res = await fetchApi('/api/saloon/dashboard', { method: 'GET' });
+        
+        if (!res.success) throw new Error(res.message || 'No data');
+
+        // 2. कार्ड्स अपडेट करें
+        document.getElementById('salon-today-sales').innerText = formatCurrency(res.today_sales || 0);
+        // अब हम appointments + sales दोनों की गिनती दिखा रहे हैं
+        document.getElementById('salon-today-appts').innerText = (res.appointments || []).length;
+        document.getElementById('salon-birthdays-count').innerText = res.upcoming_birthdays || 0;
+        document.getElementById('salon-low-stock').innerText = res.low_stock_count || 0;
+
+        // 3. "Recent Customers / Booking List" रेंडर करें
+        const custBody = document.getElementById('salon-recent-customers-body');
+        const appts = res.appointments || [];
+        
+        if (appts.length > 0) {
+            custBody.innerHTML = appts.map(a => {
+                const dateObj = new Date(a.event_time);
+                const today = new Date();
+                const isToday = dateObj.toDateString() === today.toDateString();
+                
+                // तारीख और समय फॉर्मेटिंग
+                const dateStr = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+                // "Today" या "Date" बैज
+                const dayDisplay = isToday 
+                    ? `<span class="badge bg-success">Today</span>` 
+                    : `<span class="badge bg-warning text-dark">${dateStr}</span>`;
+
+                // Icon: Sale vs Booking
+                const typeIcon = a.type === 'SALE' 
+                    ? `<i class="fas fa-check-circle text-success" title="Completed Sale"></i>` 
+                    : `<i class="fas fa-clock text-primary" title="Upcoming Booking"></i>`;
+
+                // WhatsApp Message
+                const wpMsg = isToday 
+                    ? `नमस्ते ${a.customer_name}, आपकी आज की बुकिंग ${timeStr} पर है।`
+                    : `नमस्ते ${a.customer_name}, आपकी बुकिंग ${dateStr} को ${timeStr} पर पक्की है।`;
+
+                return `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2">${typeIcon}</div>
+                            <div>
+                                <div class="fw-bold text-dark">${a.customer_name}</div>
+                                <small class="text-muted" style="font-size: 0.8rem;">
+                                    ${a.service_name || 'Service'}
+                                </small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        ${dayDisplay} <br>
+                        <small class="fw-bold text-dark">${timeStr}</small>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <span class="me-2 small">${a.customer_mobile || '--'}</span>
+                            <button class="btn btn-sm btn-success py-0 px-2" 
+                                onclick="sendWhatsAppMessage('${a.customer_mobile}', '${wpMsg}')"
+                                title="WhatsApp Reminder">
+                                <i class="fab fa-whatsapp"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            }).join('');
+        } else {
+            custBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted p-3">कोई बुकिंग या ग्राहक नहीं।</td></tr>`;
+        }
+
+        // 4. ग्राफ (Chart) अपडेट करें
+        renderSalonChart();
+
+    } catch (err) {
+        console.error('loadSalonDashboard Error:', err);
+    }
+}
+
+// --- Salon Chart Function ---
+// [ ✅ SOLUTION: Salon Chart Rendering Function ]
+// इसे renderSalesChart के ठीक नीचे पेस्ट करें
+
+let salonChartInstance = null; // चार्ट को स्टोर करने के लिए वेरिएबल
+
+// [ ✅ FINAL: Premium TradingView Style Chart & Empty State ]
+
+// [ ✅ FINAL: Ultimate TradingView Style Chart ]
+
+// [ ✅ FINAL: Same Design as Retail Dashboard ]
+
+async function renderSalonChart() {
+    try {
+        // 1. पुराने "Share Market" वाले एलीमेंट्स (अगर हैं) तो हटा दें
+        const oldHeader = document.getElementById('pro-market-header');
+        if (oldHeader) oldHeader.remove();
+        const oldEmpty = document.getElementById('pro-empty-state');
+        if (oldEmpty) oldEmpty.remove();
+        
+        // कैनवास को वापस दिखाएं
+        const chartCanvas = document.getElementById('salonSalesChart');
+        if (!chartCanvas) return;
+        chartCanvas.style.display = 'block';
+
+        // 2. डेटा मंगाएं
+        const res = await fetchApi('/api/dashboard/sales-by-day?days=30', { method: 'GET' }, null); 
+
+        if (res.success && res.data) {
+            const chartData = res.data;
+            
+            // डेटा तैयार करें
+            const labels = chartData.map(d => new Date(d.date).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' }));
+            const salesValues = chartData.map(d => d.sales);
+            const profitValues = chartData.map(d => d.profit); // प्रॉफिट भी दिखाएंगे
+
+            // पुराना चार्ट हटाएं
+            if (window.salonChartInstance) {
+                window.salonChartInstance.destroy();
+            }
+
+            // 3. नया चार्ट बनाएं (बिल्कुल Retail जैसा)
+            const ctx = chartCanvas.getContext('2d');
+            window.salonChartInstance = new Chart(ctx, {
+                type: 'line', // लाइन चार्ट
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'बिक्री (Sales)',
+                            data: salesValues,
+                            borderColor: 'rgba(0, 180, 216, 1)', // वही नीला रंग
+                            backgroundColor: 'rgba(0, 180, 216, 0.1)',
+                            fill: true,
+                            tension: 0.3 // स्मूथ कर्व
+                        },
+                        {
+                            label: 'लाभ (Profit)',
+                            data: profitValues,
+                            borderColor: 'rgba(26, 188, 156, 1)', // वही हरा रंग
+                            backgroundColor: 'rgba(26, 188, 156, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) { return '₹' + value; }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatCurrency(context.raw);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Salon Chart Error:", e);
+    }
+}
+
+async function openBirthdayList() {
+  try {
+    const res = await fetchApi('/api/saloon/upcoming-birthdays?days=7', { method:'GET' });
+    if(!res.success) throw new Error(res.message || 'No data');
+
+    const area = document.getElementById('salon-birthday-list-area');
+    if(!res.customers || !res.customers.length) {
+      area.innerHTML = `<div class="p-3">अगले 7 दिनों में कोई जन्मदिन नहीं है।</div>`;
+      return;
+    }
+
+    let html = `<div class="card p-3"><h5>Upcoming Birthdays</h5>`;
+    html += res.customers.map(c => `
+      <div style="padding:8px 0;border-bottom:1px dashed #eee; display:flex; justify-content:space-between;">
+        <div>
+          <b>${c.name}</b><br>
+          ${c.dob ? 'DOB: ' + c.dob.split('T')[0] : ''} <br>
+          ${c.address ? c.address + '<br>' : ''} ${c.mobile ? '📞 ' + c.mobile : ''}
+        </div>
+        <div style="text-align:right;">
+          <button class="btn btn-sm btn-primary" onclick="sendBirthdayWhatsApp('${(c.mobile||'').replace(/[^0-9]/g,'')}', '${c.name}')">Send WP</button>
+        </div>
+      </div>
+    `).join('');
+    html += `</div>`;
+    area.innerHTML = html;
+  } catch(err) {
+    console.error(err);
+    alert('Birthday list load error: '+err.message);
+  }
+}
+
+function sendBirthdayWhatsApp(mobile, name) {
+  if(!mobile) return alert('Customer mobile not available');
+  const msg = `Happy Birthday ${name}! 🎉 Enjoy 20% off on your next salon visit. Book today!`;
+  window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+
+
+// -----------------------------
+// SALOON: Frontend render helpers
+// Paste into the same script where other renderX functions exist.
+// -----------------------------
+
+async function loadSaloonAI() {
+  // Safe fetch: call saloon APIs and render
+  try {
+    const [dash, services, birthdays] = await Promise.all([
+      fetchApi('/api/saloon/dashboard', { method: 'GET' }).catch(()=>({ success:false })),
+      fetchApi('/api/saloon/services', { method: 'GET' }).catch(()=>({ success:false })),
+      fetchApi('/api/saloon/upcoming-birthdays?days=7', { method: 'GET' }).catch(()=>({ success:false }))
+    ]);
+
+    renderSaloonDashboard(dash);
+    renderSaloonServices(services);
+    renderSaloonBirthdays(birthdays);
+  } catch(err){
+    console.error('loadSaloonAI error', err);
+  }
+}
+
+function renderSaloonDashboard(data) {
+  const box = document.getElementById('ai-saloon-dashboard');
+  if (!box) return;
+  if (!data || !data.success) {
+    box.innerHTML = `<div class="ai-card-alert ai-alert-danger">Saloon dashboard लोड नहीं हुआ।</div>`;
+    return;
+  }
+
+  const appts = data.appointments || [];
+  box.innerHTML = `
+    <div class="ai-card">
+      <h4>Today's Sales: ₹${data.today_sales || 0} • Appointments: ${data.today_appointments || 0}</h4>
+      <p>Upcoming Birthdays (7d): <b>${data.upcoming_birthdays || 0}</b></p>
+      <hr>
+      <h5>Next appointments</h5>
+      <div style="max-height:220px; overflow:auto;">
+        ${ appts.length ? appts.map(a => `
+            <div style="padding:8px 0; border-bottom:1px dashed #eee;">
+              <b>${a.customer_name}</b> • ${a.service || '-'} • ${new Date(a.scheduled_at).toLocaleString()}
+              ${a.mobile ? `<br/><small> ${a.mobile}</small>` : ''}
+            </div>
+          `).join('') : '<div class="text-muted">No upcoming appointments</div>'
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderSaloonServices(data) {
+  const box = document.getElementById('ai-saloon-services');
+  if (!box) return;
+  if (!data || !data.success) {
+    box.innerHTML = `<div class="ai-card-alert ai-alert-danger">Services data unavailable.</div>`;
+    return;
+  }
+
+  const list = data.services || [];
+  box.innerHTML = `
+    <div class="ai-card">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px;">
+        ${ list.length ? list.map(s => `
+            <div style="padding:8px; border-radius:6px; background:#fff; box-shadow:var(--card-shadow);">
+              <b>${s.name}</b><br>
+              ${s.price ? `Price: ₹${s.price}` : ''} ${s.duration_minutes ? `• ${s.duration_minutes}m` : ''}
+            </div>
+          `).join('') : '<div class="text-muted">No services defined</div>'
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderSaloonBirthdays(data) {
+  const box = document.getElementById('ai-saloon-birthdays');
+  if (!box) return;
+  if (!data || !data.success) {
+    box.innerHTML = `<div class="ai-card-alert ai-alert-danger">Birthday list unavailable.</div>`;
+    return;
+  }
+
+  const list = data.customers || [];
+  box.innerHTML = `
+    <div class="ai-card">
+      <div style="max-height:220px; overflow:auto;">
+        ${
+          list.length ? list.map(c => `
+            <div style="padding:8px 0; border-bottom:1px dashed #eee; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b>${c.name}</b> ${c.mobile ? `<small> • ${c.mobile}</small>` : ''}
+                <div class="text-muted-small">DOB: ${c.dob ? c.dob.split('T')[0] : '-'}</div>
+              </div>
+              <div>
+                <a class="btn btn-sm btn-outline-primary" href="https://wa.me/91${(c.mobile||'').replace(/[^0-9]/g,'')||''}?text=${encodeURIComponent(`Namaste ${c.name}, Happy Birthday in advance! Enjoy 20% off on your next visit.`)}" target="_blank">Send WP</a>
+              </div>
+            </div>
+          `).join('') : `<div class="text-muted">No upcoming birthdays</div>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+// Helper: call saloon load from main loadUltimateAI
+// -> In loadUltimateAI() add: await loadSaloonAI(); (see below where to insert)
+
+
+
+
+// Add this function near other render* functions (in same script block)
+function renderSaloonInsights(data) {
+  const box = document.getElementById('ai-saloon-content');
+  if(!box) return;
+
+  if(!data || !data.success){
+    box.innerHTML = `<div class="ai-card-alert ai-alert-danger">Saloon insights not available.</div>`;
+    return;
+  }
+
+  const appts = data.appointments || [];
+  const repeat = data.repeat_customers || [];
+  const topServices = data.top_services || [];
+  const noShows = data.no_shows || {no_shows:0,cancelled:0};
+  const birthdays = data.upcoming_birthdays || [];
+  const todayRev = data.today_revenue || 0;
+
+  let html = `
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="card p-3">
+          <h6>आज की आमदनी</h6>
+          <h3>₹${todayRev}</h3>
+          <small>Appointments: ${appts.length}</small>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card p-3">
+          <h6>No-shows / Cancelled (30d)</h6>
+          <p class="mb-0">No-shows: <b>${noShows.no_shows}</b></p>
+          <p class="mb-0">Cancelled: <b>${noShows.cancelled}</b></p>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card p-3">
+          <h6>Top Services (60d)</h6>
+          <ul style="padding-left:16px; margin:0;">
+            ${topServices.length ? topServices.map(s=>`<li>${s.service_name} — ${s.cnt} bookings • ₹${s.revenue}</li>`).join('') : '<li>—</li>'}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h5>Repeat Customers (Top)</h5>
+        <div style="max-height:220px; overflow:auto;">
+          ${repeat.length ? repeat.map(r=>`
+            <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+              <b>${r.name}</b> (${r.phone || '—'}) — Visits: ${r.visits} • Last: ${r.last_visit ? r.last_visit.split('T')[0] : '—'}
+              <button class="btn btn-sm btn-outline-primary ms-2" onclick="openWhatsAppForSalon('${(r.phone||'').replace(/[^0-9]/g,'')}','${encodeURIComponent('नमस्ते '+r.name+', हमारे पास आपके पसंदीदा सर्विस पर विशेष ऑफर है')}')">WhatsApp</button>
+            </div>
+          `).join('') : `<div class="text-muted">No repeat customers yet.</div>`}
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <h5>Upcoming Birthdays (7 days)</h5>
+        <div style="max-height:220px; overflow:auto;">
+          ${birthdays.length ? birthdays.map(b=>`
+            <div style="padding:6px 0; border-bottom:1px dashed #eee;">
+              <b>${b.name}</b> • DOB: ${b.dob ? b.dob.split('T')[0] : '—'} • ${b.phone || ''}
+              <button class="btn btn-sm btn-outline-success ms-2" onclick="openWhatsAppForSalon('${(b.phone||'').replace(/[^0-9]/g,'')}','${encodeURIComponent('Happy Birthday '+b.name+'! Special Birthday Offer: 20% off on salon services.')}')">Send Offer</button>
+            </div>
+          `).join('') : `<div class="text-muted">No birthdays in next 7 days.</div>`}
+        </div>
+      </div>
+    </div>
+  `;
+
+  box.innerHTML = html;
+}
+
+// helper openWhatsAppForSalon
+function openWhatsAppForSalon(mobile, msg){
+  if(!mobile) return alert('Mobile missing');
+  const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+
+
+
+// [ ✅ Multiuser.html: Script टैग के अंदर पेस्ट करें ]
+
+let currentRecipe = [];
+
+function addRecipeRow() {
+    const sku = document.getElementById('recipe-consumable-sku').value;
+    const qty = document.getElementById('recipe-qty').value;
+    
+    if(!sku || !qty) return alert("SKU और मात्रा भरें");
+    
+    currentRecipe.push({ sku, qty });
+    renderRecipeList();
+    
+    // इनपुट साफ़ करें
+    document.getElementById('recipe-consumable-sku').value = '';
+    document.getElementById('recipe-qty').value = '';
+}
+
+function renderRecipeList() {
+    const list = document.getElementById('recipe-list');
+    const input = document.getElementById('stock-recipe-data');
+    
+    list.innerHTML = currentRecipe.map((r, i) => `
+        <div class="d-flex justify-content-between small border-bottom py-1">
+            <span>Item: <b>${r.sku}</b>, Qty: <b>${r.qty}</b></span>
+            <span class="text-danger cursor-pointer" onclick="currentRecipe.splice(${i},1); renderRecipeList()">×</span>
+        </div>
+    `).join('');
+    
+    // डेटा को JSON स्ट्रिंग बनाकर छिपे हुए इनपुट में डालें ताकि फॉर्म सबमिट हो सके
+    input.value = JSON.stringify(currentRecipe);
+}
+
+
+// [ ✅ Multiuser.html: स्क्रिप्ट में पेस्ट करें ]
+
+// 1. Modal खोलने का फंक्शन
+function openAppointmentModal() {
+    // आज की तारीख सेट करें
+    document.getElementById('appt-date').value = new Date().toISOString().split('T')[0];
+    
+    const modal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+    modal.show();
+}
+
+// 2. फॉर्म सबमिट होने पर (Booking Logic)
+document.getElementById('appointment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const btn = e.target.querySelector('button[type="submit"]');
+    const oldText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'बुकिंग हो रही है...';
+
+    const data = {
+        name: document.getElementById('appt-name').value,
+        mobile: document.getElementById('appt-mobile').value,
+        service: document.getElementById('appt-service').value,
+        date: document.getElementById('appt-date').value,
+        time: document.getElementById('appt-time').value
+    };
+
+    try {
+        const res = await fetchApi('/api/appointments', { method: 'POST', body: data });
+        
+        if (res.success) {
+            showMessage('सफलता', res.message, 'success');
+            
+            // Modal बंद करें
+            const modalEl = document.getElementById('appointmentModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+            
+            // फॉर्म साफ़ करें
+            document.getElementById('appointment-form').reset();
+            
+            // डैशबोर्ड रीफ्रेश करें (ताकि नई बुकिंग दिखे)
+            loadSalonDashboard();
+        } else {
+            throw new Error(res.message);
+        }
+    } catch (error) {
+        showMessage('त्रुटि', error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldText;
+    }
+});
+
 
 
 </script>
