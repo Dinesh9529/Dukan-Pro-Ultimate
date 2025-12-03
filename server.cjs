@@ -552,6 +552,19 @@ END $$;
 `);
 
 
+// [ ✅ server.cjs: createTables() के अंदर इसे पेस्ट करें ]
+
+// 16. Service Recipes Table (कंजम्पशन लॉजिक के लिए)
+await client.query(`
+    CREATE TABLE IF NOT EXISTS service_recipes (
+        id SERIAL PRIMARY KEY,
+        shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+        service_sku TEXT NOT NULL,       -- सर्विस का कोड (जैसे: Haircut)
+        consumable_sku TEXT NOT NULL,    -- क्या खर्च होगा (जैसे: Shampoo)
+        quantity_needed NUMERIC NOT NULL DEFAULT 0, -- कितना खर्च होगा (जैसे: 5ml)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+`);
 
         console.log('✅ All tables and columns (including Tally GST columns) checked/created successfully.');
         
@@ -1309,7 +1322,8 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(
 
 // 7.1 Stock Management - Add/Update (SCOPED & Transactional)
 app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
-    const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes } = req.body;
+    // 🚀 FIX: 'recipe' को भी req.body से निकालें
+    const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes, recipe } = req.body;
     const shopId = req.shopId;
 
     if (!sku || !name || typeof quantity === 'undefined' || typeof purchase_price === 'undefined' || typeof sale_price === 'undefined') {
@@ -1326,11 +1340,15 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
         return res.status(400).json({ success: false, message: 'मात्रा, खरीद मूल्य और बिक्री मूल्य मान्य संख्याएँ होनी चाहिए.' });
     }
 
+    const client = await pool.connect(); // 🚀 FIX: Client बनाएँ (Transaction के लिए)
     try {
+        await client.query('BEGIN'); // 🚀 FIX: Transaction शुरू करें
+
+        // 1. [OLD CODE] स्टॉक आइटम सेव करें (यह आपका पुराना लॉजिक है, बिल्कुल सेम)
         // 🔑 Query now includes shop_id in INSERT and WHERE clause for ON CONFLICT
-        const result = await pool.query(
+        const result = await client.query(
             `INSERT INTO stock (shop_id, sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              ON CONFLICT (shop_id, sku) DO UPDATE
              SET quantity = stock.quantity + EXCLUDED.quantity,
                  name = EXCLUDED.name,
@@ -1339,19 +1357,57 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
                  gst = EXCLUDED.gst,
                  cost_price = EXCLUDED.cost_price,
                  category = EXCLUDED.category,
-				 product_attributes = EXCLUDED.product_attributes,
+                 product_attributes = EXCLUDED.product_attributes,
                  updated_at = CURRENT_TIMESTAMP
              WHERE stock.shop_id = EXCLUDED.shop_id RETURNING *;`,
-            [shopId, sku, name, safeQuantity, unit,
-         safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null]
+            [shopId, sku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null]
         );
-		broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'stock' }));
-        res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक जोड़ा/अपडेट किया गया.' });
+
+        // ============================================================
+        // 🚀 NEW LOGIC START: RECIPE / CONSUMPTION DATA SAVE 🚀
+        // ============================================================
+        
+        // अगर फ्रंटएंड से 'recipe' डेटा आया है (जो सैलून सर्विस के लिए होता है)
+        if (recipe && Array.isArray(recipe) && recipe.length > 0) {
+            console.log(`Saving recipe for Service: ${sku} (Shop: ${shopId})`);
+            
+            // A. पहले इस सर्विस की पुरानी रेसिपी डिलीट करें (ताकि डुप्लीकेट न हो)
+            // (Note: service_recipes टेबल हमने createTables में बना ली है)
+            await client.query('DELETE FROM service_recipes WHERE shop_id=$1 AND service_sku=$2', [shopId, sku]);
+            
+            // B. नई रेसिपी की हर लाइन को सेव करें
+            for (const r of recipe) {
+                if (r.sku && r.qty) {
+                    await client.query(
+                        `INSERT INTO service_recipes (shop_id, service_sku, consumable_sku, quantity_needed)
+                         VALUES ($1, $2, $3, $4)`,
+                        [shopId, sku, r.sku, parseFloat(r.qty)]
+                    );
+                }
+            }
+        }
+        // ============================================================
+        // 🚀 NEW LOGIC END 🚀
+        // ============================================================
+
+        await client.query('COMMIT'); // 🚀 FIX: Transaction पूरा करें
+
+        // Dashboard Update (Socket)
+        if (typeof broadcastToShop === 'function') {
+            broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'stock' }));
+        }
+        
+        res.json({ success: true, stock: result.rows[0], message: 'स्टॉक/सर्विस सफलतापूर्वक सेव हो गई।' });
+
     } catch (err) {
+        await client.query('ROLLBACK'); // 🚀 FIX: गलती होने पर वापस जाएँ
         console.error("Error adding stock:", err.message);
         res.status(500).json({ success: false, message: 'स्टॉक जोड़ने में विफल: ' + err.message });
+    } finally {
+        if (client) client.release(); // 🚀 FIX: कनेक्शन छोड़ें
     }
 });
+
 // 7.2 Stock Management - Get All (SCOPED)
 app.get('/api/stock', authenticateJWT, async (req, res) => {
     const shopId = req.shopId;
@@ -1478,10 +1534,12 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 
 //... (बाकी server.cjs कोड)
 
-// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST REPORTING)
+// [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें ]
+
+// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST & SALON CONSUMPTION)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
-    // FIX 1: req.body से customerMobile वेरिएबल निकालें (आपका मौजूदा कोड)
-    // TALLY UPDATE: हम 'place_of_supply' को भी req.body से लेंगे (यह फ्रंटएंड से आना चाहिए)
+    // FIX 1: req.body से customerMobile वेरिएबल निकालें
+    // TALLY UPDATE: 'place_of_supply' को भी req.body से लेंगे
     const { customerName, customerMobile, total_amount, sale_items, place_of_supply } = req.body;
     const shopId = req.shopId;
 
@@ -1498,14 +1556,13 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         let customerGstin = null; 
         // === TALLY UPDATE END ===
 
+        // 1. ग्राहक ढूँढें या बनाएँ
         if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
-            
-            // FIX 2: ग्राहक को नाम OR फोन से खोजें (आपका मौजूदा कोड)
+            // FIX 2: ग्राहक को नाम OR फोन से खोजें
             // TALLY UPDATE: SELECT में 'gstin' जोड़ा गया
             let customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
             
             if (customerResult.rows.length === 0 && customerMobile) {
-                // TALLY UPDATE: SELECT में 'gstin' जोड़ा गया
                  customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND phone = $2', [shopId, customerMobile]);
             }
 
@@ -1513,23 +1570,23 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
                 customerId = customerResult.rows[0].id;
                 customerGstin = customerResult.rows[0].gstin; // <<< TALLY UPDATE: GSTIN सहेजें
             } else {
-                // FIX 3: नया ग्राहक बनाते समय phone कॉलम शामिल करें (आपका मौजूदा कोड)
+                // FIX 3: नया ग्राहक बनाते समय phone कॉलम शामिल करें
                 // TALLY UPDATE: RETURNING में 'gstin' जोड़ा गया
                 const newCustomerResult = await client.query('INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id, gstin', [shopId, customerName.trim(), customerMobile]);
                 customerId = newCustomerResult.rows[0].id;
-                customerGstin = newCustomerResult.rows[0].gstin; // <<< TALLY UPDATE: (यह NULL होगा, जो सही है)
+                customerGstin = newCustomerResult.rows[0].gstin; // (यह NULL होगा, जो सही है)
             }
         }
 
         const safeTotalAmount = parseFloat(total_amount);
         let calculatedTotalCost = 0;
 
-        // TALLY UPDATE: अपनी दुकान का GSTIN प्राप्त करें (यह जानने के लिए कि बिक्री Intra-State है या Inter-State)
+        // TALLY UPDATE: अपनी दुकान का GSTIN प्राप्त करें (Place of Supply Logic)
         const profileRes = await client.query('SELECT gstin FROM company_profile WHERE shop_id = $1', [shopId]);
-        const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2); // जैसे "27" (Maharashtra)
-        const supplyPlace = (place_of_supply || shopGstin); // यदि 'place_of_supply' नहीं है, तो मानें कि यह Intra-State है
+        const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2); // जैसे "27"
+        const supplyPlace = (place_of_supply || shopGstin); // यदि नहीं है, तो Intra-State मानें
 
-        // 🔑 Insert invoice with shop_id
+        // 2. इनवॉइस बनाएँ
         // TALLY UPDATE: 'customer_gstin' और 'place_of_supply' कॉलम जोड़े गए
         const invoiceResult = await client.query(
             `INSERT INTO invoices (shop_id, customer_id, total_amount, customer_gstin, place_of_supply) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
@@ -1537,14 +1594,15 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         );
         const invoiceId = invoiceResult.rows[0].id;
 
+        // 3. आइटम लूप (यहाँ Tally और Salon दोनों का जादू है)
         for (const item of sale_items) {
             const safeQuantity = parseFloat(item.quantity);
             const safePurchasePrice = parseFloat(item.purchase_price || 0);
             const salePrice = parseFloat(item.sale_price);
             
-            // === TALLY UPDATE START: CGST/SGST/IGST की गणना करें ===
+            // === TALLY UPDATE START: CGST/SGST/IGST की गणना ===
             const gstRate = parseFloat(item.gst || 0);
-            const taxableValue = (salePrice * safeQuantity); // मानते हैं कि sale_price टैक्स-रहित (tax-exclusive) है
+            const taxableValue = (salePrice * safeQuantity);
             const totalGstAmount = taxableValue * (gstRate / 100);
 
             let cgst_amount = 0;
@@ -1552,57 +1610,80 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             let igst_amount = 0;
 
             if (supplyPlace === shopGstin) {
-                // Intra-State (राज्य के अंदर)
+                // Intra-State
                 cgst_amount = totalGstAmount / 2;
                 sgst_amount = totalGstAmount / 2;
             } else {
-                // Inter-State (राज्य के बाहर)
+                // Inter-State
                 igst_amount = totalGstAmount;
             }
             // === TALLY UPDATE END ===
 
             calculatedTotalCost += safeQuantity * safePurchasePrice;
             
-            // TALLY UPDATE: 'invoice_items' INSERT क्वेरी में नए GST कॉलम जोड़े गए
+            // A. इनवॉइस आइटम सेव करें (Tally Columns के साथ)
             await client.query(
                 `INSERT INTO invoice_items (
                     invoice_id, item_name, item_sku, quantity, sale_price, purchase_price, 
-                   gst_rate, gst_amount, cgst_amount, sgst_amount, igst_amount, product_attributes
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-[
-    invoiceId, item.name, item.sku, safeQuantity, salePrice, safePurchasePrice,
-    gstRate, totalGstAmount, cgst_amount, sgst_amount, igst_amount, item.product_attributes || null
-]
+                    gst_rate, gst_amount, cgst_amount, sgst_amount, igst_amount, product_attributes
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                [
+                    invoiceId, item.name, item.sku, safeQuantity, salePrice, safePurchasePrice,
+                    gstRate, totalGstAmount, cgst_amount, sgst_amount, igst_amount, item.product_attributes || null
+                ]
             );
             
-            // 🔑 Update stock quantity (आपका मौजूदा कोड)
-            await client.query(
-                `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
-                [safeQuantity, item.sku, shopId]
+            // 🚀🚀🚀 जादुई लॉजिक: स्टॉक घटाना (Consumption Tracking) 🚀🚀🚀
+            
+            // चेक करें: क्या इस आइटम की कोई "रेसिपी" है? (सैलून के लिए)
+            const recipeRes = await client.query(
+                `SELECT consumable_sku, quantity_needed FROM service_recipes WHERE shop_id = $1 AND service_sku = $2`,
+                [shopId, item.sku]
             );
+
+            if (recipeRes.rows.length > 0) {
+                // === केस 1: यह एक सर्विस है (जैसे Haircut) ===
+                console.log(`Salon Logic: ${item.name} सर्विस बिकी। अब जुड़ी हुई इन्वेंटरी कम हो रही है...`);
+                
+                for (const recipe of recipeRes.rows) {
+                    // कुल खपत = (एक सर्विस में खपत) * (जितनी सर्विस बिकीं)
+                    const totalConsume = parseFloat(recipe.quantity_needed) * safeQuantity;
+                    
+                    // चुपचाप स्टॉक से माइनस करें (जैसे Shampoo Bottle से 10ml कम)
+                    await client.query(
+                        `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
+                        [totalConsume, recipe.consumable_sku, shopId]
+                    );
+                }
+            } else {
+                // === केस 2: यह एक सामान्य प्रोडक्ट है (जैसे Retail आइटम) ===
+                // सीधा स्टॉक घटाएं (Standard behavior)
+                await client.query(
+                    `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
+                    [safeQuantity, item.sku, shopId]
+                );
+            }
+            // 🚀🚀🚀 जादू खत्म 🚀🚀🚀
         }
 
-        // Update the invoice with the calculated total cost of goods sold (COGS) (आपका मौजूदा कोड)
+        // 4. इनवॉइस में COGS अपडेट करें
         await client.query(
             `UPDATE invoices SET total_cost = $1 WHERE id = $2`,
             [calculatedTotalCost, invoiceId]
         );
-		
-        // ... (POST /api/invoices का कोड)
+        
         await client.query('COMMIT'); // Transaction End
 
-        // 🚀 NAYA: Dashboard को अपडेट करने के लिए ब्रॉडकास्ट करें
-        broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
+        // 🚀 Dashboard को अपडेट करने के लिए ब्रॉडकास्ट करें
+        if (typeof broadcastToShop === 'function') {
+            broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
+        }
 
-        res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री सफलतापूर्वक दर्ज की गई और स्टॉक अपडेट किया गया.' });
+        res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री और इन्वेंटरी खपत (Consumption) सफलतापूर्वक दर्ज की गई।' });
     
     } catch (err) {
-// ...
-
-       
         await client.query('ROLLBACK');
-        // Rollback on any error
-        console.error("Error processing invoice:", err.message, err.stack); // Added stack trace
+        console.error("Error processing invoice:", err.message, err.stack);
         res.status(500).json({ success: false, message: 'बिक्री विफल: ' + err.message });
     } finally {
         if (client) client.release();
