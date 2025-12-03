@@ -437,6 +437,110 @@ async function createTables() {
         `);
         // --- END MOVED SECTION ---
 
+
+
+//-- Add DOB to customers and business_type to shops (safe – only if not exists)
+await client.query(`
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'customers')
+      AND attname = 'dob'
+  ) THEN
+    ALTER TABLE customers ADD COLUMN dob DATE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops')
+      AND attname = 'business_type'
+  ) THEN
+    ALTER TABLE shops ADD COLUMN business_type TEXT DEFAULT 'RETAIL';
+  END IF;
+END $$;
+`);
+
+
+
+
+//-- Salon specific tables (safe: only add if not exists)
+await client.query(`
+DO $$
+BEGIN
+  //-- appointments
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='appointments') THEN
+    CREATE TABLE appointments (
+      id SERIAL PRIMARY KEY,
+      shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      customer_name TEXT,
+      customer_mobile TEXT,
+      service_id INTEGER,
+      service_name TEXT,
+      scheduled_at TIMESTAMP WITH TIME ZONE,
+      status TEXT DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED','COMPLETED','CANCELLED','NO_SHOW')),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  END IF;
+
+  //-- salon services (catalog)
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='salon_services') THEN
+    CREATE TABLE salon_services (
+      id SERIAL PRIMARY KEY,
+      shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+      code TEXT,
+      name TEXT NOT NULL,
+      duration_minutes INTEGER DEFAULT 30,
+      price NUMERIC DEFAULT 0,
+      cost NUMERIC DEFAULT 0,
+      category TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  END IF;
+
+  //-- bookings (payments + appointments link)
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='salon_bookings') THEN
+    CREATE TABLE salon_bookings (
+      id SERIAL PRIMARY KEY,
+      shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+      appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+      invoice_id INTEGER REFERENCES invoices(id) ON DELETE SET NULL,
+      paid_amount NUMERIC DEFAULT 0,
+      payment_status TEXT DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING','PAID','REFUNDED')),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  END IF;
+
+  //-- salon staff
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='salon_staff') THEN
+    CREATE TABLE salon_staff (
+      id SERIAL PRIMARY KEY,
+      shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+      name TEXT,
+      mobile TEXT,
+      role TEXT,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  END IF;
+
+  //-- service inventory if salon sells products (shampoos, oils)
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='service_inventory') THEN
+    CREATE TABLE service_inventory (
+      id SERIAL PRIMARY KEY,
+      shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+      sku TEXT,
+      name TEXT,
+      qty NUMERIC DEFAULT 0,
+      purchase_price NUMERIC DEFAULT 0,
+      sale_price NUMERIC DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  END IF;
+END $$;
+
+
         console.log('✅ All tables and columns (including Tally GST columns) checked/created successfully.');
         
     } catch (err) {
@@ -4778,6 +4882,222 @@ app.get('/api/ai/customer-targeting', authenticateJWT, async (req, res) => {
   } catch (err) {
     console.error('CUSTOMER TARGETING ERROR:', err);
     res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// -----------------------------
+// Saloon support & Birthday APIs
+// -----------------------------
+app.post('/api/shop/set-business-type', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const shopId = req.shopId;
+    const { business_type } = req.body; // e.g., 'SALON' or 'RETAIL' etc.
+    if(!business_type) return res.status(400).json({ success:false, message:'business_type required' });
+    await client.query(`UPDATE shops SET business_type=$1 WHERE id=$2`, [business_type, shopId]);
+    res.json({ success:true, message:'Business type updated', business_type });
+  } catch(err){
+    console.error(err);
+    res.status(500).json({ success:false, message: err.message });
+  } finally { client.release(); }
+});
+
+
+// Saloon dashboard data (appointments summary, services stock if any, birthday count)
+app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+  try {
+    // 1) upcoming appointments (if you have appointments table) — fallback empty
+    const apptRes = await client.query(
+      `SELECT id, customer_name, customer_mobile, scheduled_at, service
+       FROM appointments
+       WHERE shop_id = $1 AND scheduled_at >= NOW()::date
+       ORDER BY scheduled_at ASC
+       LIMIT 20`, [shopId]
+    ).catch(()=>({ rows: [] }));
+
+    // 2) today's revenue summary
+    const todayRes = await client.query(
+      `SELECT COALESCE(SUM(total_amount),0) AS today_sales
+       FROM invoices
+       WHERE shop_id=$1 AND created_at::date = CURRENT_DATE`, [shopId]
+    );
+
+    // 3) upcoming birthdays count (next 7 days)
+    const bdRes = await client.query(
+      `SELECT COUNT(*)::int AS upcoming_birthdays
+       FROM customers
+       WHERE shop_id=$1 AND dob IS NOT NULL
+         AND (to_char(dob,'MM-DD') BETWEEN to_char(current_date, 'MM-DD') AND to_char(current_date + INTERVAL '7 days','MM-DD'))`,
+      [shopId]
+    ).catch(()=>({ rows:[{ upcoming_birthdays:0 }] }));
+
+    res.json({
+      success:true,
+      appointments: apptRes.rows || [],
+      today_sales: todayRes.rows[0] ? Number(todayRes.rows[0].today_sales||0) : 0,
+      upcoming_birthdays: bdRes.rows[0] ? Number(bdRes.rows[0].upcoming_birthdays||0) : 0
+    });
+
+  } catch(err){ console.error(err); res.status(500).json({ success:false, message: err.message }); } finally { client.release(); }
+});
+
+
+// Get customers with birthdays in next N days
+app.get('/api/saloon/upcoming-birthdays', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+  const days = Math.min(Math.max(parseInt(req.query.days||7,10),1),60);
+  try {
+    // Using to_char to match month-day ignoring year
+    const q = `
+      SELECT id, name, COALESCE(mobile, phone, '') AS mobile, address, dob,
+        to_char(dob, 'DD-MM') AS dob_md,
+        (date_part('year', age(current_date, dob)))::int AS age_if_known
+      FROM customers
+      WHERE shop_id=$1 AND dob IS NOT NULL
+        AND (
+          to_char(dob, 'MM-DD') BETWEEN to_char(current_date, 'MM-DD')
+          AND to_char(current_date + ($2 || ' days')::interval, 'MM-DD')
+        )
+      ORDER BY to_char(dob, 'MM-DD') ASC
+      LIMIT 200
+    `;
+    const result = await client.query(q, [shopId, days]);
+    res.json({ success:true, customers: result.rows });
+  } catch(err){ console.error(err); res.status(500).json({ success:false, message: err.message }); } finally { client.release(); }
+});
+
+
+// Ensure customer create/update endpoints accept dob (example: modify your existing /api/customers POST/PUT)
+// Example handler (add to existing code)
+app.post('/api/customers', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const shopId = req.shopId;
+    const { name, phone, address, dob } = req.body;
+    const inserted = await client.query(
+      `INSERT INTO customers (shop_id, name, phone, address, dob, created_at)
+       VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *`,
+      [shopId, name, phone, address, dob || null]
+    );
+    res.json({ success:true, customer: inserted.rows[0] });
+  } catch(err){ console.error(err); res.status(500).json({ success:false, message: err.message }); } finally { client.release(); }
+});
+
+
+
+
+// Saloon services list (stock-like services table). If you don't have 'services' table, adapt to static list.
+app.get('/api/saloon/services', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+  try {
+    // Prefer a table 'saloon_services' if exists, fallback to top items from stock by category 'SALON'
+    const check = await client.query(`SELECT to_regclass('public.saloon_services') as exists`);
+    if (check.rows[0] && check.rows[0].exists) {
+      const sres = await client.query(`SELECT id, name, price, duration_minutes, stock_required FROM saloon_services WHERE shop_id=$1 ORDER BY name`, [shopId]);
+      return res.json({ success:true, services: sres.rows });
+    } else {
+      // fallback - fetch stock items in category SALON
+      const sres = await client.query(`SELECT sku, name, sale_price FROM stock WHERE shop_id=$1 AND (category ILIKE '%salon%' OR category ILIKE '%service%') LIMIT 200`, [shopId]);
+      return res.json({ success:true, services: sres.rows.map(r=>({ sku:r.sku, name:r.name, price:r.sale_price })) });
+    }
+  } catch(err){
+    console.error('saloon services error', err);
+    res.status(500).json({ success:false, message: err.message });
+  } finally { client.release(); }
+});
+
+
+
+// Add into server.cjs near other /api/ai routes
+app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  const shopId = req.shopId;
+  try {
+    const now = new Date();
+
+    // 1) recent appointments (7 days)
+    const apptRes = await client.query(
+      `SELECT a.id, a.customer_id, a.customer_name, a.customer_mobile, a.service_name, a.scheduled_at, a.status
+       FROM appointments a
+       WHERE a.shop_id=$1 AND a.scheduled_at >= $2
+       ORDER BY a.scheduled_at DESC LIMIT 200`,
+      [shopId, new Date(now.getTime() - 7*24*60*60*1000).toISOString()]
+    );
+
+    // 2) repeat customers (last 90 days) — customers with >=2 visits
+    const repeatRes = await client.query(
+      `SELECT c.id, c.name, COALESCE(c.phone, c.mobile, '') AS phone,
+              COUNT(a.id)::int AS visits,
+              MAX(a.scheduled_at) AS last_visit
+       FROM customers c
+       LEFT JOIN appointments a ON a.customer_id = c.id AND a.shop_id = c.shop_id
+       WHERE c.shop_id=$1
+       GROUP BY c.id, c.name, COALESCE(c.phone, c.mobile, '')
+       HAVING COUNT(a.id) >= 2
+       ORDER BY visits DESC
+       LIMIT 50`,
+      [shopId]
+    );
+
+    // 3) no-shows and cancellations (30 days)
+    const noShowRes = await client.query(
+      `SELECT COUNT(*) FILTER (WHERE status='NO_SHOW')::int AS no_shows,
+              COUNT(*) FILTER (WHERE status='CANCELLED')::int AS cancelled
+       FROM appointments
+       WHERE shop_id=$1 AND scheduled_at >= $2`,
+      [shopId, new Date(now.getTime() - 30*24*60*60*1000).toISOString()]
+    );
+
+    // 4) top services (by bookings) last 60 days
+    const topSvcRes = await client.query(
+      `SELECT a.service_name, COUNT(*)::int AS cnt, COALESCE(SUM(b.paid_amount),0)::numeric AS revenue
+       FROM appointments a
+       LEFT JOIN salon_bookings b ON b.appointment_id = a.id
+       WHERE a.shop_id=$1 AND a.scheduled_at >= $2
+       GROUP BY a.service_name
+       ORDER BY cnt DESC
+       LIMIT 10`,
+      [shopId, new Date(now.getTime() - 60*24*60*60*1000).toISOString()]
+    );
+
+    // 5) upcoming birthdays next 7 days
+    const bdRes = await client.query(
+      `SELECT id, name, COALESCE(phone, mobile, '') AS phone, dob
+       FROM customers
+       WHERE shop_id=$1 AND dob IS NOT NULL
+         AND to_char(dob,'MM-DD') BETWEEN to_char(current_date,'MM-DD') AND to_char(current_date + INTERVAL '7 days','MM-DD')
+       ORDER BY to_char(dob,'MM-DD')`,
+      [shopId]
+    );
+
+    // 6) revenue today (invoices)
+    const revRes = await client.query(
+      `SELECT COALESCE(SUM(total_amount),0)::numeric AS today_revenue
+       FROM invoices
+       WHERE shop_id=$1 AND created_at::date = CURRENT_DATE`,
+      [shopId]
+    );
+
+    res.json({
+      success: true,
+      appointments: apptRes.rows,
+      repeat_customers: repeatRes.rows,
+      no_shows: noShowRes.rows[0] || { no_shows:0, cancelled:0 },
+      top_services: topSvcRes.rows,
+      upcoming_birthdays: bdRes.rows,
+      today_revenue: Number(revRes.rows[0].today_revenue || 0)
+    });
+  } catch (err) {
+    console.error('SALOON INSIGHTS ERROR:', err);
+    res.status(500).json({ success:false, message: err.message });
   } finally {
     client.release();
   }
