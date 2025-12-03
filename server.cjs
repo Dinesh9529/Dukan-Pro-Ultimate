@@ -1320,16 +1320,16 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(
 
 // --- 7. Stock Management ---
 
-// [ ✅ FIXED: Recipe + Edit Fix (20 vs 40 issue solved) ]
+// [ ✅ FIXED: Trim SKU to prevent duplicates & Fix Quantity Logic ]
 
 app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
-    // 🚀 1. 'action_type' को भी यहाँ निकाला गया है
     const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes, recipe, action_type } = req.body;
     const shopId = req.shopId;
 
-    if (!sku || !name) {
-        return res.status(400).json({ success: false, message: 'SKU और नाम आवश्यक हैं.' });
-    }
+    if (!sku || !name) return res.status(400).json({ success: false, message: 'SKU और नाम आवश्यक हैं.' });
+
+    // 🚀 FIX: SKU से एक्स्ट्रा स्पेस हटाएँ (ताकि "Tube" और "Tube " एक ही माने जाएँ)
+    const cleanSku = sku.trim(); 
 
     const safeQuantity = parseFloat(quantity) || 0;
     const safePurchasePrice = parseFloat(purchase_price) || 0;
@@ -1337,20 +1337,16 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
     const safeGst = parseFloat(gst || 0);
     const safeCostPrice = parseFloat(cost_price || safePurchasePrice);
 
-    if (isNaN(safeQuantity) || isNaN(safePurchasePrice) || isNaN(safeSalePrice)) {
-        return res.status(400).json({ success: false, message: 'मात्रा और मूल्य मान्य संख्याएँ होनी चाहिए.' });
-    }
-
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // 🚀 2. यह तय करेगा कि स्टॉक जोड़ना है या रिप्लेस करना है
+        // 🚀 लॉजिक: अगर action='set' है तो रिप्लेस करो, वरना जोड़ो
         const quantityLogic = (action_type === 'set') 
-            ? 'EXCLUDED.quantity'            // Edit के लिए (Replace)
-            : 'stock.quantity + EXCLUDED.quantity'; // Add के लिए (Sum)
+            ? 'EXCLUDED.quantity'            // Edit Mode (Replace)
+            : 'stock.quantity + EXCLUDED.quantity'; // Add Mode (Sum)
 
-        // 🚀 3. क्वेरी में ${quantityLogic} का इस्तेमाल किया गया है
+        // 🚀 FIX: अब हम cleanSku का उपयोग कर रहे हैं
         const queryText = `
             INSERT INTO stock (shop_id, sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -1368,28 +1364,26 @@ app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) =
         `;
 
         const result = await client.query(queryText, [
-            shopId, sku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null
+            shopId, cleanSku, name, safeQuantity, unit, safePurchasePrice, safeSalePrice, safeGst, safeCostPrice, category, product_attributes || null
         ]);
 
-        // --- Recipe Logic (Consumption) - यह आपका पुराना कोड ही है ---
+        // --- Recipe Logic ---
         if (recipe && Array.isArray(recipe) && recipe.length > 0) {
-            await client.query('DELETE FROM service_recipes WHERE shop_id=$1 AND service_sku=$2', [shopId, sku]);
+            await client.query('DELETE FROM service_recipes WHERE shop_id=$1 AND service_sku=$2', [shopId, cleanSku]);
             for (const r of recipe) {
                 if (r.sku && r.qty) {
+                    // 🚀 FIX: Recipe के अंदर वाले SKU को भी trim करें
                     await client.query(
                         `INSERT INTO service_recipes (shop_id, service_sku, consumable_sku, quantity_needed)
                          VALUES ($1, $2, $3, $4)`,
-                        [shopId, sku, r.sku, parseFloat(r.qty)]
+                        [shopId, cleanSku, r.sku.trim(), parseFloat(r.qty)]
                     );
                 }
             }
         }
 
         await client.query('COMMIT');
-        
-        if (typeof broadcastToShop === 'function') {
-            broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'stock' }));
-        }
+        if (typeof broadcastToShop === 'function') broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'stock' }));
         
         res.json({ success: true, stock: result.rows[0], message: 'स्टॉक सफलतापूर्वक अपडेट हो गया।' });
 
@@ -5156,37 +5150,61 @@ app.get('/api/saloon/services', authenticateJWT, async (req, res) => {
 
 
 // Add into server.cjs near other /api/ai routes
+// [ ✅ server.cjs: /api/ai/saloon-insights को इस नए कोड से बदलें ]
+
 app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
     const now = new Date();
+    
+    // 1) Recent Activity (Invoices + Appointments mix)
+    // हम POS (Invoices) और Appointments दोनों को मिलाकर दिखाएंगे
+    const activityQuery = `
+        (
+            SELECT 
+                c.name AS customer_name, 
+                c.phone AS customer_mobile, 
+                'Walk-in / Sale' AS service_name,
+                i.created_at AS scheduled_at, 
+                'COMPLETED' AS status
+            FROM invoices i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            WHERE i.shop_id = $1 AND i.created_at >= $2
+        )
+        UNION ALL
+        (
+            SELECT 
+                customer_name, 
+                customer_mobile, 
+                service_name, 
+                scheduled_at, 
+                status
+            FROM appointments
+            WHERE shop_id = $1 AND scheduled_at >= $2
+        )
+        ORDER BY scheduled_at DESC 
+        LIMIT 20
+    `;
+    const apptRes = await client.query(activityQuery, [shopId, new Date(now.getTime() - 7*24*60*60*1000).toISOString()]);
 
-    // 1) recent appointments (7 days)
-    const apptRes = await client.query(
-      `SELECT a.id, a.customer_id, a.customer_name, a.customer_mobile, a.service_name, a.scheduled_at, a.status
-       FROM appointments a
-       WHERE a.shop_id=$1 AND a.scheduled_at >= $2
-       ORDER BY a.scheduled_at DESC LIMIT 200`,
-      [shopId, new Date(now.getTime() - 7*24*60*60*1000).toISOString()]
-    );
-
-    // 2) repeat customers (last 90 days) — customers with >=2 visits
+    // 2) Repeat Customers (Based on Invoices count)
+    // अब यह देखेगा कि किसने कितनी बार 'बिल' बनवाया है
     const repeatRes = await client.query(
-      `SELECT c.id, c.name, COALESCE(c.phone, c.mobile, '') AS phone,
-              COUNT(a.id)::int AS visits,
-              MAX(a.scheduled_at) AS last_visit
+      `SELECT c.id, c.name, COALESCE(c.phone, '') AS phone,
+              COUNT(i.id)::int AS visits,
+              MAX(i.created_at) AS last_visit
        FROM customers c
-       LEFT JOIN appointments a ON a.customer_id = c.id AND a.shop_id = c.shop_id
+       JOIN invoices i ON i.customer_id = c.id
        WHERE c.shop_id=$1
-       GROUP BY c.id, c.name, COALESCE(c.phone, c.mobile, '')
-       HAVING COUNT(a.id) >= 2
+       GROUP BY c.id, c.name, c.phone
+       HAVING COUNT(i.id) >= 2
        ORDER BY visits DESC
        LIMIT 50`,
       [shopId]
     );
 
-    // 3) no-shows and cancellations (30 days)
+    // 3) No-shows (Only from appointments)
     const noShowRes = await client.query(
       `SELECT COUNT(*) FILTER (WHERE status='NO_SHOW')::int AS no_shows,
               COUNT(*) FILTER (WHERE status='CANCELLED')::int AS cancelled
@@ -5195,21 +5213,24 @@ app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
       [shopId, new Date(now.getTime() - 30*24*60*60*1000).toISOString()]
     );
 
-    // 4) top services (by bookings) last 60 days
+    // 4) Top Services (Based on Invoice Items)
+    // अब यह देखेगा कि POS में कौन सा आइटम/सर्विस सबसे ज्यादा बिका
     const topSvcRes = await client.query(
-      `SELECT a.service_name, COUNT(*)::int AS cnt, COALESCE(SUM(b.paid_amount),0)::numeric AS revenue
-       FROM appointments a
-       LEFT JOIN salon_bookings b ON b.appointment_id = a.id
-       WHERE a.shop_id=$1 AND a.scheduled_at >= $2
-       GROUP BY a.service_name
+      `SELECT item_name AS service_name, 
+              COUNT(*)::int AS cnt, 
+              SUM(sale_price * quantity)::numeric AS revenue
+       FROM invoice_items ii
+       JOIN invoices i ON ii.invoice_id = i.id
+       WHERE i.shop_id=$1 AND i.created_at >= $2
+       GROUP BY item_name
        ORDER BY cnt DESC
        LIMIT 10`,
       [shopId, new Date(now.getTime() - 60*24*60*60*1000).toISOString()]
     );
 
-    // 5) upcoming birthdays next 7 days
+    // 5) Upcoming Birthdays
     const bdRes = await client.query(
-      `SELECT id, name, COALESCE(phone, mobile, '') AS phone, dob
+      `SELECT id, name, COALESCE(phone, '') AS phone, dob
        FROM customers
        WHERE shop_id=$1 AND dob IS NOT NULL
          AND to_char(dob,'MM-DD') BETWEEN to_char(current_date,'MM-DD') AND to_char(current_date + INTERVAL '7 days','MM-DD')
@@ -5217,7 +5238,7 @@ app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
       [shopId]
     );
 
-    // 6) revenue today (invoices)
+    // 6) Today's Revenue
     const revRes = await client.query(
       `SELECT COALESCE(SUM(total_amount),0)::numeric AS today_revenue
        FROM invoices
@@ -5227,13 +5248,14 @@ app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
 
     res.json({
       success: true,
-      appointments: apptRes.rows,
-      repeat_customers: repeatRes.rows,
+      appointments: apptRes.rows,      // अब इसमें POS का डेटा भी होगा
+      repeat_customers: repeatRes.rows,// अब इसमें POS के रिपीट ग्राहक होंगे
       no_shows: noShowRes.rows[0] || { no_shows:0, cancelled:0 },
-      top_services: topSvcRes.rows,
+      top_services: topSvcRes.rows,    // अब इसमें सबसे ज्यादा बिकी सर्विस दिखेंगी
       upcoming_birthdays: bdRes.rows,
       today_revenue: Number(revRes.rows[0].today_revenue || 0)
     });
+
   } catch (err) {
     console.error('SALOON INSIGHTS ERROR:', err);
     res.status(500).json({ success:false, message: err.message });
@@ -5241,7 +5263,6 @@ app.get('/api/ai/saloon-insights', authenticateJWT, async (req, res) => {
     client.release();
   }
 });
-
 
 
 // Start the server after ensuring database tables are ready
