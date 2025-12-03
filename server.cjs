@@ -5005,27 +5005,56 @@ app.post('/api/shop/set-business-type', authenticateJWT, async (req, res) => {
 
 
 // Saloon dashboard data (appointments summary, services stock if any, birthday count)
+// [ ✅ server.cjs: इस पूरे API को पुराने '/api/saloon/dashboard' की जगह पेस्ट करें ]
+
 app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
-    // 1) upcoming appointments (if you have appointments table) — fallback empty
-    const apptRes = await client.query(
-      `SELECT id, customer_name, customer_mobile, scheduled_at, service
-       FROM appointments
-       WHERE shop_id = $1 AND scheduled_at >= NOW()::date
-       ORDER BY scheduled_at ASC
-       LIMIT 20`, [shopId]
-    ).catch(()=>({ rows: [] }));
+    // 1) COMBINED LIST: आज की Appointments + आज की Sales (Invoices)
+    // हम दोनों टेबल को जोड़ रहे हैं ताकि कुछ भी न छूटे
+    const mixedQuery = `
+        (
+            -- हिस्सा 1: Appointments (जो पहले से बुक हैं)
+            SELECT 
+                customer_name, 
+                customer_mobile, 
+                scheduled_at AS event_time, 
+                service_name,
+                status,
+                'BOOKING' as type
+            FROM appointments
+            WHERE shop_id = $1 AND scheduled_at::date = CURRENT_DATE
+        )
+        UNION ALL
+        (
+            -- हिस्सा 2: Invoices (जो Walk-in आए और बिल कटवा लिया)
+            SELECT 
+                c.name AS customer_name, 
+                c.phone AS customer_mobile, 
+                i.created_at AS event_time, 
+                'Walk-in / Billed' AS service_name,
+                'COMPLETED' AS status,
+                'SALE' as type
+            FROM invoices i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            WHERE i.shop_id = $1 AND i.created_at::date = CURRENT_DATE
+        )
+        ORDER BY event_time DESC 
+        LIMIT 50
+    `;
+    
+    const timelineRes = await client.query(mixedQuery, [shopId]);
 
-    // 2) today's revenue summary
+    // 2) Today's Revenue
     const todayRes = await client.query(
       `SELECT COALESCE(SUM(total_amount),0) AS today_sales
        FROM invoices
-       WHERE shop_id=$1 AND created_at::date = CURRENT_DATE`, [shopId]
+       WHERE shop_id=$1 AND created_at::date = CURRENT_DATE`, 
+      [shopId]
     );
 
-    // 3) upcoming birthdays count (next 7 days)
+    // 3) Upcoming Birthdays
     const bdRes = await client.query(
       `SELECT COUNT(*)::int AS upcoming_birthdays
        FROM customers
@@ -5034,16 +5063,29 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
       [shopId]
     ).catch(()=>({ rows:[{ upcoming_birthdays:0 }] }));
 
+    // 4) Low Stock Count
+    const lowStockRes = await client.query(
+        `SELECT COUNT(*)::int as low_count FROM stock WHERE shop_id=$1 AND quantity < 5`, 
+        [shopId]
+    );
+
     res.json({
       success:true,
-      appointments: apptRes.rows || [],
+      // हम 'appointments' नाम ही भेज रहे हैं ताकि फ्रंटएंड कोड न बदलना पड़े, 
+      // लेकिन इसमें अब Booking और Sales दोनों शामिल हैं।
+      appointments: timelineRes.rows || [], 
       today_sales: todayRes.rows[0] ? Number(todayRes.rows[0].today_sales||0) : 0,
-      upcoming_birthdays: bdRes.rows[0] ? Number(bdRes.rows[0].upcoming_birthdays||0) : 0
+      upcoming_birthdays: bdRes.rows[0] ? Number(bdRes.rows[0].upcoming_birthdays||0) : 0,
+      low_stock_count: lowStockRes.rows[0] ? Number(lowStockRes.rows[0].low_count||0) : 0
     });
 
-  } catch(err){ console.error(err); res.status(500).json({ success:false, message: err.message }); } finally { client.release(); }
+  } catch(err){ 
+      console.error(err); 
+      res.status(500).json({ success:false, message: err.message }); 
+  } finally { 
+      client.release(); 
+  }
 });
-
 
 // Get customers with birthdays in next N days
 app.get('/api/saloon/upcoming-birthdays', authenticateJWT, async (req, res) => {
