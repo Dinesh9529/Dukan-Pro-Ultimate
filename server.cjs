@@ -4999,13 +4999,13 @@ app.post('/api/shop/set-business-type', authenticateJWT, async (req, res) => {
 
 
 // Saloon dashboard data (appointments summary, services stock if any, birthday count)
-// [ ✅ server.cjs: इस पूरे API को पुराने '/api/saloon/dashboard' की जगह पेस्ट करें ]
+// [ ✅ server.cjs: /api/saloon/dashboard (Updated with Service Name Fix) ]
 
 app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
-    // 1) COMBINED LIST: आज की Appointments + आज की Sales (Invoices)
+    // 1) COMBINED LIST: Appointments + Sales
     // हम दोनों टेबल को जोड़ रहे हैं ताकि कुछ भी न छूटे
     const mixedQuery = `
         (
@@ -5027,7 +5027,13 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
                 c.name AS customer_name, 
                 c.phone AS customer_mobile, 
                 i.created_at AS event_time, 
-                'Walk-in / Billed' AS service_name,
+                
+                -- 🚀 NEW CHANGE: 'Walk-in' की जगह असली आइटम/सर्विस का नाम दिखाएं
+                COALESCE(
+                    (SELECT string_agg(item_name, ', ') FROM invoice_items WHERE invoice_id = i.id),
+                    'Walk-in / Sale'
+                ) AS service_name,
+
                 'COMPLETED' AS status,
                 'SALE' as type
             FROM invoices i
@@ -5065,8 +5071,7 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
 
     res.json({
       success:true,
-      // हम 'appointments' नाम ही भेज रहे हैं ताकि फ्रंटएंड कोड न बदलना पड़े, 
-      // लेकिन इसमें अब Booking और Sales दोनों शामिल हैं।
+      // हम 'appointments' नाम ही भेज रहे हैं ताकि फ्रंटएंड कोड न बदलना पड़े
       appointments: timelineRes.rows || [], 
       today_sales: todayRes.rows[0] ? Number(todayRes.rows[0].today_sales||0) : 0,
       upcoming_birthdays: bdRes.rows[0] ? Number(bdRes.rows[0].upcoming_birthdays||0) : 0,
@@ -5074,7 +5079,7 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
     });
 
   } catch(err){ 
-      console.error(err); 
+      console.error("Dashboard Error:", err); 
       res.status(500).json({ success:false, message: err.message }); 
   } finally { 
       client.release(); 
@@ -5082,28 +5087,26 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
 });
 
 // Get customers with birthdays in next N days
+// [ ✅ server.cjs: /api/saloon/upcoming-birthdays को इससे बदलें ]
 app.get('/api/saloon/upcoming-birthdays', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
-  const days = Math.min(Math.max(parseInt(req.query.days||7,10),1),60);
   try {
-    // Using to_char to match month-day ignoring year
     const q = `
-      SELECT id, name, COALESCE(mobile, phone, '') AS mobile, address, dob,
-        to_char(dob, 'DD-MM') AS dob_md,
-        (date_part('year', age(current_date, dob)))::int AS age_if_known
+      SELECT id, name, phone, dob
       FROM customers
       WHERE shop_id=$1 AND dob IS NOT NULL
-        AND (
-          to_char(dob, 'MM-DD') BETWEEN to_char(current_date, 'MM-DD')
-          AND to_char(current_date + ($2 || ' days')::interval, 'MM-DD')
-        )
+      AND to_char(dob, 'MM-DD') BETWEEN to_char(CURRENT_DATE, 'MM-DD') 
+                                   AND to_char(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
       ORDER BY to_char(dob, 'MM-DD') ASC
-      LIMIT 200
+      LIMIT 10
     `;
-    const result = await client.query(q, [shopId, days]);
+    const result = await client.query(q, [shopId]);
     res.json({ success:true, customers: result.rows });
-  } catch(err){ console.error(err); res.status(500).json({ success:false, message: err.message }); } finally { client.release(); }
+  } catch(err){ 
+      // अगर कोई बर्थडे नहीं है तो खाली लिस्ट भेजें (एरर नहीं)
+      res.json({ success:true, customers: [] }); 
+  } finally { client.release(); }
 });
 
 
@@ -5127,22 +5130,21 @@ app.post('/api/customers', authenticateJWT, async (req, res) => {
 
 
 // Saloon services list (stock-like services table). If you don't have 'services' table, adapt to static list.
+// [ ✅ server.cjs: /api/saloon/services को इससे बदलें ]
 app.get('/api/saloon/services', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
-    // Prefer a table 'saloon_services' if exists, fallback to top items from stock by category 'SALON'
-    const check = await client.query(`SELECT to_regclass('public.saloon_services') as exists`);
-    if (check.rows[0] && check.rows[0].exists) {
-      const sres = await client.query(`SELECT id, name, price, duration_minutes, stock_required FROM saloon_services WHERE shop_id=$1 ORDER BY name`, [shopId]);
-      return res.json({ success:true, services: sres.rows });
-    } else {
-      // fallback - fetch stock items in category SALON
-      const sres = await client.query(`SELECT sku, name, sale_price FROM stock WHERE shop_id=$1 AND (category ILIKE '%salon%' OR category ILIKE '%service%') LIMIT 200`, [shopId]);
-      return res.json({ success:true, services: sres.rows.map(r=>({ sku:r.sku, name:r.name, price:r.sale_price })) });
-    }
+    // सीधे STOCK टेबल से वो आइटम लाएं जो 'Service' हैं (SKU या Unit चेक करके)
+    const sres = await client.query(
+        `SELECT sku as code, name, sale_price as price, quantity 
+         FROM stock 
+         WHERE shop_id=$1 AND (sku LIKE 'SVC-%' OR unit='Session') 
+         ORDER BY name`, 
+        [shopId]
+    );
+    res.json({ success:true, services: sres.rows });
   } catch(err){
-    console.error('saloon services error', err);
     res.status(500).json({ success:false, message: err.message });
   } finally { client.release(); }
 });
