@@ -4999,17 +4999,17 @@ app.post('/api/shop/set-business-type', authenticateJWT, async (req, res) => {
 
 
 // Saloon dashboard data (appointments summary, services stock if any, birthday count)
-// [ ✅ server.cjs: /api/saloon/dashboard (Updated with Service Name Fix) ]
+
+// [ ✅ server.cjs: /api/saloon/dashboard (Date-wise & Future Booking Support) ]
 
 app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
-    // 1) COMBINED LIST: Appointments + Sales
-    // हम दोनों टेबल को जोड़ रहे हैं ताकि कुछ भी न छूटे
+    // 1) COMBINED LIST: Future Appointments + Today's Activity
     const mixedQuery = `
         (
-            -- हिस्सा 1: Appointments (जो पहले से बुक हैं)
+            -- A. आज और आने वाली बुकिंग्स (Future Bookings)
             SELECT 
                 customer_name, 
                 customer_mobile, 
@@ -5018,30 +5018,29 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
                 status,
                 'BOOKING' as type
             FROM appointments
-            WHERE shop_id = $1 AND scheduled_at::date = CURRENT_DATE
+            WHERE shop_id = $1 AND scheduled_at >= CURRENT_DATE
+            AND status != 'CANCELLED' -- (कैंसिल बुकिंग न दिखाएं)
         )
         UNION ALL
         (
-            -- हिस्सा 2: Invoices (जो Walk-in आए और बिल कटवा लिया)
+            -- B. आज की बिक्री/Walk-ins (सिर्फ आज की, पुरानी नहीं)
             SELECT 
                 c.name AS customer_name, 
                 c.phone AS customer_mobile, 
                 i.created_at AS event_time, 
-                
-                -- 🚀 NEW CHANGE: 'Walk-in' की जगह असली आइटम/सर्विस का नाम दिखाएं
                 COALESCE(
                     (SELECT string_agg(item_name, ', ') FROM invoice_items WHERE invoice_id = i.id),
-                    'Walk-in / Sale'
+                    'Walk-in Sale'
                 ) AS service_name,
-
                 'COMPLETED' AS status,
                 'SALE' as type
             FROM invoices i
             LEFT JOIN customers c ON i.customer_id = c.id
             WHERE i.shop_id = $1 AND i.created_at::date = CURRENT_DATE
         )
-        ORDER BY event_time DESC 
-        LIMIT 50
+        -- 🚀 ORDER BY ASC: जो समय पहले आएगा, वो ऊपर दिखेगा
+        ORDER BY event_time ASC 
+        LIMIT 100
     `;
     
     const timelineRes = await client.query(mixedQuery, [shopId]);
@@ -5071,7 +5070,6 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
 
     res.json({
       success:true,
-      // हम 'appointments' नाम ही भेज रहे हैं ताकि फ्रंटएंड कोड न बदलना पड़े
       appointments: timelineRes.rows || [], 
       today_sales: todayRes.rows[0] ? Number(todayRes.rows[0].today_sales||0) : 0,
       upcoming_birthdays: bdRes.rows[0] ? Number(bdRes.rows[0].upcoming_birthdays||0) : 0,
