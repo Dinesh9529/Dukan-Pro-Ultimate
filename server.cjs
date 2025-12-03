@@ -1535,11 +1535,9 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 //... (बाकी server.cjs कोड)
 
 // [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें ]
-
 // 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST & SALON CONSUMPTION)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
-    // FIX 1: req.body से customerMobile वेरिएबल निकालें
-    // TALLY UPDATE: 'place_of_supply' को भी req.body से लेंगे
+    // FIX 1: req.body से customerMobile और place_of_supply निकालें
     const { customerName, customerMobile, total_amount, sale_items, place_of_supply } = req.body;
     const shopId = req.shopId;
 
@@ -1552,13 +1550,10 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         await client.query('BEGIN'); // Transaction Start
 
         let customerId = null;
-        // === TALLY UPDATE START: ग्राहक का GSTIN भी प्राप्त करें ===
-        let customerGstin = null; 
-        // === TALLY UPDATE END ===
+        let customerGstin = null; // TALLY UPDATE
 
         // 1. ग्राहक ढूँढें या बनाएँ
         if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
-            // FIX 2: ग्राहक को नाम OR फोन से खोजें
             // TALLY UPDATE: SELECT में 'gstin' जोड़ा गया
             let customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
             
@@ -1568,60 +1563,54 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
 
             if (customerResult.rows.length > 0) {
                 customerId = customerResult.rows[0].id;
-                customerGstin = customerResult.rows[0].gstin; // <<< TALLY UPDATE: GSTIN सहेजें
+                customerGstin = customerResult.rows[0].gstin;
             } else {
-                // FIX 3: नया ग्राहक बनाते समय phone कॉलम शामिल करें
                 // TALLY UPDATE: RETURNING में 'gstin' जोड़ा गया
                 const newCustomerResult = await client.query('INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id, gstin', [shopId, customerName.trim(), customerMobile]);
                 customerId = newCustomerResult.rows[0].id;
-                customerGstin = newCustomerResult.rows[0].gstin; // (यह NULL होगा, जो सही है)
+                customerGstin = newCustomerResult.rows[0].gstin;
             }
         }
 
         const safeTotalAmount = parseFloat(total_amount);
         let calculatedTotalCost = 0;
 
-        // TALLY UPDATE: अपनी दुकान का GSTIN प्राप्त करें (Place of Supply Logic)
+        // TALLY UPDATE: अपनी दुकान का GSTIN प्राप्त करें
         const profileRes = await client.query('SELECT gstin FROM company_profile WHERE shop_id = $1', [shopId]);
-        const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2); // जैसे "27"
-        const supplyPlace = (place_of_supply || shopGstin); // यदि नहीं है, तो Intra-State मानें
+        const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2);
+        const supplyPlace = (place_of_supply || shopGstin);
 
         // 2. इनवॉइस बनाएँ
-        // TALLY UPDATE: 'customer_gstin' और 'place_of_supply' कॉलम जोड़े गए
         const invoiceResult = await client.query(
             `INSERT INTO invoices (shop_id, customer_id, total_amount, customer_gstin, place_of_supply) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
             [shopId, customerId, safeTotalAmount, customerGstin, supplyPlace]
         );
         const invoiceId = invoiceResult.rows[0].id;
 
-        // 3. आइटम लूप (यहाँ Tally और Salon दोनों का जादू है)
+        // 3. आइटम लूप (Tally + Salon Logic)
         for (const item of sale_items) {
             const safeQuantity = parseFloat(item.quantity);
             const safePurchasePrice = parseFloat(item.purchase_price || 0);
             const salePrice = parseFloat(item.sale_price);
             
-            // === TALLY UPDATE START: CGST/SGST/IGST की गणना ===
+            // === TALLY UPDATE START: GST Calc ===
             const gstRate = parseFloat(item.gst || 0);
             const taxableValue = (salePrice * safeQuantity);
             const totalGstAmount = taxableValue * (gstRate / 100);
 
-            let cgst_amount = 0;
-            let sgst_amount = 0;
-            let igst_amount = 0;
+            let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
 
             if (supplyPlace === shopGstin) {
-                // Intra-State
                 cgst_amount = totalGstAmount / 2;
                 sgst_amount = totalGstAmount / 2;
             } else {
-                // Inter-State
                 igst_amount = totalGstAmount;
             }
             // === TALLY UPDATE END ===
 
             calculatedTotalCost += safeQuantity * safePurchasePrice;
             
-            // A. इनवॉइस आइटम सेव करें (Tally Columns के साथ)
+            // A. इनवॉइस आइटम सेव करें
             await client.query(
                 `INSERT INTO invoice_items (
                     invoice_id, item_name, item_sku, quantity, sale_price, purchase_price, 
@@ -1633,44 +1622,50 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
                 ]
             );
             
-            // 🚀🚀🚀 जादुई लॉजिक: स्टॉक घटाना (Consumption Tracking) - FIXED 🚀🚀🚀
+            // ============================================================
+            // 🚀🚀🚀 SALON CONSUMPTION LOGIC START 🚀🚀🚀
+            // ============================================================
             
-            // 1. पहले चेक करें कि क्या इस आइटम की कोई "रेसिपी" है?
+            // 1. चेक करें: क्या इस आइटम (Service) के लिए कोई रेसिपी है?
             const recipeRes = await client.query(
                 `SELECT consumable_sku, quantity_needed FROM service_recipes WHERE shop_id = $1 AND service_sku = $2`,
-                [shopId, item.sku] // यहाँ item.sku सही है
+                [shopId, item.sku]
             );
 
             if (recipeRes.rows.length > 0) {
-                // === केस 1: यह एक सर्विस है (जैसे Hair Color) ===
-                console.log(`Salon Logic: ${item.name} सर्विस बिकी। रेसिपी मिली:`, recipeRes.rows);
+                // === CASE 1: यह एक सर्विस है (जिसमें कुछ खर्च होता है) ===
+                console.log(`Salon Logic: ${item.name} बिका। अब रेसिपी के अनुसार स्टॉक कम कर रहे हैं...`);
                 
                 for (const recipe of recipeRes.rows) {
                     // कुल खपत = (एक सर्विस में खपत) * (जितनी सर्विस बिकीं)
-                    // parseFloat लगाना जरूरी है ताकि गणित सही हो
-                    const quantityNeeded = parseFloat(recipe.quantity_needed);
-                    const totalConsume = quantityNeeded * safeQuantity;
-                    
-                    console.log(`Reducing Stock: SKU ${recipe.consumable_sku} by ${totalConsume}`);
+                    const qtyNeeded = parseFloat(recipe.quantity_needed);
+                    const totalConsume = qtyNeeded * safeQuantity;
+                    const targetSku = recipe.consumable_sku;
+
+                    console.log(`Reducing: ${targetSku} by ${totalConsume}`);
 
                     // चुपचाप स्टॉक से माइनस करें
                     await client.query(
                         `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
-                        [totalConsume, recipe.consumable_sku, shopId]
+                        [totalConsume, targetSku, shopId]
                     );
                 }
             } else {
-                // === केस 2: यह एक सामान्य प्रोडक्ट है (सीधा बिका) ===
-                // अगर SKU 'SVC-' से शुरू नहीं होता, तभी स्टॉक घटाएं (ताकि सर्विस का स्टॉक माइनस में न जाए)
-                if (!item.sku.startsWith('SVC-') && item.unit !== 'Session') {
+                // === CASE 2: यह एक सामान्य प्रोडक्ट है (जैसे शैम्पू की बोतल बेची) ===
+                // इसे तभी घटाएं जब यह 'Service' न हो (SKU चेक)
+                const isServiceSku = item.sku.startsWith('SVC-') || (item.product_attributes && item.product_attributes.type === 'SERVICE');
+                
+                if (!isServiceSku) {
                     await client.query(
                         `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
                         [safeQuantity, item.sku, shopId]
                     );
                 }
             }
-            // 🚀🚀🚀 जादू खत्म 🚀🚀🚀
-			
+            // ============================================================
+            // 🚀🚀🚀 LOGIC END 🚀🚀🚀
+            // ============================================================
+        }
 
         // 4. इनवॉइस में COGS अपडेट करें
         await client.query(
@@ -1680,7 +1675,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         
         await client.query('COMMIT'); // Transaction End
 
-        // 🚀 Dashboard को अपडेट करने के लिए ब्रॉडकास्ट करें
+        // 🚀 Dashboard अपडेट
         if (typeof broadcastToShop === 'function') {
             broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
         }
