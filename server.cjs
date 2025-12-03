@@ -1633,38 +1633,44 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
                 ]
             );
             
-            // 🚀🚀🚀 जादुई लॉजिक: स्टॉक घटाना (Consumption Tracking) 🚀🚀🚀
+            // 🚀🚀🚀 जादुई लॉजिक: स्टॉक घटाना (Consumption Tracking) - FIXED 🚀🚀🚀
             
-            // चेक करें: क्या इस आइटम की कोई "रेसिपी" है? (सैलून के लिए)
+            // 1. पहले चेक करें कि क्या इस आइटम की कोई "रेसिपी" है?
             const recipeRes = await client.query(
                 `SELECT consumable_sku, quantity_needed FROM service_recipes WHERE shop_id = $1 AND service_sku = $2`,
-                [shopId, item.sku]
+                [shopId, item.sku] // यहाँ item.sku सही है
             );
 
             if (recipeRes.rows.length > 0) {
-                // === केस 1: यह एक सर्विस है (जैसे Haircut) ===
-                console.log(`Salon Logic: ${item.name} सर्विस बिकी। अब जुड़ी हुई इन्वेंटरी कम हो रही है...`);
+                // === केस 1: यह एक सर्विस है (जैसे Hair Color) ===
+                console.log(`Salon Logic: ${item.name} सर्विस बिकी। रेसिपी मिली:`, recipeRes.rows);
                 
                 for (const recipe of recipeRes.rows) {
                     // कुल खपत = (एक सर्विस में खपत) * (जितनी सर्विस बिकीं)
-                    const totalConsume = parseFloat(recipe.quantity_needed) * safeQuantity;
+                    // parseFloat लगाना जरूरी है ताकि गणित सही हो
+                    const quantityNeeded = parseFloat(recipe.quantity_needed);
+                    const totalConsume = quantityNeeded * safeQuantity;
                     
-                    // चुपचाप स्टॉक से माइनस करें (जैसे Shampoo Bottle से 10ml कम)
+                    console.log(`Reducing Stock: SKU ${recipe.consumable_sku} by ${totalConsume}`);
+
+                    // चुपचाप स्टॉक से माइनस करें
                     await client.query(
                         `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
                         [totalConsume, recipe.consumable_sku, shopId]
                     );
                 }
             } else {
-                // === केस 2: यह एक सामान्य प्रोडक्ट है (जैसे Retail आइटम) ===
-                // सीधा स्टॉक घटाएं (Standard behavior)
-                await client.query(
-                    `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
-                    [safeQuantity, item.sku, shopId]
-                );
+                // === केस 2: यह एक सामान्य प्रोडक्ट है (सीधा बिका) ===
+                // अगर SKU 'SVC-' से शुरू नहीं होता, तभी स्टॉक घटाएं (ताकि सर्विस का स्टॉक माइनस में न जाए)
+                if (!item.sku.startsWith('SVC-') && item.unit !== 'Session') {
+                    await client.query(
+                        `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
+                        [safeQuantity, item.sku, shopId]
+                    );
+                }
             }
             // 🚀🚀🚀 जादू खत्म 🚀🚀🚀
-        }
+			
 
         // 4. इनवॉइस में COGS अपडेट करें
         await client.query(
