@@ -465,7 +465,6 @@ END $$;
 
 
 //-- Salon specific tables (safe: only add if not exists)
-await client.query(`
 DO $$
 BEGIN
   //-- appointments
