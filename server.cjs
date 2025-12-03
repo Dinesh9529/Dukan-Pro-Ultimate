@@ -465,9 +465,10 @@ END $$;
 
 
 //-- Salon specific tables (safe: only add if not exists)
+await client.query(`
 DO $$
 BEGIN
-  //-- appointments
+  -- appointments
   IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='appointments') THEN
     CREATE TABLE appointments (
       id SERIAL PRIMARY KEY,
@@ -483,7 +484,7 @@ BEGIN
     );
   END IF;
 
-  //-- salon services (catalog)
+  -- salon services (catalog)
   IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='salon_services') THEN
     CREATE TABLE salon_services (
       id SERIAL PRIMARY KEY,
@@ -498,7 +499,7 @@ BEGIN
     );
   END IF;
 
-  //-- bookings (payments + appointments link)
+  -- bookings (payments + appointments link)
   IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='salon_bookings') THEN
     CREATE TABLE salon_bookings (
       id SERIAL PRIMARY KEY,
@@ -511,7 +512,7 @@ BEGIN
     );
   END IF;
 
-  //-- salon staff
+  -- salon staff
   IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='salon_staff') THEN
     CREATE TABLE salon_staff (
       id SERIAL PRIMARY KEY,
@@ -524,7 +525,7 @@ BEGIN
     );
   END IF;
 
-  //-- service inventory if salon sells products (shampoos, oils)
+  -- service inventory if salon sells products (shampoos, oils)
   IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename='service_inventory') THEN
     CREATE TABLE service_inventory (
       id SERIAL PRIMARY KEY,
@@ -538,6 +539,7 @@ BEGIN
     );
   END IF;
 END $$;
+
 
 
         console.log('✅ All tables and columns (including Tally GST columns) checked/created successfully.');
