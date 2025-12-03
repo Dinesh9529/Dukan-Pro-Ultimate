@@ -943,7 +943,6 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 });
 // [ server.cjs फ़ाइल में यह कोड बदलें ]
 
-// [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
 // 4. User Login (UPDATED FOR 'plan_type' AND 'add_ons')
 app.post('/api/login', async (req, res) => {
@@ -954,9 +953,9 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // --- 🚀 FIX: Step 1: 'plan_type' और 'add_ons' को एक साथ लाएँ ---
+        // --- 🚀 FIX 1: SELECT query में 's.business_type' जोड़ा गया ---
         const result = await pool.query(
-            'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.add_ons FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
+            'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.add_ons, s.business_type FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
             [email]
         );
 
@@ -965,7 +964,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        let user = result.rows[0]; // इसमें अब 'add_ons' भी शामिल है
+        let user = result.rows[0]; // इसमें अब 'add_ons' और 'business_type' भी शामिल है
 
         // --- Step 2: Check Password (यह सही है) ---
         const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -985,12 +984,14 @@ app.post('/api/login', async (req, res) => {
         // --- Step 4: (डेटा पहले ही Step 1 में मिल गया है) ---
         const shopExpiryDate = user.license_expiry_date; 
         const shopPlanType = user.plan_type || 'TRIAL'; 
-        const shopAddOns = user.add_ons || {}; // 🚀🚀🚀 नया: ऐड-ऑन को यहाँ जोड़ा गया
+        const shopAddOns = user.add_ons || {}; 
+        
+        // 🚀 FIX 2: Business Type को भी निकालें (अगर खाली है तो default 'RETAIL')
+        const businessType = user.business_type || 'RETAIL'; 
 
-        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate} | Plan: ${shopPlanType}`);
+        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate} | Plan: ${shopPlanType} | Type: ${businessType}`);
 
-
-        // --- 🚀 FIX: Step 5: टोकन पेलोड में 'add_ons' जोड़ें ---
+        // --- 🚀 FIX 3: Step 5: टोकन पेलोड में 'businessType' जोड़ें ---
         const tokenUser = {
             id: user.id,
             email: user.email,
@@ -1002,7 +1003,8 @@ app.post('/api/login', async (req, res) => {
             licenseExpiryDate: shopExpiryDate, // <<< Use SHOP's expiry date
             status: user.status,
             plan_type: shopPlanType,
-            add_ons: shopAddOns // 🚀🚀🚀 नया ऐड-ऑन यहाँ जोड़ा गया
+            add_ons: shopAddOns,
+            businessType: businessType // <--- यह सबसे जरूरी बदलाव है
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
@@ -1038,6 +1040,8 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'लॉगिन प्रक्रिया में सर्वर त्रुटि हुई: ' + err.message });
     }
 });
+
+
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
 // 5. License Activation Route (UPDATED FOR 'plan_type' AND 'add_ons')
