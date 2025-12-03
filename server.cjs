@@ -438,7 +438,6 @@ async function createTables() {
         // --- END MOVED SECTION ---
 
 
-
 //-- Add DOB to customers and business_type to shops (safe – only if not exists)
 await client.query(`
 DO $$
@@ -460,9 +459,6 @@ BEGIN
   END IF;
 END $$;
 `);
-
-
-
 
 //-- Salon specific tables (safe: only add if not exists)
 await client.query(`
@@ -539,6 +535,7 @@ BEGIN
     );
   END IF;
 END $$;
+`);
 
 
 
