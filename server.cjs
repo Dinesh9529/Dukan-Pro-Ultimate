@@ -1140,28 +1140,29 @@ app.post('/api/activate-license', authenticateJWT, async (req, res) => {
         
         console.log(`DEBUG ACTIVATE: Verified updated shop expiry: ${updatedShopExpiryDate} | Verified Plan: ${updatedPlanType}`);
 
-        // 7. Fetch user data again (shop_name needed for payload)
-       // [ ✅ Sahi Query (Ise Upar Wale Ki Jagah Paste Karein) ]
+        // 7. Fetch user data again (shop_name AND business_type needed)
+// 🚀 FIX: 's.business_type' को query में जोड़ा गया
 const updatedUserResult = await pool.query(
-    'SELECT u.*, s.shop_name, s.shop_logo, s.license_expiry_date, s.plan_type, s.add_ons FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
+    'SELECT u.*, s.shop_name, s.shop_logo, s.license_expiry_date, s.plan_type, s.add_ons, s.business_type FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.id = $1',
     [userId]
 );
-        const updatedUser = updatedUserResult.rows[0];
+const updatedUser = updatedUserResult.rows[0];
 
-        // 8. 🚀 FIX: नए टोकन में 'plan_type' और 'add_ons' जोड़ें
-        const tokenUser = {
-            id: updatedUser.id,
-            email: updatedUser.email,
-            shopId: updatedUser.shop_id,
-            name: updatedUser.name,
-            mobile: updatedUser.mobile, // Include if added
-            role: updatedUser.role,
-            shopName: updatedUser.shop_name,
-            licenseExpiryDate: updatedShopExpiryDate, // <<< Use UPDATED shop expiry date
-            status: updatedUser.status,
-            plan_type: updatedPlanType,
-            add_ons: updatedAddOns // 🚀🚀🚀 नया ऐड-ऑन यहाँ जोड़ा गया
-        };
+// 8. 🚀 FIX: नए टोकन में 'businessType' भी जोड़ें
+const tokenUser = {
+    id: updatedUser.id,
+    email: updatedUser.email,
+    shopId: updatedUser.shop_id,
+    name: updatedUser.name,
+    mobile: updatedUser.mobile,
+    role: updatedUser.role,
+    shopName: updatedUser.shop_name,
+    licenseExpiryDate: updatedShopExpiryDate,
+    status: updatedUser.status,
+    plan_type: updatedPlanType,
+    add_ons: updatedAddOns,
+    businessType: updatedUser.business_type || 'RETAIL' // <--- 🚀 यह लाइन सबसे जरूरी है
+};
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT'); // Commit transaction
