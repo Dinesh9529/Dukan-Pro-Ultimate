@@ -877,83 +877,83 @@ app.get('/api/verify-license', async (req, res) => {
     }
 });
 // 3. User Registration (Creates a new shop and the first ADMIN user)
-app.post('/api/register', async (req, res) => {
-    const { shopName, name, email, mobile, password } = req.body;
+// [ ✅ server.cjs: /api/register (Updated to save Business Type) ]
 
-   if (!shopName || !name || !email || !mobile || !password) { // <<< '!mobile' जोड़ा
-    return res.status(400).json({ success: false, message: 'सभी फ़ील्ड (शॉप का नाम, आपका नाम, ईमेल, मोबाइल, पासवर्ड) आवश्यक हैं.' }); // <<< मैसेज अपडेट किया
-}
-// (Optional) Add mobile format validation after this if needed
-if (!/^\d{10}$/.test(mobile)) {
-     return res.status(400).json({ success: false, message: 'कृपया मान्य 10 अंकों का मोबाइल नंबर डालें.' });
-}
+app.post('/api/register', async (req, res) => {
+    // 🚀 FIX: 'business_type' को भी req.body से निकालें
+    const { shopName, name, email, mobile, password, business_type } = req.body;
+
+    if (!shopName || !name || !email || !mobile || !password) {
+        return res.status(400).json({ success: false, message: 'सभी फ़ील्ड आवश्यक हैं.' });
+    }
+    
+    // डिफ़ॉल्ट वैल्यू सेट करें अगर नहीं आई हो
+    const finalBusinessType = business_type || 'RETAIL';
 
     const client = await pool.connect();
     try {
-        await client.query('BEGIN'); // लेन-देन शुरू करें (Start Transaction)
+        await client.query('BEGIN');
 
-        // 1. ईमेल डुप्लीकेसी की जाँच करें (Check for Email Duplicacy FIRST)
+        // 1. ईमेल चेक करें
         const existingUser = await client.query('SELECT id FROM users WHERE email = $1', [email]);
         if (existingUser.rows.length > 0) {
             await client.query('ROLLBACK');
-            return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है। कृपया लॉगिन करें।' });
-       }
+            return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है।' });
+        }
 
-        // 2. नई शॉप/टेनेंट बनाएं
+        // 2. नई शॉप बनाएं (🚀 FIX: business_type को भी सेव करें)
         const shopResult = await client.query(
-            'INSERT INTO shops (shop_name) VALUES ($1) RETURNING id',
-            [shopName]
+            'INSERT INTO shops (shop_name, business_type) VALUES ($1, $2) RETURNING id, business_type',
+            [shopName, finalBusinessType]
         );
-        const shopId = shopResult.rows[0].id; // `shops` टेबल में ID को 'id' कहा गया है।
-        // 3. पासवर्ड को हैश करें
+        const shopId = shopResult.rows[0].id;
+
+        // 3. पासवर्ड हैश करें
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-        // 4. पहले उपयोगकर्ता (मालिक/एडमिन) को बनाएं
-        // 🚀 **सुधार: status कॉलम को 'active' पर सेट करें**
-       const userInsertQuery = `
-    INSERT INTO users (shop_id, email, password_hash, name, mobile, role, status) -- <<< 'mobile' जोड़ा
-    VALUES ($1, $2, $3, $4, $5, $6, 'active')  -- <<< '$5' (mobile) और '$6' (role) किया
-    RETURNING id, shop_id, email, name, mobile, role, status -- <<< 'mobile' जोड़ा
-`;
-        const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, mobile, 'ADMIN']); // <<< 'mobile' यहाँ जोड़ा
+
+        // 4. यूज़र बनाएं
+        const userInsertQuery = `
+            INSERT INTO users (shop_id, email, password_hash, name, mobile, role, status)
+            VALUES ($1, $2, $3, $4, $5, $6, 'active')
+            RETURNING id, shop_id, email, name, mobile, role, status
+        `;
+        const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, mobile, 'ADMIN']);
         const user = userResult.rows[0];
-        // 5. JWT टोकन जनरेट करें
-const tokenUser = {
-    id: user.id,
-    email: user.email,
-    mobile: user.mobile,
-    shopId: user.shop_id,
-    name: user.name,
-    role: user.role,
-    shopName: shopName, // ShopName जोड़ना
-    status: user.status,
-    plan_type: 'TRIAL', // 🚀 NAYA: Register par default 'TRIAL'
-    add_ons: {}, // 🚀 NAYA: Register par default 'khaali add-on'
-    licenseExpiryDate: null // 🚀 NAYA: Register par koi date nahi
-};
-const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+
+        // 5. टोकन बनाएं (🚀 FIX: businessType को टोकन में डालें)
+        const tokenUser = {
+            id: user.id,
+            email: user.email,
+            mobile: user.mobile,
+            shopId: user.shop_id,
+            name: user.name,
+            role: user.role,
+            shopName: shopName,
+            status: user.status,
+            plan_type: 'TRIAL',
+            add_ons: {},
+            licenseExpiryDate: null,
+            businessType: finalBusinessType // <--- यह सबसे ज़रूरी है
+        };
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT');
-        // लेन-देन पूरा करें
 
         res.json({
             success: true,
-            message: 'शॉप और एडमिन अकाउंट सफलतापूर्वक बनाया गया।',
+            message: 'अकाउंट सफलतापूर्वक बनाया गया।',
             token: token,
             user: tokenUser
         });
     } catch (err) {
         await client.query('ROLLBACK');
-        // गलती होने पर रोलबैक करें
-        console.error("Error registering user/shop:", err.message);
-        // यदि कोई अन्य constraint त्रुटि होती है
-        if (err.constraint) {
-             return res.status(500).json({ success: false, message: 'रजिस्ट्रेशन विफल: डेटाबेस त्रुटि (' + err.constraint + ')' });
-        }
+        console.error("Error registering:", err.message);
         res.status(500).json({ success: false, message: 'रजिस्ट्रेशन विफल: ' + err.message });
     } finally {
         client.release();
     }
 });
+
 // [ server.cjs फ़ाइल में यह कोड बदलें ]
 
 
