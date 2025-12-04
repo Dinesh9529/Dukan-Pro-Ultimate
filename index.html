@@ -703,16 +703,20 @@
                         </div>
 
                         <!-- Add this in your shop settings / registration form -->
-<div class="form-group">
-    <label for="shop-business-type">Business Type</label>
-    <select id="shop-business-type" class="form-control">
-      <option value="RETAIL">Retail / Kirana</option>
-      <option value="SALON">Salon / Parlour</option>
-      <option value="CAFE">Cafe / Food</option>
-      <option value="SERVICE">Service (Electrician / Plumber)</option>
-    </select>
-  </div>
-  
+                        <div class="mb-3">
+                            <label for="unique-biz-type" class="form-label">बिजनेस का प्रकार (Business Type)</label>
+                            <select id="unique-biz-type" class="form-select" required>
+                                <option value="" selected disabled>-- अपनी दुकान का प्रकार चुनें --</option>
+                                <option value="RETAIL">रिटेल / किराना (Retail)</option>
+                                <option value="SALON">सैलून / पार्लर (Salon)</option>
+                                <option value="CAFE">कैफे / रेस्टोरेंट (Cafe)</option>
+                                <option value="SERVICE">सर्विस / रिपेयरिंग (Service)</option>
+                            </select>
+                        </div>
+                            <div class="form-text text-muted">
+                                सही प्रकार चुनें, इससे आपका डैशबोर्ड और फीचर्स बदल जाएंगे।
+                            </div>
+                        </div>  
   
                         <div id="register-message" class="text-danger small mb-3">&nbsp;</div>
                         <button type="submit" class="btn btn-success w-100" id="register-submit-btn">अकाउंट बनाएं</button>
@@ -6980,47 +6984,79 @@ const landingButtons = document.getElementById('landing-buttons-container');
     });
 
     // Registration Form
-    document.getElementById('register-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const shopName = document.getElementById('register-shop-name').value;
-        const name = document.getElementById('register-name').value;
-        const email = document.getElementById('register-email').value;
-        const mobile = document.getElementById('register-mobile').value;
-        const password = document.getElementById('register-password').value;
-        const msgEl = document.getElementById('register-message');
-        const btn = document.getElementById('register-submit-btn');
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> रजिस्टर हो रहा है...`;
+// [ ✅ FIXED: Registration Form Handler - Correct ID Used ]
 
-        try {
-            const res = await fetch(__backend_url + '/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shopName, name, email, mobile, password })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) { throw new Error(data.message || 'रजिस्ट्रेशन विफल'); }
+// [ ✅ FIXED: Registration Logic with Unique ID ]
 
-            msgEl.innerText = 'सफलता! ऐप लोड हो रहा है...';
-            saveAuthData(data.token, data.user);
-            startLicenseTimer(data.user.licenseExpiryDate);
-            showMessage('सफलता!', 'आपका अकाउंट बन गया है। कृपया अपना लाइसेंस सक्रिय करें।', 'success');
-            
-            // 🚀 फिक्स: रजिस्टर करने के बाद भी नया लॉगिन बैकग्राउंड दिखाएँ
-            if (newLoginContainer) newLoginContainer.classList.remove('hidden');
-            document.getElementById('sidebar').classList.remove('locked');
-            document.getElementById('menu-toggle').classList.remove('locked');
-            document.getElementById('main-content').classList.add('locked');
-            applyRBAC(data.user.role);
-            licenseModal.show();
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const shopName = document.getElementById('register-shop-name').value;
+    const name = document.getElementById('register-name').value;
+    const email = document.getElementById('register-email').value;
+    const mobile = document.getElementById('register-mobile').value;
+    const password = document.getElementById('register-password').value;
+    
+    // 🚀 FIX: नई यूनिक ID से वैल्यू उठाएं
+    const typeElement = document.getElementById('unique-biz-type');
+    const businessType = typeElement ? typeElement.value : ''; 
 
-        } catch (error) {
-            msgEl.innerText = error.message;
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = 'अकाउंट बनाएं';
-        }
-    });
+    // 🛑 चेक: अगर कुछ नहीं चुना, तो रोक दें
+    if (!businessType) {
+        alert("कृपया बिजनेस का प्रकार चुनें!");
+        return;
+    }
+
+    // 📢 डिबग: यह अलर्ट आपको बताएगा कि क्या जा रहा है
+    // alert("रजिस्टर हो रहा है: " + businessType); 
+
+    const msgEl = document.getElementById('register-message');
+    const btn = document.getElementById('register-submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> रजिस्टर हो रहा है...`;
+
+    try {
+        const res = await fetch(__backend_url + '/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                shopName, 
+                name, 
+                email, 
+                mobile, 
+                password, 
+                business_type: businessType // यह 'SALON' भेजेगा
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) { throw new Error(data.message || 'रजिस्ट्रेशन विफल'); }
+
+        msgEl.innerText = 'सफलता! ऐप लोड हो रहा है...';
+        
+        saveAuthData(data.token, data.user);
+        
+        // 🚀 UI को तुरंत अपडेट करें
+        applyBusinessTypeUI(data.user.businessType);
+        
+        startLicenseTimer(data.user.licenseExpiryDate);
+        showMessage('सफलता!', `आपका ${data.user.businessType} अकाउंट बन गया है!`, 'success');
+        
+        if (typeof newLoginContainer !== 'undefined') newLoginContainer.classList.remove('hidden');
+        document.getElementById('sidebar').classList.remove('locked');
+        document.getElementById('menu-toggle').classList.remove('locked');
+        document.getElementById('main-content').classList.add('locked');
+        
+        if (typeof applyRBAC === 'function') applyRBAC(data.user.role);
+        
+        const licenseModal = new bootstrap.Modal(document.getElementById('licenseModal'));
+        licenseModal.show();
+
+    } catch (error) {
+        msgEl.innerText = error.message;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'अकाउंट बनाएं';
+    }
+});
 
     // License Activation Form
     document.getElementById('license-form').addEventListener('submit', async (e) => {
