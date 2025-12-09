@@ -518,6 +518,33 @@ await client.query(`
 `);
 
 
+// --- 19. 🎨 PAINT & HARDWARE SPECIFIC TABLES ---
+
+// A. Painters Table (पेंटर का बही-खाता)
+await client.query(`
+    CREATE TABLE IF NOT EXISTS painters (
+        id SERIAL PRIMARY KEY,
+        shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        mobile TEXT,
+        commission_balance NUMERIC DEFAULT 0, -- पेंटर का जमा कमीशन
+        created_at TIMESTAMP DEFAULT NOW()
+    );
+`);
+
+// B. Invoices में Painter ID जोड़ें (ताकि बिल के साथ पेंटर लिंक हो सके)
+await client.query(`
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoices') AND attname = 'painter_id') THEN
+            ALTER TABLE invoices ADD COLUMN painter_id INTEGER REFERENCES painters(id) ON DELETE SET NULL;
+            ALTER TABLE invoices ADD COLUMN painter_commission_amount NUMERIC DEFAULT 0;
+        END IF;
+    END $$;
+`);
+
+
+
+
 // ... (console.log('✅ All tables...') से पहले)
         // --- MOVED SECTION (Kept as per your request) ---
         // (Note: These are redundant but kept to avoid deleting code)
@@ -6133,6 +6160,47 @@ app.post('/api/admin/update-shop-status', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+
+// ============================================================
+// 🎨 PAINT SHOP APIs (Painters & Commission)
+// ============================================================
+
+// 1. Add New Painter
+app.post('/api/painters', authenticateJWT, async (req, res) => {
+    const { name, mobile } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO painters (shop_id, name, mobile) VALUES ($1, $2, $3) RETURNING *`,
+            [req.shopId, name, mobile]
+        );
+        res.json({ success: true, painter: result.rows[0], message: 'Painter Added!' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 2. Get All Painters
+app.get('/api/painters', authenticateJWT, async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM painters WHERE shop_id = $1 ORDER BY name`, [req.shopId]);
+        res.json({ success: true, painters: result.rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 3. Painter Ledger (Commission History)
+app.get('/api/painters/:id/ledger', authenticateJWT, async (req, res) => {
+    try {
+        // कमीशन वाले सारे बिल निकालो
+        const result = await pool.query(`
+            SELECT id as invoice_id, created_at, total_amount, painter_commission_amount 
+            FROM invoices 
+            WHERE shop_id = $1 AND painter_id = $2
+            ORDER BY created_at DESC
+        `, [req.shopId, req.params.id]);
+        res.json({ success: true, history: result.rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
