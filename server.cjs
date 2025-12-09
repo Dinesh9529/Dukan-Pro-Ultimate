@@ -1186,42 +1186,42 @@ app.get('/api/verify-license', async (req, res) => {
         res.status(500).json({ success: false, message: 'सत्यापन विफल: सर्वर त्रुटि।' });
     }
 });
-// 3. User Registration (Creates a new shop and the first ADMIN user)
-// [ ✅ server.cjs: /api/register (Updated to save Business Type) ]
 
+
+// 3. User Registration (Updated for ALL Business Types)
 app.post('/api/register', async (req, res) => {
-    // 🚀 FIX: 'business_type' को भी req.body से निकालें
+    // 🚀 FIX: 'business_type' ko req.body se nikaalein
     const { shopName, name, email, mobile, password, business_type } = req.body;
 
     if (!shopName || !name || !email || !mobile || !password) {
         return res.status(400).json({ success: false, message: 'सभी फ़ील्ड आवश्यक हैं.' });
     }
     
-    // डिफ़ॉल्ट वैल्यू सेट करें अगर नहीं आई हो
+    // Default value 'RETAIL' agar user ne select nahi kiya
     const finalBusinessType = business_type || 'RETAIL';
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // 1. ईमेल चेक करें
+        // 1. Email Check
         const existingUser = await client.query('SELECT id FROM users WHERE email = $1', [email]);
         if (existingUser.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है।' });
         }
 
-        // 2. नई शॉप बनाएं (🚀 FIX: business_type को भी सेव करें)
+        // 2. Create Shop (🚀 CRITICAL: Save business_type here)
         const shopResult = await client.query(
             'INSERT INTO shops (shop_name, business_type) VALUES ($1, $2) RETURNING id, business_type',
             [shopName, finalBusinessType]
         );
         const shopId = shopResult.rows[0].id;
 
-        // 3. पासवर्ड हैश करें
+        // 3. Hash Password
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // 4. यूज़र बनाएं
+        // 4. Create User (Admin)
         const userInsertQuery = `
             INSERT INTO users (shop_id, email, password_hash, name, mobile, role, status)
             VALUES ($1, $2, $3, $4, $5, $6, 'active')
@@ -1230,7 +1230,7 @@ app.post('/api/register', async (req, res) => {
         const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, mobile, 'ADMIN']);
         const user = userResult.rows[0];
 
-        // 5. टोकन बनाएं (🚀 FIX: businessType को टोकन में डालें)
+        // 5. Generate Token (🚀 Include businessType in token)
         const tokenUser = {
             id: user.id,
             email: user.email,
@@ -1243,12 +1243,11 @@ app.post('/api/register', async (req, res) => {
             plan_type: 'TRIAL',
             add_ons: {},
             licenseExpiryDate: null,
-            businessType: finalBusinessType // <--- यह सबसे ज़रूरी है
+            businessType: finalBusinessType // <--- Ye frontend ke liye zaroori hai
         };
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT');
-
         res.json({
             success: true,
             message: 'अकाउंट सफलतापूर्वक बनाया गया।',
@@ -1264,10 +1263,11 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+
 // [ server.cjs फ़ाइल में यह कोड बदलें ]
 
 
-// 4. User Login (UPDATED FOR 'plan_type' AND 'add_ons')
+// 4. User Login (UPDATED FOR 'plan_type', 'add_ons' AND 'business_type')
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -1277,6 +1277,7 @@ app.post('/api/login', async (req, res) => {
 
     try {
         // --- 🚀 FIX 1: SELECT query में 's.business_type' जोड़ा गया ---
+        // (हम shops टेबल को join कर रहे हैं ताकि दुकान का type पता चले)
         const result = await pool.query(
             'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.add_ons, s.business_type FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
             [email]
@@ -1304,15 +1305,16 @@ app.post('/api/login', async (req, res) => {
              console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
         }
 
-        // --- Step 4: (डेटा पहले ही Step 1 में मिल गया है) ---
+        // --- Step 4: Shop Details Extract करें ---
         const shopExpiryDate = user.license_expiry_date; 
         const shopPlanType = user.plan_type || 'TRIAL'; 
         const shopAddOns = user.add_ons || {}; 
         
         // 🚀 FIX 2: Business Type को भी निकालें (अगर खाली है तो default 'RETAIL')
+        // यह बहुत ज़रूरी है ताकि सॉफ़्टवेयर को पता चले कि कौन सा डैशबोर्ड दिखाना है
         const businessType = user.business_type || 'RETAIL'; 
 
-        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} Expiry Date: ${shopExpiryDate} | Plan: ${shopPlanType} | Type: ${businessType}`);
+        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} | Plan: ${shopPlanType} | Type: ${businessType}`);
 
         // --- 🚀 FIX 3: Step 5: टोकन पेलोड में 'businessType' जोड़ें ---
         const tokenUser = {
@@ -1327,8 +1329,10 @@ app.post('/api/login', async (req, res) => {
             status: user.status,
             plan_type: shopPlanType,
             add_ons: shopAddOns,
-            businessType: businessType // <--- यह सबसे जरूरी बदलाव है
+            businessType: businessType // <--- यह सबसे जरूरी बदलाव है (Frontend iska use karega)
         };
+        
+        // टोकन जनरेट करें (30 दिन के लिए)
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         // --- Step 6: Check SHOP's License Expiry (यह सही है) ---
@@ -1337,11 +1341,11 @@ app.post('/api/login', async (req, res) => {
         currentDate.setHours(0, 0, 0, 0); // Compare dates only, ignore time
 
         if (!expiryDate || expiryDate < currentDate) {
-            console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} license is missing or expired. Requires key.`);
+            console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} license is missing or expired.`);
             // License expired/missing for the SHOP, send requiresLicense: true
             return res.json({
                 success: true, // Login itself is successful (user exists, password matches)
-                message: 'आपकी दुकान का लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया दुकान के एडमिन द्वारा लाइसेंस सक्रिय करें।', // Updated message
+                message: 'आपकी दुकान का लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया दुकान के एडमिन द्वारा लाइसेंस सक्रिय करें।', 
                 requiresLicense: true, // Tell client to show modal (only admin should activate)
                 token: token, // Send token so admin can activate if needed
                 user: tokenUser
@@ -1349,7 +1353,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         // --- Step 7: Successful Login (Shop License is valid) ---
-        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} license is valid. Login successful for ${user.email}.`);
+        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} login successful.`);
         res.json({
             success: true,
             message: 'लॉगिन सफल।',
@@ -1363,7 +1367,6 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'लॉगिन प्रक्रिया में सर्वर त्रुटि हुई: ' + err.message });
     }
 });
-
 
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 
