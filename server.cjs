@@ -6047,12 +6047,10 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 });
 
 // [PASTE THIS IN server.cjs (ADMIN SECTION)]
-
-// 12.7 Find Shop Details (Super Admin Only - To find Shop ID)
+// 12.7 Find Shop Details (Fix: Added expiry date fetch)
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
 
-    // 1. एडमिन पासवर्ड चेक करें
     if (!process.env.GLOBAL_ADMIN_PASSWORD) {
          return res.status(500).json({ success: false, message: 'Server Config Error: GLOBAL_ADMIN_PASSWORD missing.' });
     }
@@ -6061,9 +6059,11 @@ app.post('/api/admin/find-shop', async (req, res) => {
     }
 
     try {
-        // 2. सर्च लॉजिक (ID, नाम, मोबाइल या ईमेल से खोजें)
+        // 🚀 FIX: 's.license_expiry_date as expiry_date' और 's.status' को यहाँ जोड़ा गया है
+        // अब फ्रंटएंड को एक्सपायरी डेट मिलेगी और "0 Days" की समस्या ठीक हो जाएगी
         let sql = `
-            SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
+            SELECT s.id, s.shop_name, s.business_type, s.plan_type, s.status,
+                   s.license_expiry_date as expiry_date, 
                    u.name as owner_name, u.mobile as owner_mobile, u.email
             FROM shops s
             LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
@@ -6072,13 +6072,11 @@ app.post('/api/admin/find-shop', async (req, res) => {
         let params = [];
         
         if (query) {
-            // अगर query नंबर है तो ID चेक करें, वरना नाम/मोबाइल में ढूंढे
-            // (सरलता के लिए हम सबको टेक्स्ट मानकर सर्च कर रहे हैं)
             sql += ` WHERE s.id::text = $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
             params.push(query); 
         }
         
-        sql += ` ORDER BY s.id DESC LIMIT 50`; // सबसे नई दुकानें ऊपर दिखेंगी
+        sql += ` ORDER BY s.id DESC LIMIT 50`;
 
         const result = await pool.query(sql, params);
         res.json({ success: true, shops: result.rows });
@@ -6089,14 +6087,18 @@ app.post('/api/admin/find-shop', async (req, res) => {
     }
 });
 
-
-// --- ADMIN: BLOCK/UNBLOCK SHOP ---
+// --- ADMIN: BLOCK/UNBLOCK SHOP (CORRECTED) ---
 app.post('/api/admin/update-shop-status', async (req, res) => {
     const { adminPassword, shop_id, status } = req.body;
 
-    // यहाँ अपना एडमिन पासवर्ड चेक करें
-    if (adminPassword !== "YOUR_ADMIN_PASSWORD_HERE") { // NOTE: अपना पासवर्ड यहाँ लिखें या process.env use करें
-        return res.status(401).json({ success: false, message: "Wrong Password" });
+    // 1. सही पासवर्ड चेक (Fix: हार्डकोड पासवर्ड हटाया)
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+         return res.status(500).json({ success: false, message: 'Server Config Error: GLOBAL_ADMIN_PASSWORD missing.' });
+    }
+    
+    // यह लाइन चेक करती है कि भेजा गया पासवर्ड असली एडमिन पासवर्ड है या नहीं
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) { 
+        return res.status(401).json({ success: false, message: "Wrong Admin Password" });
     }
 
     try {
@@ -6107,8 +6109,9 @@ app.post('/api/admin/update-shop-status', async (req, res) => {
         
         if (result.rowCount === 0) return res.json({ success: false, message: "Shop ID Invalid" });
         
-        res.json({ success: true, message: "Status Updated" });
+        res.json({ success: true, message: "Status Updated Successfully" });
     } catch (err) {
+        console.error("Status Update Error:", err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
