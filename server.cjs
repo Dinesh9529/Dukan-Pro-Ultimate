@@ -917,27 +917,57 @@ function generateToken(user) {
  * Middleware to verify JWT and attach user/shop information to the request.
  * All protected routes must use this first.
  */
-const authenticateJWT = (req, res, next) => {
+/**
+ * Middleware to verify JWT and attach user/shop information to the request.
+ * All protected routes must use this first.
+ */
+const authenticateJWT = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader) {
         const token = authHeader.split(' ')[1];
-        // Expects 'Bearer <token>'
 
-        jwt.verify(token, JWT_SECRET, (err, user) => {
-            if (err) {
-                console.warn('JWT Verification Failed:', err.message);
-                return res.status(403).json({ success: false, message: 'अमान्य या समाप्त टोकन। कृपया पुनः लॉगिन करें।' });
+        try {
+            // 1. टोकन डिकोड करें
+            const decoded = jwt.verify(token, JWT_SECRET);
+
+            // 2. 🚀 REAL-TIME CHECK: डेटाबेस से ताज़ा प्लान और स्टेटस लाएँ
+            const client = await pool.connect();
+            try {
+                const freshData = await client.query(
+                    `SELECT s.plan_type, s.add_ons, s.license_expiry_date, u.status, u.role 
+                     FROM shops s 
+                     JOIN users u ON s.id = u.shop_id 
+                     WHERE s.id = $1 AND u.id = $2`,
+                    [decoded.shopId, decoded.id]
+                );
+
+                if (freshData.rows.length > 0) {
+                    const fresh = freshData.rows[0];
+                    // टोकन के पुराने डेटा को ताज़ा डेटा से बदलें
+                    decoded.plan_type = fresh.plan_type; 
+                    decoded.add_ons = fresh.add_ons;
+                    decoded.licenseExpiryDate = fresh.license_expiry_date;
+                    decoded.status = fresh.status;
+                    decoded.role = fresh.role; 
+                }
+            } catch (dbErr) {
+                console.error("Auth Refresh Error", dbErr);
+            } finally {
+                client.release();
             }
 
-            // Attach user info and shop_id to the request object
-            req.user = user;
-            req.shopId = user.shopId; // Crucial for multi-tenancy scoping
-            req.userRole = user.role;
+            // 3. रिक्वेस्ट में अटैच करें
+            req.user = decoded;
+            req.shopId = decoded.shopId;
+            req.userRole = decoded.role;
             next();
-        });
+
+        } catch (err) {
+            console.warn('JWT Verification Failed:', err.message);
+            return res.status(403).json({ success: false, message: 'अमान्य या समाप्त टोकन।' });
+        }
     } else {
-        // No token provided
-        res.status(401).json({ success: false, message: 'अनधिकृत पहुँच। प्रमाणीकरण आवश्यक है।' });
+        res.status(401).json({ success: false, message: 'अनधिकृत पहुँच।' });
     }
 };
 
@@ -5910,6 +5940,8 @@ async function scheduleFurnitureDelivery() {
 
 // [PASTE THIS IN server.cjs (AT THE BOTTOM, BEFORE app.listen)]
 
+// [REPLACE THIS IN server.cjs (ADMIN SECTION)]
+
 // 12.6 Upgrade Shop Plan (Super Admin Only)
 // यह API दुकान का प्लान तुरंत बदल देती है (Basic -> Premium)
 app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
@@ -5935,7 +5967,8 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
         let updateQuery = `UPDATE shops SET plan_type = $1 WHERE id = $2`;
         let queryParams = [new_plan.toUpperCase(), shop_id];
 
-        // 3. (Optional) अगर आप वैलिडिटी भी बढ़ाना चाहते हैं
+        // 3. (Optional) अगर आप वैलिडिटी भी बढ़ाना चाहते हैं
+        // (पुराना लॉजिक सुरक्षित है)
         if (extend_days && parseInt(extend_days) > 0) {
             updateQuery = `
                 UPDATE shops 
@@ -5957,6 +5990,18 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 
         await client.query('COMMIT');
 
+        // ---------------------------------------------------------
+        // 🚀 NEW UPDATION: Real-time Notification भेजें
+        // ---------------------------------------------------------
+        // इससे दुकानदार की स्क्रीन पर तुरंत असर दिखेगा
+        if (typeof broadcastToShop === 'function') {
+            broadcastToShop(shop_id, JSON.stringify({ 
+                type: 'PLAN_UPDATED', 
+                message: `बधाई हो! आपका प्लान '${new_plan.toUpperCase()}' में अपग्रेड कर दिया गया है।`,
+                newPlan: new_plan.toUpperCase()
+            }));
+        }
+
         console.log(`PLAN UPGRADE: Shop ${shop_id} upgraded to ${new_plan} by Super Admin.`);
 
         res.json({ 
@@ -5973,7 +6018,6 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
         client.release();
     }
 });
-
 
 // [PASTE THIS IN server.cjs (ADMIN SECTION)]
 
