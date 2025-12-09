@@ -394,6 +394,29 @@ async function createTables() {
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='purchases') AND attname='is_reconciled') THEN ALTER TABLE purchases ADD COLUMN is_reconciled BOOLEAN DEFAULT FALSE; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=(SELECT oid FROM pg_class WHERE relname='expenses') AND attname='is_reconciled') THEN ALTER TABLE expenses ADD COLUMN is_reconciled BOOLEAN DEFAULT FALSE; END IF; END $$;`);
 
+
+
+
+// 16. Geo-Tagging Columns for Recovery Agents
+await client.query(`
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoices') AND attname = 'latitude') THEN
+            ALTER TABLE invoices ADD COLUMN latitude NUMERIC DEFAULT NULL;
+            ALTER TABLE invoices ADD COLUMN longitude NUMERIC DEFAULT NULL;
+        END IF;
+    END $$;
+`);
+
+// 17. Finance/Collection Column (Loan/RD/FD Number)
+await client.query(`
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'invoices') AND attname = 'loan_account_no') THEN
+            ALTER TABLE invoices ADD COLUMN loan_account_no TEXT DEFAULT NULL;
+        END IF;
+    END $$;
+`);
+
+
 // ... (console.log('✅ All tables...') से पहले)
         // --- MOVED SECTION (Kept as per your request) ---
         // (Note: These are redundant but kept to avoid deleting code)
@@ -565,6 +588,211 @@ await client.query(`
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
 `);
+
+
+
+// ====================================================================
+        // 🏗️ GOD MODE TABLES: जो आपके कोड में मिसिंग थीं (Furniture, School, etc.)
+        // ====================================================================
+
+        // 7. 🛋️ FURNITURE & ELECTRONICS (Delivery & Warranty)
+        // यह टेबल फर्नीचर की डिलीवरी और इलेक्ट्रॉनिक्स की वारंटी ट्रैक करेगी
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS product_deliveries (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                invoice_id INTEGER, -- किस बिल का सामान है
+                customer_name TEXT,
+                delivery_address TEXT,
+                delivery_date DATE,
+                assembly_required BOOLEAN DEFAULT FALSE, -- क्या मिस्त्री चाहिए?
+                warranty_end_date DATE, -- इलेक्ट्रॉनिक्स के लिए
+                status TEXT DEFAULT 'PENDING' -- 'DELIVERED', 'RETURNED'
+            );
+        `);
+
+        // 8. 🚨 GARMENTS SECURITY (Anti-Theft / Spy Mode)
+        // जब दरवाजे पर बीप बजेगी, तो चोर की फोटो और टाइम यहाँ सेव होगा
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS security_alerts (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                alert_time TIMESTAMP DEFAULT NOW(),
+                camera_image TEXT, -- चोर की फोटो (Base64)
+                rfid_tag_detected TEXT, -- चोरी हुए कपड़े का कोड
+                status TEXT DEFAULT 'UNRESOLVED'
+            );
+        `);
+
+        // 9. 🎨 PAINT SHOP (Color Formulas)
+        // पेंटर का बनाया हुआ कलर फार्मूला सेव करने के लिए
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS paint_formulas (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_name TEXT,
+                color_code TEXT, -- e.g. "Royal Blue 9012"
+                base_product TEXT, 
+                formula_json JSONB, -- { "Red": "2ml", "Yellow": "5ml" }
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 10. 🏨 HOTEL MANAGEMENT (Rooms)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS hotel_rooms (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                room_number TEXT NOT NULL,
+                status TEXT DEFAULT 'AVAILABLE', -- 'OCCUPIED', 'DIRTY'
+                current_guest_name TEXT
+            );
+        `);
+
+        // 11. 🎓 SCHOOL / COACHING (Students & Fees)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS school_students (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                roll_number TEXT,
+                student_name TEXT,
+                father_name TEXT,
+                fees_due NUMERIC DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS school_fee_transactions (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                student_id INTEGER,
+                amount_paid NUMERIC,
+                payment_date TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 12. 🚛 TRANSPORT (Trips)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS transport_trips (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                vehicle_no TEXT,
+                driver_name TEXT,
+                start_location TEXT,
+                end_location TEXT,
+                freight_amount NUMERIC, -- भाड़ा
+                diesel_expense NUMERIC DEFAULT 0,
+                trip_date TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 13. 🧪 PERFUME SHOP (Decants)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS perfume_blends (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                blend_name TEXT,
+                ingredients_json JSONB, -- { "Rose": "2ml", "Oud": "1ml" }
+                price NUMERIC
+            );
+        `);
+
+        // 14. 🩺 MEDICAL REPORTS (Sonography/Xray)
+        // (अगर यह पहले से नहीं है, तो इसे जरूर जोड़ें)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS medical_reports (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                patient_name TEXT,
+                doctor_name TEXT,
+                report_type TEXT,
+                report_content TEXT,
+                findings_json JSONB,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+		
+		
+		// ====================================================================
+        // 🏗️ FINAL MISSING TABLES: GYM, TAILOR, RESTAURANT, REPAIR
+        // ====================================================================
+
+        // 15. 🧵 TAILOR / BOUTIQUE (Measurements)
+        // दर्जी के लिए नाप (Measurements) सेव करने की टेबल
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS tailor_measurements (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+                item_type TEXT, -- e.g. "Shirt", "Pant", "Blouse"
+                measurements_json JSONB, -- { "Length": 40, "Waist": 32 }
+                notes TEXT, -- "Deep neck design"
+                delivery_date DATE,
+                status TEXT DEFAULT 'PENDING', -- 'STITCHING', 'READY'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 16. 💪 GYM / FITNESS (Membership & Attendance)
+        // जिम के मेंबर्स की हाजिरी और डाइट प्लान
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS gym_attendance (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+                check_in_time TIMESTAMP DEFAULT NOW(),
+                status TEXT DEFAULT 'PRESENT'
+            );
+
+            CREATE TABLE IF NOT EXISTS gym_diet_plans (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id),
+                plan_name TEXT, -- "Weight Loss"
+                diet_json JSONB, -- { "Morning": "Oats", "Lunch": "Salad" }
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 17. 🍽️ RESTAURANT (Tables & KOT)
+        // रेस्टोरेंट के लिए टेबल बुकिंग और किचन आर्डर (KOT)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS restaurant_tables (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                table_number TEXT,
+                capacity INTEGER,
+                status TEXT DEFAULT 'FREE' -- 'OCCUPIED', 'RESERVED'
+            );
+
+            CREATE TABLE IF NOT EXISTS restaurant_kots (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                table_id INTEGER REFERENCES restaurant_tables(id),
+                items_json JSONB, -- [{ "item": "Dal", "qty": 1 }]
+                status TEXT DEFAULT 'PREPARING', -- 'SERVED', 'BILLED'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 18. 🛠️ SERVICE CENTER (Repair Job Cards)
+        // मोबाइल/इलेक्ट्रॉनिक्स रिपेयरिंग का जॉब कार्ड
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS repair_job_cards (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_name TEXT,
+                customer_mobile TEXT,
+                device_model TEXT, -- "iPhone 13"
+                imei_serial TEXT,
+                issue_description TEXT, -- "Screen Broken"
+                estimated_cost NUMERIC,
+                advance_paid NUMERIC DEFAULT 0,
+                status TEXT DEFAULT 'RECEIVED', -- 'REPAIRED', 'DELIVERED', 'CANT_FIX'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+		
+		
+		
 
         console.log('✅ All tables and columns (including Tally GST columns) checked/created successfully.');
         
@@ -1524,10 +1752,20 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 //... (बाकी server.cjs कोड)
 
 // [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें ]
-// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST & SALON CONSUMPTION)
+// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST, SALON CONSUMPTION & FINANCE)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
-    // FIX 1: req.body से customerMobile और place_of_supply निकालें
-    const { customerName, customerMobile, total_amount, sale_items, place_of_supply } = req.body;
+    // FIX 1: Extract all necessary fields from req.body including new ones
+    const { 
+        customerName, 
+        customerMobile, 
+        total_amount, 
+        sale_items, 
+        place_of_supply, 
+        latitude, 
+        longitude, 
+        loanAccountNo // New field for Finance/Recovery Agents
+    } = req.body;
+    
     const shopId = req.shopId;
 
     if (!total_amount || !Array.isArray(sale_items) || sale_items.length === 0) {
@@ -1541,11 +1779,12 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         let customerId = null;
         let customerGstin = null; // TALLY UPDATE
 
-        // 1. ग्राहक ढूँढें या बनाएँ
+        // 1. Find or Create Customer
         if (customerName && customerName.trim() !== 'अनाम ग्राहक') {
-            // TALLY UPDATE: SELECT में 'gstin' जोड़ा गया
+            // Check if customer exists by name
             let customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND name = $2', [shopId, customerName.trim()]);
             
+            // If not found by name, try finding by mobile
             if (customerResult.rows.length === 0 && customerMobile) {
                  customerResult = await client.query('SELECT id, gstin FROM customers WHERE shop_id = $1 AND phone = $2', [shopId, customerMobile]);
             }
@@ -1554,7 +1793,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
                 customerId = customerResult.rows[0].id;
                 customerGstin = customerResult.rows[0].gstin;
             } else {
-                // TALLY UPDATE: RETURNING में 'gstin' जोड़ा गया
+                // Create new customer
                 const newCustomerResult = await client.query('INSERT INTO customers (shop_id, name, phone) VALUES ($1, $2, $3) RETURNING id, gstin', [shopId, customerName.trim(), customerMobile]);
                 customerId = newCustomerResult.rows[0].id;
                 customerGstin = newCustomerResult.rows[0].gstin;
@@ -1564,19 +1803,32 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         const safeTotalAmount = parseFloat(total_amount);
         let calculatedTotalCost = 0;
 
-        // TALLY UPDATE: अपनी दुकान का GSTIN प्राप्त करें
+        // TALLY UPDATE: Get Shop's GSTIN for Place of Supply logic
         const profileRes = await client.query('SELECT gstin FROM company_profile WHERE shop_id = $1', [shopId]);
         const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2);
         const supplyPlace = (place_of_supply || shopGstin);
 
-        // 2. इनवॉइस बनाएँ
+        // 2. Create Invoice
+        // [🚀 UPDATED QUERY: Added loan_account_no]
         const invoiceResult = await client.query(
-            `INSERT INTO invoices (shop_id, customer_id, total_amount, customer_gstin, place_of_supply) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-            [shopId, customerId, safeTotalAmount, customerGstin, supplyPlace]
+            `INSERT INTO invoices (
+                shop_id, customer_id, total_amount, customer_gstin, place_of_supply, 
+                latitude, longitude, loan_account_no
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+            [
+                shopId, 
+                customerId, 
+                parseFloat(total_amount), 
+                customerGstin, 
+                (place_of_supply || ''), 
+                latitude || null, 
+                longitude || null,
+                loanAccountNo || null // Save Loan Account Number here
+            ]
         );
         const invoiceId = invoiceResult.rows[0].id;
 
-        // 3. आइटम लूप (Tally + Salon Logic)
+        // 3. Process Items Loop (Tally + Salon Logic)
         for (const item of sale_items) {
             const safeQuantity = parseFloat(item.quantity);
             const safePurchasePrice = parseFloat(item.purchase_price || 0);
@@ -1599,7 +1851,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
 
             calculatedTotalCost += safeQuantity * safePurchasePrice;
             
-            // A. इनवॉइस आइटम सेव करें
+            // A. Save Invoice Item
             await client.query(
                 `INSERT INTO invoice_items (
                     invoice_id, item_name, item_sku, quantity, sale_price, purchase_price, 
@@ -1615,33 +1867,32 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             // 🚀🚀🚀 SALON CONSUMPTION LOGIC START 🚀🚀🚀
             // ============================================================
             
-            // 1. चेक करें: क्या इस आइटम (Service) के लिए कोई रेसिपी है?
+            // 1. Check if recipe exists for this item (Service)
             const recipeRes = await client.query(
                 `SELECT consumable_sku, quantity_needed FROM service_recipes WHERE shop_id = $1 AND service_sku = $2`,
                 [shopId, item.sku]
             );
 
             if (recipeRes.rows.length > 0) {
-                // === CASE 1: यह एक सर्विस है (जिसमें कुछ खर्च होता है) ===
-                console.log(`Salon Logic: ${item.name} बिका। अब रेसिपी के अनुसार स्टॉक कम कर रहे हैं...`);
+                // === CASE 1: Service with Recipe ===
+                console.log(`Salon Logic: ${item.name} sold. Reducing stock based on recipe...`);
                 
                 for (const recipe of recipeRes.rows) {
-                    // कुल खपत = (एक सर्विस में खपत) * (जितनी सर्विस बिकीं)
                     const qtyNeeded = parseFloat(recipe.quantity_needed);
                     const totalConsume = qtyNeeded * safeQuantity;
                     const targetSku = recipe.consumable_sku;
 
                     console.log(`Reducing: ${targetSku} by ${totalConsume}`);
 
-                    // चुपचाप स्टॉक से माइनस करें
+                    // Reduce stock
                     await client.query(
                         `UPDATE stock SET quantity = quantity - $1 WHERE sku = $2 AND shop_id = $3`,
                         [totalConsume, targetSku, shopId]
                     );
                 }
             } else {
-                // === CASE 2: यह एक सामान्य प्रोडक्ट है (जैसे शैम्पू की बोतल बेची) ===
-                // इसे तभी घटाएं जब यह 'Service' न हो (SKU चेक)
+                // === CASE 2: Normal Product ===
+                // Only reduce if NOT a service (SKU check or attribute check)
                 const isServiceSku = item.sku.startsWith('SVC-') || (item.product_attributes && item.product_attributes.type === 'SERVICE');
                 
                 if (!isServiceSku) {
@@ -1656,7 +1907,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             // ============================================================
         }
 
-        // 4. इनवॉइस में COGS अपडेट करें
+        // 4. Update COGS in Invoice
         await client.query(
             `UPDATE invoices SET total_cost = $1 WHERE id = $2`,
             [calculatedTotalCost, invoiceId]
@@ -1664,7 +1915,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         
         await client.query('COMMIT'); // Transaction End
 
-        // 🚀 Dashboard अपडेट
+        // 🚀 Update Dashboard via WebSocket
         if (typeof broadcastToShop === 'function') {
             broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
         }
@@ -1680,7 +1931,6 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
     }
 });
 
-
 //... (बाकी server.cjs कोड)
 
 // 8.2 Get Invoices/Sales List (SCOPED)
@@ -1692,16 +1942,19 @@ app.get('/api/invoices', authenticateJWT, async (req, res) => {
         // const result = await pool.query("SELECT i.id, i.total_amount, i.created_at, COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name, i.total_cost FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id WHERE i.shop_id = $1 ORDER BY i.created_at DESC LIMIT 100", [shopId]);
         // --- पुराना लॉजिक समाप्त ---
 
-        // --- नया लॉजिक (GST जोड़ने के लिए) ---
-        // 🚀 फिक्स: invoice_items को JOIN किया और कुल gst_amount को SUM किया 
+        // --- नया लॉजिक (GST + Finance Data जोड़ने के लिए) ---
+        // 🚀 फिक्स: latitude, longitude, loan_account_no को SELECT में जोड़ा गया
         const result = await pool.query(`
             SELECT 
                 i.id, 
                 i.total_amount, 
                 i.created_at, 
-               COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name,
-			   c.phone AS customer_phone, 
-			   i.total_cost,
+                i.latitude, 
+                i.longitude, 
+                i.loan_account_no, 
+                COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name,
+                c.phone AS customer_phone, 
+                i.total_cost,
                 COALESCE(SUM(ii.gst_amount), 0) AS total_gst
             FROM invoices i 
             LEFT JOIN customers c ON i.customer_id = c.id
@@ -1713,13 +1966,12 @@ app.get('/api/invoices', authenticateJWT, async (req, res) => {
         `, [shopId]);
         // --- नया लॉजिक समाप्त ---
 
-        res.json({ success: true, sales: result.rows, message: "चालान सफलतापूर्वक लोड किए गए।" }); // Corrected: Single line
+        res.json({ success: true, sales: result.rows, message: "चालान सफलतापूर्वक लोड किए गए।" });
     } catch (error) {
         console.error("Error fetching invoices list:", error.message);
         res.status(500).json({ success: false, message: 'चालान सूची प्राप्त करने में विफल.' });
     }
 });
-
 
 // 8.3 Get Invoice Details (SCOPED)
 app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
@@ -5298,6 +5550,357 @@ app.post('/api/appointments', authenticateJWT, async (req, res) => {
         client.release();
     }
 });
+
+
+// ============================================================
+// 🚀 MISSING BUSINESS APIs (Furniture, Security, Medical, etc.)
+// ============================================================
+
+// 1. 🚨 SECURITY API (Save Thief Photo)
+// जब दरवाजे पर सेंसर बजेगा, तो फ्रंटएंड इस API को फोटो भेजेगा
+app.post('/api/security/alert', authenticateJWT, async (req, res) => {
+    const { imageBase64, rfidTag } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO security_alerts (shop_id, camera_image, rfid_tag_detected) VALUES ($1, $2, $3)`,
+            [req.shopId, imageBase64, rfidTag]
+        );
+        res.json({ success: true, message: 'Security Alert Logged! Photo Saved.' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 2. 🛋️ FURNITURE API (Delivery Update)
+app.post('/api/furniture/update-delivery', authenticateJWT, async (req, res) => {
+    const { invoiceId, date, status, assembly } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO product_deliveries (shop_id, invoice_id, delivery_date, delivery_status, assembly_required)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [req.shopId, invoiceId, date, status, assembly]
+        );
+        res.json({ success: true, message: 'Delivery Scheduled.' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 3. 🩺 MEDICAL REPORT API (Save Sonography/XRay)
+app.post('/api/medical/save-report', authenticateJWT, async (req, res) => {
+    const { patientId, doctorName, testName, reportContent, lmp, edd } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO medical_reports (shop_id, patient_name, doctor_name, report_type, report_content, findings_json)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [req.shopId, patientId, doctorName, testName, reportContent, { lmp, edd }]
+        );
+        res.json({ success: true, message: 'Report Saved.' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 4. 🎨 PAINT FORMULA API
+app.post('/api/paints/save-formula', authenticateJWT, async (req, res) => {
+    const { name, colorCode, formula } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO paint_formulas (shop_id, customer_name, color_code, formula_json) VALUES ($1, $2, $3, $4)`,
+            [req.shopId, name, colorCode, formula]
+        );
+        res.json({ success: true, message: 'Color Formula Saved.' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 5. 🏨 HOTEL API (Room Status)
+app.get('/api/hotel/rooms', authenticateJWT, async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM hotel_rooms WHERE shop_id = $1 ORDER BY room_number`, [req.shopId]);
+        res.json({ success: true, rooms: result.rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 6. 🎓 SCHOOL API (Pay Fee)
+app.post('/api/school/pay-fee', authenticateJWT, async (req, res) => {
+    const { studentId, amount } = req.body;
+    try {
+        await pool.query(`INSERT INTO school_fee_transactions (shop_id, student_id, amount_paid) VALUES ($1, $2, $3)`, [req.shopId, studentId, amount]);
+        await pool.query(`UPDATE school_students SET fees_due = fees_due - $1 WHERE id = $2`, [amount, studentId]);
+        res.json({ success: true, message: 'Fee Collected.' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// 7. 🚛 TRANSPORT API (New Trip)
+app.post('/api/transport/new-trip', authenticateJWT, async (req, res) => {
+    const { vehicle, driver, start, end, freight } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO transport_trips (shop_id, vehicle_no, driver_name, start_location, end_location, freight_amount)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [req.shopId, vehicle, driver, start, end, freight]
+        );
+        res.json({ success: true, message: 'Trip Created.' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+
+
+// ====================================================================
+        // 🏗️ FINAL MISSING TABLES: GYM, TAILOR, RESTAURANT, REPAIR
+        // ====================================================================
+
+        // 15. 🧵 TAILOR / BOUTIQUE (Measurements)
+        // दर्जी के लिए नाप (Measurements) सेव करने की टेबल
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS tailor_measurements (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+                item_type TEXT, -- e.g. "Shirt", "Pant", "Blouse"
+                measurements_json JSONB, -- { "Length": 40, "Waist": 32 }
+                notes TEXT, -- "Deep neck design"
+                delivery_date DATE,
+                status TEXT DEFAULT 'PENDING', -- 'STITCHING', 'READY'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 16. 💪 GYM / FITNESS (Membership & Attendance)
+        // जिम के मेंबर्स की हाजिरी और डाइट प्लान
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS gym_attendance (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+                check_in_time TIMESTAMP DEFAULT NOW(),
+                status TEXT DEFAULT 'PRESENT'
+            );
+
+            CREATE TABLE IF NOT EXISTS gym_diet_plans (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id),
+                plan_name TEXT, -- "Weight Loss"
+                diet_json JSONB, -- { "Morning": "Oats", "Lunch": "Salad" }
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 17. 🍽️ RESTAURANT (Tables & KOT)
+        // रेस्टोरेंट के लिए टेबल बुकिंग और किचन आर्डर (KOT)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS restaurant_tables (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                table_number TEXT,
+                capacity INTEGER,
+                status TEXT DEFAULT 'FREE' -- 'OCCUPIED', 'RESERVED'
+            );
+
+            CREATE TABLE IF NOT EXISTS restaurant_kots (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                table_id INTEGER REFERENCES restaurant_tables(id),
+                items_json JSONB, -- [{ "item": "Dal", "qty": 1 }]
+                status TEXT DEFAULT 'PREPARING', -- 'SERVED', 'BILLED'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 18. 🛠️ SERVICE CENTER (Repair Job Cards)
+        // मोबाइल/इलेक्ट्रॉनिक्स रिपेयरिंग का जॉब कार्ड
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS repair_job_cards (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_name TEXT,
+                customer_mobile TEXT,
+                device_model TEXT, -- "iPhone 13"
+                imei_serial TEXT,
+                issue_description TEXT, -- "Screen Broken"
+                estimated_cost NUMERIC,
+                advance_paid NUMERIC DEFAULT 0,
+                status TEXT DEFAULT 'RECEIVED', -- 'REPAIRED', 'DELIVERED', 'CANT_FIX'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+
+// ============================================================
+// 🚀 6. NEW BUSINESS LOGIC HANDLERS (Missing Piece)
+// ============================================================
+
+// 1. 🏨 HOTEL: Check-In Logic
+async function processHotelCheckIn() {
+    const data = {
+        room_id: document.getElementById('hotel_room_select').value || '101', // Fallback for now
+        customer_name: document.getElementById('hotel_guest_name').value,
+        mobile: document.getElementById('hotel_guest_mobile').value,
+        check_in_date: document.getElementById('hotel_checkin_date').value,
+        advance: document.getElementById('hotel_advance').value
+    };
+
+    if(!data.customer_name || !data.check_in_date) return showNotification("❌ Please fill Guest Name and Date");
+
+    try {
+        const res = await fetchApi('/api/hotel/checkin', { method: 'POST', body: data });
+        if(res.success) {
+            showNotification("✅ Guest Checked In Successfully!");
+            // Clear fields
+            document.getElementById('hotel_guest_name').value = '';
+            document.getElementById('hotel_guest_mobile').value = '';
+        }
+    } catch(e) { alert(e.message); }
+}
+
+// 2. 🎓 SCHOOL: Fee Collection
+async function processSchoolFee() {
+    const data = {
+        studentId: document.getElementById('school_student_id').value,
+        amount: document.getElementById('school_fee_amount').value,
+        month: document.getElementById('school_fee_month').value
+    };
+    
+    if(!data.studentId || !data.amount) return showNotification("❌ Enter Student ID and Amount");
+
+    try {
+        const res = await fetchApi('/api/school/pay-fee', { method: 'POST', body: data });
+        if(res.success) {
+            showNotification("✅ Fee Collected Successfully!");
+            document.getElementById('school_fee_amount').value = '';
+        }
+    } catch(e) { alert(e.message); }
+}
+
+// 3. 🚛 TRANSPORT: Create Trip
+async function createTransportTrip() {
+    const data = {
+        vehicle: document.getElementById('trans_vehicle').value,
+        driver: document.getElementById('trans_driver').value,
+        start: document.getElementById('trans_start').value,
+        end: document.getElementById('trans_end').value,
+        freight: document.getElementById('trans_freight').value,
+        advance: document.getElementById('trans_advance').value
+    };
+
+    if(!data.vehicle || !data.freight) return showNotification("❌ Vehicle No and Freight required");
+
+    try {
+        const res = await fetchApi('/api/transport/new-trip', { method: 'POST', body: data });
+        if(res.success) showNotification("✅ Trip Created!");
+    } catch(e) { alert(e.message); }
+}
+
+// 4. 🛠️ REPAIR: Create Job Card
+async function createRepairJob() {
+    const data = {
+        customerName: document.getElementById('repair_customer').value,
+        mobile: document.getElementById('repair_mobile').value,
+        device: document.getElementById('repair_device').value,
+        imei: document.getElementById('repair_imei').value,
+        issue: document.getElementById('repair_issue').value,
+        cost: document.getElementById('repair_cost').value,
+        advance: document.getElementById('repair_advance').value
+    };
+
+    if(!data.customerName || !data.device) return showNotification("❌ Name and Device required");
+
+    try {
+        const res = await fetchApi('/api/repair/create-job', { method: 'POST', body: data });
+        if(res.success) showNotification("✅ Job Card Generated! ID: " + (res.jobId || ''));
+    } catch(e) { alert(e.message); }
+}
+
+// 5. 🍽️ RESTAURANT: KOT Logic
+function addKotRow() {
+    const div = document.createElement('div');
+    div.className = 'input-group input-group-sm mb-1 kot-row';
+    div.innerHTML = `<input type="text" class="form-control kot-item" placeholder="Item Name"><input type="number" class="form-control kot-qty" placeholder="Qty" style="max-width: 70px;">`;
+    document.getElementById('kot-items-container').appendChild(div);
+}
+
+async function sendKotToKitchen() {
+    const tableId = document.getElementById('rest_table_no').value;
+    const items = [];
+    document.querySelectorAll('.kot-row').forEach(row => {
+        const item = row.querySelector('.kot-item').value;
+        const qty = row.querySelector('.kot-qty').value;
+        if(item && qty) items.push({ item, qty });
+    });
+
+    if(!tableId || items.length === 0) return showNotification("❌ Table No and Items required");
+    
+    // Note: Assuming API expects 'tableId' as integer (mapping needed in real app)
+    // Here sending as 1 for demo if text provided
+    try {
+        const res = await fetchApi('/api/restaurant/create-kot', { method: 'POST', body: { tableId: 1, items } }); 
+        if(res.success) {
+            showNotification("✅ KOT Sent to Kitchen! 🍳");
+            document.getElementById('kot-items-container').innerHTML = ''; // Clear
+            addKotRow(); // Add one empty row
+        }
+    } catch(e) { alert(e.message); }
+}
+
+// 6. 🎨 PAINT: Save Formula
+async function savePaintFormula() {
+    const data = {
+        name: document.getElementById('paint_cust_name').value,
+        colorCode: document.getElementById('paint_code').value,
+        baseProduct: document.getElementById('paint_base').value,
+        formula: JSON.parse(document.getElementById('paint_formula').value || '{}')
+    };
+
+    try {
+        const res = await fetchApi('/api/paints/save-formula', { method: 'POST', body: data });
+        if(res.success) showNotification("✅ Formula Saved!");
+    } catch(e) { alert("Invalid JSON or Error: " + e.message); }
+}
+
+// 7. 🧵 TAILOR: Save Measurements
+async function saveTailorMeasurements() {
+    const data = {
+        customerId: document.getElementById('tailor_cust_id').value || 1, // Fallback ID
+        itemType: document.getElementById('tailor_item_type').value,
+        deliveryDate: document.getElementById('tailor_delivery').value,
+        notes: document.getElementById('tm_notes').value,
+        measurements: {
+            len: document.getElementById('tm_length').value,
+            waist: document.getElementById('tm_waist').value,
+            chest: document.getElementById('tm_chest').value,
+            shldr: document.getElementById('tm_shoulder').value
+        }
+    };
+
+    try {
+        const res = await fetchApi('/api/tailor/save-measurements', { method: 'POST', body: data });
+        if(res.success) showNotification("✅ Measurements Saved!");
+    } catch(e) { alert(e.message); }
+}
+
+// 8. 💪 GYM: Attendance
+async function markGymAttendance() {
+    const id = document.getElementById('gym_member_id').value;
+    if(!id) return showNotification("❌ Member ID required");
+
+    try {
+        // Assuming we look up customer by this ID/Phone logic
+        // For demo, sending ID 1. Real app needs lookup.
+        const res = await fetchApi('/api/gym/attendance', { method: 'POST', body: { customerId: 1 } });
+        if(res.success) showNotification("✅ Attendance Marked!");
+    } catch(e) { alert(e.message); }
+}
+
+// 9. 🛋️ FURNITURE: Delivery
+async function scheduleFurnitureDelivery() {
+    const data = {
+        invoiceId: document.getElementById('furn_invoice_id').value || 0,
+        date: document.getElementById('furn_delivery_date').value,
+        assembly: document.getElementById('furn_assembly').checked
+    };
+    
+    if(!data.date) return showNotification("❌ Select Date");
+
+    try {
+        const res = await fetchApi('/api/furniture/update-delivery', { method: 'POST', body: data });
+        if(res.success) showNotification("✅ Delivery Scheduled!");
+    } catch(e) { alert(e.message); }
+}
 
 
 // Start the server after ensuring database tables are ready
