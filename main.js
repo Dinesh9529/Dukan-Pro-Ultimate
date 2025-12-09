@@ -262,10 +262,21 @@ function configureDashboardModules(features, viewMode) {
     const searchInput = document.getElementById('pos-item-search');
     if(searchInput) searchInput.placeholder = "आइटम का नाम या SKU टाइप करें...";
 
+    // 🚀 NEW: Security Add-on Check (User Object से)
+    // यह चेक करेगा कि क्या यूजर के पास Security फीचर का एक्सेस है
+    const userPlan = AppState.user?.plan_type || 'TRIAL';
+    const userAddOns = AppState.user?.add_ons || {};
+    
+    // Security tabhi dikhega agar:
+    // 1. Trial Plan hai OR
+    // 2. Lifetime Plan (ONE_TIME) hai OR
+    // 3. 'has_security' Add-on kharida hai
+    const isSecurityUnlocked = (userPlan === 'TRIAL' || userPlan === 'ONE_TIME' || userAddOns['has_security'] === true);
+
     // B. फीचर्स के हिसाब से सेक्शन्स दिखाएं
     features.forEach(feature => {
         
-        // --- [OLD CODE: EXISTING FEATURES (Medical, Salon, Furniture etc.)] ---
+        // --- [OLD CODE: EXISTING FEATURES] ---
 
         // 1. Expiry Date (Pharmacy, Sweet Shop)
         if (feature === 'expiry_date') {
@@ -341,24 +352,35 @@ function configureDashboardModules(features, viewMode) {
         }
 
         // 11. FINANCE / RECOVERY (Loan & GPS)
-        // (यहाँ GPS और Loan Number दोनों का लॉजिक एक साथ सही कर दिया गया है)
         if (feature === 'geo_tagging' || feature === 'commission_calc') {
-            // A. GPS Location Box दिखाएं
             const geoMod = document.getElementById('module-geo-tagging');
             if(geoMod) geoMod.style.display = 'block';
 
-            // B. Loan/Account Number Box दिखाएं
             const finMod = document.getElementById('module-finance-collection');
             if(finMod) finMod.style.display = 'block';
 
-            // C. Search Placeholder बदलें (ताकि एजेंट को आसानी हो)
             if(searchInput) searchInput.placeholder = "EMI, RD, FD या Loan Product खोजें...";
         }
     });
 
+    // 🚀🚀🚀 SPECIAL ADD-ON: SECURITY PANEL 🚀🚀🚀
+    // यह सिर्फ तभी दिखेगा जब (1) वह Garment/Retail Shop हो और (2) उसके पास Security Access हो
+    
+    const isGarmentShop = (CURRENT_USER_TYPE === 'CLOTHING' || CURRENT_USER_TYPE === 'RETAIL');
+    const securityMod = document.getElementById('module-security-panel');
+
+    if (securityMod) {
+        if (isGarmentShop && isSecurityUnlocked) {
+            securityMod.style.display = 'block';
+            console.log("🔒 Security Panel Activated (Add-on/Trial Verified)");
+        } else {
+            // अगर Add-on नहीं है या Shop Type गलत है, तो छिपाएं
+            securityMod.style.display = 'none';
+        }
+    }
+
     console.log(`✅ Dashboard Configured for: ${CURRENT_USER_TYPE}`);
 }
-
 
 function updateLabels(labels) {
     document.querySelectorAll('.lbl-customer').forEach(el => el.innerText = labels.customer);

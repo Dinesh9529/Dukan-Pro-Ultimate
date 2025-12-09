@@ -5907,6 +5907,120 @@ async function scheduleFurnitureDelivery() {
 }
 
 
+
+// [PASTE THIS IN server.cjs (AT THE BOTTOM, BEFORE app.listen)]
+
+// 12.6 Upgrade Shop Plan (Super Admin Only)
+// यह API दुकान का प्लान तुरंत बदल देती है (Basic -> Premium)
+app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
+    const { adminPassword, shop_id, new_plan, extend_days } = req.body;
+
+    // 1. सिक्योरिटी चेक
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(500).json({ success: false, message: 'Server Config Error: GLOBAL_ADMIN_PASSWORD missing.' });
+    }
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड।' });
+    }
+
+    if (!shop_id || !new_plan) {
+        return res.status(400).json({ success: false, message: 'Shop ID और New Plan नाम आवश्यक है।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 2. प्लान अपडेट करें
+        let updateQuery = `UPDATE shops SET plan_type = $1 WHERE id = $2`;
+        let queryParams = [new_plan.toUpperCase(), shop_id];
+
+        // 3. (Optional) अगर आप वैलिडिटी भी बढ़ाना चाहते हैं
+        if (extend_days && parseInt(extend_days) > 0) {
+            updateQuery = `
+                UPDATE shops 
+                SET plan_type = $1, 
+                    license_expiry_date = license_expiry_date + INTERVAL '${parseInt(extend_days)} days' 
+                WHERE id = $2`;
+        }
+
+        const result = await client.query(updateQuery, queryParams);
+
+        if (result.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Shop ID नहीं मिली।' });
+        }
+
+        // 4. Shop के एडमिन का ईमेल ढूँढें (Confirmation के लिए)
+        const userRes = await client.query('SELECT email FROM users WHERE shop_id = $1 AND role = $2', [shop_id, 'ADMIN']);
+        const shopAdminEmail = userRes.rows[0]?.email || 'Unknown';
+
+        await client.query('COMMIT');
+
+        console.log(`PLAN UPGRADE: Shop ${shop_id} upgraded to ${new_plan} by Super Admin.`);
+
+        res.json({ 
+            success: true, 
+            message: `सफलता! Shop ID ${shop_id} (Email: ${shopAdminEmail}) का प्लान अब '${new_plan}' कर दिया गया है।`,
+            new_plan: new_plan
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Upgrade Error:", err);
+        res.status(500).json({ success: false, message: 'प्लान बदलने में विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
+// [PASTE THIS IN server.cjs (ADMIN SECTION)]
+
+// 12.7 Find Shop Details (Super Admin Only - To find Shop ID)
+app.post('/api/admin/find-shop', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    // 1. एडमिन पासवर्ड चेक करें
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+         return res.status(500).json({ success: false, message: 'Server Config Error: GLOBAL_ADMIN_PASSWORD missing.' });
+    }
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड।' });
+    }
+
+    try {
+        // 2. सर्च लॉजिक (ID, नाम, मोबाइल या ईमेल से खोजें)
+        let sql = `
+            SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
+                   u.name as owner_name, u.mobile as owner_mobile, u.email
+            FROM shops s
+            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+        `;
+        
+        let params = [];
+        
+        if (query) {
+            // अगर query नंबर है तो ID चेक करें, वरना नाम/मोबाइल में ढूंढे
+            // (सरलता के लिए हम सबको टेक्स्ट मानकर सर्च कर रहे हैं)
+            sql += ` WHERE s.id::text = $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
+            params.push(query); 
+        }
+        
+        sql += ` ORDER BY s.id DESC LIMIT 50`; // सबसे नई दुकानें ऊपर दिखेंगी
+
+        const result = await pool.query(sql, params);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        console.error("Find Shop Error:", err);
+        res.status(500).json({ success: false, message: "Shop खोजने में विफल: " + err.message });
+    }
+});
+
+
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
