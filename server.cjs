@@ -397,6 +397,88 @@ async function createTables() {
 
 
 
+// ====================================================================
+        // 🏗️ FINAL MISSING TABLES: GYM, TAILOR, RESTAURANT, REPAIR
+        // ====================================================================
+
+        // 15. 🧵 TAILOR / BOUTIQUE (Measurements)
+        // दर्जी के लिए नाप (Measurements) सेव करने की टेबल
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS tailor_measurements (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+                item_type TEXT, -- e.g. "Shirt", "Pant", "Blouse"
+                measurements_json JSONB, -- { "Length": 40, "Waist": 32 }
+                notes TEXT, -- "Deep neck design"
+                delivery_date DATE,
+                status TEXT DEFAULT 'PENDING', -- 'STITCHING', 'READY'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 16. 💪 GYM / FITNESS (Membership & Attendance)
+        // जिम के मेंबर्स की हाजिरी और डाइट प्लान
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS gym_attendance (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+                check_in_time TIMESTAMP DEFAULT NOW(),
+                status TEXT DEFAULT 'PRESENT'
+            );
+
+            CREATE TABLE IF NOT EXISTS gym_diet_plans (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id),
+                plan_name TEXT, -- "Weight Loss"
+                diet_json JSONB, -- { "Morning": "Oats", "Lunch": "Salad" }
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 17. 🍽️ RESTAURANT (Tables & KOT)
+        // रेस्टोरेंट के लिए टेबल बुकिंग और किचन आर्डर (KOT)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS restaurant_tables (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                table_number TEXT,
+                capacity INTEGER,
+                status TEXT DEFAULT 'FREE' -- 'OCCUPIED', 'RESERVED'
+            );
+
+            CREATE TABLE IF NOT EXISTS restaurant_kots (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                table_id INTEGER REFERENCES restaurant_tables(id),
+                items_json JSONB, -- [{ "item": "Dal", "qty": 1 }]
+                status TEXT DEFAULT 'PREPARING', -- 'SERVED', 'BILLED'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // 18. 🛠️ SERVICE CENTER (Repair Job Cards)
+        // मोबाइल/इलेक्ट्रॉनिक्स रिपेयरिंग का जॉब कार्ड
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS repair_job_cards (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
+                customer_name TEXT,
+                customer_mobile TEXT,
+                device_model TEXT, -- "iPhone 13"
+                imei_serial TEXT,
+                issue_description TEXT, -- "Screen Broken"
+                estimated_cost NUMERIC,
+                advance_paid NUMERIC DEFAULT 0,
+                status TEXT DEFAULT 'RECEIVED', -- 'REPAIRED', 'DELIVERED', 'CANT_FIX'
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+
+
 // 16. Geo-Tagging Columns for Recovery Agents
 await client.query(`
     DO $$ BEGIN
@@ -5638,87 +5720,6 @@ app.post('/api/transport/new-trip', authenticateJWT, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-
-
-// ====================================================================
-        // 🏗️ FINAL MISSING TABLES: GYM, TAILOR, RESTAURANT, REPAIR
-        // ====================================================================
-
-        // 15. 🧵 TAILOR / BOUTIQUE (Measurements)
-        // दर्जी के लिए नाप (Measurements) सेव करने की टेबल
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS tailor_measurements (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
-                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-                item_type TEXT, -- e.g. "Shirt", "Pant", "Blouse"
-                measurements_json JSONB, -- { "Length": 40, "Waist": 32 }
-                notes TEXT, -- "Deep neck design"
-                delivery_date DATE,
-                status TEXT DEFAULT 'PENDING', -- 'STITCHING', 'READY'
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
-
-        // 16. 💪 GYM / FITNESS (Membership & Attendance)
-        // जिम के मेंबर्स की हाजिरी और डाइट प्लान
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS gym_attendance (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
-                customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-                check_in_time TIMESTAMP DEFAULT NOW(),
-                status TEXT DEFAULT 'PRESENT'
-            );
-
-            CREATE TABLE IF NOT EXISTS gym_diet_plans (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
-                customer_id INTEGER REFERENCES customers(id),
-                plan_name TEXT, -- "Weight Loss"
-                diet_json JSONB, -- { "Morning": "Oats", "Lunch": "Salad" }
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
-
-        // 17. 🍽️ RESTAURANT (Tables & KOT)
-        // रेस्टोरेंट के लिए टेबल बुकिंग और किचन आर्डर (KOT)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS restaurant_tables (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
-                table_number TEXT,
-                capacity INTEGER,
-                status TEXT DEFAULT 'FREE' -- 'OCCUPIED', 'RESERVED'
-            );
-
-            CREATE TABLE IF NOT EXISTS restaurant_kots (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
-                table_id INTEGER REFERENCES restaurant_tables(id),
-                items_json JSONB, -- [{ "item": "Dal", "qty": 1 }]
-                status TEXT DEFAULT 'PREPARING', -- 'SERVED', 'BILLED'
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
-
-        // 18. 🛠️ SERVICE CENTER (Repair Job Cards)
-        // मोबाइल/इलेक्ट्रॉनिक्स रिपेयरिंग का जॉब कार्ड
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS repair_job_cards (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER REFERENCES shops(id) ON DELETE CASCADE,
-                customer_name TEXT,
-                customer_mobile TEXT,
-                device_model TEXT, -- "iPhone 13"
-                imei_serial TEXT,
-                issue_description TEXT, -- "Screen Broken"
-                estimated_cost NUMERIC,
-                advance_paid NUMERIC DEFAULT 0,
-                status TEXT DEFAULT 'RECEIVED', -- 'REPAIRED', 'DELIVERED', 'CANT_FIX'
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
 
 
 // ============================================================
