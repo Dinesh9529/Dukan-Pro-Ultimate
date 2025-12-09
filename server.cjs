@@ -6047,22 +6047,23 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 });
 
 // [PASTE THIS IN server.cjs (ADMIN SECTION)]
-// 12.7 Find Shop Details (Fix: Added expiry date fetch)
+// 12.7 Find Shop Details (Smart Search & Fixes)
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
 
+    // 1. पासवर्ड चेक
     if (!process.env.GLOBAL_ADMIN_PASSWORD) {
-         return res.status(500).json({ success: false, message: 'Server Config Error: GLOBAL_ADMIN_PASSWORD missing.' });
+         return res.status(500).json({ success: false, message: 'Server Error: Password Config Missing' });
     }
     if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड।' });
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
     }
 
     try {
-        // 🚀 FIX: 's.license_expiry_date as expiry_date' और 's.status' को यहाँ जोड़ा गया है
-        // अब फ्रंटएंड को एक्सपायरी डेट मिलेगी और "0 Days" की समस्या ठीक हो जाएगी
+        // 2. Query का लॉजिक (Expiry Date और Status को सही से निकालें)
         let sql = `
-            SELECT s.id, s.shop_name, s.business_type, s.plan_type, s.status,
+            SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
+                   s.status,  -- यह कॉलम DB में होना जरूरी है
                    s.license_expiry_date as expiry_date, 
                    u.name as owner_name, u.mobile as owner_mobile, u.email
             FROM shops s
@@ -6072,18 +6073,22 @@ app.post('/api/admin/find-shop', async (req, res) => {
         let params = [];
         
         if (query) {
-            sql += ` WHERE s.id::text = $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
-            params.push(query); 
+            // स्मार्ट सर्च: ID या नाम में कहीं भी मैच हो
+            sql += ` WHERE s.id::text ILIKE $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
+            params.push(`%${query}%`); // वाइल्डकार्ड (%) दोनों तरफ लगाएं
         }
         
         sql += ` ORDER BY s.id DESC LIMIT 50`;
 
         const result = await pool.query(sql, params);
+        
+        // सफलता!
         res.json({ success: true, shops: result.rows });
 
     } catch (err) {
         console.error("Find Shop Error:", err);
-        res.status(500).json({ success: false, message: "Shop खोजने में विफल: " + err.message });
+        // असली एरर फ्रंटएंड को भेजें ताकि पता चले क्या गलत है
+        res.status(500).json({ success: false, message: "DB Error: " + err.message });
     }
 });
 
