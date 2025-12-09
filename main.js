@@ -244,8 +244,9 @@ function initializeSoftware(user) {
     checkUniversalAlerts();
 }
 
+
 // ------------------------------------------------------------
-// 🎨 UI Switcher Function (Final Updated Version)
+// 🎨 UI Switcher Function (Updated for Security Add-on)
 // ------------------------------------------------------------
 function configureDashboardModules(features, viewMode) {
     // A. पहले सब कुछ छुपा दें (Reset - Old Logic)
