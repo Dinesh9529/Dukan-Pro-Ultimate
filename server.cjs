@@ -940,20 +940,24 @@ function generateToken(user) {
  * Middleware to verify JWT and attach user/shop information to the request.
  * All protected routes must use this first.
  */
+/**
+ * Middleware to verify JWT and attach user/shop information to the request.
+ * All protected routes must use this first.
+ */
 const authenticateJWT = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader) {
         const token = authHeader.split(' ')[1];
-
         try {
             // 1. टोकन डिकोड करें
-            const decoded = jwt.verify(token, JWT_SECRET);
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
 
-            // 2. 🚀 REAL-TIME CHECK: डेटाबेस से ताज़ा प्लान और स्टेटस लाएँ
+            // 2. 🚀 REAL-TIME CHECK: डेटाबेस से ताज़ा स्टेटस लाएँ
             const client = await pool.connect();
             try {
+                // 🔴 FIX: 's.status as shop_status' को यहाँ जोड़ा गया है
                 const freshData = await client.query(
-                    `SELECT s.plan_type, s.add_ons, s.license_expiry_date, u.status, u.role 
+                    `SELECT s.plan_type, s.add_ons, s.license_expiry_date, s.status as shop_status, u.status, u.role 
                      FROM shops s 
                      JOIN users u ON s.id = u.shop_id 
                      WHERE s.id = $1 AND u.id = $2`,
@@ -962,12 +966,21 @@ const authenticateJWT = async (req, res, next) => {
 
                 if (freshData.rows.length > 0) {
                     const fresh = freshData.rows[0];
+
+                    // 🛑 BLOCK CHECK: अगर दुकान ब्लॉक है, तो यहीं रोक दें
+                    if (fresh.shop_status === 'blocked') {
+                        return res.status(403).json({ 
+                            success: false, 
+                            message: '⛔ आपकी दुकान को एडमिन द्वारा अस्थाई रूप से बंद (Blocked) कर दिया गया है। कृपया संपर्क करें।' 
+                        });
+                    }
+
                     // टोकन के पुराने डेटा को ताज़ा डेटा से बदलें
-                    decoded.plan_type = fresh.plan_type; 
+                    decoded.plan_type = fresh.plan_type;
                     decoded.add_ons = fresh.add_ons;
                     decoded.licenseExpiryDate = fresh.license_expiry_date;
                     decoded.status = fresh.status;
-                    decoded.role = fresh.role; 
+                    decoded.role = fresh.role;
                 }
             } catch (dbErr) {
                 console.error("Auth Refresh Error", dbErr);
