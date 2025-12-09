@@ -48,6 +48,25 @@ const pool = new Pool({
         rejectUnauthorized: false
     }
 });
+
+// --- DATABASE AUTO-SETUP (Status Column) ---
+const initDB = async () => {
+    try {
+        // यह कमांड चेक करेगा और सिर्फ तभी कॉलम जोड़ेगा जब वो मौजूद नहीं होगा
+        await pool.query(`
+            ALTER TABLE shops 
+            ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
+        `);
+        console.log("✅ Database Setup Checked: 'status' column ready.");
+    } catch (err) {
+        console.log("⚠️ Database Setup Notice:", err.message);
+    }
+};
+
+// सर्वर स्टार्ट होते ही इसे चलाएं
+initDB();
+
+// 👆👆 कोड यहाँ खत्म 👆👆
 // -----------------------------------------------------------------------------
 // I. DATABASE SCHEMA CREATION AND UTILITIES
 // -----------------------------------------------------------------------------
@@ -1297,7 +1316,7 @@ app.post('/api/register', async (req, res) => {
 // [ server.cjs फ़ाइल में यह कोड बदलें ]
 
 
-// 4. User Login (UPDATED FOR 'plan_type', 'add_ons' AND 'business_type')
+/// 4. User Login (UPDATED FOR BLOCKING, PLAN TYPE, ADDONS)
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -1306,10 +1325,19 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // --- 🚀 FIX 1: SELECT query में 's.business_type' जोड़ा गया ---
-        // (हम shops टेबल को join कर रहे हैं ताकि दुकान का type पता चले)
+        // --- 🚀 FIX 1: Query में 's.status' भी मंगवाया गया है ---
+        // ध्यान दें: हमने 's.status' को 'shop_status' नाम दिया है ताकि user के status से कंफ्यूजन न हो
         const result = await pool.query(
-            'SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.add_ons, s.business_type FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.email = $1',
+            `SELECT u.*, 
+                    s.shop_name, 
+                    s.license_expiry_date, 
+                    s.plan_type, 
+                    s.add_ons, 
+                    s.business_type, 
+                    s.status as shop_status 
+             FROM users u 
+             JOIN shops s ON u.shop_id = s.id 
+             WHERE u.email = $1`,
             [email]
         );
 
@@ -1318,83 +1346,82 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        let user = result.rows[0]; // इसमें अब 'add_ons' और 'business_type' भी शामिल है
+        let user = result.rows[0]; 
 
-        // --- Step 2: Check Password (यह सही है) ---
+        // --- 🔴 NEW BLOCK CHECK (यह वह नया कोड है जो आप ढूंढ रहे थे) ---
+        // पासवर्ड चेक करने से पहले ही देखें कि दुकान ब्लॉक तो नहीं है
+        if (user.shop_status === 'blocked') {
+            return res.status(403).json({ 
+                success: false, 
+                message: '⛔ आपकी दुकान को एडमिन द्वारा अस्थाई रूप से बंद (Blocked) कर दिया गया है। कृपया भुगतान या जानकारी के लिए संपर्क करें।' 
+            });
+        }
+        // -------------------------------------------------------------
+
+        // --- Step 2: Check Password ---
         const isMatch = await bcrypt.compare(password, user.password_hash);
-        console.log(`DEBUG LOGIN: Password Match? ${isMatch}`);
-
+        
         if (!isMatch) {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        // --- Step 3: Check/Update User Status (यह सही है) ---
+        // --- Step 3: Check/Update User Status ---
         if (user.status !== 'active') {
              await pool.query('UPDATE users SET status = $1 WHERE id = $2', ['active', user.id]);
-             user.status = 'active'; // Update local variable too
-             console.log('DEBUG LOGIN: User status set to active (Auto-Activate).');
+             user.status = 'active'; 
         }
 
-        // --- Step 4: Shop Details Extract करें ---
+        // --- Step 4: Shop Details Extract ---
         const shopExpiryDate = user.license_expiry_date; 
         const shopPlanType = user.plan_type || 'TRIAL'; 
         const shopAddOns = user.add_ons || {}; 
-        
-        // 🚀 FIX 2: Business Type को भी निकालें (अगर खाली है तो default 'RETAIL')
-        // यह बहुत ज़रूरी है ताकि सॉफ़्टवेयर को पता चले कि कौन सा डैशबोर्ड दिखाना है
         const businessType = user.business_type || 'RETAIL'; 
 
-        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} | Plan: ${shopPlanType} | Type: ${businessType}`);
-
-        // --- 🚀 FIX 3: Step 5: टोकन पेलोड में 'businessType' जोड़ें ---
+        // --- Step 5: Token Payload ---
         const tokenUser = {
             id: user.id,
             email: user.email,
             shopId: user.shop_id,
             name: user.name,
-            mobile: user.mobile, // Include mobile if you added it
+            mobile: user.mobile,
             role: user.role,
             shopName: user.shop_name,
-            licenseExpiryDate: shopExpiryDate, // <<< Use SHOP's expiry date
+            licenseExpiryDate: shopExpiryDate, 
             status: user.status,
             plan_type: shopPlanType,
             add_ons: shopAddOns,
-            businessType: businessType // <--- यह सबसे जरूरी बदलाव है (Frontend iska use karega)
+            businessType: businessType
         };
         
-        // टोकन जनरेट करें (30 दिन के लिए)
-        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+        const token = jwt.sign(tokenUser, process.env.JWT_SECRET || 'secret_key', { expiresIn: '30d' });
 
-        // --- Step 6: Check SHOP's License Expiry (यह सही है) ---
+        // --- Step 6: Check SHOP's License Expiry ---
         const expiryDate = shopExpiryDate ? new Date(shopExpiryDate) : null;
         const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0); // Compare dates only, ignore time
+        currentDate.setHours(0, 0, 0, 0);
 
         if (!expiryDate || expiryDate < currentDate) {
-            console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} license is missing or expired.`);
-            // License expired/missing for the SHOP, send requiresLicense: true
             return res.json({
-                success: true, // Login itself is successful (user exists, password matches)
-                message: 'आपकी दुकान का लाइसेंस समाप्त हो गया है या सक्रिय नहीं है। कृपया दुकान के एडमिन द्वारा लाइसेंस सक्रिय करें।', 
-                requiresLicense: true, // Tell client to show modal (only admin should activate)
-                token: token, // Send token so admin can activate if needed
+                success: true, 
+                message: 'लाइसेंस समाप्त हो गया है।', 
+                requiresLicense: true, 
+                token: token, 
                 user: tokenUser
             });
         }
 
-        // --- Step 7: Successful Login (Shop License is valid) ---
-        console.log(`DEBUG LOGIN: Shop ID ${user.shop_id} login successful.`);
+        // --- Step 7: Successful Login ---
         res.json({
             success: true,
             message: 'लॉगिन सफल।',
-            requiresLicense: false, // License is okay, no modal needed
+            requiresLicense: false, 
             token: token,
             user: tokenUser
        });
 
     } catch (err) {
-        console.error("Error logging in:", err.message, err.stack); // Log stack trace for better debugging
-        res.status(500).json({ success: false, message: 'लॉगिन प्रक्रिया में सर्वर त्रुटि हुई: ' + err.message });
+        console.error("Error logging in:", err.message);
+        res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
     }
 });
 
@@ -6063,7 +6090,28 @@ app.post('/api/admin/find-shop', async (req, res) => {
 });
 
 
+// --- ADMIN: BLOCK/UNBLOCK SHOP ---
+app.post('/api/admin/update-shop-status', async (req, res) => {
+    const { adminPassword, shop_id, status } = req.body;
 
+    // यहाँ अपना एडमिन पासवर्ड चेक करें
+    if (adminPassword !== "YOUR_ADMIN_PASSWORD_HERE") { // NOTE: अपना पासवर्ड यहाँ लिखें या process.env use करें
+        return res.status(401).json({ success: false, message: "Wrong Password" });
+    }
+
+    try {
+        const result = await pool.query(
+            'UPDATE shops SET status = $1 WHERE id = $2 RETURNING *',
+            [status, shop_id]
+        );
+        
+        if (result.rowCount === 0) return res.json({ success: false, message: "Shop ID Invalid" });
+        
+        res.json({ success: true, message: "Status Updated" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
