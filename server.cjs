@@ -49,6 +49,26 @@ const pool = new Pool({
     }
 });
 
+// =================================================
+// 🚀 AUTO-CREATE TABLE: Paint Formulas
+// =================================================
+const createPaintTableQuery = `
+    CREATE TABLE IF NOT EXISTS paint_formulas (
+        id SERIAL PRIMARY KEY,
+        shop_id INTEGER,
+        customer_name TEXT NOT NULL,
+        color_code TEXT NOT NULL,
+        base_product TEXT,
+        formula_text TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+`;
+
+// यह कोड सर्वर शुरू होते ही टेबल बना देगा (अगर नहीं बनी है)
+pool.query(createPaintTableQuery)
+    .then(() => console.log("✅ Table 'paint_formulas' checked/created successfully."))
+    .catch(err => console.error("❌ Error creating paint table:", err));
+
 // --- DATABASE AUTO-SETUP (Status Column) ---
 const initDB = async () => {
     try {
@@ -2465,13 +2485,15 @@ app.get('/api/dashboard/summary', authenticateJWT, checkRole('CASHIER'), async (
         );
         const expenseData = expenseResult.rows[0];
 
-        // 3. Current Stock Value (at cost price)
-        const stockValueResult = await client.query(
-            `SELECT COALESCE(SUM(quantity * cost_price), 0) AS stock_value
-             FROM stock
-             WHERE shop_id = $1`,
-            [shopId]
-        );
+       // 3. Current Stock Value (Updated: Exclude Services)
+const stockValueResult = await client.query(
+    `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS stock_value
+     FROM stock
+     WHERE shop_id = $1
+     AND sku NOT LIKE 'SVC-%'   -- Services (SVC) को स्टॉक वैल्यू में न जोड़ें
+     AND unit != 'Session'`,    -- Sessions को भी हटा दें
+    [shopId]
+);
         const stockData = stockValueResult.rows[0];
 
         // 4. Calculate Profit
