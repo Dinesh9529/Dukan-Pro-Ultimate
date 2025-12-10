@@ -23,7 +23,6 @@ const app = express();
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
 // ==========================================
-const jwt = require('jsonwebtoken'); // सुनिश्चित करें कि यह ऊपर import है
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
