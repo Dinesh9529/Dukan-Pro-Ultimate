@@ -2490,8 +2490,8 @@ const stockValueResult = await client.query(
     `SELECT COALESCE(SUM(quantity * purchase_price), 0) AS stock_value
      FROM stock
      WHERE shop_id = $1
-     AND sku NOT LIKE 'SVC-%'   -- Services (SVC) को स्टॉक वैल्यू में न जोड़ें
-     AND unit != 'Session'`,    -- Sessions को भी हटा दें
+     AND sku NOT LIKE 'SVC-%'   
+     AND unit != 'Session'`,   
     [shopId]
 );
         const stockData = stockValueResult.rows[0];
@@ -6219,6 +6219,53 @@ app.get('/api/painters/:id/ledger', authenticateJWT, async (req, res) => {
         `, [req.shopId, req.params.id]);
         res.json({ success: true, history: result.rows });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ==========================================
+// 🎨 PAINT FORMULA SAVING API
+// ==========================================
+app.post('/api/paint/save-formula', authenticateToken, async (req, res) => {
+    try {
+        // 1. Frontend से डेटा निकालें
+        const { customer_name, color_code, base_product, formula_text } = req.body;
+        
+        // 2. दुकानदार की ID निकालें (ताकि डेटा मिक्स न हो)
+        const shopId = req.user.shopId; 
+
+        // 3. वैलिडेशन (जांचें कि जरूरी जानकारी है या नहीं)
+        if (!customer_name || !color_code) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'ग्राहक का नाम और कलर कोड जरूरी है।' 
+            });
+        }
+
+        // 4. डेटाबेस में सेव करें (PostgreSQL का उदाहरण)
+        const query = `
+            INSERT INTO paint_formulas (shop_id, customer_name, color_code, base_product, formula_text)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *;
+        `;
+        
+        const values = [shopId, customer_name, color_code, base_product, formula_text];
+        
+        // अपने DB कनेक्शन के हिसाब से इसे चलाएं (pool.query या db.run)
+        const newEntry = await pool.query(query, values); 
+
+        // 5. सफलता का जवाब भेजें
+        res.json({
+            success: true,
+            message: 'कलर फार्मूला सफलतापूर्वक सेव हो गया!',
+            data: newEntry.rows[0]
+        });
+
+    } catch (error) {
+        console.error('Paint Formula Error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'सर्वर पर सेव करने में समस्या आई।' 
+        });
+    }
 });
 
 
