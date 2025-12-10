@@ -19,6 +19,27 @@ const http = require('http'); // 1. HTTP सर्वर की आवश्य�
 const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर की आवश्यकता
 // --- 🚀 WEBSOCKET सेटअप END ---
 const app = express();
+
+// ==========================================
+// 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
+// ==========================================
+const jwt = require('jsonwebtoken'); // सुनिश्चित करें कि यह ऊपर import है
+
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (token == null) return res.status(401).json({ success: false, message: 'Token missing' });
+
+    // 'your_jwt_secret' को अपने असली Secret Key से बदलें अगर .env फाइल है
+    jwt.verify(token, process.env.JWT_SECRET || 'your_super_secret_key', (err, user) => {
+        if (err) return res.status(403).json({ success: false, message: 'Token invalid' });
+        req.user = user;
+        next();
+    });
+}
+
+
 // JSON payload limit ko 10MB tak badhayein (logo ke liye)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
