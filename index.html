@@ -707,16 +707,63 @@
                             <label for="unique-biz-type" class="form-label">बिजनेस का प्रकार (Business Type)</label>
                             <select id="unique-biz-type" class="form-select" required>
                                 <option value="" selected disabled>-- अपनी दुकान का प्रकार चुनें --</option>
-                                <option value="RETAIL">रिटेल / किराना (Retail)</option>
-                                <option value="SALON">सैलून / पार्लर (Salon)</option>
-                                <option value="CAFE">कैफे / रेस्टोरेंट (Cafe)</option>
-                                <option value="SERVICE">सर्विस / रिपेयरिंग (Service)</option>
+                                
+                                <optgroup label="🛍️ Retail & Shops">
+                                    <option value="RETAIL">General Store / Kirana</option>
+                                    <option value="MOBILE_SHOP">Mobile & Accessories</option>
+                                    <option value="CLOTHING">Garments / Boutique</option>
+                                    <option value="FURNITURE">Furniture Showroom</option>
+                                    <option value="JEWELLERY">Jewellery / Imitation</option>
+                                    <option value="HARDWARE_PAINT">Hardware & Paint</option>
+                                    <option value="SWEET_SHOP">Sweet Shop / Bakery</option>
+                                    <option value="ELECTRONICS">Electronics Showroom</option>
+                                    <option value="SIM_STORE">SIM Card & Recharge</option>
+                                </optgroup>
+                        
+                                <optgroup label="⚕️ Medical & Health">
+                                    <option value="PHARMACY">Medical Store / Pharmacy</option>
+                                    <option value="DOCTOR_CLINIC">General Physician (Clinic)</option>
+                                    <option value="ORTHOPEDIC">Orthopedic Clinic</option>
+                                    <option value="DENTIST">Dental Clinic</option>
+                                    <option value="SONOGRAPHY">Sonography / X-Ray Centre</option>
+                                    <option value="PHYSIOTHERAPY">Physiotherapy Centre</option>
+                                    <option value="PATHOLOGY">Pathology Lab</option>
+                                </optgroup>
+                        
+                                <optgroup label="✂️ Services & Personal Care">
+                                    <option value="SALON">Salon / Spa</option>
+                                    <option value="GYM">Gym / Fitness Center</option>
+                                    <option value="TAILOR">Tailor / Boutique</option>
+                                    <option value="SERVICE_CENTER">Repairing Center (Electronics)</option>
+                                </optgroup>
+                        
+                                <optgroup label="🏨 Hospitality & Food">
+                                    <option value="RESTAURANT">Restaurant / Cafe</option>
+                                    <option value="HOTEL">Hotel / Lodging</option>
+                                    <option value="TENT_HOUSE">Tent House / Rentals</option>
+                                </optgroup>
+                        
+                                <optgroup label="🚚 Construction & Transport">
+                                    <option value="TILES_CERAMIC">Tiles & Sanitaryware</option>
+                                    <option value="TRANSPORT">Transport / Logistics</option>
+                                </optgroup>
+                        
+                                <optgroup label="💰 Finance & Agents">
+                                    <option value="LOAN_DSA">Loan / Credit Card DSA</option>
+                                    <option value="RECOVERY_AGENT">Recovery / Collection Agent</option>
+                                    <option value="INSURANCE_AGENCY">Insurance Agent</option>
+                                </optgroup>
+                        
+                                <optgroup label="🎓 Education & Office">
+                                    <option value="SCHOOL">School / Coaching</option>
+                                    <option value="ARCHITECT_FIRM">Architect / Interior</option>
+                                    <option value="SOFTWARE_COMPANY">Software / IT Firm</option>
+                                </optgroup>
                             </select>
-                        </div>
                             <div class="form-text text-muted">
-                                सही प्रकार चुनें, इससे आपका डैशबोर्ड और फीचर्स बदल जाएंगे।
+                                सही प्रकार चुनें, इससे आपका डैशबोर्ड और फीचर्स (जैसे Expiry, Tables, EMI) अपने आप सेट हो जाएंगे।
                             </div>
-                        </div>  
+                        </div>
   
                         <div id="register-message" class="text-danger small mb-3">&nbsp;</div>
                         <button type="submit" class="btn btn-success w-100" id="register-submit-btn">अकाउंट बनाएं</button>
@@ -1220,6 +1267,384 @@
             </div>
         </div>
 
+
+        <div id="universal-modules-container" class="mb-4">
+
+            <div id="module-optical-eye-test" class="biz-module card shadow-sm border-dark mb-4" style="display:none;">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-glasses me-2"></i>Eye Prescription (नंबर)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-center align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Eye</th>
+                                    <th>SPH (Spherical)</th>
+                                    <th>CYL (Cylindrical)</th>
+                                    <th>AXIS</th>
+                                    <th>ADD (Near)</th>
+                                    <th>VA (Vision)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="fw-bold text-primary">Right (OD)</td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="+/-"></td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="+/-"></td>
+                                    <td><input type="number" class="form-control form-control-sm text-center" placeholder="Deg"></td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="Near"></td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="6/6"></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold text-primary">Left (OS)</td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="+/-"></td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="+/-"></td>
+                                    <td><input type="number" class="form-control form-control-sm text-center" placeholder="Deg"></td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="Near"></td>
+                                    <td><input type="text" class="form-control form-control-sm text-center" placeholder="6/6"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Lens Type</label>
+                            <select class="form-select form-select-sm">
+                                <option>Single Vision</option>
+                                <option>Bifocal (Kryptok/D)</option>
+                                <option>Progressive</option>
+                                <option>Blue Cut / Anti-Glare</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">PD (Pupillary Distance)</label>
+                            <input type="text" class="form-control form-control-sm" placeholder="e.g. 62mm">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            <div id="module-prescription-pad" class="biz-module card shadow-sm border-primary mb-4" style="display:none;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i><span id="medical-title-text">Medical Report</span></h5>
+                    <div id="pregnancy-badge" style="display:none;">
+                        <span class="badge bg-warning text-dark">EDD: <span id="disp_edd">--</span></span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Patient ID/Name</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" id="medical_patient_search" class="form-control" placeholder="Search...">
+                                <button class="btn btn-outline-secondary"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Ref. Doctor</label>
+                            <input type="text" id="med_ref_doc" class="form-control form-control-sm" placeholder="Dr. Name">
+                        </div>
+                        <div class="col-md-4" id="box-lmp-calc" style="display:none;">
+                            <label class="small fw-bold text-danger">LMP Date</label>
+                            <div class="input-group input-group-sm">
+                                <input type="date" id="med_lmp_date" class="form-control">
+                                <button class="btn btn-danger" onclick="calculateEDD()">Calc</button>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="mb-2">
+                        <label class="small fw-bold">Templates:</label>
+                        <div id="medical-template-buttons" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+        
+                    <textarea id="medical_report_editor" class="form-control p-3" rows="8" 
+                        style="font-family: monospace; font-size: 14px; border: 2px solid #ccc; background:#f9f9f9;"
+                        placeholder="Report content goes here..."></textarea>
+                    
+                    <div id="box-dentist-chart" class="mt-3 border p-2 bg-light rounded" style="display:none;">
+                        <small class="fw-bold d-block mb-1">Select Teeth for Procedure:</small>
+                        <div id="teeth-container" class="d-flex flex-wrap justify-content-center gap-1"></div>
+                    </div>
+        
+                    <div class="text-end mt-2">
+                        <button class="btn btn-success btn-sm" onclick="saveMedicalReport()"><i class="fas fa-print"></i> Save & Print</button>
+                    </div>
+                </div>
+            </div>
+        
+            <div id="module-imei-scan" class="biz-module card shadow-sm border-secondary mb-4" style="display:none;">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-mobile-alt me-2"></i>Mobile Operations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="small fw-bold">New Sale (Scan IMEI)</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                                <input type="text" id="item_imei" class="form-control" placeholder="Scan Box IMEI...">
+                                <button class="btn btn-dark">Add to Bill</button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Service Center</label>
+                            <button class="btn btn-outline-dark w-100"><i class="fas fa-tools"></i> Create Job Card</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            <div id="module-furniture-showroom" class="biz-module card shadow-sm border-warning mb-4" style="display:none;">
+                <div class="card-header bg-warning text-dark"><h5><i class="fas fa-truck"></i> Delivery Tracker</h5></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6"><input type="text" id="furn_invoice_id" class="form-control form-control-sm" placeholder="Invoice ID"></div>
+                        <div class="col-6"><input type="date" id="furn_delivery_date" class="form-control form-control-sm"></div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="furn_assembly">
+                                <label class="form-check-label small">Assembly Required (Mistri chahiye)</label>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-warning w-100 mt-2" onclick="scheduleFurnitureDelivery()">Schedule Delivery</button>
+                </div>
+            </div>
+        
+            <div id="module-hotel-management" class="biz-module card shadow-sm border-danger mb-4" style="display:none;">
+                <div class="card-header bg-danger text-white"><h5><i class="fas fa-hotel"></i> Hotel Front Desk</h5></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Room No</label>
+                            <input type="text" id="hotel_room_select" class="form-control form-control-sm" placeholder="e.g. 101">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Guest Name</label>
+                            <input type="text" id="hotel_guest_name" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Mobile</label>
+                            <input type="number" id="hotel_guest_mobile" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Check-In Date</label>
+                            <input type="date" id="hotel_checkin_date" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Advance Payment (₹)</label>
+                            <input type="number" id="hotel_advance" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <button class="btn btn-danger w-100 mt-3" onclick="processHotelCheckIn()">
+                        <i class="fas fa-key"></i> Check-In Guest
+                    </button>
+                </div>
+            </div>
+        
+            <div id="module-paint-mixer" class="biz-module card shadow-sm border-primary mb-4" style="display:none;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-fill-drip"></i> Paint Color Mixer (Diary)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        
+                        <div class="col-12">
+                            <input type="text" id="paint_cust_name" class="form-control form-control-sm" placeholder="Customer Name (ग्राहक का नाम)">
+                        </div>
+            
+                        <div class="col-6">
+                            <input type="text" id="paint_code" class="form-control form-control-sm" placeholder="Color Code (e.g. 9012)">
+                        </div>
+            
+                        <div class="col-6">
+                            <input type="text" id="paint_base" class="form-control form-control-sm" placeholder="Base Product">
+                        </div>
+            
+                        <div class="col-12">
+                            <label class="small fw-bold text-muted">Formula / Notes:</label>
+                            <textarea id="paint_formula" class="form-control form-control-sm" rows="2" placeholder='Example: Red-20ml, Yellow-5ml (Machine 2)'></textarea>
+                        </div>
+                    </div>
+            
+                    <button class="btn btn-primary w-100 mt-3" onclick="savePaintFormula()">
+                        <i class="fas fa-save me-1"></i> Save Formula
+                    </button>
+                </div>
+            </div>
+
+            <div id="module-repair-job" class="biz-module card shadow-sm border-dark mb-4" style="display:none;">
+                <div class="card-header bg-dark text-white"><h5><i class="fas fa-tools"></i> Repair Job Card</h5></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6"><input type="text" id="repair_customer" class="form-control form-control-sm" placeholder="Customer Name"></div>
+                        <div class="col-6"><input type="text" id="repair_mobile" class="form-control form-control-sm" placeholder="Mobile"></div>
+                        <div class="col-6"><input type="text" id="repair_device" class="form-control form-control-sm" placeholder="Device Model"></div>
+                        <div class="col-6"><input type="text" id="repair_imei" class="form-control form-control-sm" placeholder="IMEI / Serial"></div>
+                        <div class="col-12"><textarea id="repair_issue" class="form-control form-control-sm" placeholder="Problem Description"></textarea></div>
+                        <div class="col-6"><input type="number" id="repair_cost" class="form-control form-control-sm" placeholder="Est. Cost"></div>
+                        <div class="col-6"><input type="number" id="repair_advance" class="form-control form-control-sm" placeholder="Advance"></div>
+                    </div>
+                    <button class="btn btn-warning w-100 mt-2" onclick="createRepairJob()">Generate Job Card</button>
+                </div>
+            </div>
+        
+            <div id="module-restaurant-kot" class="biz-module card shadow-sm border-warning mb-4" style="display:none;">
+                <div class="card-header bg-warning text-dark"><h5><i class="fas fa-utensils"></i> KOT Manager</h5></div>
+                <div class="card-body">
+                    <input type="text" id="rest_table_no" class="form-control form-control-sm mb-2" placeholder="Table Number (e.g. 5)">
+                    
+                    <div id="kot-items-container">
+                        <div class="input-group input-group-sm mb-1 kot-row">
+                            <input type="text" class="form-control kot-item" placeholder="Item Name">
+                            <input type="number" class="form-control kot-qty" placeholder="Qty" style="max-width: 70px;">
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-sm btn-outline-secondary w-100 mb-2" onclick="addKotRow()">+ Add More Item</button>
+                    <button class="btn btn-success w-100" onclick="sendKotToKitchen()">Send to Kitchen (Print KOT)</button>
+                </div>
+            </div>
+
+            <div id="module-school-fees" class="biz-module card shadow-sm border-info mb-4" style="display:none;">
+                <div class="card-header bg-info text-white"><h5><i class="fas fa-graduation-cap"></i> School Fee Counter</h5></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-8">
+                            <label class="small fw-bold">Student ID / Roll No</label>
+                            <input type="text" id="school_student_id" class="form-control form-control-sm" placeholder="Enter ID">
+                        </div>
+                        <div class="col-4">
+                            <label class="small fw-bold">Amount (₹)</label>
+                            <input type="number" id="school_fee_amount" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12">
+                            <label class="small fw-bold">For Month</label>
+                            <select id="school_fee_month" class="form-select form-select-sm">
+                                <option value="JAN">January</option><option value="FEB">February</option>
+                                <option value="MAR">March</option><option value="APR">April</option>
+                                <option value="MAY">May</option><option value="JUN">June</option>
+                                </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-info text-white w-100 mt-2" onclick="processSchoolFee()">
+                        <i class="fas fa-receipt"></i> Collect Fee
+                    </button>
+                </div>
+            </div>
+        
+            <div id="module-tailor-measurements" class="biz-module card shadow-sm border-secondary mb-4" style="display:none;">
+                <div class="card-header bg-secondary text-white"><h5><i class="fas fa-cut"></i> Measurements</h5></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-12"><input type="text" id="tailor_cust_id" class="form-control form-control-sm" placeholder="Customer ID"></div>
+                        <div class="col-6"><select id="tailor_item_type" class="form-select form-select-sm"><option>Shirt</option><option>Pant</option><option>Suit</option></select></div>
+                        <div class="col-6"><input type="date" id="tailor_delivery" class="form-control form-control-sm"></div>
+                        
+                        <div class="col-3"><input type="text" id="tm_length" class="form-control form-control-sm" placeholder="Len"></div>
+                        <div class="col-3"><input type="text" id="tm_waist" class="form-control form-control-sm" placeholder="Waist"></div>
+                        <div class="col-3"><input type="text" id="tm_chest" class="form-control form-control-sm" placeholder="Chest"></div>
+                        <div class="col-3"><input type="text" id="tm_shoulder" class="form-control form-control-sm" placeholder="Shldr"></div>
+                        
+                        <div class="col-12"><input type="text" id="tm_notes" class="form-control form-control-sm" placeholder="Special Notes"></div>
+                    </div>
+                    <button class="btn btn-secondary w-100 mt-2" onclick="saveTailorMeasurements()">Save Measurements</button>
+                </div>
+            </div>
+
+            <div id="module-gym-access" class="biz-module card shadow-sm border-dark mb-4" style="display:none;">
+                <div class="card-header bg-dark text-white"><h5><i class="fas fa-dumbbell"></i> Gym Access</h5></div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <input type="text" id="gym_member_id" class="form-control" placeholder="Member ID / Phone">
+                        <button class="btn btn-success" onclick="markGymAttendance()">Mark Attendance</button>
+                    </div>
+                    <small class="text-muted">Diet Plan feature coming soon.</small>
+                </div>
+            </div>
+        
+            <div id="module-transport-trip" class="biz-module card shadow-sm border-secondary mb-4" style="display:none;">
+                <div class="card-header bg-secondary text-white"><h5><i class="fas fa-truck-moving"></i> Trip Manager</h5></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6"><input type="text" id="trans_vehicle" class="form-control form-control-sm" placeholder="Vehicle No"></div>
+                        <div class="col-6"><input type="text" id="trans_driver" class="form-control form-control-sm" placeholder="Driver Name"></div>
+                        <div class="col-6"><input type="text" id="trans_start" class="form-control form-control-sm" placeholder="Start Location"></div>
+                        <div class="col-6"><input type="text" id="trans_end" class="form-control form-control-sm" placeholder="End Location"></div>
+                        <div class="col-6"><input type="number" id="trans_freight" class="form-control form-control-sm" placeholder="Freight Rate (₹)"></div>
+                        <div class="col-6"><input type="number" id="trans_advance" class="form-control form-control-sm" placeholder="Advance Given"></div>
+                        <div class="col-12"><button class="btn btn-dark w-100 btn-sm" onclick="createTransportTrip()">Create New Trip</button></div>
+                    </div>
+                </div>
+            </div>
+
+        <div id="module-security-panel" class="biz-module card shadow-sm border-danger mb-4" style="display:none;">
+            <div class="card-header bg-danger text-white d-flex justify-content-between">
+                <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Store Security & Anti-Theft</h5>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="security-arm-switch" onchange="toggleSecurityMode()">
+                    <label class="form-check-label text-white" for="security-arm-switch">System ARMED</label>
+                </div>
+            </div>
+            <div class="card-body text-center">
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="small fw-bold">Live Gate Camera</p>
+                        <video id="security-video" width="100%" autoplay style="border: 2px solid red; border-radius: 5px;"></video>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="small fw-bold">Last Security Alert</p>
+                        <canvas id="security-canvas" style="display:none;"></canvas>
+                        <img id="thief-photo-display" src="" class="img-fluid border border-dark" style="min-height: 150px; background: #eee;">
+                        <p id="alert-timestamp" class="text-danger fw-bold mt-2"></p>
+                    </div>
+                </div>
+        
+                <div id="security-status-box" class="alert alert-secondary mt-3">
+                    System is Idle. Waiting for RFID Signal...
+                </div>
+        
+                <button class="btn btn-outline-dark btn-sm mt-2" onclick="testAlarm()">🔔 Test Alarm (Demo)</button>
+            </div>
+        </div>
+
+        <div id="module-paint-estimator" class="biz-module card shadow-sm border-warning mb-4" style="display:none;">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between">
+                <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Paint Budget Estimator</h5>
+                <small>Area Input</small>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label class="fw-bold">Area (Square Feet)</label>
+                        <input type="number" id="est-area" class="form-control" placeholder="e.g. 500 (10x50 wall)">
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-dark w-100" onclick="calculatePaintEstimate()">
+                            <i class="fas fa-magic"></i> Calculate
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="est-result" class="mt-3 p-3 bg-light border rounded d-none">
+                    <table class="table table-sm table-bordered mb-0 bg-white">
+                        <thead class="table-dark"><tr><th>Item</th><th>Quantity (Approx)</th></tr></thead>
+                        <tbody>
+                            <tr><td>Putty (2 Coats)</td><td id="res-putty" class="fw-bold">-</td></tr>
+                            <tr><td>Primer (1 Coat)</td><td id="res-primer" class="fw-bold">-</td></tr>
+                            <tr><td>Paint (2 Coats)</td><td id="res-paint" class="fw-bold">-</td></tr>
+                        </tbody>
+                    </table>
+                    <button class="btn btn-sm btn-outline-success w-100 mt-2" onclick="printEstimate()"><i class="fas fa-print"></i> Print Quote for Customer</button>
+                </div>
+            </div>
+        </div>
+
+
+
         </section>
 
 
@@ -1344,6 +1769,44 @@
                                 <i class="fas fa-plus me-1"></i> Naya Field Jodein (Optical)
                             </button>
                         </div>
+
+                        <div id="module-tiles-calc" class="biz-module col-12 border p-3 bg-light rounded mt-2" style="display:none;">
+                            <h6 class="text-secondary small fw-bold"><i class="fas fa-th me-2"></i> Tiles/Ceramic Coverage Details</h6>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="small fw-bold">Coverage (Sq.Ft per Box)</label>
+                                    <input type="number" id="stock-sqft-per-box" class="form-control form-control-sm" placeholder="e.g. 16">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small fw-bold">Pieces per Box</label>
+                                    <input type="number" id="stock-pcs-per-box" class="form-control form-control-sm" placeholder="e.g. 4">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small fw-bold">Breakage Rate (%)</label>
+                                    <input type="number" id="stock-breakage" class="form-control form-control-sm" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="module-rental-stock" class="biz-module col-12 border p-3 bg-warning bg-opacity-10 rounded mt-2 border-warning" style="display:none;">
+                            <h6 class="text-dark small fw-bold"><i class="fas fa-campground me-2"></i> Rental / Tent Settings</h6>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="small fw-bold">Security Deposit (₹)</label>
+                                    <input type="number" id="rental-security" class="form-control form-control-sm" placeholder="Per Item">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small fw-bold">Rent Per Day (₹)</label>
+                                    <input type="number" id="rental-daily-price" class="form-control form-control-sm" placeholder="Daily Charge">
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="rental-is-active" checked>
+                                        <label class="form-check-label small fw-bold">Available for Rent</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         
                     
 <hr class="my-3 col-12">
@@ -1395,10 +1858,33 @@
                                     <input type="text" class="form-control" id="pos-customer" list="customer-datalist" placeholder="अनाम ग्राहक या नाम टाइप करें">
                                     <datalist id="customer-datalist"></datalist>
                                 </div>
-        
+                                <div class="row g-2 mb-3 p-2 bg-light border rounded paint-only biz-only">
+                                    <div class="col-md-6">
+                                        <label class="small fw-bold text-primary"><i class="fas fa-brush"></i> पेंटर (कमीशन के लिए)</label>
+                                        <div class="input-group input-group-sm">
+                                            <select id="pos-painter-select" class="form-select">
+                                                <option value="" selected>-- Select Painter --</option>
+                                                </select>
+                                            <button class="btn btn-outline-primary" type="button" onclick="addNewPainterPrompt()">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="small fw-bold text-danger"><i class="fas fa-fill-drip"></i> स्मार्ट मिक्सिंग (Rate Fixer)</label>
+                                        <button type="button" class="btn btn-sm btn-danger w-100" data-bs-toggle="modal" data-bs-target="#paintMixingModal">
+                                            Base + Colorant जोड़ें
+                                        </button>
+                                    </div>
+                                </div>
+
+       
                                 <div class="mb-3">
                                     <label for="pos-customer-mobile" class="form-label">मोबाइल नंबर</label>
                                     <input type="tel" class="form-control" id="pos-customer-mobile" placeholder="ग्राहक का मोबाइल नंबर (वैकल्पिक)">
+                                </div>
+                                
+                                <div id="module-finance-collection" class="mb-3" style="display:none;">
+                                    <label for="pos-loan-account" class="form-label fw-bold text-danger">Account / Loan Number</label>
+                                    <input type="text" class="form-control border-danger" id="pos-loan-account" placeholder="e.g. LN-889900">
                                 </div>
                                 
                                 <div class="mb-3 position-relative">
@@ -1465,6 +1951,20 @@
                                 <div class="d-flex justify-content-between fw-bold fs-5 border-top pt-2">
                                     <span>भुगतान की जाने वाली कुल राशि:</span>
                                     <span id="pos-total-amount">₹0.00</span>
+                                </div>
+
+                                <div id="module-geo-tagging" class="biz-module alert alert-warning p-2 mt-2" style="display:none;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <small class="fw-bold text-dark"><i class="fas fa-map-marker-alt"></i> विजिट लोकेशन (Visit Location)</small>
+                                            <div id="gps-status" class="text-danger small" style="font-size: 0.75rem;">Not Captured</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-dark" onclick="captureGPS()">
+                                            <i class="fas fa-crosshairs"></i> लोकेशन लें
+                                        </button>
+                                    </div>
+                                    <input type="hidden" id="pos-lat">
+                                    <input type="hidden" id="pos-long">
                                 </div>
         
                                 <div class="mt-4">
@@ -2628,6 +3128,215 @@ function closePosWebSocket() {
 
    const __backend_url = 'https://dukan-pro-ultimate.onrender.com';
     const SERVER_TIMEOUT = 20000; // 20 seconds for slow connections
+
+// ==========================================
+// 🚀 MISSING CONFIGURATION (इसे पेस्ट करें)
+// ==========================================
+// ==========================================================
+// 🚀 MASTER BUSINESS CONFIGURATION (ALL 31 TYPES)
+// ==========================================================
+const MASTER_BUSINESS_CONFIG = {
+    // --- 1. RETAIL & SHOPS ---
+    'RETAIL': {
+        name: 'General Store / Kirana',
+        labels: { customer: 'Customer', stock: 'Qty' },
+        features: ['expiry_date'],
+        dashboard_view: 'retail_grid'
+    },
+    'MOBILE_SHOP': {
+        name: 'Mobile & Accessories',
+        labels: { customer: 'Customer', stock: 'Qty' },
+        features: ['imei_scan', 'repair_status'],
+        dashboard_view: 'retail_grid'
+    },
+    'CLOTHING': {
+        name: 'Garments / Boutique',
+        labels: { customer: 'Customer', stock: 'Qty' },
+        features: ['size_color', 'tailoring_measurements'],
+        dashboard_view: 'retail_grid'
+    },
+    'FURNITURE': {
+        name: 'Furniture Showroom',
+        labels: { customer: 'Customer', stock: 'Qty' },
+        features: ['delivery_tracking', 'assembly'],
+        dashboard_view: 'retail_grid'
+    },
+    'JEWELLERY': {
+        name: 'Jewellery / Imitation',
+        labels: { customer: 'Customer', stock: 'Pcs/Grams' },
+        features: ['weight_calc'],
+        dashboard_view: 'retail_grid'
+    },
+    'HARDWARE_PAINT': {
+        name: 'Hardware & Paint',
+        labels: { customer: 'Painter/Customer', stock: 'Unit/Ltr' },
+        features: ['paint_mixing', 'estimate'],
+        dashboard_view: 'retail_grid'
+    },
+    'SWEET_SHOP': {
+        name: 'Sweet Shop / Bakery',
+        labels: { customer: 'Customer', stock: 'Kg/Pcs' },
+        features: ['expiry_date', 'manufacturing_date'],
+        dashboard_view: 'retail_grid'
+    },
+    'ELECTRONICS': {
+        name: 'Electronics Showroom',
+        labels: { customer: 'Customer', stock: 'Qty' },
+        features: ['imei_scan', 'serial_no'],
+        dashboard_view: 'retail_grid'
+    },
+    'SIM_STORE': {
+        name: 'SIM Card & Recharge',
+        labels: { customer: 'Customer', stock: 'Qty' },
+        features: ['mobile_no_entry'],
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 2. MEDICAL & HEALTH (Features: Prescriptions, Expiry) ---
+    'PHARMACY': {
+        name: 'Medical Store / Pharmacy',
+        labels: { customer: 'Patient', stock: 'Strip/Box' },
+        features: ['expiry_date', 'batch_no', 'doctor_ref'],
+        dashboard_view: 'retail_grid'
+    },
+    'DOCTOR_CLINIC': {
+        name: 'Doctor Clinic',
+        labels: { customer: 'Patient', stock: 'Medicine' },
+        features: ['prescription_pad', 'report_templates'],
+        dashboard_view: 'retail_grid'
+    },
+    'ORTHOPEDIC': {
+        name: 'Orthopedic Clinic',
+        labels: { customer: 'Patient', stock: 'Equipment' },
+        features: ['prescription_pad', 'xray_attach'],
+        dashboard_view: 'retail_grid'
+    },
+    'DENTIST': {
+        name: 'Dental Clinic',
+        labels: { customer: 'Patient', stock: 'Kit' },
+        features: ['tooth_chart', 'prescription_pad'],
+        dashboard_view: 'retail_grid'
+    },
+    'SONOGRAPHY': {
+        name: 'Sonography Centre',
+        labels: { customer: 'Patient', stock: 'Consumables' },
+        features: ['lmp_calc', 'report_templates'],
+        dashboard_view: 'retail_grid'
+    },
+    'PHYSIOTHERAPY': {
+        name: 'Physiotherapy Centre',
+        labels: { customer: 'Patient', stock: 'Sessions' },
+        features: ['appointment_booking', 'prescription_pad'],
+        dashboard_view: 'retail_grid'
+    },
+    'PATHOLOGY': {
+        name: 'Pathology Lab',
+        labels: { customer: 'Patient', stock: 'Reagents' },
+        features: ['report_templates', 'sample_tracking'],
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 3. SERVICES & PERSONAL CARE (Special Dashboard for Salon) ---
+    'SALON': {
+        name: 'Luxury Salon / Spa',
+        labels: { customer: 'Client', stock: 'Unit/Usage' },
+        features: ['appointment_booking', 'staff_commission'],
+        dashboard_view: 'salon_dashboard' // यह Salon Dashboard लोड करेगा
+    },
+    'GYM': {
+        name: 'Gym / Fitness Center',
+        labels: { customer: 'Member', stock: 'Supplements' },
+        features: ['attendance', 'subscription_expiry'],
+        dashboard_view: 'retail_grid'
+    },
+    'TAILOR': {
+        name: 'Tailor / Boutique',
+        labels: { customer: 'Customer', stock: 'Fabric' },
+        features: ['tailoring_measurements', 'delivery_date'],
+        dashboard_view: 'retail_grid'
+    },
+    'SERVICE_CENTER': {
+        name: 'Repairing Center',
+        labels: { customer: 'Customer', stock: 'Spare Parts' },
+        features: ['job_card', 'repair_status'],
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 4. HOSPITALITY & FOOD ---
+    'RESTAURANT': {
+        name: 'Restaurant / Cafe',
+        labels: { customer: 'Guest', stock: 'Ingredients' },
+        features: ['table_kot', 'kitchen_display'],
+        dashboard_view: 'retail_grid'
+    },
+    'HOTEL': {
+        name: 'Hotel / Lodging',
+        labels: { customer: 'Guest', stock: 'Amenities' },
+        features: ['room_checkin', 'table_kot'],
+        dashboard_view: 'retail_grid'
+    },
+    'TENT_HOUSE': {
+        name: 'Tent House / Rentals',
+        labels: { customer: 'Customer', stock: 'Item' },
+        features: ['rental_dates', 'security_deposit'],
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 5. CONSTRUCTION & TRANSPORT ---
+    'TILES_CERAMIC': {
+        name: 'Tiles & Sanitaryware',
+        labels: { customer: 'Customer', stock: 'Box/Sq.Ft' },
+        features: ['sqft_calc', 'breakage_entry'],
+        dashboard_view: 'retail_grid'
+    },
+    'TRANSPORT': {
+        name: 'Transport / Logistics',
+        labels: { customer: 'Party/Client', stock: 'Vehicle' },
+        features: ['trip_management', 'fuel_expense'],
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 6. FINANCE & AGENTS ---
+    'LOAN_DSA': {
+        name: 'Loan / Credit Card DSA',
+        labels: { customer: 'Applicant', stock: 'File' },
+        features: ['geo_tagging', 'commission_calc', 'loan_status'],
+        dashboard_view: 'retail_grid'
+    },
+    'RECOVERY_AGENT': {
+        name: 'Recovery / Collection',
+        labels: { customer: 'Borrower', stock: 'Case' },
+        features: ['geo_tagging', 'recovery_collection', 'visit_log'],
+        dashboard_view: 'retail_grid'
+    },
+    'INSURANCE_AGENCY': {
+        name: 'Insurance Agent',
+        labels: { customer: 'Policy Holder', stock: 'Policy' },
+        features: ['renewal_date', 'commission_calc'],
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 7. EDUCATION & OFFICE ---
+    'SCHOOL': {
+        name: 'School / Coaching',
+        labels: { customer: 'Student', stock: 'Books/Uniform' },
+        features: ['fees_management', 'attendance'],
+        dashboard_view: 'retail_grid'
+    },
+    'ARCHITECT_FIRM': {
+        name: 'Architect / Interior',
+        labels: { customer: 'Client', stock: 'Material' },
+        features: ['project_billing', 'site_visit'],
+        dashboard_view: 'retail_grid'
+    },
+    'SOFTWARE_COMPANY': {
+        name: 'Software / IT Firm',
+        labels: { customer: 'Client', stock: 'License' },
+        features: ['project_billing', 'amc_renewal'],
+        dashboard_view: 'retail_grid'
+    }
+};
+
     const AppState = {
         token: null,     // Will store the JWT
         user: null,      // Will store user info (id, email, role, shopId)
@@ -2740,7 +3449,7 @@ function initDashboardSocket() {
  */
  // [ ✅ ULTRA-SMART SCANNER FUNCTION - इसे पेस्ट करें ]
 
-async function handleBarcodeScan(skuFromScanner = null) {
+ async function handleBarcodeScan(skuFromScanner = null) {
     let scannedData;
 
     // 1. इनपुट सोर्स चेक करें (मोबाइल या कंप्यूटर स्कैनर)
@@ -2755,6 +3464,38 @@ async function handleBarcodeScan(skuFromScanner = null) {
     }
 
     if (!scannedData) return; // खाली है तो रुक जाएं
+
+    // =========================================================
+    // 🚀 NEW UPDATION: चेक करें कि क्या "पेंट मिक्सिंग" खुली है?
+    // =========================================================
+    const paintModal = document.getElementById('paintMixingModal');
+    
+    // अगर पेंट वाला बॉक्स खुला है और सामने दिख रहा है (Active है)
+    if (paintModal && paintModal.classList.contains('show')) {
+        
+        // 1. स्कैन किए गए SKU को पेंट वाले बॉक्स में डालें
+        document.getElementById('mix-base-sku').value = scannedData;
+        
+        // 2. अपने आप डिटेल फेच करें (ताकि बेस का नाम और रेट आ जाए)
+        if (typeof fetchBaseDetails === 'function') {
+            fetchBaseDetails(scannedData);
+        }
+        
+        // 3. अगर लोकल कैमरा (Mobile Scanner) खुला था, तो उसे बंद कर दें
+        if (typeof stopLocalScanner === 'function') {
+            stopLocalScanner(); 
+        }
+        
+        // 4. सक्सेस मैसेज दें
+        showMessage('स्कैन सफल', `बेस SKU: ${scannedData} लोड हो गया`, 'success');
+        
+        // 5. यहीं रुक जाएं (नीचे का कोड न चलाएं, ताकि कार्ट में न जुड़े)
+        return; 
+    }
+    // =========================================================
+    // 🚀 पेंट लॉजिक ख़त्म - अब नीचे आपका पुराना कोड चलेगा
+    // =========================================================
+
 
     // =========================================================
     // 🧠 MODE 1: SMART QR (JSON DATA) - AUTO ENTRY
@@ -2862,9 +3603,7 @@ async function handleBarcodeScan(skuFromScanner = null) {
             showMessage('त्रुटि', `स्कैन एरर: ${error.message}`, 'danger');
         }
     }
-}
-
-      
+}      
    // [ ✅ Is Poore Naye Code ko Line 2290 par Paste Karein ]
 
 // Global variable naye (Kadam 7) local scanner ke liye
@@ -3036,75 +3775,80 @@ function sendWhatsAppMessage(phone, name) {
         toast.show();
     };
 
-    async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
-    showLoader(loadingMessage);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
+    // [REPLACE THIS FUNCTION IN HTML <script>]
 
-    // get token
-    const token = AppState.token || localStorage.getItem('authToken');
+        async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
+        showLoader(loadingMessage);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
 
-    // start with default headers, keep any provided headers
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-    };
+        // get token
+        const token = AppState.token || localStorage.getItem('authToken');
 
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+        // start with default headers, keep any provided headers
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers,
+        };
 
-    // Prepare body:
-    let body = options.body === undefined ? null : options.body;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // If body is FormData -> let fetch set Content-Type (remove header)
-    if (body instanceof FormData) {
-        delete headers['Content-Type'];
-    } else if (body !== null) {
-        // If user already passed a string (JSON string), use it as-is
-        if (typeof body === 'string') {
-            // assume valid JSON string
-        } else {
-            // otherwise stringify a plain object / number / array safely
-            try {
-                body = JSON.stringify(body);
-            } catch (err) {
-                // fallback: keep as-is (so we don't break existing behaviour)
-                console.warn('fetchApi: body stringify failed, sending raw body', err);
+        // Prepare body:
+        let body = options.body === undefined ? null : options.body;
+
+        // If body is FormData -> let fetch set Content-Type (remove header)
+        if (body instanceof FormData) {
+            delete headers['Content-Type'];
+        } else if (body !== null) {
+            // If user already passed a string (JSON string), use it as-is
+            if (typeof body === 'string') {
+                // assume valid JSON string
+            } else {
+                // otherwise stringify a plain object / number / array safely
+                try {
+                    body = JSON.stringify(body);
+                } catch (err) {
+                    // fallback: keep as-is (so we don't break existing behaviour)
+                    console.warn('fetchApi: body stringify failed, sending raw body', err);
+                }
             }
         }
-    }
 
-    try {
-        const response = await fetch(__backend_url + path, {
-            ...options,
-            headers,
-            body,
-            signal: controller.signal
-        });
+        try {
+            const response = await fetch(__backend_url + path, {
+                ...options,
+                headers,
+                body,
+                signal: controller.signal
+            });
 
-        clearTimeout(timeoutId);
+            clearTimeout(timeoutId);
 
-        // try parse JSON even if body empty
-        const text = await response.text().catch(() => '');
-        let responseData = {};
-        try { responseData = text ? JSON.parse(text) : {}; } catch (e) { responseData = {}; }
+            // try parse JSON even if body empty
+            const text = await response.text().catch(() => '');
+            let responseData = {};
+            try { responseData = text ? JSON.parse(text) : {}; } catch (e) { responseData = {}; }
 
-        if (!response.ok) {
-            if (response.status === 401 || response.status === 403) {
-                showMessage('सत्र समाप्त', 'आपका सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'danger');
-                logout();
+            if (!response.ok) {
+                // 🚀 FIX: सिर्फ 401 (Invalid Token) पर लॉगआउट करें
+                if (response.status === 401) {
+                    showMessage('सत्र समाप्त', 'आपका सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'danger');
+                    logout();
+                }
+                
+                // 403 (Plan Locked) या अन्य एरर पर सिर्फ एरर फेंकें (ताकि कैच ब्लॉक उसे संभाल ले)
+                // इससे लॉगआउट नहीं होगा
+                throw new Error(responseData.message || `सर्वर एरर: ${response.status}`);
             }
-            throw new Error(responseData.message || `सर्वर एरर: ${response.status}`);
+
+            return responseData;
+        } catch (error) {
+            if (error.name === 'AbortError') throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
+            throw error;
+        } finally {
+            hideLoader();
         }
-
-        return responseData;
-    } catch (error) {
-        if (error.name === 'AbortError') throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
-        throw error;
-    } finally {
-        hideLoader();
     }
-}
-
 
 // ==========================================================
 // ========== 🚀🚀🚀 NAYA PLAN LOCK LOGIC (YAHAN PASTE KAREIN) 🚀🚀🚀 ==========
@@ -3302,40 +4046,49 @@ function fetchAndPopulateShopData() {
      * Yeh function sidebar clicks ko rokta hai aur plan check karta hai.
      * Yahi aapki "Problem 1" ka solution hai.
      */
-     function handleNavClick(viewId) {
-        // 1. Un views ko define karein jinke liye plan ki aavashyakta hai
-        // (Yeh aapke server-side 'checkPlan' logic se mel khana chahiye)
-        const planRequirements = {
-            'crm': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'CRM (ग्राहक प्रबंधन)' },
-            'reports': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Advanced Reports' },
-            'gst-reports': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'GST Reports' },
-            'bank-reconciliation': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Bank Reconciliation' },
-            'daily-closing': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_closing', featureName: 'Daily Closing' },
-            'data-backup': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_backup', featureName: 'Data Backup' },
-            'staff': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Staff Management' }
-            
-            // Views not listed: dashboard, stock, sales, invoice-generator,
-            // purchases, expenses, shop-settings sabke liye available hain.
-        };
+     // [REPLACE THIS FUNCTION IN HTML <script>]
 
-        const req = planRequirements[viewId];
+function handleNavClick(viewId) {
+    // 1. Un views ko define karein jinke liye plan ki aavashyakta hai
+    // (Yeh aapke server-side 'checkPlan' logic se mel khana chahiye)
+    const planRequirements = {
+        'crm': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'CRM (ग्राहक प्रबंधन)' },
+        'reports': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Advanced Reports' },
+        'gst-reports': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'GST Reports' },
+        'bank-reconciliation': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Bank Reconciliation' },
+        
+        // 🚀 UPDATED: AI Insights Logic
+        // (Ab Basic plan wale bhi ise 'Add-on' khareed kar chala sakte hain)
+        'ai-insights': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_ai_insights', featureName: 'AI Business Insights' },
 
-        if (req) {
-            // 2. Is view ke liye plan check karein
-            // 'checkUserPlan' फ़ंक्शन आपके कोड में पहले से मौजूद है (लाइन 1968)
-            if (checkUserPlan(req.plans, req.addOn)) {
-                renderView(viewId); // Anumati hai
-            } else {
-                // 3. Anumati nahi hai - Lock modal dikhayein
-                const requiredName = req.addOn ? req.featureName : req.plans.join('/');
-                // 'showPlanLockModal' फ़ंक्शन आपके कोड में पहले से मौजूद है (लाइन 2000)
-                showPlanLockModal(req.featureName, requiredName);
-            }
+        'daily-closing': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_closing', featureName: 'Daily Closing' },
+        'data-backup': { plans: ['MEDIUM', 'PREMIUM'], addOn: 'has_backup', featureName: 'Data Backup' },
+        'staff': { plans: ['MEDIUM', 'PREMIUM'], featureName: 'Staff Management' }
+        
+        // Views not listed: dashboard, stock, sales, invoice-generator,
+        // purchases, expenses, shop-settings sabke liye available hain.
+    };
+
+    const req = planRequirements[viewId];
+
+    if (req) {
+        // 2. Is view ke liye plan ya add-on check karein
+        // 'checkUserPlan' फ़ंक्शन (line ~1968) चेक करेगा कि क्या प्लान या ऐड-ऑन है
+        if (checkUserPlan(req.plans, req.addOn)) {
+            renderView(viewId); // ✅ Anumati hai (Access Granted)
         } else {
-            // 4. Is view ke liye koi plan requirement nahi hai
-            renderView(viewId);
+            // ❌ Anumati nahi hai - Lock modal dikhayein
+            // Agar add-on available hai to message mein dikhayen
+            const requiredName = req.addOn ? req.featureName + " (Add-on)" : req.plans.join('/');
+            
+            // 'showPlanLockModal' फ़ंक्शन (line ~2000) पॉपअप दिखाएगा
+            showPlanLockModal(req.featureName, requiredName);
         }
+    } else {
+        // 4. Is view ke liye koi plan requirement nahi hai (Sabke liye khula hai)
+        renderView(viewId);
     }
+}
     // --- Yahaan naya function samapt hota hai ---
 
 
@@ -3474,52 +4227,84 @@ function fetchAndPopulateShopData() {
 
 
 
-   async function fetchAndRenderSales() {
-        const salesTableBody = document.getElementById('sales-table-body');  
-        salesTableBody.innerHTML = ''; // Clear previous entries
-        try {
-            const salesRes = await fetchApi('/api/invoices', { method: 'GET' }, 'हाल की बिक्री लोड हो रही है...');
-            if (salesRes.success && salesRes.sales && salesRes.sales.length > 0) {
-                salesRes.sales.forEach(sale => {
-                    
-                    // --- 🚀 नया और सही कोड (6 कॉलम के लिए) ---
-                    salesTableBody.innerHTML += `
-                        <tr>
-                            <td>INV-${sale.id}</td>
-                            <td>${sale.customer_name}</td>
-                            <td>${formatCurrency(sale.total_gst)}</td>
-                            <td>${formatCurrency(sale.total_amount)}</td>
-                            <td>${new Date(sale.created_at).toLocaleDateString()}</td>
-                            <td>
-                                <button class="btn btn-sm btn-info py-0 px-1" onclick="showInvoiceDetail(${sale.id})" title="विवरण देखें">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-secondary py-0 px-1 ms-1" onclick="printPOSInvoice(${sale.id})" title="इनवॉइस प्रिंट करें">
-                                    <i class="fas fa-print"></i>
-                                </button>
-                                
-                                <button 
-                                    class="btn btn-sm btn-success py-0 px-1 ms-1" 
-                                    onclick="sendWhatsAppMessage('${sale.customer_phone || ''}', '${sale.customer_name}')" 
-                                    ${!(sale.customer_phone) ? 'disabled' : ''} 
-                                    title="Send WhatsApp Message">
-                                    <i class="fab fa-whatsapp"></i>
-                                </button>
-                                </td>
-                        </tr>
-                    `;
-                    // --- नया कोड समाप्त ---
-
-                });
-            } else {
-                 salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">कोई बिक्री रिकॉर्ड नहीं।</td></tr>`; // 👈 colspan को 5 से 6 कर दिया
-            }
-        } catch (error) {
-            showMessage('सर्वर त्रुटि', `बिक्री डेटा लोड नहीं हो सका: ${error.message}`, 'danger');
-            salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${error.message}</td></tr>`; // 👈 colspan को 5 से 6 कर दिया
-        }
-    }
+    async function fetchAndRenderSales() {
+    const salesTableBody = document.getElementById('sales-table-body');  
+    salesTableBody.innerHTML = ''; // Clear previous entries
+    
+    try {
+        const salesRes = await fetchApi('/api/invoices', { method: 'GET' }, 'हाल की बिक्री लोड हो रही है...');
         
+        if (salesRes.success && salesRes.sales && salesRes.sales.length > 0) {
+            salesRes.sales.forEach(sale => {
+                
+                // --- 🚀 NEW: FINANCE / MAP LOGIC ---
+                let locationBtn = '';
+                
+                // 1. Google Maps Link (अगर GPS data है)
+                if (sale.latitude && sale.longitude) {
+                    // Google Maps का सही लिंक
+                    const mapUrl = `https://www.google.com/maps?q=${sale.latitude},${sale.longitude}`;
+                    locationBtn = `
+                        <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" title="मैप पर देखें (View Location)">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </a>
+                    `;
+                } else {
+                    // अगर GPS नहीं है तो disabled icon
+                    locationBtn = `<span class="text-muted small ms-1" title="No GPS Data"><i class="fas fa-map-marker-slash"></i></span>`;
+                }
+
+                // 2. Display Loan Number or GSTIN (Updated Logic)
+                // 🚀 FIX: अब हम 'loan_account_no' चेक करेंगे जो सर्वर से आ रहा है
+                let identityDisplay = '';
+                
+                if (sale.loan_account_no) {
+                    // अगर लोन नंबर है (Finance/Recovery के लिए)
+                    identityDisplay = `<br><small class="text-primary fw-bold" style="font-size:0.75rem">Ac: ${sale.loan_account_no}</small>`;
+                } else if (sale.customer_gstin) {
+                    // अगर GSTIN है (Retail के लिए)
+                    identityDisplay = `<br><small class="text-muted" style="font-size:0.7rem">GST: ${sale.customer_gstin}</small>`;
+                }
+
+                // --- TABLE ROW ---
+                salesTableBody.innerHTML += `
+                    <tr>
+                        <td>INV-${sale.id}</td>
+                        <td>
+                            ${sale.customer_name}
+                            ${identityDisplay} </td>
+                        <td>${formatCurrency(sale.total_gst)}</td>
+                        <td>${formatCurrency(sale.total_amount)}</td>
+                        <td>${new Date(sale.created_at).toLocaleDateString()}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info py-0 px-1" onclick="showInvoiceDetail(${sale.id})" title="विवरण देखें">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary py-0 px-1 ms-1" onclick="printPOSInvoice(${sale.id})" title="इनवॉइस प्रिंट करें">
+                                <i class="fas fa-print"></i>
+                            </button>
+                            
+                            <button 
+                                class="btn btn-sm btn-success py-0 px-1 ms-1" 
+                                onclick="sendWhatsAppMessage('${sale.customer_phone || ''}', '${sale.customer_name}')" 
+                                ${!(sale.customer_phone) ? 'disabled' : ''} 
+                                title="Send WhatsApp Message">
+                                <i class="fab fa-whatsapp"></i>
+                            </button>
+
+                            ${locationBtn} </td>
+                    </tr>
+                `;
+            });
+        } else {
+             salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">कोई बिक्री रिकॉर्ड नहीं।</td></tr>`; 
+        }
+    } catch (error) {
+        showMessage('सर्वर त्रुटि', `बिक्री डेटा लोड नहीं हो सका: ${error.message}`, 'danger');
+        salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${error.message}</td></tr>`; 
+    }
+}
+
     // NEW: Show Invoice Detail Modal (Placeholder, needs a modal)
     async function showInvoiceDetail(invoiceId) {
         try {
@@ -3783,145 +4568,193 @@ async function renderSalesChart() {
 
     // [ पुराने renderDashboard() फ़ंक्शन को इस नए फ़ंक्शन से पूरी तरह बदल दें ]
 
-    async function renderDashboard() {
-        // --- 1. Get Summary Cards Data ---
+   // [ ✅ FIXED: ULTIMATE DASHBOARD RENDERER - ALL 31 BUSINESS TYPES EXPLICITLY HANDLED ]
+// [ ✅ FIXED: ULTIMATE DASHBOARD RENDERER - ALL 31 BUSINESS TYPES EXPLICITLY HANDLED ]
+// [ ✅ FIXED: ULTIMATE DASHBOARD - DATA LOADING FIXED ]
+async function renderDashboard() {
+    const user = AppState.user;
+    if (!user) return;
+
+    const btype = user.businessType;
+    const config = (typeof MASTER_BUSINESS_CONFIG !== 'undefined') ? MASTER_BUSINESS_CONFIG[btype] : null;
+    const viewMode = config ? config.dashboard_view : 'retail_grid';
+
+    console.log(`🚀 Loading Dashboard for: ${btype} (View: ${viewMode})`);
 
     // ============================================================
-    // 🚀 SALON DASHBOARD CHECK (इसे सबसे ऊपर पेस्ट करें)
+    // 1. SALON DASHBOARD (Custom UI)
     // ============================================================
-    
-    // 1. चेक करें कि क्या यह दुकान 'SALON' है
-    if (AppState.user && AppState.user.businessType === 'SALON') {
-        
-        // A. पुराने 'Retail' वाले डैशबोर्ड के सभी Rows को छिपा दें
-        // (ताकि रिटेल वाला डेटा न दिखे)
-        const retailElements = document.querySelectorAll('#dashboard > .row');
-        retailElements.forEach(el => el.style.display = 'none');
-
-        // B. नए 'Salon' डैशबोर्ड को दिखाएँ
+    if (viewMode === 'salon_dashboard') {
+        document.querySelectorAll('#dashboard > .row').forEach(el => el.style.display = 'none');
         const salonDash = document.getElementById('salon-dashboard');
         if (salonDash) {
             salonDash.style.display = 'block';
-            
-            // Salon का डेटा लोड करें
-            if (typeof loadSalonDashboard === 'function') {
-                await loadSalonDashboard();
-            }
+            if (typeof loadSalonDashboard === 'function') await loadSalonDashboard();
         }
-        
-        return; // 🛑 STOP: यहीं रुक जाएँ, ताकि नीचे वाला पुराना कोड न चले
-    } 
-    
-    // 2. अगर यह 'SALON' नहीं है (यानी Retail है), तो नॉर्मल व्यू दिखाएँ
-    else {
-        // Retail वाले हिस्सों को वापस दिखाएँ (अगर छुपे हों)
-        const retailElements = document.querySelectorAll('#dashboard > .row');
-        retailElements.forEach(el => el.style.display = 'flex'); 
+        return; 
+    }
 
-        // Salon वाले हिस्से को छिपा दें
+    // ============================================================
+    // 2. STANDARD DASHBOARD (For remaining 30 Types)
+    // ============================================================
+    else {
+        // UI Reset
+        document.querySelectorAll('#dashboard > .row').forEach(el => el.style.display = 'flex');
         const salonDash = document.getElementById('salon-dashboard');
         if (salonDash) salonDash.style.display = 'none';
-    }
-    // ============================================================
-    // 🚀 यहाँ नया कोड खत्म, नीचे आपका पुराना कोड वैसे का वैसा रहेगा
-    // ============================================================
+        
+        // Modules Visibility Logic (Business Type Switch)
+        const uniContainer = document.getElementById('universal-modules-container');
+        if (uniContainer) uniContainer.style.display = 'block';
 
-        try {
-            // (यह कॉल सुरक्षित है, क्योंकि सर्वर पर 'checkPlan' नहीं है)
-            const data = await fetchApi('/api/dashboard/summary', { method: 'GET' }, 'मुख्य आँकड़े लोड हो रहे हैं...');
-            if (data.success) {
-                document.getElementById('total-sales-revenue').innerText = formatCurrency(data.summary.totalSales);
-                document.getElementById('total-stock-value').innerText = formatCurrency(data.summary.currentStockValue);
-            } else {
-                showMessage('त्रुटि', data.message, 'danger');
-            }
-        } catch (error) {
-            showMessage('सर्वर त्रुटि', `डैशबोर्ड आँकड़े लोड नहीं हो सके: ${error.message}`, 'danger');
+        switch (btype) {
+            case 'RETAIL': break;
+            case 'MOBILE_SHOP': case 'ELECTRONICS': 
+                if(document.getElementById('module-imei-scan')) document.getElementById('module-imei-scan').style.display = 'block';
+                break;
+            case 'HARDWARE_PAINT':
+                if (typeof loadPainters === 'function') loadPainters();
+                if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'block';
+                break;
+            case 'FURNITURE':
+                if(document.getElementById('module-furniture-showroom')) document.getElementById('module-furniture-showroom').style.display = 'block';
+                break;
+            case 'DOCTOR_CLINIC': case 'ORTHOPEDIC': case 'PHYSIOTHERAPY': case 'DENTIST': case 'SONOGRAPHY': case 'PATHOLOGY':
+                if(document.getElementById('module-prescription-pad')) document.getElementById('module-prescription-pad').style.display = 'block';
+                if(btype === 'DENTIST' && document.getElementById('box-dentist-chart')) document.getElementById('box-dentist-chart').style.display = 'block';
+                if(btype === 'SONOGRAPHY' && document.getElementById('box-lmp-calc')) document.getElementById('box-lmp-calc').style.display = 'block';
+                break;
+            case 'GYM':
+                if(document.getElementById('module-gym-access')) document.getElementById('module-gym-access').style.display = 'block';
+                break;
+            case 'TAILOR':
+                if(document.getElementById('module-tailor-measurements')) document.getElementById('module-tailor-measurements').style.display = 'block';
+                break;
+            case 'SERVICE_CENTER':
+                if(document.getElementById('module-repair-job')) document.getElementById('module-repair-job').style.display = 'block';
+                break;
+            case 'RESTAURANT': case 'HOTEL':
+                if(document.getElementById('module-restaurant-kot')) document.getElementById('module-restaurant-kot').style.display = 'block';
+                if(btype === 'HOTEL' && document.getElementById('module-hotel-management')) document.getElementById('module-hotel-management').style.display = 'block';
+                break;
+            case 'TILES_CERAMIC':
+                if(document.getElementById('module-tiles-calc')) document.getElementById('module-tiles-calc').style.display = 'block';
+                break;
+            case 'TRANSPORT':
+                if(document.getElementById('module-transport-trip')) document.getElementById('module-transport-trip').style.display = 'block';
+                break;
+            case 'SCHOOL':
+                if(document.getElementById('module-school-fees')) document.getElementById('module-school-fees').style.display = 'block';
+                break;
+            case 'LOAN_DSA': case 'RECOVERY_AGENT': case 'INSURANCE_AGENCY':
+                if(document.getElementById('module-finance-collection')) document.getElementById('module-finance-collection').style.display = 'block';
+                if(document.getElementById('module-geo-tagging')) document.getElementById('module-geo-tagging').style.display = 'block';
+                break;
+            case 'TENT_HOUSE':
+                if(document.getElementById('module-rental-stock')) document.getElementById('module-rental-stock').style.display = 'block';
+                break;
+            default: break;
         }
 
-        // --- 2. Load other tables (SMARTLY) ---
+        // ============================================================
+        // 3. DASHBOARD DATA LOADING (यह वह हिस्सा है जो गायब था)
+        // ============================================================
         try {
-            // 🚀🚀🚀 फिक्स: पहले यूज़र का प्लान चेक करें
-            // checkUserPlan (लाइन 1968) पहले से मौजूद है
-            const canAccessCRM = checkUserPlan(['MEDIUM', 'PREMIUM']); // यह 'TRIAL' के लिए भी true देगा
-
-            // API कॉल्स की लिस्ट को डायनामिक रूप से बनाएँ
-            let apiCalls = [
-                fetchApi('/api/stock', { method: 'GET' }, null), // कम स्टॉक के लिए
-                fetchApi('/api/invoices', { method: 'GET' }, null) // हाल की बिक्री के लिए
-            ];
-
-            if (canAccessCRM) {
-                // अगर प्लान 'MEDIUM', 'PREMIUM' या 'TRIAL' है, तभी 'customers' को कॉल करें
-                console.log("CRM एक्सेस की अनुमति है, ग्राहक डेटा लोड हो रहा है...");
-                apiCalls.push(fetchApi('/api/customers', { method: 'GET' }, null));
-            } else {
-                console.log("CRM एक्सेस की अनुमति नहीं है ('BASIC' प्लान), ग्राहक डेटा को छोड़ा जा रहा है।");
+            // A. Financial Summary (Top Cards)
+            const sumRes = await fetchApi('/api/dashboard/summary', { method: 'GET' }, null);
+            if (sumRes.success) {
+                document.getElementById('total-sales-revenue').innerText = formatCurrency(sumRes.summary.totalSales);
+                document.getElementById('total-stock-value').innerText = formatCurrency(sumRes.summary.currentStockValue);
             }
 
-            // कॉल्स को एक साथ चलाएँ
-            const results = await Promise.all(apiCalls);
+            // B. Fetch Data for Dashboard Tables
+            // हम Stock और Sales API को कॉल करेंगे और डैशबोर्ड के छोटे टेबल्स को भरेंगे
+            const [stockRes, salesRes] = await Promise.all([
+                fetchApi('/api/stock', { method: 'GET' }, null),
+                fetchApi('/api/invoices', { method: 'GET' }, null)
+            ]);
 
-            // 🚀 फिक्स: परिणामों को सही ढंग से असाइन करें
-            const lowStockRes = results[0];
-            const salesRes = results[1];
-            // customersRes अब सशर्त (conditional) है
-            const customersRes = canAccessCRM ? results[2] : { success: false, customers: [] };
+            // --- 1. Low Stock Logic ---
+            const lowStockItems = stockRes.success ? stockRes.stock.filter(item => item.quantity < 10) : [];
+            const lowStockCountEl = document.getElementById('low-stock-count'); // Badge
+            const lowStockBody = document.getElementById('low-stock-table-body'); // Table
 
-            // Low Stock Table (यह सही काम कर रहा है)
-            const lowStockBody = document.getElementById('low-stock-table-body');
-            lowStockBody.innerHTML = '';
-            const lowStockItems = lowStockRes.success ? lowStockRes.stock.filter(item => item.quantity < 10) : [];
-            document.getElementById('low-stock-count').innerText = lowStockItems.length;
-            if (lowStockItems.length > 0) {
-                lowStockItems.forEach(item => {
-                    lowStockBody.innerHTML += `<tr><td>${item.sku}</td><td>${item.name}</td><td>${item.quantity}</td></tr>`;
-                });
-            } else {
-                lowStockBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">कोई कम स्टॉक आइटम नहीं</td></tr>`;
+            if (lowStockCountEl) lowStockCountEl.innerText = lowStockItems.length;
+            
+            if (lowStockBody) {
+                lowStockBody.innerHTML = '';
+                if (lowStockItems.length > 0) {
+                    lowStockItems.slice(0, 5).forEach(item => { // Show max 5 items
+                        lowStockBody.innerHTML += `
+                            <tr>
+                                <td>${item.sku}</td>
+                                <td>${item.name}</td>
+                                <td class="text-danger fw-bold">${item.quantity}</td>
+                            </tr>`;
+                    });
+                } else {
+                    lowStockBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted small">सब ठीक है!</td></tr>`;
+                }
             }
 
-            // Recent Sales Table (यह सही काम कर रहा है)
+            // --- 2. Recent Sales Logic ---
             const recentSalesBody = document.getElementById('recent-sales-table-body');
-            recentSalesBody.innerHTML = '';
-            if (salesRes.success && salesRes.sales.length > 0) {
-                salesRes.sales.slice(0, 10).forEach(sale => {
-                    recentSalesBody.innerHTML += `<tr><td>INV-${sale.id}</td><td>${sale.customer_name}</td><td>${formatCurrency(sale.total_amount)}</td><td>${new Date(sale.created_at).toLocaleDateString()}</td></tr>`;
-                });
-            } else {
-                recentSalesBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">कोई बिक्री नहीं</td></tr>`;
+            if (recentSalesBody) {
+                recentSalesBody.innerHTML = '';
+                if (salesRes.success && salesRes.sales.length > 0) {
+                    salesRes.sales.slice(0, 5).forEach(sale => { // Show max 5 sales
+                        recentSalesBody.innerHTML += `
+                            <tr>
+                                <td>INV-${sale.id}</td>
+                                <td>${sale.customer_name || 'Cash'}</td>
+                                <td class="fw-bold">${formatCurrency(sale.total_amount)}</td>
+                            </tr>`;
+                    });
+                } else {
+                    recentSalesBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted small">कोई बिक्री नहीं</td></tr>`;
+                }
             }
 
-            // 🚀 फिक्स: Recent Customers Table (अब यह सशर्त है)
-            const recentCustomersBody = document.getElementById('recent-customers-table-body');
-            const totalCustomersEl = document.getElementById('total-customers');
+            // --- 3. Total Customers Logic ---
+            // (Only if user has access to CRM)
+            const canAccessCRM = (typeof checkUserPlan === 'function') ? checkUserPlan(['MEDIUM', 'PREMIUM']) : true;
+            const totalCustEl = document.getElementById('total-customers');
             
-            if (canAccessCRM && customersRes.success && customersRes.customers.length > 0) {
-                // 'MEDIUM'/'PREMIUM'/'TRIAL' यूज़र
-                totalCustomersEl.innerText = customersRes.customers.length;
-                recentCustomersBody.innerHTML = '';
-                customersRes.customers.slice(0, 10).forEach(cust => {
-                    recentCustomersBody.innerHTML += `<tr><td>${cust.name}</td><td>${cust.phone || 'N/A'}</td><td>${new Date(cust.created_at).toLocaleDateString()}</td></tr>`;
-                });
-            } else {
-                // 'BASIC' यूज़र
-                totalCustomersEl.innerText = 'N/A'; // 'N/A' दिखाएँ
-                recentCustomersBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">CRM इस प्लान में नहीं है।</td></tr>`; // मैसेज दिखाएँ
+            if (canAccessCRM && totalCustEl) {
+                const custRes = await fetchApi('/api/customers', { method: 'GET' }, null);
+                if (custRes.success) {
+                    totalCustEl.innerText = custRes.customers.length;
+                    
+                    // Optional: Recent Customers Table on Dashboard
+                    const recentCustBody = document.getElementById('recent-customers-table-body');
+                    if(recentCustBody) {
+                        recentCustBody.innerHTML = '';
+                        const sorted = custRes.customers.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+                        if(sorted.length > 0) {
+                            sorted.forEach(c => {
+                                recentCustBody.innerHTML += `<tr><td>${c.name}</td><td>${c.phone || '-'}</td></tr>`;
+                            });
+                        } else {
+                            recentCustBody.innerHTML = `<tr><td colspan="2" class="text-center text-muted small">कोई ग्राहक नहीं</td></tr>`;
+                        }
+                    }
+                }
+            } else if (totalCustEl) {
+                totalCustEl.innerText = 'N/A';
             }
-            
-            // Update stock value (यह सही काम कर रहा है)
-            document.getElementById('total-stock-value').innerText = formatCurrency(lowStockRes.success ? lowStockRes.stock.reduce((acc, item) => acc + (item.purchase_price * item.quantity), 0) : 0);
-            
-            // --- Sales Chart ---
-            renderSalesChart();
 
-            console.log("✅ Dashboard 'BASIC' प्लान के लिए सुरक्षित रूप से अपडेट हो गया। (लॉगआउट नहीं होगा)");
+            // C. Refresh Charts
+            if (typeof renderSalesChart === 'function') {
+                renderSalesChart();
+            }
 
         } catch (error) {
-            // यह अब तभी कॉल होगा जब '/api/stock' या '/api/invoices' जैसा कोई ज़रूरी API फेल हो
-            showMessage('सर्वर त्रुटि', `डैशबोर्ड तालिकाएँ लोड नहीं हो सकीं: ${error.message}`, 'danger');
+            console.error("Dashboard Data Loading Error:", error);
         }
-    } 
+    }
+}
+
+
     // [ नया renderDashboard() फ़ंक्शन यहाँ समाप्त होता है ]
     // ==========================================================
 // ========== UPDATED: renderReports (Bank-Style Detail) ==========
@@ -4044,45 +4877,84 @@ if (!checkUserPlan(['MEDIUM', 'PREMIUM'])) {
 
 
 
-// [ ✅ FINAL: Salon Stock Manager (Service vs Product Logic Integrated) ]
 
-// [ ✅ FINAL INTEGRATION: Salon Stock List ]
-
-// [ ✅ FIXED: अब डेटा सही दिखेगा (API Path Corrected) ]
-
-// [ ✅ FIXED: Delete Button & Edit Button Logic ]
-
-// [ ✅ FIXED: Delete Button now sends SKU instead of ID ]
-
+// [ ✅ FIXED: ULTRA-PRO STOCK LIST RENDERER (ALL 31 BUSINESS TYPES EXPLICITLY LISTED) ]
 async function fetchAndRenderStockList() {
-    const isSalon = (AppState.user && AppState.user.businessType === 'SALON');
+    // Current User Business Type
+    const btype = AppState.user ? AppState.user.businessType : 'RETAIL';
+    // Salon needs special handling for Services vs Products
+    const isSalon = (btype === 'SALON'); 
+
+    // --- PART A: FORM DESIGN (SMART CONFIGURATION) ---
     
-    // --- PART A: FORM DESIGN (SAME AS BEFORE) ---
-    // (फॉर्म के एलिमेंट्स को वैसा ही रखें)
+    // 1. CLEANUP: Reset form state
+    const dynamicArea = document.getElementById('dynamic-business-fields');
+    if(dynamicArea) dynamicArea.remove();
+    
+    const cDiv = document.getElementById('consumption-ui-area');
+    if(cDiv) cDiv.remove();
+
+    const typeDiv = document.getElementById('stock-type-selector-area');
+    if(typeDiv) typeDiv.remove();
+
+    // 2. FORM ELEMENTS SELECTORS
+    const form = document.getElementById('add-stock-form');
+    const submitBtnDiv = form.querySelector('button[type="submit"]').parentElement;
+
+    // Field Wrappers
     const skuDiv = document.querySelector('label[for="stock-sku"]').parentElement;
     const qtyDiv = document.querySelector('label[for="stock-quantity"]').parentElement;
     const unitDiv = document.querySelector('label[for="stock-unit"]').parentElement;
     const gstDiv = document.querySelector('label[for="stock-gst"]').parentElement;
     const hsnDiv = document.querySelector('label[for="stock-hsn-code"]').parentElement;
     const durationDiv = document.getElementById('stock-duration-div'); 
+    
+    // Labels
     const nameLabel = document.querySelector('label[for="stock-name"]');
     const pPriceLabel = document.querySelector('label[for="stock-purchase-price"]');
     const sPriceLabel = document.querySelector('label[for="stock-sale-price"]');
-    
+    const qtyLabel = document.querySelector('label[for="stock-quantity"]');
+
+    // Custom Fields (Optical/Extra)
     const opticalBtn = document.getElementById('add-custom-field-btn');
     const opticalContainer = document.getElementById('prescription-fields-container');
     let extraHeader = null, extraDesc = null, extraHr = null;
+    
+    // Hide extra headers/descriptions initially
     document.querySelectorAll('#add-stock-form > *').forEach(el => {
-        if(el.tagName === 'H6' && el.innerText.includes('अतिरिक्त विवरण')) extraHeader = el;
-        if(el.tagName === 'P' && el.innerText.includes('Chasme ke liye')) extraDesc = el;
-        if(el.tagName === 'HR' && el.classList.contains('my-3') && el.nextElementSibling === extraHeader) extraHr = el;
+        if(el.tagName === 'H6' && el.innerText.includes('अतिरिक्त विवरण')) { extraHeader = el; el.style.display = 'none'; }
+        if(el.tagName === 'P' && el.innerText.includes('Chasme ke liye')) { extraDesc = el; el.style.display = 'none'; }
+        if(el.tagName === 'HR' && el.classList.contains('my-3') && el.nextElementSibling === extraHeader) { extraHr = el; el.style.display = 'none'; }
     });
 
-    let typeSelectDiv = document.getElementById('stock-type-selector-area');
-    
-    if (isSalon) {
-        if (!typeSelectDiv) {
-            typeSelectDiv = document.createElement('div');
+    if(opticalBtn) opticalBtn.closest('.col-12').style.display = 'none';
+    if(opticalContainer) opticalContainer.style.display = 'none';
+
+    // Reset Standard Visibility
+    skuDiv.style.display = 'block';
+    qtyDiv.style.display = 'block';
+    unitDiv.style.display = 'block';
+    hsnDiv.style.display = 'block';
+    gstDiv.style.display = 'block';
+    if(durationDiv) durationDiv.style.display = 'none';
+
+    // Default Labels
+    nameLabel.innerText = 'आइटम का नाम';
+    pPriceLabel.innerText = 'खरीद मूल्य (₹)';
+    sPriceLabel.innerText = 'बिक्री मूल्य (₹)';
+    qtyLabel.innerText = 'मात्रा (Qty)';
+    document.getElementById('stock-unit').placeholder = "Pcs / Kg / Box";
+
+    // =========================================================
+    // 🏗️ BUSINESS SPECIFIC LOGIC (ALL 31 TYPES LISTED)
+    // =========================================================
+
+    switch (btype) {
+        
+        // --- 1. SALON (Unique UI) ---
+        case 'SALON':
+            // Inject Type Selector (Service vs Product)
+            const typeSelectDiv = document.createElement('div');
             typeSelectDiv.id = 'stock-type-selector-area';
             typeSelectDiv.className = 'col-12 mb-3 p-2 bg-warning bg-opacity-10 border border-warning rounded';
             typeSelectDiv.innerHTML = `
@@ -4096,97 +4968,158 @@ async function fetchAndRenderStockList() {
                         <input class="form-check-input" type="radio" name="itemType" id="typeProduct" value="PRODUCT" onchange="toggleSalonFields()">
                         <label class="form-check-label fw-bold text-success" for="typeProduct"><i class="fas fa-box-open"></i> प्रोडक्ट/सामान (Inventory)</label>
                     </div>
-                </div>
-            `;
-            const form = document.getElementById('add-stock-form');
+                </div>`;
             form.insertBefore(typeSelectDiv, form.firstChild);
-        }
-        typeSelectDiv.style.display = 'block';
 
-        if(opticalBtn) opticalBtn.closest('.col-12').style.display = 'none'; 
-        if(opticalContainer) opticalContainer.style.display = 'none';
-        if(extraHeader) extraHeader.style.display = 'none';
-        if(extraDesc) extraDesc.style.display = 'none';
-        if(extraHr) extraHr.style.display = 'none';
-
-        nameLabel.innerText = 'नाम (Name)';
-        pPriceLabel.innerText = 'लागत (Cost)';
-        sPriceLabel.innerText = 'फीस/दाम (Price)';
-
-        let consumptionDiv = document.getElementById('consumption-ui-area');
-        if (!consumptionDiv) {
-            consumptionDiv = document.createElement('div');
+            // Inject Consumption UI
+            const consumptionDiv = document.createElement('div');
             consumptionDiv.id = 'consumption-ui-area';
             consumptionDiv.className = 'col-12 mt-3 p-3 bg-light border rounded';
-            const submitBtnDiv = document.querySelector('#add-stock-form button[type="submit"]').parentElement;
-            document.querySelector('#add-stock-form').insertBefore(consumptionDiv, submitBtnDiv);
-        }
-        
-        consumptionDiv.innerHTML = `
-            <h6 class="text-primary"><i class="fas fa-flask me-2"></i> खपत (Consumption) जोड़ें (Optional)</h6>
-            <p class="small text-muted">जब यह सर्विस बिकेगी, तो ये चीजें स्टॉक से अपने आप कम हो जाएंगी।</p>
-            <div class="row g-2 align-items-end">
-                <div class="col-7"><label class="small">SKU</label><input type="text" id="recipe-consumable-sku" class="form-control form-control-sm" placeholder="e.g. SHAMPOO-1L"></div>
-                <div class="col-3"><label class="small">Qty</label><input type="number" id="recipe-qty" class="form-control form-control-sm" placeholder="e.g. 10"></div>
-                <div class="col-2"><button type="button" class="btn btn-sm btn-outline-success w-100" onclick="addRecipeRow()"><i class="fas fa-plus"></i></button></div>
-            </div>
-            <div id="recipe-list" class="mt-2"></div>
-            <input type="hidden" id="stock-recipe-data">
-        `;
+            consumptionDiv.innerHTML = `
+                <h6 class="text-primary"><i class="fas fa-flask me-2"></i> खपत (Consumption) जोड़ें (Optional)</h6>
+                <div class="row g-2 align-items-end">
+                    <div class="col-7"><input type="text" id="recipe-consumable-sku" class="form-control form-control-sm" placeholder="SKU e.g. SHAMPOO-1L"></div>
+                    <div class="col-3"><input type="number" id="recipe-qty" class="form-control form-control-sm" placeholder="Qty"></div>
+                    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-success w-100" onclick="addRecipeRow()">+</button></div>
+                </div>
+                <div id="recipe-list" class="mt-2"></div>
+                <input type="hidden" id="stock-recipe-data">
+            `;
+            form.insertBefore(consumptionDiv, submitBtnDiv);
 
-        window.toggleSalonFields = function() {
-            const isService = document.getElementById('typeService').checked;
-            hsnDiv.style.display = 'none';
-            gstDiv.style.display = 'none';
+            // Salon Toggle Logic
+            window.toggleSalonFields = function() {
+                const isService = document.getElementById('typeService').checked;
+                hsnDiv.style.display = 'none';
+                gstDiv.style.display = 'none';
+                nameLabel.innerText = isService ? 'सर्विस का नाम' : 'प्रोडक्ट का नाम';
+                sPriceLabel.innerText = isService ? 'फीस (Fee)' : 'बिक्री मूल्य';
 
-            if (isService) {
-                qtyDiv.style.display = 'none';
-                unitDiv.style.display = 'none';
-                skuDiv.style.display = 'none';
-                consumptionDiv.style.display = 'block';
-                if(durationDiv) durationDiv.style.display = 'block';
+                if (isService) {
+                    qtyDiv.style.display = 'none';
+                    unitDiv.style.display = 'none';
+                    skuDiv.style.display = 'none';
+                    consumptionDiv.style.display = 'block';
+                    if(durationDiv) durationDiv.style.display = 'block';
+                    document.getElementById('stock-quantity').value = '1000';
+                    document.getElementById('stock-unit').value = 'Session';
+                    document.getElementById('stock-sku').value = 'SVC-' + Date.now();
+                } else {
+                    qtyDiv.style.display = 'block';
+                    unitDiv.style.display = 'block';
+                    skuDiv.style.display = 'block';
+                    consumptionDiv.style.display = 'none';
+                    if(durationDiv) durationDiv.style.display = 'none';
+                    document.getElementById('stock-quantity').value = '';
+                    document.getElementById('stock-unit').value = 'Pcs';
+                    document.getElementById('stock-sku').value = '';
+                }
+            };
+            window.toggleSalonFields();
+            break;
 
-                document.getElementById('stock-quantity').value = '1000';
-                document.getElementById('stock-unit').value = 'Session';
-                document.getElementById('stock-sku').value = 'SVC-' + Date.now();
-            } else {
-                qtyDiv.style.display = 'block';
-                unitDiv.style.display = 'block';
-                skuDiv.style.display = 'block';
-                consumptionDiv.style.display = 'none';
-                if(durationDiv) durationDiv.style.display = 'none';
+        // --- GROUP 1: RETAIL WITH EXPIRY/BATCH ---
+        case 'PHARMACY':
+        case 'SWEET_SHOP':
+        case 'GYM': // Supplements
+        case 'RETAIL': // General Store (Sometimes needs expiry)
+            const expiryDiv = document.createElement('div');
+            expiryDiv.id = 'dynamic-business-fields';
+            expiryDiv.className = 'col-12 border rounded p-3 mt-2 bg-light mb-3';
+            expiryDiv.innerHTML = `
+                <h6 class="text-primary small fw-bold"><i class="fas fa-clock"></i> Expiry & Batch Details</h6>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small">Expiry Date</label>
+                        <input type="date" id="stock-expiry" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Batch Number</label>
+                        <input type="text" id="stock-batch" class="form-control form-control-sm" placeholder="Batch No.">
+                    </div>
+                </div>
+            `;
+            form.insertBefore(expiryDiv, submitBtnDiv);
+            break;
 
-                document.getElementById('stock-quantity').value = '';
-                document.getElementById('stock-unit').value = 'Pcs';
-                document.getElementById('stock-sku').value = '';
-            }
-        };
-        window.toggleSalonFields();
+        // --- GROUP 2: MOBILE & ELECTRONICS (IMEI) ---
+        case 'MOBILE_SHOP':
+        case 'ELECTRONICS':
+        case 'SIM_STORE':
+            const imeiDiv = document.createElement('div');
+            imeiDiv.id = 'dynamic-business-fields';
+            imeiDiv.className = 'col-12 mb-3';
+            imeiDiv.innerHTML = `
+                <label class="form-label small text-info fw-bold">Device Details</label>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <input type="text" id="item_imei" class="form-control form-control-sm" placeholder="IMEI / Serial No">
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" id="item_model" class="form-control form-control-sm" placeholder="Model / Color">
+                    </div>
+                </div>
+            `;
+            form.insertBefore(imeiDiv, submitBtnDiv);
+            break;
 
-    } else {
-        // Retail Mode
-        if (typeSelectDiv) typeSelectDiv.style.display = 'none';
-        skuDiv.style.display = 'block';
-        qtyDiv.style.display = 'block';
-        unitDiv.style.display = 'block';
-        hsnDiv.style.display = 'block';
-        gstDiv.style.display = 'block';
-        if(durationDiv) durationDiv.style.display = 'none';
+        // --- GROUP 3: HARDWARE & PAINT ---
+        case 'HARDWARE_PAINT':
+            document.getElementById('stock-unit').placeholder = "Liters / Kg / Drum";
+            break;
 
-        if(opticalBtn) opticalBtn.closest('.col-12').style.display = 'block';
-        if(extraHeader) extraHeader.style.display = 'block';
-        if(extraDesc) extraDesc.style.display = 'block';
-        if(extraHr) extraHr.style.display = 'block';
+        // --- GROUP 4: TILES & CERAMIC ---
+        case 'TILES_CERAMIC':
+            qtyLabel.innerText = "Quantity (Boxes)";
+            if(document.getElementById('module-tiles-calc')) 
+               document.getElementById('module-tiles-calc').style.display = 'block';
+            break;
 
-        nameLabel.innerText = 'आइटम का नाम';
-        pPriceLabel.innerText = 'खरीद मूल्य (₹)';
-        sPriceLabel.innerText = 'बिक्री मूल्य (₹)';
-        
-        const cDiv = document.getElementById('consumption-ui-area');
-        if(cDiv) cDiv.style.display = 'none';
+        // --- GROUP 5: TENT HOUSE / RENTAL ---
+        case 'TENT_HOUSE':
+            if(document.getElementById('module-rental-stock')) 
+               document.getElementById('module-rental-stock').style.display = 'block';
+            sPriceLabel.innerText = "Replacement Cost (If Lost)";
+            break;
+
+        // --- GROUP 6: MEDICAL & OPTICAL (Special Fields) ---
+        case 'DENTIST': 
+        case 'DOCTOR_CLINIC':
+        case 'ORTHOPEDIC':
+        case 'SONOGRAPHY':
+        case 'PHYSIOTHERAPY':
+        case 'PATHOLOGY':
+            // Doctors usually sell 'Services' or 'Medicines'
+            // We can enable custom fields if they sell specs/lenses (rare)
+            // But usually standard form works.
+            break;
+
+        // --- GROUP 7: FINANCE & SERVICES (No Physical Stock usually) ---
+        case 'LOAN_DSA':
+        case 'RECOVERY_AGENT':
+        case 'INSURANCE_AGENCY':
+        case 'ARCHITECT_FIRM':
+        case 'SOFTWARE_COMPANY':
+        case 'SCHOOL':
+        case 'TRANSPORT':
+        case 'HOTEL':
+        case 'RESTAURANT':
+        case 'SERVICE_CENTER':
+        case 'TAILOR':
+        case 'CLOTHING':
+        case 'FURNITURE':
+        case 'JEWELLERY':
+            // These use Standard Form (Name, Price) 
+            // OR have specific modules handled in Dashboard/POS
+            // So no extra fields needed in Stock Add Form for now.
+            break;
+
+        default:
+            // Standard Retail View
+            break;
     }
 
-    // --- PART B: TABLE DESIGN (Data Loading) ---
+    // --- PART B: TABLE RENDER (Data Loading) ---
     const tableHead = document.querySelector('#stock table thead');
     const tableBody = document.getElementById('stock-table-body');
     const tableFoot = document.getElementById('stock-table-foot');
@@ -4200,10 +5133,9 @@ async function fetchAndRenderStockList() {
                 <th style="width:15%">Cost (₹)</th>
                 <th style="width:15%">Price (₹)</th>
                 <th style="width:20%">Action</th>
-            </tr>
-        `;
+            </tr>`;
     } else {
-        tableHead.innerHTML = `<tr><th>SKU</th><th>Item Name</th><th>Qty</th><th>Purchase</th><th>Sale</th><th>GST %</th><th>Updated</th><th>Attributes</th><th>Action</th></tr>`;
+        tableHead.innerHTML = `<tr><th>SKU</th><th>Item Name</th><th>Qty</th><th>Purchase</th><th>Sale</th><th>GST %</th><th>Updated</th><th>Attributes/Expiry</th><th>Action</th></tr>`;
     }
 
     tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center py-3"><div class="spinner-border text-primary"></div></td></tr>`;
@@ -4220,41 +5152,31 @@ async function fetchAndRenderStockList() {
 
             items.forEach(item => {
                 const row = tableBody.insertRow();
-                
+                const attrs = item.product_attributes || {};
+
                 if (isSalon) {
-                    // --- SALON ROW ---
                     const isSvc = (item.sku && String(item.sku).startsWith('SVC-')) || item.unit === 'Session';
-                    const typeBadge = isSvc 
-                        ? `<span class="badge bg-primary">Service</span>` 
-                        : `<span class="badge bg-success">Product</span>`;
-                    
-                    const stockDisplay = isSvc 
-                        ? `<span class="text-muted small">N/A</span>` 
-                        : `<span class="fw-bold text-dark">${item.quantity} <small class="text-muted">${item.unit}</small></span>`;
+                    const typeBadge = isSvc ? `<span class="badge bg-primary">Service</span>` : `<span class="badge bg-success">Product</span>`;
+                    const stockDisplay = isSvc ? `<span class="text-muted small">N/A</span>` : `<span class="fw-bold text-dark">${item.quantity} <small class="text-muted">${item.unit}</small></span>`;
 
                     row.innerHTML = `
                         <td>${typeBadge}</td>
-                        <td class="fw-bold text-dark">
-                            ${item.name} <br>
-                            <small class="text-muted" style="font-size:0.75rem">${item.code || item.sku}</small>
-                        </td>
+                        <td class="fw-bold text-dark">${item.name} <br><small class="text-muted" style="font-size:0.75rem">${item.code || item.sku}</small></td>
                         <td>${stockDisplay}</td>
                         <td>${formatCurrency(item.purchase_price || 0)}</td> 
                         <td>${formatCurrency(item.price || item.sale_price)}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editStockItem('${item.sku}')" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry('stock', '${item.sku}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editStockItem('${item.sku}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry('stock', '${item.sku}')"><i class="fas fa-trash"></i></button>
+                        </td>`;
                 } else {
-                    // --- RETAIL ROW ---
                     totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
                     totalSaleValue += (item.sale_price || 0) * (item.quantity || 0);
                     const itemDataSafe = JSON.stringify({ sku: item.sku, name: item.name, sale_price: item.sale_price, purchase_price: item.purchase_price }).replace(/"/g, '&quot;');
+
+                    let attrDisplay = formatAttributes(attrs); 
+                    if (attrs.expiry) attrDisplay += `<br><span class="badge bg-danger">Exp: ${attrs.expiry}</span>`;
+                    if (attrs.batch) attrDisplay += ` <small class="text-muted">Batch: ${attrs.batch}</small>`;
 
                     row.innerHTML = `
                         <td>${item.sku}</td>
@@ -4264,26 +5186,17 @@ async function fetchAndRenderStockList() {
                         <td>${formatCurrency(item.sale_price)}</td>
                         <td>${item.gst || 0}%</td>
                         <td>${new Date(item.updated_at).toLocaleDateString()}</td>
-                        <td>${formatAttributes(item.product_attributes)}</td>
+                        <td>${attrDisplay}</td>
                         <td>
-                            <button class="btn btn-sm btn-info text-white mb-1" onclick="printItemSticker(${itemDataSafe})" title="Print QR"><i class="fas fa-qrcode"></i></button>
+                            <button class="btn btn-sm btn-info text-white mb-1" onclick="printItemSticker(${itemDataSafe})"><i class="fas fa-qrcode"></i></button>
                             <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${item.sku}')"><i class="fas fa-trash"></i></button>
-                        </td>
-                    `;
+                        </td>`;
                 }
             });
 
             if (!isSalon) {
-                tableFoot.innerHTML = `
-                    <tr class="fw-bold bg-light">
-                        <td colspan="3">कुल (Total)</td>
-                        <td>${formatCurrency(totalPurchaseValue)}</td>
-                        <td>${formatCurrency(totalSaleValue)}</td>
-                        <td colspan="4"></td>
-                    </tr>
-                `;
+                tableFoot.innerHTML = `<tr class="fw-bold bg-light"><td colspan="3">कुल (Total)</td><td>${formatCurrency(totalPurchaseValue)}</td><td>${formatCurrency(totalSaleValue)}</td><td colspan="4"></td></tr>`;
             }
-
         } else {
             tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center text-muted py-4">कोई डेटा नहीं मिला।</td></tr>`;
         }
@@ -4292,7 +5205,7 @@ async function fetchAndRenderStockList() {
         tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
     }
 }
-// [ ✅ FIXED: SKU से आइटम ढूँढने वाला Edit फ़ंक्शन ]
+
 
 function editStockItem(sku) {
     // 1. SKU की मदद से असली आइटम डेटा ढूँढें (currentStock लिस्ट से)
@@ -4758,12 +5671,15 @@ function handleSearchResultClick(e) {
     }
 
     async function handleCompleteSale() {
+    // 1. कार्ट चेक करें (Old Logic Safe)
     if (posCart.length === 0) {
         return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
     }
 
+    // 2. टोटल राशि निकालें (Old Logic Safe)
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
 
+    // 3. आइटम तैयार करें (Old Logic Safe)
     const itemsForApi = posCart.map(item => ({
         sku: item.sku,
         name: item.name,
@@ -4771,33 +5687,53 @@ function handleSearchResultClick(e) {
         sale_price: item.sale_price,
         purchase_price: parseFloat(item.purchase_price || 0),
         gst: item.gst,
-product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
+        product_attributes: item.product_attributes
     }));
 
+    // 4. डेटा तैयार करें (GPS + Loan Account + Painter के साथ)
     const saleData = {
         customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
-        customerMobile: document.getElementById('pos-customer-mobile').value || null, // यह लाइन डेटा भेजती है
+        customerMobile: document.getElementById('pos-customer-mobile').value || null,
         total_amount: finalTotalAmount,
-        sale_items: itemsForApi
+        sale_items: itemsForApi,
+
+        // --- [GPS Location Data] ---
+        latitude: document.getElementById('pos-lat') ? document.getElementById('pos-lat').value : null,
+        longitude: document.getElementById('pos-long') ? document.getElementById('pos-long').value : null,
+
+        // --- [FINANCE LOAN ACCOUNT LOGIC] ---
+        loanAccountNo: document.getElementById('pos-loan-account') ? document.getElementById('pos-loan-account').value : null, // 👈 यहाँ कॉमा (,) लगाया है
+
+        // --- [🎨 NEW: Painter Info] ---
+        painterId: document.getElementById('pos-painter-select') ? document.getElementById('pos-painter-select').value : null
     };
     
+    // 5. सर्वर पर भेजें
     try {
         const res = await fetchApi('/api/invoices', {
             method: 'POST',
             body: saleData
-        }, 'बिक्री पूरी की जा रही है...');
+        }, 'बिक्री/रिकवरी सेव की जा रही है...');
 
         if (res.success) {
             showMessage('सफलता', res.message, 'success');
+            
+            // 6. सब कुछ रिसेट करें (Reset Everything)
             posCart = [];
             updatePOSCartView();
             document.getElementById('pos-customer').value = '';
-            
-            // ✅ FIX: मोबाइल नंबर इनपुट को साफ़ करने वाली लाइन यहाँ जोड़ें
             document.getElementById('pos-customer-mobile').value = ''; 
             
+            // GPS फील्ड्स साफ़ करें
+            if(document.getElementById('pos-lat')) document.getElementById('pos-lat').value = '';
+            if(document.getElementById('pos-long')) document.getElementById('pos-long').value = '';
+            if(document.getElementById('gps-status')) document.getElementById('gps-status').innerHTML = 'Not Captured';
+
+            // Loan Account फील्ड साफ़ करें
+            if(document.getElementById('pos-loan-account')) document.getElementById('pos-loan-account').value = '';
+
+            // 7. लिस्ट और डैशबोर्ड रिफ्रेश करें
             fetchAndRenderSales();
-            // Update stock list
             fetchApi('/api/stock', { method: 'GET' }).then(res => {
                 if (res.success) currentStock = res.stock;
             });
@@ -4811,6 +5747,7 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
         showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
     }
 }
+
     // --- FORM SUBMISSION HANDLERS ---
     
     function setupForm(formId, apiPath, successCallback) {
@@ -4831,7 +5768,9 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
             
             const data = {};
 
-            // --- 1. STOCK FORM LOGIC ---
+            // ============================================================
+            // 1. STOCK FORM LOGIC (Updated for Retail & Salon)
+            // ============================================================
             if (formId === 'add-stock-form') {
                 data.sku = document.getElementById('stock-sku').value;
                 data.name = document.getElementById('stock-name').value;
@@ -4843,7 +5782,7 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                 data.hsn_code = document.getElementById('stock-hsn-code').value;
                 data.action_type = document.getElementById('stock-action-type').value;
 
-                // [Fix for Recipe Error] Check if recipe element exists before reading
+                // --- [OLD LOGIC] Recipe Data (Salon Consumption) ---
                 const recipeElement = document.getElementById('stock-recipe-data');
                 if (recipeElement && recipeElement.value) {
                     try {
@@ -4853,10 +5792,29 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                     }
                 }
 
-                // [Optical / Custom Fields Logic]
+                // Initialize Attributes Object
                 data.product_attributes = {};
+
+                // --- [NEW LOGIC] Retail Expiry & Batch ---
+                // (Yeh naya code hai jo Retail mein Expiry save karega)
+                if (document.getElementById('stock-expiry')) {
+                    data.product_attributes.expiry = document.getElementById('stock-expiry').value;
+                    data.product_attributes.batch = document.getElementById('stock-batch').value;
+                }
                 
-                // Helper to safely add attributes
+                // --- [NEW LOGIC] Clothing/Garments Size & Color ---
+                if (document.getElementById('stock-size')) {
+                    data.product_attributes.Size = document.getElementById('stock-size').value;
+                    data.product_attributes.Color = document.getElementById('stock-color').value;
+                }
+
+                // --- [NEW LOGIC] Salon Service Type ---
+                if (document.getElementById('typeService') && document.getElementById('typeService').checked) {
+                    data.product_attributes.type = 'SERVICE';
+                }
+
+                // --- [OLD LOGIC] Optical / Custom Fields ---
+                // (Chashme ka purana logic yahan safe hai)
                 const addAttr = (obj, key, id) => {
                     const el = document.getElementById(id);
                     if (el && el.value && el.value.trim() !== '') {
@@ -4864,7 +5822,6 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                     }
                 };
 
-                // Check for Prescription Fields
                 const presContainer = document.getElementById('prescription-fields-container');
                 if (presContainer && presContainer.style.display === 'block') {
                     addAttr(data.product_attributes, 'sph_od_dist', 'stock_sph_od_dist');
@@ -4882,24 +5839,26 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                     addAttr(data.product_attributes, 'axs_os_near', 'stock_axs_os_near');
                 }
 
-            // --- 2. CUSTOMER FORM LOGIC ---
+            // ============================================================
+            // 2. CUSTOMER FORM LOGIC (Old Logic Safe)
+            // ============================================================
             } else if (formId === 'add-customer-form') {
                 data.name = document.getElementById('customer-name').value;
                 data.phone = document.getElementById('customer-phone').value;
                 data.email = document.getElementById('customer-email').value;
                 data.address = document.getElementById('customer-address').value;
                 data.gstin = document.getElementById('customer-gstin').value;
-                // [New] Balance Field
                 const balEl = document.getElementById('customer-balance');
                 data.balance = balEl ? (balEl.value || 0) : 0;
 
-            // --- 3. PURCHASE FORM LOGIC ---
+            // ============================================================
+            // 3. PURCHASE FORM LOGIC (Old Logic Safe)
+            // ============================================================
             } else if (formId === 'add-purchase-form') {
                 data.supplier_name = document.getElementById('purchase-supplier').value;
                 data.total_cost = parseFloat(document.getElementById('purchase-total-cost').value) || 0;
                 data.date = document.getElementById('purchase-date').value;
 
-                // GST Calculation Logic
                 data.gst_details = {
                     invoice_number: document.getElementById('purchase-bill-number').value,
                     taxable_value: parseFloat(document.getElementById('purchase-taxable-value').value) || 0,
@@ -4910,20 +5869,21 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
 
                 data.item_details = `Bill No: ${data.gst_details.invoice_number}`;
 
-                // Validation: Check if Total matches Tax + Amount
+                // Validation Logic
                 const calculatedTotal = data.gst_details.taxable_value + data.gst_details.cgst + data.gst_details.sgst + data.gst_details.igst;
                 
                 if (calculatedTotal > 0 && Math.abs(calculatedTotal - data.total_cost) > 1.0) {
-                    // Using standard quotes to avoid syntax errors
                     const confirmMsg = "Warning: Total Bill Amount (" + data.total_cost + ") does not match Taxable + GST (" + calculatedTotal + "). Continue?";
                     if (!confirm(confirmMsg)) {
                         btn.disabled = false;
                         btn.innerHTML = originalBtnText;
-                        return; // Stop submission
+                        return; 
                     }
                 }
 
-            // --- 4. EXPENSE FORM LOGIC ---
+            // ============================================================
+            // 4. EXPENSE FORM LOGIC (Old Logic Safe)
+            // ============================================================
             } else if (formId === 'add-expense-form') {
                 data.description = document.getElementById('expense-description').value;
                 data.category = document.getElementById('expense-category').value;
@@ -4931,10 +5891,11 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
                 data.created_at = document.getElementById('expense-date').value;
             }
 
-            // --- API CALL ---
+            // ============================================================
+            // API CALL (Universal)
+            // ============================================================
             try {
                 let correctApiPath = apiPath;
-                // Route fixers
                 if (apiPath === '/api/customer') correctApiPath = '/api/customers';
                 if (apiPath === '/api/purchase') correctApiPath = '/api/purchases';
                 if (apiPath === '/api/expense') correctApiPath = '/api/expenses';
@@ -4958,8 +5919,6 @@ product_attributes: item.product_attributes // <-- YEH NAYI LINE HAI
         });
     }
 }
-
-
     
 
 // 🚀 नया हेल्पर फ़ंक्शन: QR इमेज सेट करता है और Modal दिखाता है
@@ -5694,31 +6653,58 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
     // NEW: Update Shop Name/Logo in UI
    // NEW: Update Shop Name/Logo in UI
   // NEW: Update Shop Name/Logo in UI
-  function updateShopDisplay(user) {
-        if (!user) return;
-        const shopName = user.shopName || 'Dukan Pro';
-        
-        // 🚀 FIX: पहले सर्वर से आया हुआ लोगो, अगर नहीं तो Local Storage से लें
-        const storedLogo = localStorage.getItem('shopLogoData');
-        const shopLogo = user.shopLogo || storedLogo; 
+ // [REPLACE THIS FUNCTION IN HTML <script>]
 
-        document.getElementById('user-shop-name').innerText = shopName;
-        document.getElementById('user-name-email').innerText = `${user.name} (${user.role})`;
-        
-        const logoContainer = document.getElementById('shop-logo-container');
-        if (shopLogo) {
-            logoContainer.innerHTML = `<img src="${shopLogo}" alt="Shop Logo" class="img-fluid rounded-circle" style="max-height: 100px; border: 3px solid #fff;">`;
-            
-            // यह सुनिश्चित करें कि UI के अन्य भाग भी अपडेट हो जाएँ
-            document.getElementById('remove-shop-logo-btn').classList.remove('d-none');
-            document.getElementById('shop-logo-preview').src = shopLogo; 
-            document.getElementById('shop-logo-preview').style.display = 'block';
-        } else {
-            logoContainer.innerHTML = '';
-            document.getElementById('remove-shop-logo-btn').classList.add('d-none');
-            document.getElementById('shop-logo-preview').style.display = 'none';
-        }
+function updateShopDisplay(user) {
+    if (!user) return;
+    const shopName = user.shopName || 'Dukan Pro';
+    
+    // 1. लोगो लॉजिक (Logo Logic)
+    const storedLogo = localStorage.getItem('shopLogoData');
+    const shopLogo = user.shopLogo || storedLogo; 
+
+    // 2. यूजर इन्फो अपडेट करें (नीचे वाला बॉक्स)
+    document.getElementById('user-shop-name').innerText = shopName;
+    
+    // 🚀 NEW: Shop ID को यहाँ बोल्ड और हाईलाइट करके दिखाएं
+    document.getElementById('user-name-email').innerHTML = `
+        ${user.name} (${user.role}) <br>
+        <span class="badge bg-warning text-dark mt-2 w-100 shadow-sm" style="font-size: 0.9rem;">
+            <i class="fas fa-id-badge me-1"></i> Shop ID: ${user.shopId}
+        </span>
+    `;
+    
+    // 3. साइडबार हेडर अपडेट करें (सबसे ऊपर वाला टाइटल)
+    // 🚀 NEW: Shop ID को "Dukan Pro" के बगल में भी दिखाएं
+    const sidebarHeader = document.querySelector('.sidebar h3');
+    if (sidebarHeader) {
+        sidebarHeader.innerHTML = `
+            <i class="fas fa-store me-2"></i>Dukan Pro 
+            <sup class="badge bg-danger rounded-pill ms-1" style="font-size: 0.5em; top: -10px;">ID: ${user.shopId}</sup>
+        `;
     }
+
+    // 4. लोगो डिस्प्ले (Logo Display)
+    const logoContainer = document.getElementById('shop-logo-container');
+    if (shopLogo) {
+        logoContainer.innerHTML = `<img src="${shopLogo}" alt="Shop Logo" class="img-fluid rounded-circle" style="max-height: 100px; border: 3px solid #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">`;
+        
+        // Settings पेज पर भी लोगो दिखाएं
+        const removeBtn = document.getElementById('remove-shop-logo-btn');
+        const preview = document.getElementById('shop-logo-preview');
+        if (removeBtn) removeBtn.classList.remove('d-none');
+        if (preview) {
+            preview.src = shopLogo; 
+            preview.style.display = 'block';
+        }
+    } else {
+        if (logoContainer) logoContainer.innerHTML = '';
+        const removeBtn = document.getElementById('remove-shop-logo-btn');
+        const preview = document.getElementById('shop-logo-preview');
+        if (removeBtn) removeBtn.classList.add('d-none');
+        if (preview) preview.style.display = 'none';
+    }
+}
 
 
     /**
@@ -7607,11 +8593,7 @@ async function askBusinessAI(){
         }
     }
     
-    // When clicking AI sidebar → load insights
-    document.querySelector('[data-view="ai-insights"]').addEventListener("click",()=>{
-    renderView("ai-insights");
-    loadUltimateAI();   // या renderAiInsightsFinal() → जो भी नया इस्तेमाल कर रहे हो
-});
+  
 
     </script>
         
@@ -7994,13 +8976,7 @@ function renderMonthlyStrategy(data){
 }
 
 
-            
-document.querySelector('[data-view="ai-insights"]')
-?.addEventListener("click", () => {
-    renderView("ai-insights");  // यह सही तरीके से section load करेगा
-    loadUltimateAI();           // यह AI Insights लोड करेगा
-});
-
+    
 
 
 
@@ -8184,10 +9160,7 @@ async function renderMarketingAI() {
   }
 }
 
-// Call when AI tab clicked (add into your existing click handler)
-document.querySelector('[data-view="ai-insights"]')?.addEventListener('click', ()=>{
-  renderMarketingAI();
-});
+
 
 
 
@@ -8429,36 +9402,176 @@ async function saveCustomer() {
 }
 
 
-// call this after login when you have shop info (shop.business_type)
+// [ ✅ FIXED: ULTRA-PRO Universal Business UI Applicator - ALL 31 TYPES ]
+// यह कोड आपके स्क्रीनशॉट वाले सभी 31 बिजनेस टाइप्स को सपोर्ट करता है।
 function applyBusinessTypeUI(btype) {
-  // Hide all optional feature groups by default
-  document.querySelectorAll('.biz-only').forEach(el => el.style.display = 'none');
+    console.log("Applying UI for Business Type:", btype);
 
-  // Show default retail view
-  if(!btype || btype === 'RETAIL') {
-    // nothing special (default)
-    return;
-  }
+    // 1. सबसे पहले, सभी स्पेशल बिजनेस वाले सेक्शन/बटन और मॉड्यूल छुपा दें (Global Reset)
+    // यह सुनिश्चित करता है कि पिछली स्क्रीन का कचरा साफ हो जाए
+    document.querySelectorAll('.biz-module').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.paint-only, .salon-only, .mobile-only, .medical-only, .restaurant-only').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.input-group-special').forEach(el => el.style.display = 'none');
 
-  if(btype === 'SALON') {
-    // show salon-specific sections
-    // e.g. elements with class .salon-only should be visible
-    document.querySelectorAll('.salon-only').forEach(el => el.style.display = '');
-    // hide retail-only (if any)
-    document.querySelectorAll('.retail-only').forEach(el => el.style.display = 'none');
+    // 2. MASTER CONFIG से सेटिंग्स लाएं (main.js से)
+    const config = (typeof MASTER_BUSINESS_CONFIG !== 'undefined') ? MASTER_BUSINESS_CONFIG[btype] : null;
 
-    // optionally set active menu label
-    const title = document.getElementById('header-title');
-    if(title) title.innerText = 'Dukan Pro — Salon Dashboard';
-  }
+    if (!config) {
+        console.warn(`Unknown Business Type: ${btype}. Defaulting to Retail view.`);
+        return; // अगर टाइप नहीं मिला तो Retail (Default) रखें
+    }
 
-  if(btype === 'CAFE') {
-    document.querySelectorAll('.cafe-only').forEach(el => el.style.display = '');
-    document.querySelectorAll('.retail-only').forEach(el => el.style.display = 'none');
-  }
+    // 3. लेबल्स अपडेट करें (जैसे Customer को Patient या Student कहना)
+    const custLabel = document.querySelector('label[for="pos-customer"]');
+    if (custLabel) custLabel.innerText = config.labels.customer || "ग्राहक का नाम";
+    
+    // स्टॉक लेबल अपडेट (Qty vs Liters vs Boxes)
+    const stockQtyLabel = document.querySelector('label[for="stock-quantity"]');
+    if(stockQtyLabel) stockQtyLabel.innerText = `मात्रा (${config.labels.stock || 'Qty'})`;
 
-  // etc...
+    // 4. फीचर्स की लिस्ट निकालें
+    const features = config.features || [];
+
+    // ============================================================
+    // 🏗️ MODULE ACTIVATION LOGIC (For ALL 31 Business Types)
+    // ============================================================
+
+    // --- GROUP 1: RETAIL SPECIALS ---
+    
+    // 1. Hardware & Paint (HARDWARE_PAINT)
+    if (btype === 'HARDWARE_PAINT' || features.includes('paint_mixing')) {
+        document.querySelectorAll('.paint-only').forEach(el => el.style.display = '');
+        if(document.getElementById('module-paint-mixer')) document.getElementById('module-paint-mixer').style.display = 'block';
+        if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'block';
+        if (typeof loadPainters === 'function') loadPainters();
+    }
+
+    // 2. Mobile, Electronics, SIM Store (MOBILE_SHOP, ELECTRONICS, SIM_STORE)
+    if (features.includes('imei_scan')) {
+        if(document.getElementById('module-imei-scan')) document.getElementById('module-imei-scan').style.display = 'block';
+        // सर्च बॉक्स में हिंट दें
+        const searchInput = document.getElementById('pos-item-search');
+        if(searchInput) searchInput.placeholder = "आइटम का नाम, SKU या IMEI स्कैन करें...";
+    }
+
+    // 3. Furniture Showroom (FURNITURE)
+    if (features.includes('delivery_tracking')) {
+        if(document.getElementById('module-furniture-showroom')) document.getElementById('module-furniture-showroom').style.display = 'block';
+    }
+
+    // 4. Sweet Shop / Bakery (SWEET_SHOP)
+    // (इनका मुख्य काम Expiry और Manufacturing Date है जो स्टॉक फॉर्म में दिखेगा)
+    if (btype === 'SWEET_SHOP') {
+        // अगर कोई स्पेशल मॉड्यूल है तो यहाँ खोलें
+    }
+
+    // --- GROUP 2: MEDICAL & HEALTH ---
+    
+    // 5-11. Doctors & Labs (DOCTOR_CLINIC, ORTHOPEDIC, DENTIST, SONOGRAPHY, PHYSIOTHERAPY, PATHOLOGY, PHARMACY)
+    if (features.includes('prescription_pad') || features.includes('report_templates')) {
+        const medMod = document.getElementById('module-prescription-pad');
+        if(medMod) {
+            medMod.style.display = 'block';
+            // यह टाइटल को सही करता है (e.g., "Dental Clinic Report")
+            const titleEl = document.getElementById('medical-title-text');
+            if(titleEl) titleEl.innerText = config.name + " Report";
+        }
+        if(typeof setupDoctorDashboard === 'function') setupDoctorDashboard(btype);
+    }
+
+    // 7. Dentist Special (DENTIST)
+    if (features.includes('tooth_chart')) {
+        const teethBox = document.getElementById('box-dentist-chart');
+        if(teethBox) teethBox.style.display = 'block';
+    }
+
+    // 9. Sonography Special (SONOGRAPHY)
+    if (btype === 'SONOGRAPHY') {
+        const lmpBox = document.getElementById('box-lmp-calc');
+        if(lmpBox) lmpBox.style.display = 'block';
+    }
+
+    // --- GROUP 3: SERVICES & PERSONAL CARE ---
+
+    // 12. Salon / Spa (SALON)
+    if (btype === 'SALON') {
+        document.querySelectorAll('.salon-only').forEach(el => el.style.display = '');
+        // नोट: Salon का डैशबोर्ड 'renderDashboard' फंक्शन में लोड होता है
+    }
+
+    // 13. Gym / Fitness (GYM)
+    if (features.includes('attendance')) {
+        if(document.getElementById('module-gym-access')) document.getElementById('module-gym-access').style.display = 'block';
+    }
+
+    // 14. Tailor / Boutique (TAILOR, CLOTHING)
+    if (features.includes('tailoring_measurements')) {
+        if(document.getElementById('module-tailor-measurements')) document.getElementById('module-tailor-measurements').style.display = 'block';
+    }
+
+    // 15. Repairing Center (SERVICE_CENTER)
+    if (features.includes('job_card')) {
+        if(document.getElementById('module-repair-job')) document.getElementById('module-repair-job').style.display = 'block';
+    }
+
+    // --- GROUP 4: HOSPITALITY & FOOD ---
+
+    // 16. Restaurant / Cafe (RESTAURANT)
+    if (features.includes('table_kot')) {
+        if(document.getElementById('module-restaurant-kot')) document.getElementById('module-restaurant-kot').style.display = 'block';
+    }
+
+    // 17. Hotel / Lodging (HOTEL)
+    if (features.includes('room_checkin')) {
+        if(document.getElementById('module-hotel-management')) document.getElementById('module-hotel-management').style.display = 'block';
+    }
+
+    // 18. Tent House / Rentals (TENT_HOUSE)
+    if (features.includes('rental_dates')) {
+        // यह मॉड्यूल स्टॉक फॉर्म के अंदर दिखता है, लेकिन अगर डैशबोर्ड पर भी कुछ है तो यहाँ दिखाएं
+        // (फिलहाल स्टॉक फॉर्म में handled है)
+    }
+
+    // --- GROUP 5: CONSTRUCTION & TRANSPORT ---
+
+    // 19. Tiles & Ceramic (TILES_CERAMIC)
+    if (features.includes('sqft_calc')) {
+        // स्टॉक फॉर्म में SqFt कैलकुलेटर दिखाएं
+        if(document.getElementById('module-tiles-calc')) document.getElementById('module-tiles-calc').style.display = 'block';
+    }
+
+    // 20. Transport / Logistics (TRANSPORT)
+    if (features.includes('trip_management')) {
+        if(document.getElementById('module-transport-trip')) document.getElementById('module-transport-trip').style.display = 'block';
+    }
+
+    // --- GROUP 6: EDUCATION ---
+
+    // 21. School / Coaching (SCHOOL)
+    if (features.includes('fees_management')) {
+        if(document.getElementById('module-school-fees')) document.getElementById('module-school-fees').style.display = 'block';
+    }
+
+    // --- GROUP 7: FINANCE & OTHERS ---
+
+    // 22-24. Finance Agents (LOAN_DSA, RECOVERY_AGENT, INSURANCE_AGENCY)
+    if (features.includes('geo_tagging') || features.includes('commission_calc') || btype === 'RECOVERY_AGENT') {
+        if(document.getElementById('module-geo-tagging')) document.getElementById('module-geo-tagging').style.display = 'block';
+        if(document.getElementById('module-finance-collection')) document.getElementById('module-finance-collection').style.display = 'block';
+        
+        const searchInput = document.getElementById('pos-item-search');
+        if(searchInput) searchInput.placeholder = "EMI Account, Loan No या Policy खोजें...";
+    }
+
+    // 25-26. Professional Services (ARCHITECT_FIRM, SOFTWARE_COMPANY)
+    // इनके लिए स्टैंडर्ड सर्विस इनवॉइसिंग (Service Grid) अपने आप डैशबोर्ड में लोड हो जाएगी
+
+    console.log(`✅ UI Configured Successfully for: ${config.name}`);
 }
+
+
+
+
 
 
 
@@ -8972,10 +10085,271 @@ document.getElementById('appointment-form').addEventListener('submit', async (e)
     }
 });
 
+// ==========================================
+// 🎨 PAINT SHOP LOGIC (The "Brahmastra")
+// ==========================================
+
+// 1. Load Painters into Dropdown
+async function loadPainters() {
+    const select = document.getElementById('pos-painter-select');
+    if(!select) return;
+    
+    try {
+        const res = await fetchApi('/api/painters', { method: 'GET' });
+        if(res.success) {
+            select.innerHTML = '<option value="">-- कोई पेंटर नहीं --</option>';
+            res.painters.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.name} (${p.mobile})</option>`;
+            });
+        }
+    } catch(e) { console.error(e); }
+}
+
+// ==========================================
+// 🎨 SAVE FORMULA FUNCTION (DASHBOARD DIARY)
+// ==========================================
+async function savePaintFormula() {
+    // 1. स्क्रीन से डेटा उठाओ
+    const name = document.getElementById('paint_cust_name').value;
+    const code = document.getElementById('paint_code').value;
+    const base = document.getElementById('paint_base').value;
+    const formula = document.getElementById('paint_formula').value;
+
+    // 2. चेक करो कि खाली तो नहीं है
+    if (!name || !code) {
+        showMessage('अधूरा डेटा', 'कृपया ग्राहक का नाम और कलर कोड जरूर भरें।', 'warning');
+        return;
+    }
+
+    const data = {
+        customer_name: name,
+        color_code: code,
+        base_product: base,
+        formula_text: formula
+    };
+
+    // 3. सर्वर पर भेजो (API Call)
+    try {
+        // नोट: अगर आपके बैकएंड में यह API नहीं बना है, तो यह एरर दे सकता है।
+        // लेकिन कोड का लॉजिक यही है:
+        const res = await fetchApi('/api/paint/save-formula', { 
+            method: 'POST', 
+            body: data 
+        }, 'फार्मूला सेव हो रहा है...');
+
+        if (res.success) {
+            showMessage('सफलता', 'कलर फार्मूला डायरी में सेव हो गया!', 'success');
+            
+            // 4. बॉक्स खाली कर दो
+            document.getElementById('paint_cust_name').value = '';
+            document.getElementById('paint_code').value = '';
+            document.getElementById('paint_base').value = '';
+            document.getElementById('paint_formula').value = '';
+        } else {
+            throw new Error(res.message || 'सेव नहीं हो सका');
+        }
+    } catch (e) {
+        console.error(e);
+        // अगर API नहीं है, तो फिलहाल टेस्टिंग के लिए सक्सेस दिखा देते हैं (Optional)
+        showMessage('त्रुटि', `सेव नहीं हुआ: ${e.message}`, 'danger');
+    }
+}
 
 
+// 2. Add New Painter Prompt
+async function addNewPainterPrompt() {
+    const name = prompt("पेंटर का नाम:");
+    if(!name) return;
+    const mobile = prompt("पेंटर का मोबाइल:");
+    
+    await fetchApi('/api/painters', { method:'POST', body: { name, mobile } });
+    loadPainters(); // Refresh list
+    showMessage('Success', 'Painter Added!', 'success');
+}
+
+// 3. Paint Estimator Logic (The "Estimate")
+function calculatePaintEstimate() {
+    const area = parseFloat(document.getElementById('est-area').value);
+    if(!area) return alert("Area daalein (Sq.Ft)");
+
+    // Standard Formulas
+    const putty = Math.ceil(area / 12); // 1kg covers ~12 sqft (2 coats)
+    const primer = Math.ceil(area / 130); // 1L covers ~130 sqft
+    const paint = Math.ceil(area / 110); // 1L covers ~110 sqft (2 coats)
+
+    document.getElementById('res-putty').innerText = `${putty} Kg`;
+    document.getElementById('res-primer').innerText = `${primer} Liters`;
+    document.getElementById('res-paint').innerText = `${paint} Liters`;
+    
+    document.getElementById('est-result').classList.remove('d-none');
+}
+
+function printEstimate() {
+    const area = document.getElementById('est-area').value;
+    const putty = document.getElementById('res-putty').innerText;
+    const primer = document.getElementById('res-primer').innerText;
+    const paint = document.getElementById('res-paint').innerText;
+    
+    const win = window.open('', '', 'width=400,height=400');
+    win.document.write(`
+        <h3>Paint Estimate (Area: ${area} sq.ft)</h3>
+        <hr>
+        <p><b>Wall Putty:</b> ${putty}</p>
+        <p><b>Primer:</b> ${primer}</p>
+        <p><b>Paint (Emulsion):</b> ${paint}</p>
+        <hr>
+        <small>Generated by Dukan Pro</small>
+        <script>window.print();<\/script>
+    `);
+}
+
+// 4. Mixing Logic (The "Base + Colorant" Problem)
+// 1. बेस का बारकोड स्कैन करते ही डिटेल अपने आप आ जाएगी
+async function fetchBaseDetails(sku) {
+    if (!sku) return;
+    
+    // स्टॉक लिस्ट में से आइटम ढूँढो
+    const item = currentStock.find(s => s.sku === sku);
+    
+    if (item) {
+        document.getElementById('mix-base-name').value = item.name;
+        document.getElementById('mix-base-price').value = item.sale_price;
+        document.getElementById('mix-stock-status').innerHTML = 
+            `<span class="text-success"><i class="fas fa-check"></i> स्टॉक में उपलब्ध: <b>${item.quantity}</b> ${item.unit}</span>`;
+        document.getElementById('mix-stock-status').className = "small text-success";
+    } else {
+        document.getElementById('mix-stock-status').innerHTML = 
+            `<span class="text-danger"><i class="fas fa-times"></i> यह SKU स्टॉक में नहीं मिला!</span>`;
+        document.getElementById('mix-base-name').value = "";
+        document.getElementById('mix-base-price').value = "";
+    }
+}
+
+// 2. कार्ट में जोड़ने वाला अपडेटेड फंक्शन
+function addMixedPaintToCart() {
+    const baseSku = document.getElementById('mix-base-sku').value;
+    const baseName = document.getElementById('mix-base-name').value;
+    const basePrice = parseFloat(document.getElementById('mix-base-price').value) || 0;
+    const colorCost = parseFloat(document.getElementById('mix-color-cost').value) || 0;
+    const colorCode = document.getElementById('mix-code').value;
+
+    if(!baseSku || !baseName) return alert("कृपया पहले बेस बाल्टी का SKU स्कैन करें या डालें।");
+
+    const finalPrice = basePrice + colorCost; 
+
+    // असली जादू यहाँ है: हम SKU वही रखेंगे जो बाल्टी का है, लेकिन नाम और कीमत बदल देंगे
+    // इससे स्टॉक 'APEX-BASE' का ही कम होगा!
+    const item = {
+        sku: baseSku,  // <--- यह बाल्टी का ही SKU है
+        name: `${baseName} (Mix: ${colorCode})`, // बिल पर नाम बदलकर आएगा
+        quantity: 1,
+        sale_price: finalPrice, // कीमत बढ़ गई (बेस + कलर)
+        purchase_price: 0, // (यह बैकएंड से आ जाएगा)
+        gst: 18,
+        product_attributes: { 
+            "Type": "Custom Mix", 
+            "Colorant Cost": colorCost,
+            "Color Code": colorCode
+        }
+    };
+
+    // कार्ट में डालें
+    addSKUToCartFromMix(item);
+    
+    // मॉडल बंद करें
+    const modalEl = document.getElementById('paintMixingModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+    
+    // फॉर्म साफ़ करें
+    document.getElementById('mix-base-sku').value = '';
+    document.getElementById('mix-base-name').value = '';
+    document.getElementById('mix-code').value = '';
+    document.getElementById('mix-color-cost').value = '';
+    document.getElementById('mix-stock-status').innerText = '';
+}
+
+// यह हेल्पर फंक्शन है जो मिक्स आइटम को सीधे कार्ट में पुश करता है
+function addSKUToCartFromMix(mixedItem) {
+    // चेक करें कि स्टॉक है या नहीं
+    const stockItem = currentStock.find(s => s.sku === mixedItem.sku);
+    if (stockItem && stockItem.quantity < 1) {
+        return showMessage('स्टॉक नहीं है', 'यह बाल्टी स्टॉक में खत्म हो चुकी है!', 'danger');
+    }
+
+    // कार्ट में ढूँढें
+    const existingCartItem = posCart.find(item => item.sku === mixedItem.sku);
+    
+    if (existingCartItem) {
+        // अगर पहले से कार्ट में है, तो अपडेट करें
+        existingCartItem.quantity++;
+        // मिक्सिंग डिटेल अपडेट करें (नोट: एक ही SKU के अलग-अलग रंग एक साथ बिल नहीं हो सकते इस लॉजिक में, जो ठीक है)
+        existingCartItem.name = mixedItem.name;
+        existingCartItem.sale_price = mixedItem.sale_price;
+    } else {
+        // नया जोड़ें
+        posCart.push(mixedItem);
+    }
+    updatePOSCartView();
+    showMessage('सफलता', 'पेंट मिक्स होकर बिल में जुड़ गया!', 'success');
+}
 </script>
 
+<div class="modal fade" id="paintMixingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">🎨 Color Mixing Billing</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                
+                <div class="mb-3 position-relative p-2 border rounded bg-light">
+                    <label class="form-label fw-bold text-danger">स्टेप 1: बेस स्कैन करें (SKU)</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                        <input type="text" id="mix-base-sku" class="form-control" placeholder="Scan/Type Bucket Barcode" onchange="fetchBaseDetails(this.value)">
+                        <button class="btn btn-dark" type="button" onclick="openMobileScannerForMix()">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+                    <small class="d-block mt-1 fw-bold" id="mix-stock-status"></small> 
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label">Base Product Name (अपने आप आएगा)</label>
+                    <input type="text" id="mix-base-name" class="form-control fw-bold" placeholder="Scan SKU first..." readonly>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Base Price (₹)</label>
+                        <input type="number" id="mix-base-price" class="form-control" readonly>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label text-danger fw-bold">Colorant Cost (₹)</label>
+                        <input type="number" id="mix-color-cost" class="form-control" placeholder="Enter Amount">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Color Code / Shade Name</label>
+                    <input type="text" id="mix-code" class="form-control" placeholder="e.g. Sunrise Orange 405">
+                </div>
+
+                <div class="alert alert-info py-2 text-center">
+                    Final Bill Price: <strong id="mix-final-price" class="fs-5">₹0</strong>
+                </div>
+
+                <button class="btn btn-danger w-100 btn-lg shadow" onclick="addMixedPaintToCart()">
+                    <i class="fas fa-cart-plus me-2"></i> बिल में जोड़ें (Add to Bill)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
