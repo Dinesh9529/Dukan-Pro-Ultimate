@@ -2,207 +2,262 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dukan Pro Mobile Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dukan Pro Scanner</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; flex-direction: column; }
-        #container { width: 100%; max-width: 400px; background-color: #1e293b; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); text-align: center; }
-        input[type="text"] { background-color: #334155; border: 1px solid #475569; color: #f1f5f9; text-align: center; font-size: 1.8rem; letter-spacing: 4px; }
-        button { background-color: #0ea5e9; transition: background-color 0.2s; }
-        button:hover { background-color: #0284c7; }
-        .status { min-height: 1.5rem; margin-top: 1rem; font-weight: 600; }
-        /* 🚀 कैमरा के लिए स्टाइल जोड़ें */
-        #qr-reader { width: 100%; margin-top: 1rem; border-radius: 0.5rem; overflow: hidden; background-color: #000; }
-        #qr-reader video { width: 100% !important; height: auto !important; }
-        .hidden { display: none; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .scanner-container { position: relative; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        /* कोड इनपुट स्टाइल */
+        .code-input { letter-spacing: 0.5em; font-size: 1.5rem; text-align: center; background: #1e293b; border: 2px solid #334155; color: white; transition: all 0.3s; }
+        .code-input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        /* स्कैन इफेक्ट */
+        .scan-region-highlight { border: 2px solid rgba(255, 255, 0, 0.5) !important; box-shadow: 0 0 20px rgba(255, 255, 0, 0.3); }
+        .hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-    <div id="container">
-        <div id="connection-section">
-             <h1 class="text-xl font-bold mb-3">POS से कनेक्ट करें</h1>
-             <p class="text-gray-400 mb-4 text-sm">कंप्यूटर स्क्रीन पर दिख रहा 6 अंकों का कोड दर्ज करें:</p>
-             <input type="text" id="pairing-code-input" maxlength="6" pattern="\d{6}" required placeholder="------" class="w-full p-3 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500">
-             <button id="connect-button" class="w-full py-2 px-4 rounded-lg text-white font-bold text-md">कनेक्ट करें</button>
-             <div id="status-message" class="status text-yellow-400 mt-3">&nbsp;</div>
+    <div class="mb-6 text-center">
+        <h1 class="text-2xl font-bold text-white flex items-center justify-center gap-2">
+            <i class="fas fa-barcode text-blue-500"></i> Dukan Pro <span class="text-blue-500">Scanner</span>
+        </h1>
+        <p class="text-slate-400 text-sm mt-1">Fast & Secure Mobile Scanning</p>
+    </div>
+
+    <div id="connection-section" class="w-full max-w-md bg-slate-800 p-6 rounded-2xl shadow-2xl fade-in border border-slate-700">
+        <div class="text-center mb-6">
+            <div class="bg-blue-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-link text-2xl text-blue-500"></i>
+            </div>
+            <h2 class="text-xl font-semibold text-white">POS से कनेक्ट करें</h2>
+            <p class="text-slate-400 text-sm mt-2">कंप्यूटर स्क्रीन पर दिख रहा 6 अंकों का कोड दर्ज करें:</p>
         </div>
 
-        <div id="scanning-section" class="hidden">
-             <h1 class="text-xl font-bold mb-3">प्रोडक्ट स्कैन करें</h1>
-             <div id="qr-reader"></div>
-             <div id="scan-feedback" class="status text-yellow-400 mt-3">स्कैन करने के लिए तैयार...</div>
-             <button id="disconnect-button" class="w-full mt-4 py-2 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-md">डिस्कनेक्ट करें</button>
+        <input type="tel" id="pairing-code-input" maxlength="6" inputmode="numeric" placeholder="• • • • • •" class="code-input w-full p-4 rounded-xl mb-5">
+
+        <button id="connect-button" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+            <span>कनेक्ट करें</span> <i class="fas fa-arrow-right"></i>
+        </button>
+
+        <div id="status-message" class="text-center mt-4 text-sm font-medium min-h-[20px] text-slate-400"></div>
+    </div>
+
+    <div id="scanning-section" class="w-full max-w-md bg-slate-800 p-4 rounded-2xl shadow-2xl hidden fade-in border border-slate-700">
+        
+        <div class="flex justify-between items-center mb-4 px-2">
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span class="text-green-400 text-sm font-bold">कनेक्टेड</span>
+            </div>
+            <button id="disconnect-button" class="text-xs bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 py-1.5 px-3 rounded-lg transition-colors border border-slate-600">
+                <i class="fas fa-power-off me-1"></i> बंद करें
+            </button>
         </div>
+
+        <div id="qr-reader" class="scanner-container w-full h-[300px] mb-4"></div>
+
+        <div class="bg-slate-900/50 rounded-xl p-4 text-center border border-slate-700">
+            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Last Scanned</p>
+            <div id="scan-feedback" class="text-xl font-mono font-bold text-white break-all">...</div>
+        </div>
+
+        <p class="text-center text-slate-500 text-xs mt-4">कैमरा बारकोड की ओर रखें</p>
     </div>
 
 <script>
     // --- CONFIGURATION ---
-    const BACKEND_URL = 'https://dukan-pro-ultimate.onrender.com'; 
+    const BACKEND_URL = 'https://dukan-pro-ultimate-1.onrender.com'; // आपका बैकएंड URL
     let scannerSocket = null;
-    let html5QrCode = null; // कैमरा ऑब्जेक्ट
-    let lastScanTime = 0;
+    let html5QrCode = null;
+    let isScanningPaused = false; // स्कैनिंग को रोकने के लिए फ्लैग
 
-    const connectionSection = document.getElementById('connection-section');
-    const scanningSection = document.getElementById('scanning-section');
-    
-    const codeInput = document.getElementById('pairing-code-input');
-    const connectButton = document.getElementById('connect-button');
-    const statusMessage = document.getElementById('status-message');
-    
-    const qrReaderDiv = document.getElementById('qr-reader');
-    const scanFeedback = document.getElementById('scan-feedback');
-    const disconnectButton = document.getElementById('disconnect-button');
+    // Elements
+    const els = {
+        connectSec: document.getElementById('connection-section'),
+        scanSec: document.getElementById('scanning-section'),
+        input: document.getElementById('pairing-code-input'),
+        btnConnect: document.getElementById('connect-button'),
+        status: document.getElementById('status-message'),
+        scanFeedback: document.getElementById('scan-feedback'),
+        btnDisconnect: document.getElementById('disconnect-button')
+    };
 
-
-    function updateStatus(message, isError = false, target = 'status') {
-        const el = target === 'scan' ? scanFeedback : statusMessage;
-        el.textContent = message;
-        el.className = `status ${isError ? 'text-red-400' : 'text-green-400'}`;
-    }
-    
-    function flashScanFeedback(message) {
-         scanFeedback.textContent = message;
-         setTimeout(() => {
-             if (scanningSection.classList.contains('hidden') === false) {
-                 scanFeedback.textContent = "स्कैन करने के लिए तैयार...";
-             }
-         }, 2000);
-    }
-
-    // 🚀 कैमरा शुरू करने का फ़ंक्शन
-    function startCamera() {
-        if (html5QrCode && html5QrCode.isScanning) return; // पहले से चल रहा है
-        
-        html5QrCode = new Html5Qrcode("qr-reader");
-        updateStatus("कैमरा शुरू हो रहा है...", false, 'scan');
-
-        const onScanSuccess = (decodedText, decodedResult) => {
-            const now = Date.now();
-            if (now - lastScanTime < 3000) return;
-            lastScanTime = now;
-            const sku = decodedText.trim();
-            flashScanFeedback(`स्कैन किया गया: ${sku}`);
-            if (scannerSocket && scannerSocket.readyState === WebSocket.OPEN) {
-                scannerSocket.send(JSON.stringify({ type: 'SCAN_SKU', sku: sku }));
-            }
-        };
-
-        Html5Qrcode.getCameras().then(devices => {
-            if (devices && devices.length) {
-                let cameraId = devices.length > 1 
-                    ? (devices.find(d => d.label.toLowerCase().includes('back')) || devices[devices.length - 1]).id
-                    : devices[0].id;
-                
-                html5QrCode.start(
-                    cameraId, 
-                    { fps: 5, qrbox: { width: 250, height: 150 } },
-                    onScanSuccess,
-                    (error) => { /* Ignore 'No QR code found' */ }
-                ).then(() => {
-                    updateStatus("स्कैन करने के लिए तैयार...", false, 'scan');
-                }).catch(err => {
-                    updateStatus(`कैमरा शुरू करने में विफल: ${err}`, true, 'scan');
-                });
-            } else {
-                 updateStatus('कोई कैमरा नहीं मिला।', true, 'scan');
-            }
-        }).catch(err => {
-             updateStatus(`कैमरा खोजने में विफल: ${err}`, true, 'scan');
-        });
+    // --- SOUND EFFECT (BEEP) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime); // Frequency 1000Hz
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1); // 100ms duration
     }
 
-    // 🚀 कैमरा रोकने का फ़ंक्शन
-    function stopCamera() {
-        if (html5QrCode && html5QrCode.isScanning) {
-            html5QrCode.stop().catch(err => console.warn("कैमरा रोकने में त्रुटि:", err));
+    // --- UI HELPERS ---
+    function setStatus(msg, type = 'normal') {
+        els.status.innerHTML = msg;
+        els.status.className = `text-center mt-4 text-sm font-medium min-h-[20px] ${type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-400' : 'text-slate-400'}`;
+    }
+
+    function toggleScreen(screen) {
+        if (screen === 'scan') {
+            els.connectSec.classList.add('hidden');
+            els.scanSec.classList.remove('hidden');
+        } else {
+            els.scanSec.classList.add('hidden');
+            els.connectSec.classList.remove('hidden');
         }
     }
 
-    // WebSocket कनेक्शन
-    function connectWebSocket(pairCode) {
-        if (scannerSocket) scannerSocket.close();
-        updateStatus("कनेक्ट हो रहा है...");
-        connectButton.disabled = true;
-        connectButton.textContent = "कनेक्ट हो रहा है...";
+    // --- WEBSOCKET LOGIC ---
+    function connectWebSocket(code) {
+        setStatus('<i class="fas fa-circle-notch fa-spin"></i> कनेक्ट हो रहा है...', 'normal');
+        els.btnConnect.disabled = true;
+        els.btnConnect.classList.add('opacity-50');
 
         const wsUrl = BACKEND_URL.replace('https', 'wss').replace('http', 'ws');
         scannerSocket = new WebSocket(wsUrl);
 
         scannerSocket.onopen = () => {
-            scannerSocket.send(JSON.stringify({ type: 'REGISTER_SCANNER', pairCode: pairCode }));
+            console.log("WS Connected");
+            scannerSocket.send(JSON.stringify({ type: 'REGISTER_SCANNER', pairCode: code }));
         };
 
         scannerSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            switch (data.type) {
-                case 'SCANNER_PAIRED':
-                    updateStatus("✅ कनेक्टेड!"); // कनेक्शन स्टेटस दिखाएँ
-                    connectionSection.classList.add('hidden'); // कनेक्शन UI छिपाएँ
-                    scanningSection.classList.remove('hidden'); // स्कैनिंग UI दिखाएँ
-                    startCamera(); // 🚀 कैमरा शुरू करें
-                    break;
-                case 'POS_DISCONNECTED':
-                    updateStatus("POS डिस्कनेक्ट हो गया।", true);
-                    showConnectionUI();
-                    break;
-                case 'ERROR':
-                    updateStatus("त्रुटि: " + data.message, true);
-                    connectButton.disabled = false;
-                    connectButton.textContent = "कनेक्ट करें";
-                    break;
+            if (data.type === 'SCANNER_PAIRED') {
+                setStatus('कनेक्ट हो गया!', 'success');
+                toggleScreen('scan');
+                startCamera();
+            } else if (data.type === 'ERROR') {
+                setStatus(`<i class="fas fa-exclamation-circle"></i> ${data.message}`, 'error');
+                resetConnectBtn();
+                scannerSocket.close();
+            } else if (data.type === 'POS_DISCONNECTED') {
+                alert("कंप्यूटर डिस्कनेक्ट हो गया!");
+                stopCamera();
+                toggleScreen('connect');
+                resetConnectBtn();
             }
+        };
+
+        scannerSocket.onerror = () => {
+            setStatus('सर्वर एरर! इंटरनेट चेक करें।', 'error');
+            resetConnectBtn();
         };
 
         scannerSocket.onclose = () => {
-             console.log("Scanner WebSocket Disconnected");
-             showConnectionUI(); // कनेक्शन UI दिखाएँ
-             if (statusMessage.textContent === "✅ कनेक्टेड!") { // अगर कनेक्टेड था
-                  updateStatus("कनेक्शन टूट गया।", true);
-             }
+            console.log("WS Closed");
+            // अगर स्कैन स्क्रीन खुली है तो ही रिसेट करें
+            if (!els.scanSec.classList.contains('hidden')) {
+                // optional: auto reconnect logic can go here
+            }
         };
-        
-        scannerSocket.onerror = (error) => {
-             console.error("WebSocket Error:", error);
-             updateStatus("कनेक्शन त्रुटि।", true);
-             showConnectionUI();
-        };
-    }
-    
-    // 🚀 कनेक्शन UI दिखाने का फ़ंक्शन
-    function showConnectionUI() {
-         stopCamera(); // कैमरा बंद करें
-         connectionSection.classList.remove('hidden');
-         scanningSection.classList.add('hidden');
-         connectButton.disabled = false;
-         connectButton.textContent = "कनेक्ट करें";
-         codeInput.disabled = false;
-         codeInput.value = ""; // कोड इनपुट साफ़ करें
     }
 
-    // --- INITIALIZATION ---
-    window.onload = function() {
-        connectButton.addEventListener('click', () => {
-            const code = codeInput.value.trim();
-            if (code.length === 6 && /^\d{6}$/.test(code)) {
-                connectWebSocket(code);
-            } else {
-                updateStatus("कृपया 6 अंकों का कोड दर्ज करें।", true);
+    function resetConnectBtn() {
+        els.btnConnect.disabled = false;
+        els.btnConnect.classList.remove('opacity-50');
+    }
+
+    // --- CAMERA LOGIC ---
+    function startCamera() {
+        if (html5QrCode) return; // पहले से चल रहा है
+
+        html5QrCode = new Html5Qrcode("qr-reader");
+        const config = { 
+            fps: 10, 
+            qrbox: { width: 250, height: 150 }, // Rectangular box for barcodes
+            aspectRatio: 1.0 
+        };
+
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => {
+                // Successful Scan
+                if (isScanningPaused) return;
+
+                isScanningPaused = true; // स्कैन रोकें (Debounce)
+                playBeep(); // 🔊 Beep Sound
+                
+                // UI Feedback
+                els.scanFeedback.innerText = decodedText;
+                els.scanFeedback.classList.add('text-green-400');
+                
+                // Send to Server
+                if (scannerSocket && scannerSocket.readyState === WebSocket.OPEN) {
+                    scannerSocket.send(JSON.stringify({ type: 'SCAN_SKU', sku: decodedText }));
+                }
+
+                // 1.5 सेकंड बाद फिर से स्कैन करने दें
+                setTimeout(() => {
+                    isScanningPaused = false;
+                    els.scanFeedback.classList.remove('text-green-400');
+                }, 1500);
+            },
+            (errorMessage) => {
+                // Scanning... (Do nothing)
             }
+        ).catch(err => {
+            console.error(err);
+            els.scanFeedback.innerText = "कैमरा परमिशन दें!";
+            els.scanFeedback.classList.add('text-red-400');
         });
-        
-        codeInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') connectButton.click(); });
-        
-        disconnectButton.addEventListener('click', () => {
-             if (scannerSocket) scannerSocket.close();
-             showConnectionUI();
-             updateStatus("डिस्कनेक्ट किया गया।");
-        });
-    };
-    
+    }
+
+    function stopCamera() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode.clear();
+                html5QrCode = null;
+            }).catch(err => console.log(err));
+        }
+    }
+
+    // --- EVENT LISTENERS ---
+    els.btnConnect.addEventListener('click', () => {
+        const code = els.input.value.trim();
+        if (code.length === 6) {
+            connectWebSocket(code);
+        } else {
+            setStatus('कृपया 6 अंकों का कोड डालें', 'error');
+        }
+    });
+
+    els.input.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') els.btnConnect.click();
+    });
+
+    els.btnDisconnect.addEventListener('click', () => {
+        if (confirm("क्या आप डिस्कनेक्ट करना चाहते हैं?")) {
+            if (scannerSocket) scannerSocket.close();
+            stopCamera();
+            toggleScreen('connect');
+            resetConnectBtn();
+            els.input.value = '';
+            setStatus('');
+        }
+    });
+
+    // Auto Focus input on load
+    window.onload = () => els.input.focus();
+
 </script>
 </body>
 </html>
