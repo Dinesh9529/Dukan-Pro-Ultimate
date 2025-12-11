@@ -6293,7 +6293,13 @@ app.post('/api/paint/save-formula', authenticateToken, async (req, res) => {
     }
 });
 
-
+// ==========================================
+// 📱 MOBILE SCANNER HTML ROUTE (MISSING FIX)
+// ==========================================
+app.get('/mobile_scanner.html', (req, res) => {
+    // यह लाइन mobile_scanner.html फ़ाइल को ढूँढकर ब्राउज़र को भेजती है
+    res.sendFile(path.join(__dirname, 'mobile_scanner.html'));
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
