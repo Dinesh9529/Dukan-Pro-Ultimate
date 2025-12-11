@@ -1016,13 +1016,14 @@ const authenticateJWT = async (req, res, next) => {
     if (authHeader) {
         const token = authHeader.split(' ')[1];
         try {
-            // 1. टोकन डिकोड करें
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+            // ✅ UPDATE: यहाँ 'default_secret' हटाकर 'secret_key' किया गया है
+            // ताकि Login और Data Fetch दोनों की चाबी (Key) एक हो जाए।
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
 
-            // 2. 🚀 REAL-TIME CHECK: डेटाबेस से ताज़ा स्टेटस लाएँ
+            // --- 2. 🚀 REAL-TIME CHECK (पुराना लॉजिक सुरक्षित है) ---
             const client = await pool.connect();
             try {
-                // 🔴 FIX: 's.status as shop_status' को यहाँ जोड़ा गया है
+                // 🔴 FIX: 's.status as shop_status' को Query में रखा गया है
                 const freshData = await client.query(
                     `SELECT s.plan_type, s.add_ons, s.license_expiry_date, s.status as shop_status, u.status, u.role 
                      FROM shops s 
@@ -1034,7 +1035,7 @@ const authenticateJWT = async (req, res, next) => {
                 if (freshData.rows.length > 0) {
                     const fresh = freshData.rows[0];
 
-                    // 🛑 BLOCK CHECK: अगर दुकान ब्लॉक है, तो यहीं रोक दें
+                    // 🛑 BLOCK CHECK: पुराना लॉजिक बरकरार है
                     if (fresh.shop_status === 'blocked') {
                         return res.status(403).json({ 
                             success: false, 
@@ -1042,7 +1043,7 @@ const authenticateJWT = async (req, res, next) => {
                         });
                     }
 
-                    // टोकन के पुराने डेटा को ताज़ा डेटा से बदलें
+                    // टोकन डेटा रिफ्रेश (पुराना लॉजिक बरकरार)
                     decoded.plan_type = fresh.plan_type;
                     decoded.add_ons = fresh.add_ons;
                     decoded.licenseExpiryDate = fresh.license_expiry_date;
@@ -1069,7 +1070,6 @@ const authenticateJWT = async (req, res, next) => {
         res.status(401).json({ success: false, message: 'अनधिकृत पहुँच।' });
     }
 };
-
 /**
  * Middleware for Role-Based Access Control (RBAC).
  * Role hierarchy: ADMIN (3) > MANAGER (2) > CASHIER (1)
@@ -6245,15 +6245,15 @@ app.get('/api/painters/:id/ledger', authenticateJWT, async (req, res) => {
 // ==========================================
 // 🎨 PAINT FORMULA SAVING API (FIXED 500 ERROR)
 // ==========================================
-app.post('/api/paint/save-formula', authenticateToken, async (req, res) => {
+app.post('/api/paint/save-formula', authenticateJWT, async (req, res) => { // ✅ यहाँ authenticateJWT करें
     try {
         const { customer_name, color_code, base_product, formula_text } = req.body;
-        const shopId = req.user.shopId;
+        const shopId = req.shopId; // ✅ req.user.shopId की जगह req.shopId
 
         if (!customer_name || !color_code) {
             return res.status(400).json({ success: false, message: 'ग्राहक का नाम और कलर कोड जरूरी है।' });
         }
-
+		
         // 1. हम डेटा को JSON फॉर्मेट में तैयार करते हैं (ताकि पुराने और नए दोनों टेबल स्ट्रक्चर में चल जाए)
         const formulaData = JSON.stringify({ note: formula_text });
 
@@ -6307,20 +6307,19 @@ app.get('/mobile_scanner.html', (req, res) => {
 // ==========================================
 app.get('/api/paint/formulas', authenticateJWT, async (req, res) => {
     try {
-        const shopId = req.shopId; // JWT से Shop ID लें
+        const shopId = req.shopId;
+        console.log(`Fetching paint formulas for Shop ID: ${shopId}`); // 🛠️ Debug Log
 
-        // डेटाबेस से पिछले 50 रिकॉर्ड निकालें
+        // डेटाबेस से रिकॉर्ड निकालें
         const result = await pool.query(
             `SELECT * FROM paint_formulas WHERE shop_id = $1 ORDER BY created_at DESC LIMIT 50`,
             [shopId]
         );
 
-        // डेटा को सही फॉर्मेट में बदलें (ताकि frontend समझ सके)
         const formulas = result.rows.map(row => {
-            // अगर पुराना डेटा JSON में है तो उसे टेक्स्ट में बदलें, वरना सीधा टेक्स्ट दिखाएं
             let text = row.formula_text;
+            // JSON fallback logic
             if (!text && row.formula_json) {
-                // अगर JSON है (जैसे {"note": "Red 5ml"}), तो उसे पढ़ें
                 try {
                     const parsed = typeof row.formula_json === 'string' ? JSON.parse(row.formula_json) : row.formula_json;
                     text = parsed.note || parsed.formula || JSON.stringify(parsed);
@@ -6338,10 +6337,7 @@ app.get('/api/paint/formulas', authenticateJWT, async (req, res) => {
 
     } catch (error) {
         console.error('Error fetching paint formulas:', error.message);
-        res.status(500).json({ 
-            success: false, 
-            message: 'डायरी लोड करने में विफल: ' + error.message 
-        });
+        res.status(500).json({ success: false, message: 'Error: ' + error.message });
     }
 });
 
