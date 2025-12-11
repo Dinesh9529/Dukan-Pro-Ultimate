@@ -605,6 +605,21 @@
         /* ======================================================== */
         /* === 🚀 नया CSS यहाँ समाप्त होता है === */
         /* ======================================================== */
+
+/* --- 🚀 FIX: कैमरा और स्कैनर को सबसे ऊपर दिखाने के लिए --- */
+#localScannerModal {
+    z-index: 10000 !important; /* यह लाल बटन वाली स्क्रीन (1050) से बहुत ऊपर रहेगा */
+}
+
+/* अगर बैकड्रॉप (काली स्क्रीन) भी गड़बड़ करे तो उसे भी ठीक करें */
+.modal-backdrop {
+    z-index: 1040; /* डिफॉल्ट */
+}
+/* जब दूसरा मोडल (स्कैनर) खुले, तो उसका बैकड्रॉप ऊपर आए */
+.modal-backdrop:nth-of-type(2) {
+    z-index: 9999 !important;
+}
+
     </style>
 
 </head>
@@ -2988,7 +3003,8 @@
 
 <script>
     
-
+// ग्लोबल वेरिएबल (इसे सबसे ऊपर रखें)
+    let isMixingModeActive = false;
     let posWebSocket = null;
 	let mySalesChart = null;
     let qrCodeDataUrl = null; // 🚀 नया: QR कोड इमेज डेटा रखने के लिए
@@ -3476,93 +3492,85 @@ function initDashboardSocket() {
  async function handleBarcodeScan(skuFromScanner = null) {
     let scannedData;
 
-    // 1. इनपुट सोर्स चेक करें (मोबाइल या कंप्यूटर स्कैनर)
+    // 1. इनपुट सोर्स चेक करें
     if (skuFromScanner) {
         scannedData = skuFromScanner;
     } else {
         const barcodeInput = document.getElementById('barcode-scanner-input');
         if (barcodeInput) {
             scannedData = barcodeInput.value.trim();
-            barcodeInput.value = ''; // इनपुट साफ़ करें
+            barcodeInput.value = ''; 
         }
     }
 
-    if (!scannedData) return; // खाली है तो रुक जाएं
+    if (!scannedData) return; 
 
     // =========================================================
-    // 🚀 NEW UPDATION: पेंट मिक्सिंग (RED BUTTON) लॉजिक
+    // 🚀 NEW: पेंट मिक्सिंग लॉजिक (Safe Mode)
     // =========================================================
     const paintModal = document.getElementById('paintMixingModal');
     
-    // अगर पेंट वाला बॉक्स खुला है (Active है)
-    if (paintModal && paintModal.classList.contains('show')) {
-        
-        // A. पहले चेक करें कि क्या यह SKU हमारे स्टॉक में मौजूद है?
-        // (currentStock आपके पास पहले से लोड है)
-        const existingItem = currentStock.find(s => s.sku === scannedData);
+    // चेक: क्या मोडल खुला है या फ्लैग एक्टिव है?
+    const isPaintOpen = paintModal && (paintModal.classList.contains('show') || (typeof isMixingModeActive !== 'undefined' && isMixingModeActive));
+
+    if (isPaintOpen) {
+        // अगर स्क्रीन गलती से बंद है, तो वापस खोलें
+        if (paintModal && !paintModal.classList.contains('show')) {
+            const modalInstance = new bootstrap.Modal(paintModal);
+            modalInstance.show();
+        }
+
+        // स्टॉक चेक करें
+        const existingItem = (typeof currentStock !== 'undefined') ? currentStock.find(s => s.sku === scannedData) : null;
 
         if (existingItem) {
-            // ✅ CASE 1: आइटम स्टॉक में मिल गया (उसे पकड़ लें)
-            document.getElementById('mix-base-sku').value = scannedData;
+            // ✅ आइटम मिल गया -> लाल स्क्रीन में भरें
+            const baseSkuInput = document.getElementById('mix-base-sku');
+            if(baseSkuInput) baseSkuInput.value = scannedData;
             
-            // नाम और रेट अपने आप भरें
             if (typeof fetchBaseDetails === 'function') {
                 fetchBaseDetails(scannedData);
             }
             
-            showMessage('स्कैन सफल', `बेस: ${existingItem.name} लोड हो गया`, 'success');
+            if (typeof showMessage === 'function') {
+                showMessage('स्कैन सफल', 'बेस: ' + existingItem.name + ' लोड हो गया', 'success');
+            }
 
         } else {
-            // ❌ CASE 2: आइटम स्टॉक में नहीं है (नया जोड़ने का आप्शन दें)
-            
-            // कैमरा बंद करें ताकि अलर्ट/मोडल सही से दिखे
-            if (typeof stopLocalScanner === 'function') { stopLocalScanner(); }
+            // ❌ आइटम नहीं मिला
+            if (typeof stopLocalScanner === 'function') stopLocalScanner();
 
-            if(confirm(`आइटम (SKU: ${scannedData}) स्टॉक में नहीं मिला।\nक्या आप इसे अभी नया जोड़ना चाहते हैं?`)) {
-                
-                // "Quick Add" वाला फॉर्म खोलें
+            if(confirm('आइटम (SKU: ' + scannedData + ') स्टॉक में नहीं मिला।\nक्या आप इसे अभी नया जोड़ना चाहते हैं?')) {
                 const quickModalEl = document.getElementById('quickAddItemModal');
-                const quickAddModal = new bootstrap.Modal(quickModalEl);
-                
-                // फॉर्म को रिसेट करें और स्कैन किया हुआ SKU भर दें
-                document.getElementById('quick-add-item-form').reset();
-                document.getElementById('quick-add-sku').value = scannedData;
-                
-                quickAddModal.show();
-                
-                // कर्सर को नाम पर ले जाएं
-                quickModalEl.addEventListener('shown.bs.modal', () => {
-                    document.getElementById('quick-add-name').focus();
-                }, { once: true });
+                if (quickModalEl) {
+                    const quickAddModal = new bootstrap.Modal(quickModalEl);
+                    document.getElementById('quick-add-item-form').reset();
+                    document.getElementById('quick-add-sku').value = scannedData;
+                    quickAddModal.show();
+                    
+                    quickModalEl.addEventListener('shown.bs.modal', function() {
+                        document.getElementById('quick-add-name').focus();
+                    }, { once: true });
+                }
             }
         }
         
-        // अगर कैमरा अभी भी खुला है (सक्सेस केस में), तो उसे बंद कर दें
-        if (typeof stopLocalScanner === 'function') {
-            stopLocalScanner(); 
-        }
+        // कैमरा बंद करें और फ्लैग हटाएं
+        if (typeof stopLocalScanner === 'function') stopLocalScanner();
+        if (typeof isMixingModeActive !== 'undefined') isMixingModeActive = false;
         
-        // 🛑 यहीं रुक जाएं (नीचे का कोड न चलाएं)
-        return; 
+        return; // पेंट का काम खत्म, यहीं रुकें
     }
-    // =========================================================
-    // 🚀 पेंट लॉजिक ख़त्म - अब नीचे आपका पुराना कोड चलेगा
-    // =========================================================
-
 
     // =========================================================
-    // 🧠 MODE 1: SMART QR (JSON DATA) - AUTO ENTRY
+    // 🚀 Normal Billing / Smart QR Logic (Old Code)
     // =========================================================
     if (scannedData.startsWith('{') && scannedData.endsWith('}')) {
         try {
             const itemData = JSON.parse(scannedData);
-
-            // वैलिडेशन: क्या इसमें ज़रूरी डेटा है?
             if (itemData.sku && itemData.name && itemData.sale_price) {
+                if(typeof showLoader === 'function') showLoader('Smart QR Processing...');
                 
-                showLoader('Smart QR! आइटम प्रोसेस हो रहा है...');
-
-                // A. सर्वर पर आइटम सेव/अपडेट करें
                 try {
                     const res = await fetchApi('/api/stock', {
                         method: 'POST',
@@ -3571,7 +3579,7 @@ function initDashboardSocket() {
                             name: itemData.name,
                             sale_price: itemData.sale_price,
                             purchase_price: itemData.purchase_price || 0,
-                            quantity: 1, // डिफ़ॉल्ट स्टॉक
+                            quantity: 1,
                             unit: 'Pcs',
                             product_attributes: {
                                 "Size": itemData.size || "N/A",
@@ -3580,78 +3588,57 @@ function initDashboardSocket() {
                         }
                     }, null);
 
-                    // B. लोकल स्टॉक लिस्ट अपडेट करें
                     const finalItem = (res.success && res.stock) ? res.stock : itemData;
-                    const existingIdx = currentStock.findIndex(s => s.sku === finalItem.sku);
-                    if (existingIdx > -1) {
-                        currentStock[existingIdx] = { ...currentStock[existingIdx], ...finalItem };
-                    } else {
-                        currentStock.push(finalItem);
+                    if(typeof currentStock !== 'undefined') {
+                        const existingIdx = currentStock.findIndex(s => s.sku === finalItem.sku);
+                        if (existingIdx > -1) currentStock[existingIdx] = { ...currentStock[existingIdx], ...finalItem };
+                        else currentStock.push(finalItem);
                     }
-
-                } catch (serverError) {
-                    console.log("सर्वर एंट्री स्किप हुई, कार्ट में सीधे जोड़ रहे हैं...");
-                    const tempItem = {
-                        ...itemData,
-                        quantity: 100,
-                        product_attributes: { "Size": itemData.size, "Color": itemData.color }
-                    };
-                    currentStock.push(tempItem);
+                } catch (err) {
+                    console.log("Server save skipped, adding to local cart.");
+                    if(typeof currentStock !== 'undefined') {
+                        currentStock.push({...itemData, quantity: 100});
+                    }
                 }
 
-                // C. अंत में: आइटम को सीधे कार्ट में डालें
-                addSKUToCart(itemData.sku);
-                
-                hideLoader();
-                showMessage('सफलता', 'Smart QR: आइटम कार्ट में जुड़ गया!', 'success');
-                return; // यहाँ काम खत्म, बाहर निकलें
+                if(typeof addSKUToCart === 'function') addSKUToCart(itemData.sku);
+                if(typeof hideLoader === 'function') hideLoader();
+                if(typeof showMessage === 'function') showMessage('सफलता', 'Smart QR Added!', 'success');
+                return;
             }
         } catch (e) {
-            console.warn("QR JSON पार्स नहीं हुआ, साधारण बारकोड की तरह ट्राई कर रहे हैं...", e);
+            console.warn("QR JSON Parse Error", e);
         }
     }
 
-    // =========================================================
-    // 🔍 MODE 2: STANDARD BARCODE (DATABASE CHECK)
-    // =========================================================
+    // Standard Barcode Check
     try {
-        const stockItem = await fetchApi(`/api/get-stock-item/${scannedData}`, { method: 'GET' }, null);
+        const stockItem = await fetchApi('/api/get-stock-item/' + scannedData, { method: 'GET' }, null);
 
         if (stockItem.success) {
-            // आइटम मिल गया -> कार्ट में डालें
-            addSKUToCart(scannedData);
+            if(typeof addSKUToCart === 'function') addSKUToCart(scannedData);
         } else {
             throw new Error(stockItem.message);
         }
 
     } catch (error) {
-        // =====================================================
-        // ➕ MODE 3: UNKNOWN ITEM (QUICK ADD FORM)
-        // =====================================================
-        // अगर 404 है, तो इसका मतलब आइटम नया है
         if (error.message.includes('404') || error.message.includes('नहीं मिला')) {
-            
-            // "Quick Add" वाला फॉर्म खोलें
             const modalElement = document.getElementById('quickAddItemModal');
-            const quickAddModal = new bootstrap.Modal(modalElement);
-
-            // फॉर्म को साफ़ करें और SKU भरें
-            document.getElementById('quick-add-item-form').reset();
-            document.getElementById('quick-add-sku').value = scannedData;
-
-            quickAddModal.show();
-
-            // कर्सर को सीधे "Item Name" पर रखें
-            modalElement.addEventListener('shown.bs.modal', () => {
-                document.getElementById('quick-add-name').focus();
-            }, { once: true });
-
+            if (modalElement) {
+                const quickAddModal = new bootstrap.Modal(modalElement);
+                document.getElementById('quick-add-item-form').reset();
+                document.getElementById('quick-add-sku').value = scannedData;
+                quickAddModal.show();
+                modalElement.addEventListener('shown.bs.modal', function() {
+                    document.getElementById('quick-add-name').focus();
+                }, { once: true });
+            }
         } else {
-            // कोई और तकनीकी खराबी
-            showMessage('त्रुटि', `स्कैन एरर: ${error.message}`, 'danger');
+            if(typeof showMessage === 'function') showMessage('त्रुटि', 'Scan Error: ' + error.message, 'danger');
         }
     }
 }
+
 
    // [ ✅ Is Poore Naye Code ko Line 2290 par Paste Karein ]
 
@@ -10322,44 +10309,43 @@ function addSKUToCartFromMix(mixedItem) {
 // 📷 NEW: PAINT MIXING SCANNER BUTTON
 // ==========================================
 function openMobileScannerForMix() {
-    console.log("Scanner button clicked. Checking device type...");
+    console.log("Scanner button clicked for Mixing...");
+
+    // 🚀 NEW: मिक्सिंग मोड एक्टिव करें
+    isMixingModeActive = true; 
 
     if (isMobile()) {
-        // ✅ CASE A: अगर यूजर मोबाइल पर है -> डायरेक्ट कैमरा खोलें
         console.log("Mobile detected. Opening Local Camera...");
-        
-        // 1. अगर OTP वाला बॉक्स खुला रह गया हो, तो उसे छिपा दें
         const paintOtpBox = document.getElementById('paint-otp-box');
         if (paintOtpBox) paintOtpBox.style.display = 'none';
-
-        // 2. लोकल कैमरा शुरू करें
-        startLocalScanner(); 
+        
+        // कैमरा शुरू करें
+        if (typeof startLocalScanner === 'function') {
+            startLocalScanner(); 
+        } else {
+            alert("Error: startLocalScanner function not found!");
+        }
 
     } else {
-        // ✅ CASE B: अगर यूजर कंप्यूटर पर है -> OTP कोड दिखाएं
-        console.log("PC detected. Generating OTP for Pairing...");
-
+        console.log("PC detected. Generating OTP...");
         const paintOtpBox = document.getElementById('paint-otp-box');
         const paintSpinner = document.getElementById('paint-otp-spinner');
         const paintCode = document.getElementById('paint-otp-code');
         const paintStatus = document.getElementById('paint-otp-status');
 
-        // 1. लाल बटन के नीचे वाला OTP बॉक्स दिखाएं
         if (paintOtpBox) {
             paintOtpBox.style.display = 'block';
-            
-            // स्पिनर दिखाएं, पुराना कोड हटाएं
             if (paintSpinner) paintSpinner.style.display = 'inline-block';
             if (paintCode) paintCode.innerText = '------';
             if (paintStatus) paintStatus.style.display = 'none';
         }
 
-        // 2. पुराना (POS वाला) बॉक्स छिपा दें ताकि कंफ्यूजन न हो
         const posBox = document.getElementById('inline-pairing-box');
         if (posBox) posBox.style.display = 'none';
 
-        // 3. WebSocket शुरू करें (यह सर्वर से कोड मंगाएगा)
-        initPosWebSocket(); 
+        if (typeof initPosWebSocket === 'function') {
+            initPosWebSocket(); 
+        }
     }
 }
 
