@@ -6982,15 +6982,23 @@ function removeShopLogo() {
     
     // NEW: Setup listeners for all new forms and buttons
     function setupNewFormHandlers() {
-        // Product Sales Report Button
-        document.getElementById('fetch-product-sales-report-btn').addEventListener('click', async () => {
+    
+    // ============================================================
+    // 1. PRODUCT SALES REPORT BUTTON (REPORT LOGIC)
+    // ============================================================
+    const reportBtn = document.getElementById('fetch-product-sales-report-btn');
+    if (reportBtn) {
+        reportBtn.addEventListener('click', async () => {
             const startDate = document.getElementById('product-report-start-date').value;
             const endDate = document.getElementById('product-report-end-date').value;
+            
             if (!startDate || !endDate) {
                 return showMessage('तारीख चुनें', 'कृपया तारीख चुनें।', 'warning');
             }
+            
             const tableBody = document.getElementById('product-sales-report-body');
             tableBody.innerHTML = `<tr><td colspan="6" class="text-center">रिपोर्ट लोड हो रही है...</td></tr>`;
+            
             try {
                 const res = await fetchApi(`/api/reports/product-sales?startDate=${startDate}&endDate=${endDate}`, { method: 'GET' });
                 if (res.success && res.report.length > 0) {
@@ -7007,11 +7015,16 @@ function removeShopLogo() {
                         </tr>
                     `).join('');
                 } else {
-                     tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">इस अवधि में कोई बिक्री नहीं मिली।</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">इस अवधि में कोई बिक्री नहीं मिली।</td></tr>`;
                 }
-            } catch (e) { tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`; }
+            } catch (e) { 
+                tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`; 
+            }
         });
-        
+    }
+
+   
+
         // GST Report Buttons
         const gstResultEl = document.getElementById('gst-report-result');
         const gstTitleEl = document.getElementById('gst-report-title');
@@ -7363,6 +7376,8 @@ function removeShopLogo() {
         document.getElementById('download-product-sales-csv-btn').addEventListener('click', () => handleBackupDownloads('csv'));
         // [ ✅ Is Naye Code ko Line 2915 par Paste Karein ]
 
+
+
 // Naya "Manual Entry" Button Listener (Point 3 & 5)
 document.getElementById('manual-add-item-btn').addEventListener('click', async () => {
     try {
@@ -7571,6 +7586,33 @@ document.getElementById('add-custom-field-btn').addEventListener('click', () => 
 });
 
 // removeCustomField फ़ंक्शन की अब ज़रूरत नहीं है, इसलिए उसे हटा दिया गया है।
+
+
+ // ============================================================
+    // 🚀 2. FIX: लाल स्क्रीन (Paint Modal) वाला कोड - अब यह बाहर है
+    // ============================================================
+    const paintModalElement = document.getElementById('paintMixingModal');
+    if (paintModalElement) {
+        // यह लिस्नर अब पेज लोड होते ही सेट हो जाएगा
+        paintModalElement.addEventListener('hidden.bs.modal', function () {
+            console.log("Paint Modal Closed. Resetting Mixing Mode.");
+            
+            // ✅ फ्लैग रिसेट करें
+            if (typeof isMixingModeActive !== 'undefined') {
+                isMixingModeActive = false; 
+            }
+            
+            // ✅ फॉर्म साफ़ करें
+            if(document.getElementById('mix-base-sku')) document.getElementById('mix-base-sku').value = '';
+            if(document.getElementById('mix-base-name')) document.getElementById('mix-base-name').value = '';
+            if(document.getElementById('mix-base-price')) document.getElementById('mix-base-price').value = '';
+            if(document.getElementById('mix-code')) document.getElementById('mix-code').value = '';
+            if(document.getElementById('mix-color-cost')) document.getElementById('mix-color-cost').value = '';
+            if(document.getElementById('mix-final-price')) document.getElementById('mix-final-price').innerText = '₹0';
+            if(document.getElementById('mix-stock-status')) document.getElementById('mix-stock-status').innerText = '';
+        });
+    }
+
 
 
 
