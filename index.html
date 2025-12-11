@@ -2995,11 +2995,16 @@
     let isWaitingForQr = false; // 🚀 नया: बताएगा कि QR का इंतज़ार हो रहा है
     
     function isMobile() {
-        try {
-            if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
-        } catch (e) { /* जारी रखें */ }
-        return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    }
+    // अगर ब्राउज़र खुद बताता है कि यह मोबाइल है
+    try {
+        if (navigator.userAgentData && navigator.userAgentData.mobile) {
+            return true;
+        }
+    } catch (e) {}
+
+    // या फिर UserAgent स्ट्रिंग चेक करें (Android, iPhone, etc.)
+    return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
     
    
 // [ initPosWebSocket फ़ंक्शन को इस कोड से बदल दें ]
@@ -3007,14 +3012,8 @@
 // [ यह initPosWebSocket फ़ंक्शन का नया कोड है ]
 
 function initPosWebSocket() {
+    // अगर कनेक्शन पहले से खुला है, तो नया कोड मांगें और बाहर आ जाएं
     if (posWebSocket && posWebSocket.readyState === WebSocket.OPEN) {
-        // अगर पहले से खुला है, तो बस नया कोड माँगें और UI रीसेट करें
-        const spinner = document.getElementById('inline-pairing-spinner');
-        const codeDisplay = document.getElementById('inline-pairing-code');
-        const statusDisplay = document.getElementById('inline-pairing-status');
-        if(spinner) spinner.style.display = 'inline-block';
-        if(codeDisplay) codeDisplay.textContent = '------';
-        if(statusDisplay) statusDisplay.style.display = 'none';
         posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
         return;
     }
@@ -3027,74 +3026,99 @@ function initPosWebSocket() {
         posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
     };
 
-   // [ पुराना onmessage बदलें ]
-posWebSocket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+    posWebSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
 
-    // इनलाइन एलिमेंट्स को ढूँढें
-    const codeDisplay = document.getElementById('inline-pairing-code');
-    const spinner = document.getElementById('inline-pairing-spinner');
-    const statusDisplay = document.getElementById('inline-pairing-status');
-    const inlineBox = document.getElementById('inline-pairing-box'); // Need inlineBox too
+        // =========================================================
+        // 🚀 NEW LOGIC: चेक करें कि क्या "पेंट मिक्सिंग" विंडो खुली है?
+        // =========================================================
+        const paintModal = document.getElementById('paintMixingModal');
+        const isPaintMode = paintModal && paintModal.classList.contains('show');
 
-    // सुरक्षा जाँच
-    if (!codeDisplay || !spinner || !statusDisplay || !inlineBox) { // Check all 4
-         console.error("❌ Fatal Error: Inline pairing elements missing in onmessage!");
-         return; 
-    }
+        // --- 1. पुराने (POS Inline) स्कैनर के एलिमेंट्स ---
+        const inlineCode = document.getElementById('inline-pairing-code');
+        const inlineSpinner = document.getElementById('inline-pairing-spinner');
+        const inlineStatus = document.getElementById('inline-pairing-status');
+        const inlineBox = document.getElementById('inline-pairing-box');
 
-    switch (data.type) {
-        case 'PAIR_CODE_GENERATED':
-            console.log("PAIR_CODE_GENERATED प्राप्त हुआ:", data.pairCode);
-            codeDisplay.textContent = data.pairCode; // कोड सेट करें
-            spinner.style.display = 'none'; // स्पिनर छिपाएँ
-            statusDisplay.style.display = 'none'; 
-            codeDisplay.style.display = 'inline-block'; // सुनिश्चित करें कि कोड दिखे
-            inlineBox.style.display = 'block'; // सुनिश्चित करें कि बॉक्स दिखे
-            break;
+        // --- 2. नए (Paint OTP Box) के एलिमेंट्स ---
+        // (नोट: हमने HTML में इनके ID 'paint-otp-...' रखे थे)
+        const paintBox = document.getElementById('paint-otp-box');
+        const paintCode = document.getElementById('paint-otp-code');
+        const paintSpinner = document.getElementById('paint-otp-spinner');
+        const paintStatus = document.getElementById('paint-otp-status');
 
-        case 'SCANNER_PAIRED':
-            console.log("स्कैनर पेयर हो गया!");
-            spinner.style.display = 'none';
-            codeDisplay.style.display = 'none'; 
-            statusDisplay.style.display = 'block'; 
-            // setTimeout(() => { inlineBox.style.display = 'none'; }, 3000); 
-            break;
+        switch (data.type) {
+            case 'PAIR_CODE_GENERATED':
+                console.log("PAIR_CODE:", data.pairCode);
+                
+                if (isPaintMode) {
+                    // 👉 अगर पेंट स्क्रीन खुली है -> कोड लाल बटन वाले बॉक्स में दिखाएं
+                    if (paintBox) paintBox.style.display = 'block';
+                    if (paintCode) paintCode.innerText = data.pairCode;
+                    if (paintSpinner) paintSpinner.style.display = 'none';
+                    if (paintStatus) paintStatus.style.display = 'none';
 
-        case 'SKU_SCANNED':
-            console.log("SKU प्राप्त हुआ:", data.sku);
-            handleBarcodeScan(data.sku); 
-            break;
+                    // पुराने वाले को छिपा दें ताकि कन्फ्यूजन न हो
+                    if (inlineBox) inlineBox.style.display = 'none';
+                } else {
+                    // 👉 अगर नॉर्मल POS है -> कोड पुराने बॉक्स में दिखाएं
+                    if (inlineBox) inlineBox.style.display = 'block';
+                    if (inlineCode) { inlineCode.textContent = data.pairCode; inlineCode.style.display = 'inline-block'; }
+                    if (inlineSpinner) inlineSpinner.style.display = 'none';
+                    if (inlineStatus) inlineStatus.style.display = 'none';
 
-        case 'SCANNER_DISCONNECTED':
-            console.log("स्कैनर डिस्कनेक्ट हो गया।");
-            if(inlineBox) inlineBox.style.display = 'block'; 
-            spinner.style.display = 'inline-block'; 
-            codeDisplay.textContent = '------'; 
-            codeDisplay.style.display = 'inline-block'; // Re-show display span
-            statusDisplay.style.display = 'none'; 
-            if (posWebSocket && posWebSocket.readyState === WebSocket.OPEN) {
-               posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
-            }
-            break;
-    }
-};
+                    // पेंट वाले को छिपा दें
+                    if (paintBox) paintBox.style.display = 'none';
+                }
+                break;
 
-posWebSocket.onclose = () => {
-        console.log("POS WebSocket Disconnected");
-        posWebSocket = null;
-         const inlineBox = document.getElementById('inline-pairing-box');
-         if(inlineBox) inlineBox.style.display = 'none';
+            case 'SCANNER_PAIRED':
+                console.log("स्कैनर कनेक्ट हो गया!");
+                
+                // दोनों जगहों पर "Success" दिखाएं (ताकि यूजर कहीं भी हो उसे पता चले)
+                if (inlineSpinner) inlineSpinner.style.display = 'none';
+                if (inlineCode) inlineCode.style.display = 'none';
+                if (inlineStatus) { 
+                    inlineStatus.style.display = 'block'; 
+                    inlineStatus.innerHTML = '<i class="fas fa-check-circle"></i> स्कैनर कनेक्टेड!';
+                }
+
+                if (paintSpinner) paintSpinner.style.display = 'none';
+                if (paintStatus) {
+                    paintStatus.style.display = 'block';
+                    paintStatus.innerHTML = '<i class="fas fa-check-circle"></i> कनेक्टेड!';
+                }
+                break;
+
+            case 'SKU_SCANNED':
+                console.log("SKU प्राप्त हुआ:", data.sku);
+                // handleBarcodeScan अपने आप तय करेगा कि एंट्री लाल बटन में जानी है या कार्ट में
+                handleBarcodeScan(data.sku); 
+                break;
+
+            case 'SCANNER_DISCONNECTED':
+                // अगर डिस्कनेक्ट हो जाए, तो दोनों जगहों पर रिसेट करें
+                if (inlineSpinner) inlineSpinner.style.display = 'inline-block';
+                if (inlineCode) { inlineCode.textContent = '------'; inlineCode.style.display = 'inline-block'; }
+                
+                if (paintSpinner) paintSpinner.style.display = 'inline-block';
+                if (paintCode) paintCode.innerText = '------';
+                
+                // नया कोड मांगें
+                if (posWebSocket.readyState === WebSocket.OPEN) {
+                    posWebSocket.send(JSON.stringify({ type: 'REGISTER_POS', token: AppState.token }));
+                }
+                break;
+        }
     };
-    posWebSocket.onerror = (error) => {
-         console.error("WebSocket Error:", error);
-         const inlineBox = document.getElementById('inline-pairing-box');
-         if(inlineBox) {
-             inlineBox.innerHTML = '<p class="text-danger small">कनेक्शन त्रुटि।</p>';
-             inlineBox.style.display = 'block';
-         }
+
+    posWebSocket.onclose = () => {
+        console.log("WebSocket Disconnected");
+        posWebSocket = null;
     };
 }
+
 // [ closePosWebSocket फ़ंक्शन बदलें ]
 function closePosWebSocket() {
     if (posWebSocket) {
@@ -3466,30 +3490,59 @@ function initDashboardSocket() {
     if (!scannedData) return; // खाली है तो रुक जाएं
 
     // =========================================================
-    // 🚀 NEW UPDATION: चेक करें कि क्या "पेंट मिक्सिंग" खुली है?
+    // 🚀 NEW UPDATION: पेंट मिक्सिंग (RED BUTTON) लॉजिक
     // =========================================================
     const paintModal = document.getElementById('paintMixingModal');
     
-    // अगर पेंट वाला बॉक्स खुला है और सामने दिख रहा है (Active है)
+    // अगर पेंट वाला बॉक्स खुला है (Active है)
     if (paintModal && paintModal.classList.contains('show')) {
         
-        // 1. स्कैन किए गए SKU को पेंट वाले बॉक्स में डालें
-        document.getElementById('mix-base-sku').value = scannedData;
-        
-        // 2. अपने आप डिटेल फेच करें (ताकि बेस का नाम और रेट आ जाए)
-        if (typeof fetchBaseDetails === 'function') {
-            fetchBaseDetails(scannedData);
+        // A. पहले चेक करें कि क्या यह SKU हमारे स्टॉक में मौजूद है?
+        // (currentStock आपके पास पहले से लोड है)
+        const existingItem = currentStock.find(s => s.sku === scannedData);
+
+        if (existingItem) {
+            // ✅ CASE 1: आइटम स्टॉक में मिल गया (उसे पकड़ लें)
+            document.getElementById('mix-base-sku').value = scannedData;
+            
+            // नाम और रेट अपने आप भरें
+            if (typeof fetchBaseDetails === 'function') {
+                fetchBaseDetails(scannedData);
+            }
+            
+            showMessage('स्कैन सफल', `बेस: ${existingItem.name} लोड हो गया`, 'success');
+
+        } else {
+            // ❌ CASE 2: आइटम स्टॉक में नहीं है (नया जोड़ने का आप्शन दें)
+            
+            // कैमरा बंद करें ताकि अलर्ट/मोडल सही से दिखे
+            if (typeof stopLocalScanner === 'function') { stopLocalScanner(); }
+
+            if(confirm(`आइटम (SKU: ${scannedData}) स्टॉक में नहीं मिला।\nक्या आप इसे अभी नया जोड़ना चाहते हैं?`)) {
+                
+                // "Quick Add" वाला फॉर्म खोलें
+                const quickModalEl = document.getElementById('quickAddItemModal');
+                const quickAddModal = new bootstrap.Modal(quickModalEl);
+                
+                // फॉर्म को रिसेट करें और स्कैन किया हुआ SKU भर दें
+                document.getElementById('quick-add-item-form').reset();
+                document.getElementById('quick-add-sku').value = scannedData;
+                
+                quickAddModal.show();
+                
+                // कर्सर को नाम पर ले जाएं
+                quickModalEl.addEventListener('shown.bs.modal', () => {
+                    document.getElementById('quick-add-name').focus();
+                }, { once: true });
+            }
         }
         
-        // 3. अगर लोकल कैमरा (Mobile Scanner) खुला था, तो उसे बंद कर दें
+        // अगर कैमरा अभी भी खुला है (सक्सेस केस में), तो उसे बंद कर दें
         if (typeof stopLocalScanner === 'function') {
             stopLocalScanner(); 
         }
         
-        // 4. सक्सेस मैसेज दें
-        showMessage('स्कैन सफल', `बेस SKU: ${scannedData} लोड हो गया`, 'success');
-        
-        // 5. यहीं रुक जाएं (नीचे का कोड न चलाएं, ताकि कार्ट में न जुड़े)
+        // 🛑 यहीं रुक जाएं (नीचे का कोड न चलाएं)
         return; 
     }
     // =========================================================
@@ -3509,7 +3562,7 @@ function initDashboardSocket() {
                 
                 showLoader('Smart QR! आइटम प्रोसेस हो रहा है...');
 
-                // A. सर्वर पर आइटम सेव/अपडेट करें (ताकि अगली बार डेटाबेस में रहे)
+                // A. सर्वर पर आइटम सेव/अपडेट करें
                 try {
                     const res = await fetchApi('/api/stock', {
                         method: 'POST',
@@ -3525,13 +3578,10 @@ function initDashboardSocket() {
                                 "Color": itemData.color || "N/A"
                             }
                         }
-                    }, null); // लोडर मैसेज null रखा है ताकि UI फ्लिकर न करे
+                    }, null);
 
-                    // B. लोकल स्टॉक लिस्ट (currentStock) को अपडेट करें
-                    // अगर सर्वर ने 'duplicate' एरर दिया, तो भी हम itemData का इस्तेमाल करेंगे
+                    // B. लोकल स्टॉक लिस्ट अपडेट करें
                     const finalItem = (res.success && res.stock) ? res.stock : itemData;
-                    
-                    // चेक करें कि क्या यह आइटम लोकल लिस्ट में पहले से है
                     const existingIdx = currentStock.findIndex(s => s.sku === finalItem.sku);
                     if (existingIdx > -1) {
                         currentStock[existingIdx] = { ...currentStock[existingIdx], ...finalItem };
@@ -3540,11 +3590,10 @@ function initDashboardSocket() {
                     }
 
                 } catch (serverError) {
-                    console.log("सर्वर एंट्री स्किप हुई (शायद पहले से मौजूद है), कार्ट में सीधे जोड़ रहे हैं...");
-                    // अगर सर्वर फेल भी हो, तो हम स्मार्ट QR के डेटा पर भरोसा करके आगे बढ़ेंगे
+                    console.log("सर्वर एंट्री स्किप हुई, कार्ट में सीधे जोड़ रहे हैं...");
                     const tempItem = {
                         ...itemData,
-                        quantity: 100, // वर्चुअल स्टॉक
+                        quantity: 100,
                         product_attributes: { "Size": itemData.size, "Color": itemData.color }
                     };
                     currentStock.push(tempItem);
@@ -3559,7 +3608,6 @@ function initDashboardSocket() {
             }
         } catch (e) {
             console.warn("QR JSON पार्स नहीं हुआ, साधारण बारकोड की तरह ट्राई कर रहे हैं...", e);
-            // अगर JSON नहीं है, तो नीचे वाला कोड चलेगा
         }
     }
 
@@ -3603,7 +3651,8 @@ function initDashboardSocket() {
             showMessage('त्रुटि', `स्कैन एरर: ${error.message}`, 'danger');
         }
     }
-}      
+}
+
    // [ ✅ Is Poore Naye Code ko Line 2290 par Paste Karein ]
 
 // Global variable naye (Kadam 7) local scanner ke liye
@@ -5089,9 +5138,6 @@ async function fetchAndRenderStockList() {
         case 'SONOGRAPHY':
         case 'PHYSIOTHERAPY':
         case 'PATHOLOGY':
-            // Doctors usually sell 'Services' or 'Medicines'
-            // We can enable custom fields if they sell specs/lenses (rare)
-            // But usually standard form works.
             break;
 
         // --- GROUP 7: FINANCE & SERVICES (No Physical Stock usually) ---
@@ -5109,9 +5155,6 @@ async function fetchAndRenderStockList() {
         case 'CLOTHING':
         case 'FURNITURE':
         case 'JEWELLERY':
-            // These use Standard Form (Name, Price) 
-            // OR have specific modules handled in Dashboard/POS
-            // So no extra fields needed in Stock Add Form for now.
             break;
 
         default:
@@ -5153,6 +5196,10 @@ async function fetchAndRenderStockList() {
             items.forEach(item => {
                 const row = tableBody.insertRow();
                 const attrs = item.product_attributes || {};
+                
+                // 🚀 FIX: SKU को Safe String में बदलें (ताकि क्लिक काम करे)
+                const safeSku = item.sku.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const itemDataSafe = JSON.stringify({ sku: item.sku, name: item.name, sale_price: item.sale_price, purchase_price: item.purchase_price }).replace(/"/g, '&quot;');
 
                 if (isSalon) {
                     const isSvc = (item.sku && String(item.sku).startsWith('SVC-')) || item.unit === 'Session';
@@ -5166,13 +5213,12 @@ async function fetchAndRenderStockList() {
                         <td>${formatCurrency(item.purchase_price || 0)}</td> 
                         <td>${formatCurrency(item.price || item.sale_price)}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editStockItem('${item.sku}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry('stock', '${item.sku}')"><i class="fas fa-trash"></i></button>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editStockItem('${safeSku}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry('stock', '${safeSku}')"><i class="fas fa-trash"></i></button>
                         </td>`;
                 } else {
                     totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
                     totalSaleValue += (item.sale_price || 0) * (item.quantity || 0);
-                    const itemDataSafe = JSON.stringify({ sku: item.sku, name: item.name, sale_price: item.sale_price, purchase_price: item.purchase_price }).replace(/"/g, '&quot;');
 
                     let attrDisplay = formatAttributes(attrs); 
                     if (attrs.expiry) attrDisplay += `<br><span class="badge bg-danger">Exp: ${attrs.expiry}</span>`;
@@ -5188,8 +5234,9 @@ async function fetchAndRenderStockList() {
                         <td>${new Date(item.updated_at).toLocaleDateString()}</td>
                         <td>${attrDisplay}</td>
                         <td>
-                            <button class="btn btn-sm btn-info text-white mb-1" onclick="printItemSticker(${itemDataSafe})"><i class="fas fa-qrcode"></i></button>
-                            <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${item.sku}')"><i class="fas fa-trash"></i></button>
+                            <button class="btn btn-sm btn-primary me-1 mb-1" onclick="editStockItem('${safeSku}')" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-info text-white mb-1" onclick="printItemSticker(${itemDataSafe})" title="Print QR"><i class="fas fa-qrcode"></i></button>
+                            <button class="btn btn-sm btn-danger mb-1" data-role="ADMIN" onclick="deleteEntry('stock', '${safeSku}')" title="Delete"><i class="fas fa-trash"></i></button>
                         </td>`;
                 }
             });
@@ -5207,61 +5254,57 @@ async function fetchAndRenderStockList() {
 }
 
 
+
+
+
+
 function editStockItem(sku) {
-    // 1. SKU की मदद से असली आइटम डेटा ढूँढें (currentStock लिस्ट से)
-    // (नोट: fetchAndRenderStockList को डेटा 'currentStock' वेरिएबल में भी सेव करना चाहिए)
-    // अगर currentStock खाली है, तो हम API से दोबारा मंगा सकते हैं, लेकिन अभी के लिए DOM से काम चलाते हैं।
-    
-    // सबसे आसान तरीका: API से उस एक आइटम का डेटा मंगा लो (ताकि ताज़ा डेटा मिले)
-    fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, 'आइटम लोड हो रहा है...').then(res => {
+    // 1. Fetch Fresh Data
+    fetchApi(`/api/get-stock-item/${sku}`, { method: 'GET' }, 'लोड हो रहा है...').then(res => {
         if(res.success && res.data) {
             const item = res.data;
-            
-            // 2. फॉर्म के ऊपर स्क्रॉल करें
             const form = document.getElementById('add-stock-form');
+            
+            // 2. Scroll to Form
             form.scrollIntoView({ behavior: 'smooth' });
 
-            // 3. Type सेट करें
-            const isService = (item.sku && String(item.sku).startsWith('SVC-')) || item.unit === 'Session';
-            if (isService) {
-                document.getElementById('typeService').checked = true;
-            } else {
-                document.getElementById('typeProduct').checked = true;
-            }
-            
-            // टॉगल फंक्शन चलाएं
-            if (typeof window.toggleSalonFields === 'function') {
-                window.toggleSalonFields();
+            // 3. Handle Salon Type (Service/Product)
+            const isService = (String(sku).startsWith('SVC-') || item.unit === 'Session');
+            if (document.getElementById('typeService')) {
+                document.getElementById(isService ? 'typeService' : 'typeProduct').checked = true;
+                if (window.toggleSalonFields) window.toggleSalonFields();
             }
 
-            // 4. डेटा भरें
-            // नोट: API शायद अलग नाम भेज रहा हो, इसलिए चेक करें
-            document.getElementById('stock-sku').value = sku; // SKU वही है जो भेजा था
-            document.getElementById('stock-name').value = item.name || item.item_name; 
+            // 4. Fill Fields
+            document.getElementById('stock-name').value = item.name;
             document.getElementById('stock-purchase-price').value = item.purchase_price;
-            document.getElementById('stock-sale-price').value = item.sale_price || item.price;
+            document.getElementById('stock-sale-price').value = item.sale_price;
+            document.getElementById('stock-gst').value = item.gst_rate || 0;
             
             if (!isService) {
                 document.getElementById('stock-quantity').value = item.quantity;
                 document.getElementById('stock-unit').value = item.unit || 'Pcs';
             }
-            
-            // 🚀 5. SKU को लॉक कर दें
-            const skuInput = document.getElementById('stock-sku');
-            skuInput.value = sku;
-            skuInput.disabled = true;
-            skuInput.style.backgroundColor = '#e9ecef';
 
-            // 6. बटन बदलें
+            // 5. SKU Handling (CRITICAL: Lock SKU so it updates instead of adding new)
+            const skuInput = document.getElementById('stock-sku');
+            skuInput.value = sku; 
+            skuInput.disabled = true; // Disable to prevent change
+            skuInput.style.backgroundColor = '#e9ecef'; // Visual cue
+
+            // 6. Change Button to "Update"
             const submitBtn = form.querySelector('button[type="submit"]');
             submitBtn.innerHTML = '<i class="fas fa-save"></i> अपडेट करें (Update)';
             submitBtn.classList.remove('btn-primary');
             submitBtn.classList.add('btn-warning');
 
-            // 7. Cancel बटन
-            let cancelBtn = document.getElementById('cancel-edit-btn');
-            if (!cancelBtn) {
-                cancelBtn = document.createElement('button');
+            // 7. Set Mode to 'set' (Edit Mode)
+            const actionInput = document.getElementById('stock-action-type');
+            if(actionInput) actionInput.value = 'set';
+
+            // 8. Add Cancel Button
+            if (!document.getElementById('cancel-edit-btn')) {
+                const cancelBtn = document.createElement('button');
                 cancelBtn.id = 'cancel-edit-btn';
                 cancelBtn.type = 'button';
                 cancelBtn.className = 'btn btn-secondary ms-2';
@@ -5269,13 +5312,11 @@ function editStockItem(sku) {
                 cancelBtn.onclick = resetStockForm;
                 submitBtn.parentElement.appendChild(cancelBtn);
             }
-             document.getElementById('stock-action-type').value = 'set';
         } else {
             alert('आइटम का डेटा नहीं मिला।');
         }
     });
 }
-
 
 // [ ✅ MISSING FUNCTION: Form को रिसेट और अनलॉक करने के लिए ]
 
@@ -5283,45 +5324,27 @@ function resetStockForm() {
     const form = document.getElementById('add-stock-form');
     if (!form) return;
 
-    // 1. पूरा फॉर्म खाली करें
-    form.reset();
+    form.reset(); // Clear inputs
     
-    // 2. SKU को अनलॉक करें (ताकि नया डाल सकें)
+    // Unlock SKU
     const skuInput = document.getElementById('stock-sku');
     skuInput.disabled = false;
     skuInput.style.backgroundColor = '';
     
-    // 3. बटन को वापस "Add" (नीला) बनाएं
+    // Reset Button
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.innerHTML = 'स्टॉक में आइटम जोड़ें';
     submitBtn.classList.remove('btn-warning');
     submitBtn.classList.add('btn-primary');
     
-    // 4. "Cancel" बटन हटाएं (अब उसकी जरूरत नहीं)
+    // Remove Cancel Button
     const cancelBtn = document.getElementById('cancel-edit-btn');
     if (cancelBtn) cancelBtn.remove();
     
-    // 5. वापस "Add Mode" में सेट करें (सबसे जरूरी)
+    // Reset Mode to 'add'
     const actionInput = document.getElementById('stock-action-type');
-    if (actionInput) actionInput.value = 'add';
-
-    // 6. डिफॉल्ट व्यू सेट करें (Service या Product)
-    if (typeof window.toggleSalonFields === 'function') {
-        // डिफ़ॉल्ट रूप से हम 'Service' को चेक कर देते हैं
-        const svcRadio = document.getElementById('typeService');
-        if(svcRadio) {
-            svcRadio.checked = true;
-            window.toggleSalonFields();
-        }
-    }
-    
-    // 7. अगर कोई एक्स्ट्रा रेसिपी लिस्ट है तो उसे भी खाली करें (अगर आपने वह कोड जोड़ा है)
-    if (typeof currentRecipe !== 'undefined') {
-        currentRecipe = [];
-        if (typeof renderRecipeList === 'function') renderRecipeList();
-    }
+    if(actionInput) actionInput.value = 'add';
 }
-
 
     // [ ✅ 2. इस पूरे फ़ंक्शन को अपने पुराने fetchAndRenderCustomers (लाइन 2404) से बदलें ]
 
@@ -10293,6 +10316,53 @@ function addSKUToCartFromMix(mixedItem) {
     updatePOSCartView();
     showMessage('सफलता', 'पेंट मिक्स होकर बिल में जुड़ गया!', 'success');
 }
+
+
+// ==========================================
+// 📷 NEW: PAINT MIXING SCANNER BUTTON
+// ==========================================
+function openMobileScannerForMix() {
+    console.log("Scanner button clicked. Checking device type...");
+
+    if (isMobile()) {
+        // ✅ CASE A: अगर यूजर मोबाइल पर है -> डायरेक्ट कैमरा खोलें
+        console.log("Mobile detected. Opening Local Camera...");
+        
+        // 1. अगर OTP वाला बॉक्स खुला रह गया हो, तो उसे छिपा दें
+        const paintOtpBox = document.getElementById('paint-otp-box');
+        if (paintOtpBox) paintOtpBox.style.display = 'none';
+
+        // 2. लोकल कैमरा शुरू करें
+        startLocalScanner(); 
+
+    } else {
+        // ✅ CASE B: अगर यूजर कंप्यूटर पर है -> OTP कोड दिखाएं
+        console.log("PC detected. Generating OTP for Pairing...");
+
+        const paintOtpBox = document.getElementById('paint-otp-box');
+        const paintSpinner = document.getElementById('paint-otp-spinner');
+        const paintCode = document.getElementById('paint-otp-code');
+        const paintStatus = document.getElementById('paint-otp-status');
+
+        // 1. लाल बटन के नीचे वाला OTP बॉक्स दिखाएं
+        if (paintOtpBox) {
+            paintOtpBox.style.display = 'block';
+            
+            // स्पिनर दिखाएं, पुराना कोड हटाएं
+            if (paintSpinner) paintSpinner.style.display = 'inline-block';
+            if (paintCode) paintCode.innerText = '------';
+            if (paintStatus) paintStatus.style.display = 'none';
+        }
+
+        // 2. पुराना (POS वाला) बॉक्स छिपा दें ताकि कंफ्यूजन न हो
+        const posBox = document.getElementById('inline-pairing-box');
+        if (posBox) posBox.style.display = 'none';
+
+        // 3. WebSocket शुरू करें (यह सर्वर से कोड मंगाएगा)
+        initPosWebSocket(); 
+    }
+}
+
 </script>
 
 <div class="modal fade" id="paintMixingModal" tabindex="-1" aria-hidden="true">
@@ -10306,16 +10376,31 @@ function addSKUToCartFromMix(mixedItem) {
                 
                 <div class="mb-3 position-relative p-2 border rounded bg-light">
                     <label class="form-label fw-bold text-danger">स्टेप 1: बेस स्कैन करें (SKU)</label>
+                    
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-barcode"></i></span>
                         <input type="text" id="mix-base-sku" class="form-control" placeholder="Scan/Type Bucket Barcode" onchange="fetchBaseDetails(this.value)">
+                        
                         <button class="btn btn-dark" type="button" onclick="openMobileScannerForMix()">
                             <i class="fas fa-camera"></i>
                         </button>
                     </div>
+
+                    <div id="paint-otp-box" class="mt-2 p-2 border border-danger rounded bg-white text-center" style="display: none;">
+                        <p class="mb-1 small text-muted fw-bold">मोबाइल स्कैनर में यह कोड डालें:</p>
+                        
+                        <div class="d-flex justify-content-center align-items-center gap-2">
+                            <span id="paint-otp-code" class="display-6 fw-bold text-danger">------</span>
+                            <div id="paint-otp-spinner" class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                        </div>
+
+                        <p id="paint-otp-status" class="mt-1 mb-0 small text-success fw-bold" style="display: none;">
+                            <i class="fas fa-check-circle"></i> कनेक्टेड! स्कैन करें...
+                        </p>
+                    </div>
+
                     <small class="d-block mt-1 fw-bold" id="mix-stock-status"></small> 
                 </div>
-
                 <hr>
 
                 <div class="mb-3">
@@ -10350,6 +10435,5 @@ function addSKUToCartFromMix(mixedItem) {
         </div>
     </div>
 </div>
-
 </body>
 </html>
