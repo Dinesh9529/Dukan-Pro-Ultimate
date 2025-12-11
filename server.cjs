@@ -6301,6 +6301,50 @@ app.get('/mobile_scanner.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'mobile_scanner.html'));
 });
 
+
+// ==========================================
+// 🎨 19.3 GET PAINT FORMULAS (MISSING API)
+// ==========================================
+app.get('/api/paint/formulas', authenticateJWT, async (req, res) => {
+    try {
+        const shopId = req.shopId; // JWT से Shop ID लें
+
+        // डेटाबेस से पिछले 50 रिकॉर्ड निकालें
+        const result = await pool.query(
+            `SELECT * FROM paint_formulas WHERE shop_id = $1 ORDER BY created_at DESC LIMIT 50`,
+            [shopId]
+        );
+
+        // डेटा को सही फॉर्मेट में बदलें (ताकि frontend समझ सके)
+        const formulas = result.rows.map(row => {
+            // अगर पुराना डेटा JSON में है तो उसे टेक्स्ट में बदलें, वरना सीधा टेक्स्ट दिखाएं
+            let text = row.formula_text;
+            if (!text && row.formula_json) {
+                // अगर JSON है (जैसे {"note": "Red 5ml"}), तो उसे पढ़ें
+                try {
+                    const parsed = typeof row.formula_json === 'string' ? JSON.parse(row.formula_json) : row.formula_json;
+                    text = parsed.note || parsed.formula || JSON.stringify(parsed);
+                } catch (e) {
+                    text = JSON.stringify(row.formula_json);
+                }
+            }
+            return {
+                ...row,
+                formula_text: text || 'No Formula'
+            };
+        });
+
+        res.json({ success: true, formulas: formulas });
+
+    } catch (error) {
+        console.error('Error fetching paint formulas:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: 'डायरी लोड करने में विफल: ' + error.message 
+        });
+    }
+});
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
