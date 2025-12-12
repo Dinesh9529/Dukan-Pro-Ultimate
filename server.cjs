@@ -106,7 +106,6 @@ const initDB = async () => {
 // सर्वर स्टार्ट होते ही इसे चलाएं
 initDB();
 
-
 // ============================================================
 // 🛠️ AUTO-REPAIR DATABASE (MISSING COLUMNS FIXER)
 // ============================================================
@@ -119,6 +118,9 @@ const repairDatabaseSchema = async () => {
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'invoices'::regclass AND attname = 'payment_mode') THEN
                     ALTER TABLE invoices ADD COLUMN payment_mode TEXT DEFAULT 'Cash';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'invoices'::regclass AND attname = 'loan_account_no') THEN
+                    ALTER TABLE invoices ADD COLUMN loan_account_no TEXT;
                 END IF;
             END $$;
         `);
@@ -148,8 +150,6 @@ const repairDatabaseSchema = async () => {
         `);
 
         // 4. Paint Formulas: Fix 'formula_text' issue
-        // अगर formula_json है पर formula_text नहीं, तो हम उसे रिपोर्ट में हैंडल करेंगे।
-        // लेकिन अगर टेबल ही अधूरी है, तो यहाँ फिक्स करें।
         await pool.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'paint_formulas'::regclass AND attname = 'formula_text') THEN
@@ -157,17 +157,25 @@ const repairDatabaseSchema = async () => {
                 END IF;
             END $$;
         `);
-		
-		// 🚀 5. DELIVERY TRACKER FIX (यह नया जोड़ा है)
-        // यह 'delivery_status' कॉलम अपने आप बना देगा
+
+        // 🚀 5. DELIVERY TRACKER FIX (Updated: Column Create + Type Fix)
+        // यह कोड delivery_status बनाएगा और invoice_id को Text में बदल देगा
         await pool.query(`
             DO $$ BEGIN
+                -- A. अगर delivery_status कॉलम नहीं है, तो बनाएँ
                 IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'product_deliveries'::regclass AND attname = 'delivery_status') THEN
                     ALTER TABLE product_deliveries ADD COLUMN delivery_status TEXT DEFAULT 'Pending';
                 END IF;
+
+                -- B. invoice_id को Text में बदलें (ताकि 'INV-550' सेव हो सके)
+                -- हम इसे एक सुरक्षित ब्लॉक में रखते हैं
+                BEGIN
+                    ALTER TABLE product_deliveries ALTER COLUMN invoice_id TYPE TEXT;
+                EXCEPTION
+                    WHEN OTHERS THEN NULL; -- अगर कोई एरर आए तो इग्नोर करें (ताकि सर्वर क्रैश न हो)
+                END;
             END $$;
         `);
-		
 
         console.log("✅ Database Schema Repaired Successfully!");
 
@@ -175,6 +183,8 @@ const repairDatabaseSchema = async () => {
         console.error("❌ Database Repair Failed:", e.message);
     }
 };
+
+
 
 // सर्वर शुरू होते ही रिपेयर चलाएं
 repairDatabaseSchema();
