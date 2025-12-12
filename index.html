@@ -11210,11 +11210,13 @@ async function downloadDailyReportExcel() {
     }
 }
 
+// [ ✅ FIXED: PAINTER PAYMENT FUNCTION (Anti-Freeze) ]
 async function payPainterDue() {
     if (!currentViewingPainterId) return;
 
+    // 1. रकम पूछें
     const amountStr = prompt("पेंटर को कितना भुगतान (Payment) करना है? (₹)");
-    if (!amountStr) return;
+    if (!amountStr) return; // कैंसिल किया तो रुक जाएं
 
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) {
@@ -11222,6 +11224,7 @@ async function payPainterDue() {
     }
 
     try {
+        // 2. सर्वर पर भेजें
         const res = await fetchApi('/api/painters/pay', {
             method: 'POST',
             body: { painterId: currentViewingPainterId, amount: amount }
@@ -11230,11 +11233,34 @@ async function payPainterDue() {
         if (res.success) {
             showMessage('सफलता', res.message, 'success');
             
-            // लेजर रिफ्रेश करें ताकि घटा हुआ बैलेंस दिखे
-            viewSelectedPainterLedger();
+            // --- 🚀 FIX START: स्क्रीन चिपकने का इलाज ---
             
-            // अगर डैशबोर्ड पर खर्च का मीटर है तो उसे भी अपडेट करें
+            // Step A: मॉडल को जावास्क्रिप्ट से बंद करें
+            const modalEl = document.getElementById('painterLedgerModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+
+            // Step B: अगर काला पर्दा (Backdrop) रह गया है, तो उसे जबरदस्ती हटाएं
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            // Step C: बॉडी को स्क्रॉल करने लायक बनाएं
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            // --- 🚀 FIX END ---
+
+            // 3. डेटा रिफ्रेश करें (थोड़ा रुक कर ताकि एनिमेशन पूरा हो जाए)
+            setTimeout(() => {
+                viewSelectedPainterLedger(); // यह मॉडल दोबारा खोलेगा अपडेटेड बैलेंस के साथ
+            }, 500); 
+            
+            // खर्च (Expense) भी अपडेट करें
             if(typeof fetchAndRenderExpenses === 'function') fetchAndRenderExpenses();
+
         } else {
             throw new Error(res.message);
         }
@@ -11242,7 +11268,6 @@ async function payPainterDue() {
         showMessage('त्रुटि', e.message, 'danger');
     }
 }
-
 
 
 </script>
