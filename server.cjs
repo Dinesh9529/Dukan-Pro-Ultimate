@@ -6555,6 +6555,19 @@ app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
                     WHERE shop_id = $1 
                     ORDER BY delivery_date ASC`;
                 break;
+				
+				case 'DELIVERY_REPORT': 
+                // तिजोरी/डिलीवरी का डेटा देखने के लिए
+                query = `
+                    SELECT 
+                        invoice_id as "Bill No",
+                        TO_CHAR(delivery_date, 'DD-Mon-YYYY') as "Delivery Date",
+                        delivery_status as "Status",
+                        CASE WHEN assembly_required THEN 'Yes (Mistri)' ELSE 'No' END as "Assembly"
+                    FROM product_deliveries 
+                    WHERE shop_id = $1 
+                    ORDER BY delivery_date ASC`;
+                break;
 
             // ... (default से पहले)
 
