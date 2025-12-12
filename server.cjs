@@ -1985,7 +1985,10 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         place_of_supply, 
         latitude, 
         longitude, 
-        loanAccountNo // New field for Finance/Recovery Agents
+        loanAccountNo, // New field for Finance/Recovery Agents
+        painterId,     // 🚀 NEW: Painter ID for Commission
+        commissionValue, // 🚀 NEW: कमीशन की वैल्यू (जैसे 5 या 100)
+        commissionMode   // 🚀 NEW: मोड ('PERCENT' या 'FLAT')
     } = req.body;
     
     const shopId = req.shopId;
@@ -2030,13 +2033,43 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         const shopGstin = (profileRes.rows[0]?.gstin || '').substring(0, 2);
         const supplyPlace = (place_of_supply || shopGstin);
 
+        // ============================================================
+        // 🚀🔥 FLEXIBLE PAINTER COMMISSION LOGIC (FLAT vs PERCENTAGE)
+        // ============================================================
+        let commissionAmount = 0;
+        
+        if (painterId) {
+            const inputVal = parseFloat(commissionValue) || 0; // दुकानदार का डाला हुआ नंबर
+            
+            // अगर दुकानदार ने 'FLAT' चुना है, तो सीधा नंबर ही कमीशन है
+            if (commissionMode === 'FLAT') {
+                commissionAmount = inputVal; 
+                console.log(`Painter ID ${painterId}: Flat Commission ₹${commissionAmount}`);
+            } 
+            // नहीं तो, हम इसे Percentage (%) मानकर कैलकुलेट करेंगे
+            else {
+                // (Total * % / 100)
+                commissionAmount = (safeTotalAmount * inputVal) / 100;
+                console.log(`Painter ID ${painterId}: Percentage Commission (${inputVal}%) = ₹${commissionAmount}`);
+            }
+
+            // Ledger Update (पैसे पेंटर के खाते में जोड़ें)
+            if (commissionAmount > 0) {
+                await client.query(
+                    `UPDATE painters SET commission_balance = commission_balance + $1 WHERE id = $2`,
+                    [commissionAmount, painterId]
+                );
+            }
+        }
+        // ============================================================
+
         // 2. Create Invoice
-        // [🚀 UPDATED QUERY: Added loan_account_no]
+        // [🚀 UPDATED QUERY: Added loan_account_no, painter_id AND painter_commission_amount]
         const invoiceResult = await client.query(
             `INSERT INTO invoices (
                 shop_id, customer_id, total_amount, customer_gstin, place_of_supply, 
-                latitude, longitude, loan_account_no
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+                latitude, longitude, loan_account_no, painter_id, painter_commission_amount
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
             [
                 shopId, 
                 customerId, 
@@ -2045,7 +2078,9 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
                 (place_of_supply || ''), 
                 latitude || null, 
                 longitude || null,
-                loanAccountNo || null // Save Loan Account Number here
+                loanAccountNo || null, // Save Loan Account Number here
+                painterId || null,     // Save Painter ID here
+                commissionAmount       // 🚀 Save Commission Amount here
             ]
         );
         const invoiceId = invoiceResult.rows[0].id;
@@ -2142,7 +2177,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
         }
 
-        res.json({ success: true, invoiceId: invoiceId, message: 'बिक्री और इन्वेंटरी खपत (Consumption) सफलतापूर्वक दर्ज की गई।' });
+        res.json({ success: true, invoiceId: invoiceId, message: `बिक्री सेव हो गई! (कमीशन: ₹${commissionAmount.toFixed(2)})` });
     
     } catch (err) {
         await client.query('ROLLBACK');

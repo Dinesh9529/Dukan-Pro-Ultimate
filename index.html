@@ -1460,12 +1460,12 @@
             </div>
         
             <div id="module-paint-mixer" class="biz-module card shadow-sm border-primary mb-4" style="display:none;">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-fill-drip"></i> Paint Color Mixer (Diary)</h5>
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-fill-drip me-2"></i> Paint Color Mixer (Diary)</h5>
+                    <span class="badge bg-white text-primary">Live</span>
                 </div>
                 <div class="card-body">
                     <div class="row g-2">
-                        
                         <div class="col-12">
                             <input type="text" id="paint_cust_name" class="form-control form-control-sm" placeholder="Customer Name (ग्राहक का नाम)">
                         </div>
@@ -1475,7 +1475,7 @@
                         </div>
             
                         <div class="col-6">
-                            <input type="text" id="paint_base" class="form-control form-control-sm" placeholder="Base Product">
+                            <input type="text" id="paint_base" class="form-control form-control-sm" placeholder="Base Product (e.g. Apex)">
                         </div>
             
                         <div class="col-12">
@@ -1487,9 +1487,31 @@
                     <button class="btn btn-primary w-100 mt-3" onclick="savePaintFormula()">
                         <i class="fas fa-save me-1"></i> Save Formula
                     </button>
-                </div>
+                    
+                    <div class="mt-4">
+                        <h6 class="text-secondary border-bottom pb-2 mb-2" style="font-size: 0.9rem; font-weight: 600;">
+                            <i class="fas fa-history me-1"></i> हाल ही में मिक्स किए गए (Recent Mixes)
+                        </h6>
+                        
+                        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered table-striped mb-0" style="font-size: 0.8rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>तारीख</th>
+                                        <th>ग्राहक</th>
+                                        <th>शेड / बेस</th>
+                                        <th>फार्मूला</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="paint-history-body">
+                                    <tr><td colspan="4" class="text-center text-muted">लोड हो रहा है...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    </div>
             </div>
-
+            
             <div id="module-repair-job" class="biz-module card shadow-sm border-dark mb-4" style="display:none;">
                 <div class="card-header bg-dark text-white"><h5><i class="fas fa-tools"></i> Repair Job Card</h5></div>
                 <div class="card-body">
@@ -1876,21 +1898,29 @@
                                 <div class="row g-2 mb-3 p-2 bg-light border rounded paint-only biz-only">
                                     <div class="col-md-6">
                                         <label class="small fw-bold text-primary"><i class="fas fa-brush"></i> पेंटर (कमीशन के लिए)</label>
-                                        <div class="input-group input-group-sm">
+                                        <div class="input-group input-group-sm mb-2">
                                             <select id="pos-painter-select" class="form-select">
                                                 <option value="" selected>-- Select Painter --</option>
-                                                </select>
+                                            </select>
                                             <button class="btn btn-outline-primary" type="button" onclick="addNewPainterPrompt()">+</button>
                                         </div>
+                                        <input type="tel" id="pos-painter-mobile" class="form-control form-control-sm mb-2" placeholder="पेंटर मोबाइल (Optional)">
+                                        
+                                        <div class="d-flex align-items-center gap-1 p-1 border border-success rounded bg-white">
+                                            <label class="small fw-bold text-success mb-0 me-1">कमीशन:</label>
+                                            <select class="form-select form-select-sm border-success" id="pos-commission-mode" style="width: 70px;">
+                                                <option value="PERCENT" selected>%</option> <option value="FLAT">₹</option>       </select>
+                                            <input type="number" class="form-control form-control-sm border-success" id="pos-commission-value" placeholder="Ex: 5 or 100">
+                                        </div>
                                     </div>
+                                
                                     <div class="col-md-6">
                                         <label class="small fw-bold text-danger"><i class="fas fa-fill-drip"></i> स्मार्ट मिक्सिंग (Rate Fixer)</label>
-                                        <button type="button" class="btn btn-sm btn-danger w-100" data-bs-toggle="modal" data-bs-target="#paintMixingModal">
-                                            Base + Colorant जोड़ें
+                                        <button type="button" class="btn btn-sm btn-danger w-100" style="height: 100px;" data-bs-toggle="modal" data-bs-target="#paintMixingModal">
+                                            <i class="fas fa-vial fa-2x mb-2"></i><br> Base + Colorant <br>जोड़ें
                                         </button>
                                     </div>
                                 </div>
-
        
                                 <div class="mb-3">
                                     <label for="pos-customer-mobile" class="form-label">मोबाइल नंबर</label>
@@ -4290,8 +4320,13 @@ function handleNavClick(viewId) {
                     locationBtn = `<span class="text-muted small ms-1" title="No GPS Data"><i class="fas fa-map-marker-slash"></i></span>`;
                 }
 
+                // --- 🚀 NEW: Mobile Number Logic (Added Here) ---
+                let mobileDisplay = '';
+                if (sale.customer_phone) {
+                    mobileDisplay = `<br><small class="text-dark"><i class="fas fa-phone-alt" style="font-size:0.7rem;"></i> ${sale.customer_phone}</small>`;
+                }
+
                 // 2. Display Loan Number or GSTIN (Updated Logic)
-                // 🚀 FIX: अब हम 'loan_account_no' चेक करेंगे जो सर्वर से आ रहा है
                 let identityDisplay = '';
                 
                 if (sale.loan_account_no) {
@@ -4307,8 +4342,9 @@ function handleNavClick(viewId) {
                     <tr>
                         <td>INV-${sale.id}</td>
                         <td>
-                            ${sale.customer_name}
-                            ${identityDisplay} </td>
+                            <strong>${sale.customer_name}</strong>
+                            ${mobileDisplay}  ${identityDisplay} 
+                        </td>
                         <td>${formatCurrency(sale.total_gst)}</td>
                         <td>${formatCurrency(sale.total_amount)}</td>
                         <td>${new Date(sale.created_at).toLocaleDateString()}</td>
@@ -5680,16 +5716,20 @@ function handleSearchResultClick(e) {
         return totalAmount;
     }
 
-    async function handleCompleteSale() {
-    // 1. कार्ट चेक करें (Old Logic Safe)
+    // purane handleCompleteSale function ko isse replace karein
+
+// पुराना handleCompleteSale हटाकर इसे पेस्ट करें
+
+async function handleCompleteSale() {
+    // 1. कार्ट चेक करें
     if (posCart.length === 0) {
         return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
     }
 
-    // 2. टोटल राशि निकालें (Old Logic Safe)
+    // 2. कुल राशि निकालें
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
 
-    // 3. आइटम तैयार करें (Old Logic Safe)
+    // 3. आइटम तैयार करें
     const itemsForApi = posCart.map(item => ({
         sku: item.sku,
         name: item.name,
@@ -5700,56 +5740,55 @@ function handleSearchResultClick(e) {
         product_attributes: item.product_attributes
     }));
 
-    // 4. डेटा तैयार करें (GPS + Loan Account + Painter के साथ)
+    // 4. 🔥 नया: कमीशन का डेटा उठाएं
+    const painterId = document.getElementById('pos-painter-select') ? document.getElementById('pos-painter-select').value : null;
+    const commMode = document.getElementById('pos-commission-mode') ? document.getElementById('pos-commission-mode').value : 'PERCENT';
+    const commVal = document.getElementById('pos-commission-value') ? document.getElementById('pos-commission-value').value : '0';
+
+    // 5. डेटा तैयार करें
     const saleData = {
         customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
         customerMobile: document.getElementById('pos-customer-mobile').value || null,
         total_amount: finalTotalAmount,
         sale_items: itemsForApi,
-
-        // --- [GPS Location Data] ---
+        
         latitude: document.getElementById('pos-lat') ? document.getElementById('pos-lat').value : null,
         longitude: document.getElementById('pos-long') ? document.getElementById('pos-long').value : null,
+        loanAccountNo: document.getElementById('pos-loan-account') ? document.getElementById('pos-loan-account').value : null,
 
-        // --- [FINANCE LOAN ACCOUNT LOGIC] ---
-        loanAccountNo: document.getElementById('pos-loan-account') ? document.getElementById('pos-loan-account').value : null, // 👈 यहाँ कॉमा (,) लगाया है
-
-        // --- [🎨 NEW: Painter Info] ---
-        painterId: document.getElementById('pos-painter-select') ? document.getElementById('pos-painter-select').value : null
+        // --- 🎨 PAINT & COMMISSION DATA ---
+        painterId: painterId,
+        painterMobile: document.getElementById('pos-painter-mobile') ? document.getElementById('pos-painter-mobile').value : null,
+        
+        // 🚀 यहाँ हम बता रहे हैं कि कमीशन कैसे काटना है
+        commissionMode: commMode, // 'PERCENT' या 'FLAT'
+        commissionValue: commVal  // दुकानदार का डाला हुआ नंबर (जैसे 5 या 100)
     };
     
-    // 5. सर्वर पर भेजें
+    // 6. सर्वर पर भेजें
     try {
         const res = await fetchApi('/api/invoices', {
             method: 'POST',
             body: saleData
-        }, 'बिक्री/रिकवरी सेव की जा रही है...');
+        }, 'बिक्री सेव की जा रही है...');
 
         if (res.success) {
-            showMessage('सफलता', res.message, 'success');
+            showMessage('सफलता', res.message, 'success'); // सर्वर बताएगा कितना कमीशन कटा
             
-            // 6. सब कुछ रिसेट करें (Reset Everything)
+            // 7. सब रीसेट करें
             posCart = [];
             updatePOSCartView();
             document.getElementById('pos-customer').value = '';
             document.getElementById('pos-customer-mobile').value = ''; 
             
-            // GPS फील्ड्स साफ़ करें
-            if(document.getElementById('pos-lat')) document.getElementById('pos-lat').value = '';
-            if(document.getElementById('pos-long')) document.getElementById('pos-long').value = '';
-            if(document.getElementById('gps-status')) document.getElementById('gps-status').innerHTML = 'Not Captured';
+            // पेंटर फील्ड्स साफ़ करें
+            if(document.getElementById('pos-painter-mobile')) document.getElementById('pos-painter-mobile').value = '';
+            if(document.getElementById('pos-commission-value')) document.getElementById('pos-commission-value').value = ''; // कमीशन वैल्यू भी हटा दें
 
-            // Loan Account फील्ड साफ़ करें
-            if(document.getElementById('pos-loan-account')) document.getElementById('pos-loan-account').value = '';
-
-            // 7. लिस्ट और डैशबोर्ड रिफ्रेश करें
             fetchAndRenderSales();
-            fetchApi('/api/stock', { method: 'GET' }).then(res => {
-                if (res.success) currentStock = res.stock;
-            });
-            if (typeof renderDashboard === 'function') {
-                renderDashboard();
-            }
+            if (typeof fetchAndRenderCustomers === 'function') fetchAndRenderCustomers(); 
+            if (typeof renderDashboard === 'function') renderDashboard();
+            
         } else {
             throw new Error(res.message || 'अज्ञात बिक्री त्रुटि।');
         }
@@ -5757,7 +5796,6 @@ function handleSearchResultClick(e) {
         showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
     }
 }
-
     // --- FORM SUBMISSION HANDLERS ---
     
     function setupForm(formId, apiPath, successCallback) {
@@ -6166,6 +6204,7 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         }
         
         initDashboardSocket();
+        fetchAndRenderPaintHistory();
     };
 
     /**
@@ -8158,31 +8197,42 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     const barcodeInput = document.getElementById('barcode-scanner-input');
     barcodeInput.addEventListener('change', () => handleBarcodeScan(null));
     // [ यह आपका फिक्स है - उस एक लाइन की जगह इसे पेस्ट करें ]
-document.body.addEventListener('click', (e) => {
-    // यह जाँचता है कि आपने कहाँ क्लिक किया
-    const targetElement = e.target;
-    const targetTagName = targetElement.tagName.toUpperCase();
+// [ ✅ FIXED: Global Scanner Focus Logic ]
+    // यह कोड सुनिश्चित करता है कि जब आप टाइप कर रहे हों या लाल स्क्रीन खुली हो,
+    // तो स्कैनर फोकस न छीने।
 
-    // यह जाँचता है कि क्या क्लिक करने योग्य तत्व (input, button, etc.) पर क्लिक किया गया था
-    const isClickable = (
-        targetTagName === 'INPUT' ||
-        targetTagName === 'TEXTAREA' ||
-        targetTagName === 'SELECT' ||
-        targetTagName === 'BUTTON' ||
-        targetElement.closest('a') || // कोई भी लिंक
-        targetElement.closest('.nav-link') || // नेविगेशन लिंक
-        targetElement.closest('.list-group-item-action') // POS सर्च रिजल्ट
-    );
+    document.body.addEventListener('click', (e) => {
+        // 1. चेक करें कि क्या लाल स्क्रीन (या कोई भी मॉडल) खुली है?
+        const isModalOpen = document.querySelector('.modal.show');
+        
+        // अगर कोई स्क्रीन खुली है, तो यह 'Auto Focus' वाला लॉजिक न चलाएं।
+        // इससे आप आराम से टाइप कर पाएंगे।
+        if (isModalOpen) {
+            return; 
+        }
 
-    // अगर आपने किसी इनपुट, बटन, या लिंक पर क्लिक *नहीं* किया है,
-    // (यानि पेज के खाली हिस्से पर क्लिक किया है)
-    // तभी बारकोड स्कैनर पर फोकस करें।
-    if (!isClickable) {
-        focusBarcodeScanner();
-    }
-    // अगर आपने 'pos-customer' जैसे इनपुट पर क्लिक किया है, 
-    // तो यह कुछ नहीं करेगा और आप आसानी से टाइप कर पाएँगे।
-});
+        // --- नीचे का कोड तभी चलेगा जब कोई स्क्रीन नहीं खुली हो ---
+
+        const targetElement = e.target;
+        const targetTagName = targetElement.tagName.toUpperCase();
+
+        // चेक करें कि क्या आपने किसी काम की चीज़ पर क्लिक किया है
+        const isClickable = (
+            targetTagName === 'INPUT' ||
+            targetTagName === 'TEXTAREA' ||
+            targetTagName === 'SELECT' ||
+            targetTagName === 'BUTTON' ||
+            targetElement.closest('a') || 
+            targetElement.closest('.nav-link') || 
+            targetElement.closest('.list-group-item-action') ||
+            targetElement.closest('.modal-content') // 🚀 Extra Safety: अगर मॉडल के अंदर क्लिक हुआ
+        );
+
+        // अगर खाली जगह पर क्लिक किया है, तभी स्कैनर चालू करें
+        if (!isClickable) {
+            focusBarcodeScanner();
+        }
+    });
 
     // postMessage Listener
     window.addEventListener('message', function(event) {
@@ -9491,12 +9541,15 @@ function applyBusinessTypeUI(btype) {
     // --- GROUP 1: RETAIL SPECIALS ---
     
     // 1. Hardware & Paint (HARDWARE_PAINT)
-    if (btype === 'HARDWARE_PAINT' || features.includes('paint_mixing')) {
-        document.querySelectorAll('.paint-only').forEach(el => el.style.display = '');
-        if(document.getElementById('module-paint-mixer')) document.getElementById('module-paint-mixer').style.display = 'block';
-        if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'block';
-        if (typeof loadPainters === 'function') loadPainters();
-    }
+if (btype === 'HARDWARE_PAINT' || features.includes('paint_mixing')) {
+    document.querySelectorAll('.paint-only').forEach(el => el.style.display = '');
+    if(document.getElementById('module-paint-mixer')) document.getElementById('module-paint-mixer').style.display = 'block';
+    if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'block';
+    if (typeof loadPainters === 'function') loadPainters();
+    
+    // 🔥 यहाँ मैंने वह गलत लाइन हटा दी है और सही फंक्शन कॉल जोड़ दिया है
+    if (typeof fetchAndRenderPaintHistory === 'function') fetchAndRenderPaintHistory(); 
+}
 
     // 2. Mobile, Electronics, SIM Store (MOBILE_SHOP, ELECTRONICS, SIM_STORE)
     if (features.includes('imei_scan')) {
@@ -10161,16 +10214,14 @@ async function loadPainters() {
 // 🎨 SAVE FORMULA FUNCTION (DASHBOARD DIARY)
 // ==========================================
 async function savePaintFormula() {
-    // 1. स्क्रीन से डेटा उठाओ
+    // फॉर्म से डेटा उठाएं
     const name = document.getElementById('paint_cust_name').value;
     const code = document.getElementById('paint_code').value;
     const base = document.getElementById('paint_base').value;
     const formula = document.getElementById('paint_formula').value;
 
-    // 2. चेक करो कि खाली तो नहीं है
     if (!name || !code) {
-        showMessage('अधूरा डेटा', 'कृपया ग्राहक का नाम और कलर कोड जरूर भरें।', 'warning');
-        return;
+        return showMessage('अधूरा डेटा', 'ग्राहक का नाम और कोड जरूरी है।', 'warning');
     }
 
     const data = {
@@ -10180,29 +10231,30 @@ async function savePaintFormula() {
         formula_text: formula
     };
 
-    // 3. सर्वर पर भेजो (API Call)
+    // 2. सर्वर पर भेजें (API Call)
     try {
-        // नोट: अगर आपके बैकएंड में यह API नहीं बना है, तो यह एरर दे सकता है।
-        // लेकिन कोड का लॉजिक यही है:
         const res = await fetchApi('/api/paint/save-formula', { 
             method: 'POST', 
             body: data 
-        }, 'फार्मूला सेव हो रहा है...');
+        }, 'सर्वर पर सेव हो रहा है...');
 
         if (res.success) {
-            showMessage('सफलता', 'कलर फार्मूला डायरी में सेव हो गया!', 'success');
+            showMessage('सफलता', 'एंट्री परमानेंट डेटाबेस में सेव हो गई!', 'success');
             
-            // 4. बॉक्स खाली कर दो
+            // 3. फॉर्म खाली करें
             document.getElementById('paint_cust_name').value = '';
             document.getElementById('paint_code').value = '';
             document.getElementById('paint_base').value = '';
             document.getElementById('paint_formula').value = '';
+
+            // 4. लिस्ट को रिफ्रेश करें (ताकि नई एंट्री दिखे)
+            fetchAndRenderPaintHistory(); 
+
         } else {
-            throw new Error(res.message || 'सेव नहीं हो सका');
+            throw new Error(res.message || 'सर्वर ने सेव नहीं किया।');
         }
     } catch (e) {
         console.error(e);
-        // अगर API नहीं है, तो फिलहाल टेस्टिंग के लिए सक्सेस दिखा देते हैं (Optional)
         showMessage('त्रुटि', `सेव नहीं हुआ: ${e.message}`, 'danger');
     }
 }
@@ -10391,6 +10443,44 @@ function openMobileScannerForMix() {
     }
 }
 
+
+// इसे <script> के अंदर कहीं भी पेस्ट करें
+
+    async function fetchAndRenderPaintHistory() {
+    const tableBody = document.getElementById('paint-history-body');
+    if (!tableBody) return; // अगर टेबल नहीं है तो रुक जाएं
+
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">लोड हो रहा है...</td></tr>`;
+
+    try {
+        // सर्वर से डेटा मांगें (GET Request)
+        const res = await fetchApi('/api/paint/formulas', { method: 'GET' });
+
+        if (res.success && res.formulas && res.formulas.length > 0) {
+            // डेटा मिल गया, अब टेबल में दिखाएं
+            tableBody.innerHTML = res.formulas.map(item => `
+                <tr>
+                    <td>${new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                    <td class="fw-bold">${item.customer_name}</td>
+                    <td>
+                        <span class="badge bg-info text-dark">${item.color_code}</span><br>
+                        <small class="text-muted">${item.base_product || ''}</small>
+                    </td>
+                    <td class="text-danger small fw-bold" style="font-family: monospace;">
+                        ${item.formula_text}
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">अभी कोई रिकॉर्ड नहीं है।</td></tr>`;
+        }
+    } catch (e) {
+        console.error("History Error:", e);
+        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">डेटा लोड नहीं हो सका।</td></tr>`;
+    }
+}
+
+
 </script>
 
 <div class="modal fade" id="paintMixingModal" tabindex="-1" aria-hidden="true">
@@ -10432,15 +10522,16 @@ function openMobileScannerForMix() {
                 <hr>
 
                 <div class="mb-3">
-                    <label class="form-label">Base Product Name (अपने आप आएगा)</label>
-                    <input type="text" id="mix-base-name" class="form-control fw-bold" placeholder="Scan SKU first..." readonly>
+                    <label class="form-label">Base Product Name</label>
+                    <input type="text" id="mix-base-name" class="form-control fw-bold" placeholder="Scan SKU or Type Name">
                 </div>
-
+                
                 <div class="row g-2 mb-3">
                     <div class="col-6">
                         <label class="form-label">Base Price (₹)</label>
-                        <input type="number" id="mix-base-price" class="form-control" readonly>
+                        <input type="number" id="mix-base-price" class="form-control" placeholder="0">
                     </div>
+                    
                     <div class="col-6">
                         <label class="form-label text-danger fw-bold">Colorant Cost (₹)</label>
                         <input type="number" id="mix-color-cost" class="form-control" placeholder="Enter Amount">
