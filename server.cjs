@@ -6501,6 +6501,26 @@ app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
                 query = `SELECT p.name, COUNT(i.id) as "Services", SUM(i.total_amount) as "Revenue (₹)" FROM painters p JOIN invoices i ON p.id = i.painter_id WHERE p.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 GROUP BY p.name`;
                 params.push(startDate, finalEndDate); // ✅ Fixed Date
                 break;
+				
+				// ... (पुराने केस के बाद जोड़ें)
+
+            // 5. 🛠️ REPAIR & JOBS
+            case 'REPAIR_JOB_HISTORY': 
+                query = `
+                    SELECT 
+                        id as "Job ID",
+                        customer_name as "Customer",
+                        device_model as "Item/Device",
+                        issue_description as "Issue",
+                        estimated_cost as "Est. Cost (₹)",
+                        status as "Current Status",
+                        TO_CHAR(created_at, 'DD-MM-YYYY') as "Date"
+                    FROM repair_job_cards 
+                    WHERE shop_id = $1 
+                    ORDER BY created_at DESC`;
+                break;
+
+            // ... (default वाले केस से पहले)
 
             default: return res.status(400).json({ success: false, message: "Invalid Report Type" });
         }

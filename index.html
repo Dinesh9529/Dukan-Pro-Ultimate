@@ -3467,6 +3467,7 @@
                                     <option value="PAINTER_COMMISSION">🎨 Painter Commission</option>
                                     <option value="PAINT_MIXING_HISTORY">🖌️ Mixing History</option>
                                     <option value="STAFF_PERFORMANCE">💇 Staff Performance</option>
+                                    <option value="REPAIR_JOB_HISTORY">🛠️ Repair Job History (जॉब कार्ड्स)</option>
                                 </select>
                             </div>
         
@@ -10224,6 +10225,31 @@ function applyBusinessTypeUI(btype) {
         if(searchInput) searchInput.placeholder = "EMI Account, Loan No या Policy खोजें...";
     }
 
+
+    // ... (applyBusinessTypeUI फंक्शन के अंदर, सबसे नीचे) ...
+
+    // 🚀 HARDWARE SPECIAL FIX: नाम बदलें (Mobile -> Lock)
+    if (btype === 'HARDWARE_GENERAL') {
+        
+        // 1. "Device Model" को "Item Name" करें
+        const deviceInput = document.getElementById('repair_device');
+        if (deviceInput) {
+            deviceInput.placeholder = "Item Name (Lock/Safe)";
+        }
+
+        // 2. "IMEI / Serial" को "Key Code / Serial No" करें
+        const imeiInput = document.getElementById('repair_imei');
+        if (imeiInput) {
+            imeiInput.placeholder = "Key Code / Serial No";
+        }
+
+        // 3. "Problem Description" को "Issue" करें
+        const issueInput = document.getElementById('repair_issue');
+        if (issueInput) {
+            issueInput.placeholder = "Problem (e.g. Key Stuck, Handle Broken)";
+        }
+    }
+
     // 25-26. Professional Services (ARCHITECT_FIRM, SOFTWARE_COMPANY)
     // इनके लिए स्टैंडर्ड सर्विस इनवॉइसिंग (Service Grid) अपने आप डैशबोर्ड में लोड हो जाएगी
 
@@ -11270,6 +11296,66 @@ async function payPainterDue() {
         }
     } catch (e) {
         showMessage('त्रुटि', e.message, 'danger');
+    }
+}
+
+// 1. 🛠️ REPAIR JOB CARD (ताला रिपेयरिंग की मैनुअल एंट्री)
+async function createRepairJob() {
+    // फॉर्म से डेटा उठाएं
+    const data = {
+        customerName: document.getElementById('repair_customer').value,
+        mobile: document.getElementById('repair_mobile').value,
+        device: document.getElementById('repair_device').value, // जैसे: Godrej Lock
+        imei: document.getElementById('repair_imei').value,     // जैसे: Serial No (Optional)
+        issue: document.getElementById('repair_issue').value,   // समस्या: Key Stuck
+        cost: document.getElementById('repair_cost').value,     // खर्चा
+        advance: document.getElementById('repair_advance').value // एडवांस
+    };
+
+    // चेक करें कि नाम और आइटम भरा है या नहीं
+    if(!data.customerName || !data.device) {
+        return showMessage("अधूरा डेटा", "❌ ग्राहक का नाम और आइटम (Device) भरना ज़रूरी है।", "warning");
+    }
+
+    try {
+        const res = await fetchApi('/api/repair/create-job', { method: 'POST', body: data });
+        if(res.success) {
+            showMessage("सफलता", `✅ जॉब कार्ड बन गया! (Job ID: ${res.jobId})`, "success");
+            
+            // फॉर्म खाली करें ताकि अगली एंट्री कर सकें
+            document.getElementById('repair_customer').value = '';
+            document.getElementById('repair_device').value = '';
+            document.getElementById('repair_issue').value = '';
+            document.getElementById('repair_cost').value = '';
+        }
+    } catch(e) { 
+        alert(e.message); 
+    }
+}
+
+// 2. 🚛 DELIVERY TRACKER (तिजोरी डिलीवरी की मैनुअल एंट्री)
+async function scheduleFurnitureDelivery() {
+    const data = {
+        invoiceId: document.getElementById('furn_invoice_id').value, // बिल नंबर
+        date: document.getElementById('furn_delivery_date').value,   // कब भेजना है
+        assembly: document.getElementById('furn_assembly').checked   // मिस्त्री चाहिए? (Checkbox)
+    };
+
+    if(!data.date) {
+        return showMessage("तारीख चुनें", "❌ डिलीवरी की तारीख चुनें।", "warning");
+    }
+
+    try {
+        const res = await fetchApi('/api/furniture/update-delivery', { method: 'POST', body: data });
+        if(res.success) {
+            showMessage("सफलता", "✅ डिलीवरी शेड्यूल हो गई!", "success");
+            
+            // फॉर्म खाली करें
+            document.getElementById('furn_invoice_id').value = '';
+            document.getElementById('furn_delivery_date').value = '';
+        }
+    } catch(e) { 
+        alert(e.message); 
     }
 }
 
