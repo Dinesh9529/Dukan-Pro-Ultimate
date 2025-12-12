@@ -6376,6 +6376,66 @@ app.get('/api/paint/formulas', authenticateJWT, async (req, res) => {
     }
 });
 
+// ============================================================
+// 📊 DAILY & ADVANCED REPORT ENGINE (OPERATIONAL ONLY)
+// ============================================================
+app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
+    const { reportType, startDate, endDate } = req.body;
+    const shopId = req.shopId;
+
+    let query = '';
+    let params = [shopId];
+
+    try {
+        switch (reportType) {
+            // 1. Sales Detail
+            case 'DAILY_SALES_LIST': 
+                query = `SELECT i.id as "Bill No", TO_CHAR(i.created_at, 'DD-MM-YYYY HH12:MI AM') as "Date", c.name as "Customer", i.payment_mode as "Mode", i.total_amount as "Amount (₹)" FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 ORDER BY i.created_at DESC`;
+                params.push(startDate, endDate);
+                break;
+            case 'ITEM_WISE_SALES': 
+                query = `SELECT ii.item_name as "Item", ii.item_sku as "SKU", SUM(ii.quantity) as "Qty Sold", SUM(ii.quantity * ii.sale_price) as "Revenue (₹)" FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 GROUP BY ii.item_name, ii.item_sku ORDER BY "Qty Sold" DESC`;
+                params.push(startDate, endDate);
+                break;
+            case 'TOP_CUSTOMERS': 
+                query = `SELECT c.name as "Customer", c.phone as "Mobile", COUNT(i.id) as "Visits", SUM(i.total_amount) as "Spent (₹)" FROM customers c JOIN invoices i ON c.id = i.customer_id WHERE c.shop_id = $1 GROUP BY c.id ORDER BY "Spent (₹)" DESC LIMIT 20`;
+                break;
+
+            // 2. Stock & Expiry
+            case 'LOW_STOCK': 
+                query = `SELECT name, sku, quantity, low_stock_threshold as "Limit" FROM stock WHERE shop_id = $1 AND quantity <= low_stock_threshold`;
+                break;
+            case 'EXPIRY_REPORT': 
+                query = `SELECT name, batch_number, quantity, TO_CHAR(expiry_date, 'DD-MM-YYYY') as "Exp Date", CASE WHEN expiry_date < CURRENT_DATE THEN 'EXPIRED ❌' ELSE 'SAFE ✅' END as "Status" FROM stock WHERE shop_id = $1 AND expiry_date IS NOT NULL ORDER BY expiry_date ASC`;
+                break;
+            case 'DEAD_STOCK': 
+                query = `SELECT name, sku, quantity, TO_CHAR(updated_at, 'DD-Mon-YYYY') as "Last Active" FROM stock WHERE shop_id = $1 AND quantity > 0 AND updated_at < NOW() - INTERVAL '90 days'`;
+                break;
+
+            // 3. Outstanding
+            case 'CUSTOMER_OUTSTANDING': 
+                query = `SELECT name, phone, address, balance as "Pending (₹)", TO_CHAR(last_payment_date, 'DD-Mon-YYYY') as "Last Paid" FROM customers WHERE shop_id = $1 AND balance > 0 ORDER BY balance DESC`;
+                break;
+
+            // 4. Industry Specific
+            case 'PAINTER_COMMISSION': 
+                query = `SELECT name, mobile, commission_balance as "Unpaid Comm (₹)" FROM painters WHERE shop_id = $1 AND commission_balance > 0`;
+                break;
+            case 'PAINT_MIXING_HISTORY': 
+                query = `SELECT TO_CHAR(created_at, 'DD-MM-YYYY') as "Date", customer_name, color_code, base_product, formula_text FROM paint_formulas WHERE shop_id = $1 ORDER BY created_at DESC`;
+                break;
+            case 'STAFF_PERFORMANCE': 
+                query = `SELECT p.name, COUNT(i.id) as "Services", SUM(i.total_amount) as "Revenue (₹)" FROM painters p JOIN invoices i ON p.id = i.painter_id WHERE p.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 GROUP BY p.name`;
+                params.push(startDate, endDate);
+                break;
+
+            default: return res.status(400).json({ success: false, message: "Invalid Report Type" });
+        }
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
