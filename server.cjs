@@ -6515,6 +6515,50 @@ app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
 });
 
 
+// ==========================================
+// 🎨 PAINTER PAYMENT API (Clear Dues)
+// ==========================================
+app.post('/api/painters/pay', authenticateJWT, async (req, res) => {
+    const { painterId, amount } = req.body;
+    const shopId = req.shopId;
+
+    if (!painterId || !amount || amount <= 0) {
+        return res.status(400).json({ success: false, message: 'राशि (Amount) और पेंटर ID आवश्यक है।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. पेंटर का बैलेंस कम करें (Minus)
+        await client.query(
+            `UPDATE painters SET commission_balance = commission_balance - $1 WHERE id = $2 AND shop_id = $3`,
+            [amount, painterId, shopId]
+        );
+
+        // 2. पेंटर का नाम लाएं (खर्च में लिखने के लिए)
+        const painterRes = await client.query('SELECT name FROM painters WHERE id = $1', [painterId]);
+        const painterName = painterRes.rows[0]?.name || 'Unknown Painter';
+
+        // 3. इस पेमेंट को दुकान के "खर्च (Expenses)" में जोड़ें
+        await client.query(
+            `INSERT INTO expenses (shop_id, category, amount, description, created_at)
+             VALUES ($1, 'Commission Payout', $2, $3, NOW())`,
+            [shopId, amount, `Paid to Painter: ${painterName}`]
+        );
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: `सफलता! ₹${amount} का भुगतान दर्ज कर लिया गया।` });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Painter Pay Error:", err);
+        res.status(500).json({ success: false, message: 'पेमेंट सेव करने में विफल: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {

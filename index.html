@@ -1147,7 +1147,10 @@
                                     <option value="CLOTHING">Garments / Boutique</option>
                                     <option value="FURNITURE">Furniture Showroom</option>
                                     <option value="JEWELLERY">Jewellery / Imitation</option>
-                                    <option value="HARDWARE_PAINT">Hardware & Paint</option>
+                                    <optgroup label="🛠️ Hardware & Construction">
+                                    <option value="HARDWARE_GENERAL">Hardware / Tools / Iron Store</option>
+                                        
+                                    <option value="PAINT_SHOP">Paint Shop / Color World</option>
                                     <option value="SWEET_SHOP">Sweet Shop / Bakery</option>
                                     <option value="ELECTRONICS">Electronics Showroom</option>
                                     <option value="SIM_STORE">SIM Card & Recharge</option>
@@ -1411,10 +1414,15 @@
                     <a href="#" class="nav-link" data-view="gst-reports" data-role="MANAGER"> <i class="fas fa-file-alt"></i> GST रिपोर्ट्स
                     </a>
                 </li>
+                <a href="#" class="list-group-item list-group-item-action bg-transparent text-danger fw-bold" onclick="renderView('daily_reports')"> <i class="fas fa-calendar-check me-2"></i> Daily Reports
+                </a>
+
                 <li class="nav-item">
                     <a href="#" class="nav-link" data-view="bank-reconciliation" data-role="MANAGER"> <i class="fas fa-university"></i> बैंक रिकॉन्सिलेशन
                     </a>
                 </li>
+
+
                 <ul class="nav nav-tabs" id="main-nav-tabs">
                     <li class="nav-item" data-role="MANAGER">
                         <a class="nav-link" href="#" data-view="ai-insights">
@@ -3433,6 +3441,75 @@
                 </div>
             </div>
         </section>
+
+        <section id="daily_reports" class="section">
+            <div class="container-fluid p-4">
+                
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="fw-bold text-primary"><i class="fas fa-calendar-alt"></i> Daily & Operational Reports</h3>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="renderDashboard()">Back</button>
+                </div>
+        
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body bg-light rounded">
+                        <div class="row g-3 align-items-end">
+                            
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Select Report:</label>
+                                <select id="daily-report-type" class="form-select border-primary fw-bold">
+                                    <option value="DAILY_SALES_LIST">📅 Daily Sales List</option>
+                                    <option value="ITEM_WISE_SALES">📦 Item Sales Analysis</option>
+                                    <option value="TOP_CUSTOMERS">🏆 Top Customers</option>
+                                    <option value="CUSTOMER_OUTSTANDING">⚠️ Customer Udhari</option>
+                                    <option value="LOW_STOCK">📉 Low Stock Alert</option>
+                                    <option value="EXPIRY_REPORT">💊 Expiry Report</option>
+                                    <option value="DEAD_STOCK">💀 Dead Stock</option>
+                                    <option value="PAINTER_COMMISSION">🎨 Painter Commission</option>
+                                    <option value="PAINT_MIXING_HISTORY">🖌️ Mixing History</option>
+                                    <option value="STAFF_PERFORMANCE">💇 Staff Performance</option>
+                                </select>
+                            </div>
+        
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">From:</label>
+                                <input type="date" id="daily-start-date" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">To:</label>
+                                <input type="date" id="daily-end-date" class="form-control">
+                            </div>
+        
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100 fw-bold" onclick="generateDailyReport()">
+                                    Show Data
+                                </button>
+
+                                <button class="btn btn-success w-100 fw-bold" onclick="downloadDailyReportExcel()">
+                                    <i class="fas fa-file-excel"></i> Excel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        
+                <div class="card shadow border-0">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0 fw-bold text-dark" id="daily-report-title">Results</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                            <table class="table table-striped table-hover mb-0">
+                                <thead class="table-dark sticky-top">
+                                    <tr id="daily-report-head"><th>Select a report...</th></tr>
+                                </thead>
+                                <tbody id="daily-report-body"> <tr><td class="text-center p-5 text-muted">No data yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <div class="toast-container position-fixed bottom-0 end-0 p-3">
             <div id="appToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
@@ -3663,10 +3740,21 @@ const MASTER_BUSINESS_CONFIG = {
         features: ['weight_calc'],
         dashboard_view: 'retail_grid'
     },
-    'HARDWARE_PAINT': {
-        name: 'Hardware & Paint',
-        labels: { customer: 'Painter/Customer', stock: 'Unit/Ltr' },
-        features: ['paint_mixing', 'estimate'],
+    // MASTER_BUSINESS_CONFIG के अंदर इसे अपडेट करें:
+
+    // --- 1. HARDWARE (Clean Interface) ---
+    'HARDWARE_GENERAL': {
+        name: 'Hardware & Tools Store',
+        labels: { customer: 'Customer', stock: 'Qty/Kg' },
+        features: [], // कोई पेंट फीचर नहीं, एकदम साफ
+        dashboard_view: 'retail_grid'
+    },
+
+    // --- 2. PAINT SHOP (Full Features) ---
+    'PAINT_SHOP': {
+        name: 'Paint Shop (Color Studio)',
+        labels: { customer: 'Painter/Customer', stock: 'Ltr/Drum' },
+        features: ['paint_mixing', 'estimate'], // यहाँ मिक्सर और एस्टीमेटर चालू रहेगा
         dashboard_view: 'retail_grid'
     },
     'SWEET_SHOP': {
@@ -4646,6 +4734,10 @@ function handleNavClick(viewId) {
             case 'ai-insights':
             loadUltimateAI();
             break;
+            case 'daily_reports': 
+        // 🚀 यहाँ नया फंक्शन कॉल करें
+        filterReportOptions(); 
+        break;
 
         }
         
@@ -9982,16 +10074,34 @@ function applyBusinessTypeUI(btype) {
 
     // --- GROUP 1: RETAIL SPECIALS ---
     
-    // 1. Hardware & Paint (HARDWARE_PAINT)
-if (btype === 'HARDWARE_PAINT' || features.includes('paint_mixing')) {
-    document.querySelectorAll('.paint-only').forEach(el => el.style.display = '');
-    if(document.getElementById('module-paint-mixer')) document.getElementById('module-paint-mixer').style.display = 'block';
-    if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'block';
-    if (typeof loadPainters === 'function') loadPainters();
+ // applyBusinessTypeUI फंक्शन के अंदर इस हिस्से को बदलें:
+
+    // --- GROUP 3: HARDWARE & PAINT LOGIC ---
     
-    // 🔥 यहाँ मैंने वह गलत लाइन हटा दी है और सही फंक्शन कॉल जोड़ दिया है
-    if (typeof fetchAndRenderPaintHistory === 'function') fetchAndRenderPaintHistory(); 
-}
+    // 1. अगर पेंट शॉप है (PAINT_SHOP)
+    if (btype === 'PAINT_SHOP') {
+        // पेंट वाले सारे बॉक्स दिखाएं
+        document.querySelectorAll('.paint-only').forEach(el => el.style.display = 'block'); // POS में पेंटर सेलेक्ट
+        
+        if(document.getElementById('module-paint-mixer')) 
+            document.getElementById('module-paint-mixer').style.display = 'block'; // डैशबोर्ड पर मिक्सर
+            
+        if(document.getElementById('module-paint-estimator')) 
+            document.getElementById('module-paint-estimator').style.display = 'block'; // एस्टीमेटर
+            
+        if (typeof loadPainters === 'function') loadPainters(); // पेंटर लिस्ट लोड करें
+        if (typeof fetchAndRenderPaintHistory === 'function') fetchAndRenderPaintHistory();
+    } 
+    
+    // 2. अगर सादा हार्डवेयर है (HARDWARE_GENERAL)
+    else if (btype === 'HARDWARE_GENERAL') {
+        // पेंट वाली सारी चीज़ें जबरदस्ती छुपा दें (Force Hide)
+        document.querySelectorAll('.paint-only').forEach(el => el.style.display = 'none');
+        if(document.getElementById('module-paint-mixer')) 
+            document.getElementById('module-paint-mixer').style.display = 'none';
+        if(document.getElementById('module-paint-estimator')) 
+            document.getElementById('module-paint-estimator').style.display = 'none';
+    }
 
     // 2. Mobile, Electronics, SIM Store (MOBILE_SHOP, ELECTRONICS, SIM_STORE)
     if (features.includes('imei_scan')) {
@@ -10924,8 +11034,10 @@ function openMobileScannerForMix() {
 
 // [ इसे script टैग में जोड़ें ]
 
+// Global variable to store current painter ID in view
+let currentViewingPainterId = null;
+
 async function viewSelectedPainterLedger() {
-    // 1. देखें कि कौन सा पेंटर चुना गया है
     const select = document.getElementById('pos-painter-select');
     const painterId = select.value;
     const painterName = select.options[select.selectedIndex]?.text || 'Unknown';
@@ -10934,25 +11046,36 @@ async function viewSelectedPainterLedger() {
         return showMessage('त्रुटि', 'कृपया पहले लिस्ट से एक पेंटर चुनें।', 'warning');
     }
 
-    // 2. मोडल खोलें और लोडिंग दिखाएं
+    currentViewingPainterId = painterId; // 🚀 ID सेव करें ताकि Pay बटन को पता रहे किसे पैसे देने हैं
+
     const modal = new bootstrap.Modal(document.getElementById('painterLedgerModal'));
     document.getElementById('ledger-painter-name').innerText = painterName + " का हिसाब";
     const tbody = document.getElementById('painter-ledger-body');
+    const balDisplay = document.getElementById('painter-current-balance-display'); // 🚀 बैलेंस डिस्प्ले
+    
     tbody.innerHTML = `<tr><td colspan="4" class="text-center">लोड हो रहा है...</td></tr>`;
     modal.show();
 
     try {
-        // 3. सर्वर से डेटा मंगाएं
+        // 1. लेजर (हिस्ट्री) लाएं
         const res = await fetchApi(`/api/painters/${painterId}/ledger`, { method: 'GET' });
+        
+        // 2. पेंटर का कर्रेंट बैलेंस लाएं (ताकि पता चले अभी कितना देना बाकी है)
+        // (इसके लिए हम Painters लिस्ट API का इस्तेमाल कर सकते हैं या अलग API)
+        const paintersRes = await fetchApi('/api/painters', { method: 'GET' });
+        const currentPainter = paintersRes.painters.find(p => p.id == painterId);
+        const currentBalance = currentPainter ? parseFloat(currentPainter.commission_balance) : 0;
+
+        // बैलेंस अपडेट करें
+        if(balDisplay) balDisplay.innerText = `कुल बकाया: ${formatCurrency(currentBalance)}`;
 
         if (res.success && res.history && res.history.length > 0) {
-            tbody.innerHTML = ''; // पुराना साफ़ करें
+            tbody.innerHTML = '';
             let totalComm = 0;
 
             res.history.forEach(row => {
                 const comm = parseFloat(row.painter_commission_amount || 0);
                 totalComm += comm;
-
                 tbody.innerHTML += `
                     <tr>
                         <td>${new Date(row.created_at).toLocaleDateString('en-IN')}</td>
@@ -10962,19 +11085,164 @@ async function viewSelectedPainterLedger() {
                     </tr>
                 `;
             });
-
-            // कुल जोड़ अपडेट करें
             document.getElementById('painter-total-earnings').innerText = formatCurrency(totalComm);
-
         } else {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">इस पेंटर का अभी कोई कमीशन रिकॉर्ड नहीं है।</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">कोई रिकॉर्ड नहीं।</td></tr>`;
             document.getElementById('painter-total-earnings').innerText = '₹0.00';
         }
-
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
     }
 }
+
+
+
+// 🚀 NEW FUNCTION FOR DAILY REPORTS
+async function generateDailyReport() {
+    const type = document.getElementById('daily-report-type').value;
+    let start = document.getElementById('daily-start-date').value;
+    let end = document.getElementById('daily-end-date').value;
+
+    if (!start || !end) {
+        const today = new Date().toISOString().split('T')[0];
+        if(!start) start = today; if(!end) end = today;
+    }
+
+    const tbody = document.getElementById('daily-report-body');
+    const thead = document.getElementById('daily-report-head');
+    const title = document.getElementById('daily-report-title');
+
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center p-4"><div class="spinner-border text-primary"></div></td></tr>`;
+
+    try {
+        const res = await fetchApi('/api/reports/advanced', {
+            method: 'POST', body: { reportType: type, startDate: start, endDate: end }
+        });
+
+        if (res.success && res.data.length > 0) {
+            const data = res.data;
+            const columns = Object.keys(data[0]);
+            title.innerText = `${type} (${data.length} Rows)`;
+            thead.innerHTML = columns.map(col => `<th>${col}</th>`).join('');
+            tbody.innerHTML = data.map(row => `<tr>${columns.map(col => `<td>${row[col]}</td>`).join('')}</tr>`).join('');
+        } else {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center p-5 text-danger fw-bold">No data found.</td></tr>`;
+        }
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Error: ${e.message}</td></tr>`;
+    }
+}
+
+// ==========================================
+// 🚀 DAILY REPORTS: FILTER & DOWNLOAD LOGIC
+// ==========================================
+
+// 1. पेंटर रिपोर्ट्स को छुपाने का फंक्शन
+// filterReportOptions फंक्शन में अपडेट करें:
+
+function filterReportOptions() {
+    const userType = AppState.user?.businessType; 
+    const select = document.getElementById('daily-report-type');
+    
+    const paintReports = ['PAINTER_COMMISSION', 'PAINT_MIXING_HISTORY'];
+
+    if (select) {
+        for (let i = 0; i < select.options.length; i++) {
+            const opt = select.options[i];
+            
+            // 🚀 बदलाव: अब हम चेक करेंगे कि टाइप 'PAINT_SHOP' है या नहीं
+            if (userType !== 'PAINT_SHOP' && paintReports.includes(opt.value)) {
+                opt.style.display = 'none'; // हार्डवेयर वालों के लिए गायब
+                opt.disabled = true;
+            } else {
+                opt.style.display = 'block'; // पेंट वालों को दिखेगा
+                opt.disabled = false;
+            }
+        }
+    }
+}
+
+// 2. Excel डाउनलोड करने का फंक्शन
+async function downloadDailyReportExcel() {
+    const type = document.getElementById('daily-report-type').value;
+    let start = document.getElementById('daily-start-date').value;
+    let end = document.getElementById('daily-end-date').value;
+
+    if (!type) return showMessage('त्रुटि', 'कृपया एक रिपोर्ट चुनें।', 'warning');
+
+    // अगर तारीख नहीं चुनी, तो आज की ले लो
+    if (!start || !end) {
+        const today = new Date().toISOString().split('T')[0];
+        if(!start) start = today; if(!end) end = today;
+    }
+
+    try {
+        showMessage('Info', 'Excel फाइल तैयार की जा रही है...', 'info');
+
+        // सर्वर से डेटा मंगाएं (वही API जो Show Data के लिए यूज़ होता है)
+        const res = await fetchApi('/api/reports/advanced', {
+            method: 'POST', 
+            body: { reportType: type, startDate: start, endDate: end }
+        });
+
+        if (res.success && res.data.length > 0) {
+            // डेटा को Excel शीट में बदलें (SheetJS लाइब्रेरी का उपयोग करके)
+            const ws = XLSX.utils.json_to_sheet(res.data);
+            const wb = XLSX.utils.book_new();
+            
+            // शीट को बुक में जोड़ें
+            XLSX.utils.book_append_sheet(wb, ws, "Report");
+
+            // फाइल का नाम बनाएं (जैसे: Sales_Report_2023-10-25.xlsx)
+            const fileName = `${type}_${start}_to_${end}.xlsx`;
+
+            // फाइल डाउनलोड करें
+            XLSX.writeFile(wb, fileName);
+            
+            showMessage('सफलता', 'Excel फाइल डाउनलोड हो गई!', 'success');
+        } else {
+            showMessage('Warning', 'इस तारीख में डाउनलोड करने के लिए कोई डेटा नहीं है।', 'warning');
+        }
+    } catch (e) {
+        console.error(e);
+        showMessage('त्रुटि', 'Excel डाउनलोड विफल: ' + e.message, 'danger');
+    }
+}
+
+async function payPainterDue() {
+    if (!currentViewingPainterId) return;
+
+    const amountStr = prompt("पेंटर को कितना भुगतान (Payment) करना है? (₹)");
+    if (!amountStr) return;
+
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+        return showMessage('त्रुटि', 'कृपया सही राशि दर्ज करें।', 'warning');
+    }
+
+    try {
+        const res = await fetchApi('/api/painters/pay', {
+            method: 'POST',
+            body: { painterId: currentViewingPainterId, amount: amount }
+        }, 'पेमेंट दर्ज हो रहा है...');
+
+        if (res.success) {
+            showMessage('सफलता', res.message, 'success');
+            
+            // लेजर रिफ्रेश करें ताकि घटा हुआ बैलेंस दिखे
+            viewSelectedPainterLedger();
+            
+            // अगर डैशबोर्ड पर खर्च का मीटर है तो उसे भी अपडेट करें
+            if(typeof fetchAndRenderExpenses === 'function') fetchAndRenderExpenses();
+        } else {
+            throw new Error(res.message);
+        }
+    } catch (e) {
+        showMessage('त्रुटि', e.message, 'danger');
+    }
+}
+
 
 
 </script>
@@ -11081,9 +11349,18 @@ async function viewSelectedPainterLedger() {
                     </table>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
+            <div class="modal-footer justify-content-between">
+                <div class="text-danger fw-bold" id="painter-current-balance-display">
+                    बकाया: ₹0.00
                 </div>
+                
+                <div>
+                    <button type="button" class="btn btn-success me-2" onclick="payPainterDue()">
+                        <i class="fas fa-money-bill-wave"></i> भुगतान करें (Pay)
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
