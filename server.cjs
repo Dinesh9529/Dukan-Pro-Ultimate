@@ -106,6 +106,68 @@ const initDB = async () => {
 // सर्वर स्टार्ट होते ही इसे चलाएं
 initDB();
 
+
+// ============================================================
+// 🛠️ AUTO-REPAIR DATABASE (MISSING COLUMNS FIXER)
+// ============================================================
+const repairDatabaseSchema = async () => {
+    try {
+        console.log("🛠️ Checking & Fixing Database Schema...");
+
+        // 1. Invoices Table: Add 'payment_mode'
+        await pool.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'invoices'::regclass AND attname = 'payment_mode') THEN
+                    ALTER TABLE invoices ADD COLUMN payment_mode TEXT DEFAULT 'Cash';
+                END IF;
+            END $$;
+        `);
+
+        // 2. Customers Table: Add 'last_payment_date'
+        await pool.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'customers'::regclass AND attname = 'last_payment_date') THEN
+                    ALTER TABLE customers ADD COLUMN last_payment_date DATE;
+                END IF;
+            END $$;
+        `);
+
+        // 3. Stock Table: Add 'low_stock_threshold', 'batch_number', 'expiry_date'
+        await pool.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'stock'::regclass AND attname = 'low_stock_threshold') THEN
+                    ALTER TABLE stock ADD COLUMN low_stock_threshold INTEGER DEFAULT 5;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'stock'::regclass AND attname = 'batch_number') THEN
+                    ALTER TABLE stock ADD COLUMN batch_number TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'stock'::regclass AND attname = 'expiry_date') THEN
+                    ALTER TABLE stock ADD COLUMN expiry_date DATE;
+                END IF;
+            END $$;
+        `);
+
+        // 4. Paint Formulas: Fix 'formula_text' issue
+        // अगर formula_json है पर formula_text नहीं, तो हम उसे रिपोर्ट में हैंडल करेंगे।
+        // लेकिन अगर टेबल ही अधूरी है, तो यहाँ फिक्स करें।
+        await pool.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'paint_formulas'::regclass AND attname = 'formula_text') THEN
+                    ALTER TABLE paint_formulas ADD COLUMN formula_text TEXT;
+                END IF;
+            END $$;
+        `);
+
+        console.log("✅ Database Schema Repaired Successfully!");
+
+    } catch (e) {
+        console.error("❌ Database Repair Failed:", e.message);
+    }
+};
+
+// सर्वर शुरू होते ही रिपेयर चलाएं
+repairDatabaseSchema();
+
 // 👆👆 कोड यहाँ खत्म 👆👆
 // -----------------------------------------------------------------------------
 // I. DATABASE SCHEMA CREATION AND UTILITIES
