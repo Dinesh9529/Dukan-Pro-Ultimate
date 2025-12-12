@@ -6377,13 +6377,21 @@ app.get('/api/paint/formulas', authenticateJWT, async (req, res) => {
 });
 
 // ============================================================
-// 📊 DAILY & ADVANCED REPORT ENGINE (OPERATIONAL ONLY)
+// 📊 DAILY & ADVANCED REPORT ENGINE (FIXED DATE LOGIC)
 // ============================================================
 app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
     const { reportType, startDate, endDate } = req.body;
     const shopId = req.shopId;
 
     let query = '';
+    
+    // 🚀 FIX: तारीख को पूरा दिन (End of Day) कवर करने के लिए सेट करें
+    // अगर endDate '2024-05-20' है, तो उसे '2024-05-20 23:59:59' बना दें
+    let finalEndDate = endDate;
+    if (endDate && endDate.length === 10) { // YYYY-MM-DD format check
+        finalEndDate = endDate + ' 23:59:59';
+    }
+
     let params = [shopId];
 
     try {
@@ -6391,17 +6399,20 @@ app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
             // 1. Sales Detail
             case 'DAILY_SALES_LIST': 
                 query = `SELECT i.id as "Bill No", TO_CHAR(i.created_at, 'DD-MM-YYYY HH12:MI AM') as "Date", c.name as "Customer", i.payment_mode as "Mode", i.total_amount as "Amount (₹)" FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 ORDER BY i.created_at DESC`;
-                params.push(startDate, endDate);
+                params.push(startDate, finalEndDate); // ✅ Fixed Date
                 break;
+            
             case 'ITEM_WISE_SALES': 
                 query = `SELECT ii.item_name as "Item", ii.item_sku as "SKU", SUM(ii.quantity) as "Qty Sold", SUM(ii.quantity * ii.sale_price) as "Revenue (₹)" FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id WHERE i.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 GROUP BY ii.item_name, ii.item_sku ORDER BY "Qty Sold" DESC`;
-                params.push(startDate, endDate);
+                params.push(startDate, finalEndDate); // ✅ Fixed Date
                 break;
+            
             case 'TOP_CUSTOMERS': 
                 query = `SELECT c.name as "Customer", c.phone as "Mobile", COUNT(i.id) as "Visits", SUM(i.total_amount) as "Spent (₹)" FROM customers c JOIN invoices i ON c.id = i.customer_id WHERE c.shop_id = $1 GROUP BY c.id ORDER BY "Spent (₹)" DESC LIMIT 20`;
+                // Top customers usually ignores date or needs specific implementation, here it's global
                 break;
 
-            // 2. Stock & Expiry
+            // 2. Stock & Expiry (Date Range Not Needed for Current Status)
             case 'LOW_STOCK': 
                 query = `SELECT name, sku, quantity, low_stock_threshold as "Limit" FROM stock WHERE shop_id = $1 AND quantity <= low_stock_threshold`;
                 break;
@@ -6426,15 +6437,22 @@ app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
                 break;
             case 'STAFF_PERFORMANCE': 
                 query = `SELECT p.name, COUNT(i.id) as "Services", SUM(i.total_amount) as "Revenue (₹)" FROM painters p JOIN invoices i ON p.id = i.painter_id WHERE p.shop_id = $1 AND i.created_at BETWEEN $2 AND $3 GROUP BY p.name`;
-                params.push(startDate, endDate);
+                params.push(startDate, finalEndDate); // ✅ Fixed Date
                 break;
 
             default: return res.status(400).json({ success: false, message: "Invalid Report Type" });
         }
+
         const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
-    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+
+    } catch (err) {
+        console.error("Report Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
