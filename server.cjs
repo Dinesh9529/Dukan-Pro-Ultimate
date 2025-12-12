@@ -157,6 +157,17 @@ const repairDatabaseSchema = async () => {
                 END IF;
             END $$;
         `);
+		
+		// 🚀 5. DELIVERY TRACKER FIX (यह नया जोड़ा है)
+        // यह 'delivery_status' कॉलम अपने आप बना देगा
+        await pool.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'product_deliveries'::regclass AND attname = 'delivery_status') THEN
+                    ALTER TABLE product_deliveries ADD COLUMN delivery_status TEXT DEFAULT 'Pending';
+                END IF;
+            END $$;
+        `);
+		
 
         console.log("✅ Database Schema Repaired Successfully!");
 
@@ -6519,6 +6530,23 @@ app.post('/api/reports/advanced', authenticateJWT, async (req, res) => {
                     WHERE shop_id = $1 
                     ORDER BY created_at DESC`;
                 break;
+				
+				// ... (REPAIR_JOB_HISTORY के बाद जोड़ें)
+
+            // 6. 🚚 DELIVERY TRACKER
+            case 'DELIVERY_REPORT': 
+                query = `
+                    SELECT 
+                        invoice_id as "Bill No",
+                        TO_CHAR(delivery_date, 'DD-Mon-YYYY') as "Delivery Date",
+                        delivery_status as "Status",
+                        CASE WHEN assembly_required THEN 'Yes (Mistri Needed)' ELSE 'No' END as "Assembly/Mistri"
+                    FROM product_deliveries 
+                    WHERE shop_id = $1 
+                    ORDER BY delivery_date ASC`;
+                break;
+
+            // ... (default से पहले)
 
             // ... (default वाले केस से पहले)
 
