@@ -3742,11 +3742,15 @@ const MASTER_BUSINESS_CONFIG = {
     },
     // MASTER_BUSINESS_CONFIG के अंदर इसे अपडेट करें:
 
-    // --- 1. HARDWARE (Clean Interface) ---
-    'HARDWARE_GENERAL': {
-        name: 'Hardware & Tools Store',
-        labels: { customer: 'Customer', stock: 'Qty/Kg' },
-        features: [], // कोई पेंट फीचर नहीं, एकदम साफ
+    // --- 1. HARDWARE (Updated for Locks & Safes) ---
+   // --- 1. HARDWARE (Updated for Locks & Safes) ---
+   'HARDWARE_GENERAL': {
+        name: 'Hardware, Locks & Safes',
+        labels: { customer: 'Customer', stock: 'Qty/Pcs' },
+        
+        // 🚀 इन दो फीचर्स से डिलीवरी और रिपेयरिंग चालू हो जाएगी
+        features: ['delivery_tracking', 'job_card'], 
+        
         dashboard_view: 'retail_grid'
     },
 

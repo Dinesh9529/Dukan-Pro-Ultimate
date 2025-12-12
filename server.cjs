@@ -6560,6 +6560,31 @@ app.post('/api/painters/pay', authenticateJWT, async (req, res) => {
 });
 
 
+// ==========================================
+// 🛠️ REPAIR CENTER API (Job Cards)
+// ==========================================
+app.post('/api/repair/create-job', authenticateJWT, async (req, res) => {
+    const { customerName, mobile, device, issue, cost, advance } = req.body;
+    const shopId = req.shopId;
+
+    if (!customerName || !device) {
+        return res.status(400).json({ success: false, message: 'ग्राहक का नाम और आइटम (Device) ज़रूरी है।' });
+    }
+
+    try {
+        const result = await pool.query(
+            `INSERT INTO repair_job_cards (shop_id, customer_name, customer_mobile, device_model, issue_description, estimated_cost, advance_paid, status, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'RECEIVED', NOW()) RETURNING id`,
+            [shopId, customerName, mobile, device, issue, cost || 0, advance || 0]
+        );
+        res.json({ success: true, message: 'Job Card Created!', jobId: result.rows[0].id });
+    } catch (e) {
+        console.error("Repair Job Error:", e);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
