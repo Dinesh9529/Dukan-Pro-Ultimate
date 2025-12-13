@@ -6878,6 +6878,83 @@ app.post('/api/restaurant/complete-kot', authenticateJWT, async (req, res) => {
     }
 });
 
+// [ server.cjs में KOT सेक्शन के अंत में पेस्ट करें ]
+
+// 5.6 🍽️ TABLE BILLING (KOT -> POS Transfer)
+app.post('/api/restaurant/generate-bill', authenticateJWT, async (req, res) => {
+    const { tableId } = req.body;
+    const shopId = req.shopId;
+    
+    if (!tableId) return res.status(400).json({ success: false, message: "Table Number जरूरी है।" });
+
+    try {
+        // 1. उस टेबल के सारे पेंडिंग/सर्वद आर्डर लाएं
+        // (हम items_json के अंदर 'tableNo' चेक कर रहे हैं)
+        const result = await pool.query(
+            `SELECT items_json FROM restaurant_kots 
+             WHERE shop_id = $1 
+             AND items_json->>'tableNo' = $2 
+             AND status IN ('PREPARING', 'SERVED')`,
+            [shopId, tableId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ success: false, message: 'इस टेबल का कोई एक्टिव आर्डर नहीं मिला।' });
+        }
+
+        let finalItems = [];
+        
+        // 2. सारे आइटम्स को प्रोसेस करें
+        for (let row of result.rows) {
+            let data = (typeof row.items_json === 'string') ? JSON.parse(row.items_json) : row.items_json;
+            
+            if (data.items && Array.isArray(data.items)) {
+                for (let item of data.items) {
+                    // स्टॉक से प्राइस ढूंढने की कोशिश करें (Item Name से)
+                    const stockRes = await pool.query(
+                        "SELECT sku, sale_price, gst, purchase_price FROM stock WHERE shop_id = $1 AND name ILIKE $2 LIMIT 1",
+                        [shopId, item.item.trim()]
+                    );
+                    
+                    let price = 0, sku = 'KOT-ITEM', gst = 0, p_price = 0;
+                    
+                    if(stockRes.rows.length > 0) {
+                        price = parseFloat(stockRes.rows[0].sale_price);
+                        sku = stockRes.rows[0].sku;
+                        gst = parseFloat(stockRes.rows[0].gst);
+                        p_price = parseFloat(stockRes.rows[0].purchase_price);
+                    }
+
+                    finalItems.push({
+                        name: item.item,
+                        quantity: parseFloat(item.qty),
+                        sale_price: price,
+                        sku: sku,
+                        gst: gst,
+                        purchase_price: p_price
+                    });
+                }
+            }
+        }
+
+        // 3. KOTs को 'BILLED' मार्क कर दें (ताकि दोबारा बिल न बने)
+        await pool.query(
+            `UPDATE restaurant_kots SET status = 'BILLED' 
+             WHERE shop_id = $1 
+             AND items_json->>'tableNo' = $2 
+             AND status IN ('PREPARING', 'SERVED')`,
+            [shopId, tableId]
+        );
+
+        res.json({ success: true, items: finalItems, message: "आइटम्स POS में भेज दिए गए हैं!" });
+
+    } catch (err) {
+        console.error("Bill Gen Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
