@@ -6734,6 +6734,69 @@ app.post('/api/admin/set-business-type', async (req, res) => {
     }
 });
 
+
+// [ server.cjs में इस नए कोड को Paste करें ]
+
+// 5.1 🏨 HOTEL CHECK-IN API (New)
+app.post('/api/hotel/checkin', authenticateJWT, async (req, res) => {
+    const { room_id, customer_name, mobile, check_in_date, advance } = req.body;
+    const shopId = req.shopId;
+
+    if (!customer_name || !room_id) {
+        return res.status(400).json({ success: false, message: 'Room No और Guest Name जरूरी है।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. देखें कि क्या कमरा पहले से मौजूद है?
+        const roomCheck = await client.query(
+            `SELECT id FROM hotel_rooms WHERE shop_id = $1 AND room_number = $2`,
+            [shopId, room_id]
+        );
+
+        if (roomCheck.rows.length > 0) {
+            // अगर कमरा है, तो उसे 'OCCUPIED' अपडेट करें
+            await client.query(
+                `UPDATE hotel_rooms 
+                 SET status = 'OCCUPIED', current_guest_name = $1 
+                 WHERE shop_id = $2 AND room_number = $3`,
+                [customer_name, shopId, room_id]
+            );
+        } else {
+            // अगर कमरा नहीं है, तो नया बनाएं और चेक-इन करें
+            await client.query(
+                `INSERT INTO hotel_rooms (shop_id, room_number, status, current_guest_name)
+                 VALUES ($1, $2, 'OCCUPIED', $3)`,
+                [shopId, room_id, customer_name]
+            );
+        }
+
+        // 2. अगर एडवांस दिया है, तो उसे 'इनवॉइस' (Advance Payment) के तौर पर सेव करें
+        if (advance && parseFloat(advance) > 0) {
+            // हम इसे एक 'Advance Receipt' के रूप में सेव कर रहे हैं
+            await client.query(
+                `INSERT INTO invoices (shop_id, total_amount, created_at, payment_mode)
+                 VALUES ($1, $2, NOW(), 'Advance')`,
+                [shopId, parseFloat(advance)]
+            );
+            // नोट: यह एक सिंपल एंट्री है। आप बाद में पूरा बिल बना सकते हैं।
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: `✅ Check-In सफल! रूम ${room_id} अब बुक हो गया है।` });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Hotel CheckIn Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
