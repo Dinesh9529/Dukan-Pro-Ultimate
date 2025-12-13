@@ -6655,6 +6655,27 @@ app.post('/api/repair/create-job', authenticateJWT, async (req, res) => {
     }
 });
 
+// ==========================================
+// 🚚 UNIVERSAL DELIVERY LIST API (Hardware & Furniture)
+// ==========================================
+app.get('/api/furniture/deliveries', authenticateJWT, async (req, res) => {
+    try {
+        const shopId = req.shopId;
+        // जो डिलीवरी सबसे करीब है उसे सबसे ऊपर दिखाएं
+        const result = await pool.query(`
+            SELECT * FROM product_deliveries 
+            WHERE shop_id = $1 
+            ORDER BY delivery_date ASC 
+            LIMIT 20`, 
+            [shopId]
+        );
+        res.json({ success: true, deliveries: result.rows });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
