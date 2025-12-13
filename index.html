@@ -1039,6 +1039,33 @@
     color: #ffffff !important;
 }
 
+/* 🚀 FIX: AI Insights Layout Correction */
+#ai-insights {
+    width: 100%;
+    /* अगर यह main-content के बाहर है, तो इसे सही मार्जिन दें */
+    padding-left: 0; 
+}
+
+/* अगर स्क्रीन बड़ी है (Laptop/PC) और यह गलती से बाहर है */
+@media (min-width: 992px) {
+    body > #ai-insights {
+        margin-left: 280px; /* साइडबार की जगह छोड़ें */
+        width: calc(100% - 280px); /* बाकी बची जगह लें */
+        padding: 30px;
+    }
+}
+
+/* हेडर बॉक्स को और सुंदर बनाने के लिए */
+.ai-header-box {
+    margin-top: 10px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    width: 100%; /* फुल विड्थ */
+    box-sizing: border-box; /* पैडिंग को विड्थ के अंदर रखें */
+}
+
+
+
     </style>
 
 </head>
@@ -1855,8 +1882,24 @@
                 </div>
             </div>
 
-            <div class="mt-3 border-top pt-2">
-                <h6 class="text-dark small fw-bold"><i class="fas fa-truck-loading"></i> Pending Deliveries</h6>
+            <div id="hardware-delivery-box" class="biz-module mt-3 border-top pt-2" style="display:none;">
+                <div id="hardware-delivery-box" class="biz-module mt-3 border-top pt-2" style="display:none;">
+                    <h6 class="text-dark small fw-bold"><i class="fas fa-truck-loading"></i> Pending Deliveries</h6>
+                    <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered small mb-0 bg-white">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th>Invoice / Item</th>
+                                    <th>Date</th>
+                                    <th>Mistri?</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hardware-delivery-list">
+                                <tr><td colspan="3" class="text-center text-muted">लोड हो रहा है...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
                     <table class="table table-sm table-bordered small mb-0 bg-white">
                         <thead class="table-secondary">
@@ -10208,7 +10251,7 @@ function applyBusinessTypeUI(btype) {
             document.getElementById('module-paint-estimator').style.display = 'none';
 
         // --- पुराना Delivery Tracker अपडेट ---
-        // यह फर्नीचर वाला ही बॉक्स इस्तेमाल करेगा लेकिन हार्डवेयर के लिए
+        // यह फर्नीचर वाला ही बॉक्स इस्तेमाल करेगा लेकिन हार्डवेयर के लिए (Input Box)
         if(document.getElementById('module-furniture-showroom')) {
             document.getElementById('module-furniture-showroom').style.display = 'block';
             
@@ -10217,6 +10260,12 @@ function applyBusinessTypeUI(btype) {
             if(typeof loadDeliveryList === 'function') {
                 setTimeout(loadDeliveryList, 1000); 
             }
+        }
+
+        // --- 🚀 NEW FIX: "Pending Deliveries" लिस्ट बॉक्स को यहाँ दिखाएं ---
+        // (बाकी जगह यह 'biz-module' क्लास की वजह से छिपा रहेगा)
+        if(document.getElementById('hardware-delivery-box')) {
+            document.getElementById('hardware-delivery-box').style.display = 'block';
         }
 
         // --- 🚀🔥 नया अपडेट (GOD MODE ADDED) ---
