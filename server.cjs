@@ -6843,6 +6843,41 @@ app.post('/api/hotel/checkout', authenticateJWT, async (req, res) => {
     }
 });
 
+// [ server.cjs में KOT सेक्शन में इसे पेस्ट करें ]
+
+// 5.4 🍽️ GET ACTIVE KOTS (Display List)
+app.get('/api/restaurant/active-kots', authenticateJWT, async (req, res) => {
+    const shopId = req.shopId;
+    try {
+        // सिर्फ वो आर्डर लाएं जो अभी बन रहे हैं ('PREPARING')
+        const result = await pool.query(
+            `SELECT id, items_json, status, created_at 
+             FROM restaurant_kots 
+             WHERE shop_id = $1 AND status = 'PREPARING' 
+             ORDER BY created_at DESC`,
+            [shopId]
+        );
+        res.json({ success: true, kots: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5.5 ✅ COMPLETE KOT (Order Served)
+app.post('/api/restaurant/complete-kot', authenticateJWT, async (req, res) => {
+    const { kotId } = req.body;
+    try {
+        // स्टेटस बदलकर 'SERVED' कर दें ताकि लिस्ट से हट जाए
+        await pool.query(
+            "UPDATE restaurant_kots SET status = 'SERVED' WHERE id = $1 AND shop_id = $2",
+            [kotId, req.shopId]
+        );
+        res.json({ success: true, message: 'Order Served!' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
