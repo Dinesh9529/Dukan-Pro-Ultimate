@@ -6775,6 +6775,47 @@ app.post('/api/hotel/checkin', authenticateJWT, async (req, res) => {
 });
 
 
+// [ server.cjs में इस नए कोड को Paste करें ]
+
+// 5.2 🍽️ RESTAURANT KOT API (New)
+app.post('/api/restaurant/create-kot', authenticateJWT, async (req, res) => {
+    const { tableId, items } = req.body;
+    const shopId = req.shopId;
+
+    if (!tableId || !items || items.length === 0) {
+        return res.status(400).json({ success: false, message: 'Table No और Items जरूरी हैं।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. KOT सेव करें (items को JSON फॉर्मेट में रखेंगे)
+        // नोट: हम table_id को अभी सीधे Text की तरह सेव कर रहे हैं ताकि आसानी हो
+        await client.query(
+            `INSERT INTO restaurant_kots (shop_id, table_id, items_json, status, created_at)
+             VALUES ($1, $2, $3, 'PREPARING', NOW())`,
+            [shopId, null, JSON.stringify({ tableNo: tableId, items: items })] 
+            // table_id कॉलम integer मांग सकता है, इसलिए हम items_json में tableNo रख रहे हैं
+            // और table_id को null भेज रहे हैं ताकि एरर न आए (या आप table_id कॉलम का टाइप बदल सकते हैं)
+        );
+
+        // 2. टेबल का स्टेटस 'OCCUPIED' करें (अगर टेबल मैनेजमेंट है)
+        // (यह ऑप्शनल है, अभी के लिए सिर्फ KOT सेव कर रहे हैं)
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: `✅ KOT किचन में भेज दिया गया! (Table: ${tableId})` });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("KOT Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
