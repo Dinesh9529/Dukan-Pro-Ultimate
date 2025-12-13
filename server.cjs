@@ -5910,18 +5910,22 @@ app.post('/api/security/alert', authenticateJWT, async (req, res) => {
         res.json({ success: true, message: 'Security Alert Logged! Photo Saved.' });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
-
-// 2. 🛋️ FURNITURE API (Delivery Update)
+// 2. 🛋️ FURNITURE API (Delivery Update - FIXED & ROBUST)
 app.post('/api/furniture/update-delivery', authenticateJWT, async (req, res) => {
-    const { invoiceId, date, status, assembly } = req.body;
+    // अगर status नहीं भेजा, तो 'Pending' मान लो
+    const { invoiceId, date, status = 'Pending', assembly } = req.body;
+    
     try {
         await pool.query(
             `INSERT INTO product_deliveries (shop_id, invoice_id, delivery_date, delivery_status, assembly_required)
              VALUES ($1, $2, $3, $4, $5)`,
             [req.shopId, invoiceId, date, status, assembly]
         );
-        res.json({ success: true, message: 'Delivery Scheduled.' });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+        res.json({ success: true, message: 'Delivery Scheduled Successfully.' });
+    } catch (e) { 
+        console.error("Delivery Error:", e);
+        res.status(500).json({ success: false, message: e.message }); 
+    }
 });
 
 // 3. 🩺 MEDICAL REPORT API (Save Sonography/XRay)
