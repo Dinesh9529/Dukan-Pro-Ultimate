@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
+    <link rel="icon" type="image/png" href="https://img.icons8.com/color/48/shop.png">
 
 
    
@@ -1853,6 +1854,24 @@
                     <button class="btn btn-warning w-100 mt-2" onclick="scheduleFurnitureDelivery()">Schedule Delivery</button>
                 </div>
             </div>
+
+            <div class="mt-3 border-top pt-2">
+                <h6 class="text-dark small fw-bold"><i class="fas fa-truck-loading"></i> Pending Deliveries</h6>
+                <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
+                    <table class="table table-sm table-bordered small mb-0 bg-white">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>Invoice / Item</th>
+                                <th>Date</th>
+                                <th>Mistri?</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hardware-delivery-list">
+                            <tr><td colspan="3" class="text-center text-muted">लोड हो रहा है...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         
             <div id="module-hotel-management" class="biz-module card shadow-sm border-danger mb-4" style="display:none;">
                 <div class="card-header bg-danger text-white"><h5><i class="fas fa-hotel"></i> Hotel Front Desk</h5></div>
@@ -1944,6 +1963,9 @@
                     <div class="row g-2">
                         <div class="col-6"><input type="text" id="repair_customer" class="form-control form-control-sm" placeholder="Customer Name"></div>
                         <div class="col-6"><input type="text" id="repair_mobile" class="form-control form-control-sm" placeholder="Mobile"></div>
+                        <div class="col-6">
+                            <input type="text" id="repair_invoice_id" class="form-control form-control-sm" placeholder="Original Bill No (Optional)">
+                        </div>
                         <div class="col-6"><input type="text" id="repair_device" class="form-control form-control-sm" placeholder="Device Model"></div>
                         <div class="col-6"><input type="text" id="repair_imei" class="form-control form-control-sm" placeholder="IMEI / Serial"></div>
                         <div class="col-12"><textarea id="repair_issue" class="form-control form-control-sm" placeholder="Problem Description"></textarea></div>
@@ -2445,7 +2467,60 @@
                                     <input type="hidden" id="pos-lat">
                                     <input type="hidden" id="pos-long">
                                 </div>
-        
+
+                                <div id="pos-god-mode-delivery" class="mb-3 p-2 border border-primary rounded bg-light" style="display:none;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="text-primary m-0 fw-bold"><i class="fas fa-truck-fast"></i> Instant Delivery & Alert</h6>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="pos_auto_deliver_check" onchange="togglePosDeliveryDate()">
+                                            <label class="form-check-label fw-bold small" for="pos_auto_deliver_check">Enable</label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="pos_delivery_inputs" style="display:none;" class="mt-2">
+                                        <label class="small text-muted">Delivery Date:</label>
+                                        <input type="date" id="pos_auto_date" class="form-control form-control-sm mb-2">
+                                        
+                                        <input type="tel" id="pos_auto_mistri_mobile" class="form-control form-control-sm mb-2" placeholder="Mistri Mobile (Optional)">
+                                
+                                        <div class="d-flex gap-3 border-top pt-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="pos_send_cust_wa" checked>
+                                                <label class="form-check-label small fw-bold text-success" for="pos_send_cust_wa">
+                                                    Customer Msg?
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="pos_send_mistri_wa">
+                                                <label class="form-check-label small fw-bold text-primary" for="pos_send_mistri_wa">
+                                                    Mistri Msg?
+                                                </label>
+                                            </div>
+                                        </div>
+                                
+                                        <div class="mt-2 border-top pt-2">
+                                            <label class="small fw-bold text-dark d-flex justify-content-between">
+                                                <span>💬 Auto-Message Template</span>
+                                                <span class="text-primary cursor-pointer" onclick="resetTemplate()">Reset</span>
+                                            </label>
+                                            <textarea id="pos_wa_template" class="form-control form-control-sm" rows="4" style="font-size: 0.85rem; background: #f0f8ff;">
+                                नमस्ते *{name}*,
+                                आपका ऑडर कंफर्म हो गया है! 🎉
+                                🧾 बिल नंबर: *#{bill_no}*
+                                💰 कुल राशि: *{amount}*
+                                📦 सामान: {items}
+                                🚚 डिलीवरी: {date}
+                                
+                                कृपया साथ में भेजा गया PDF बिल देखें।
+                                धन्यवाद! 🙏
+                                </textarea>
+                                            <div class="text-muted mt-1" style="font-size: 10px;">
+                                                <strong>Variables:</strong> {name}, {bill_no}, {amount}, {items}, {date} (ये अपने आप भर जाएंगे)
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="mt-4">
                                     <button 
                                         type="button" 
@@ -3468,6 +3543,7 @@
                                     <option value="PAINT_MIXING_HISTORY">🖌️ Mixing History</option>
                                     <option value="STAFF_PERFORMANCE">💇 Staff Performance</option>
                                     <option value="REPAIR_JOB_HISTORY">🛠️ Repair Job History (जॉब कार्ड्स)</option>
+                                    <option value="DELIVERY_REPORT">🚚 Delivery Schedule (डिलीवरी लिस्ट)</option>
                                 </select>
                             </div>
         
@@ -6239,11 +6315,9 @@ function handleSearchResultClick(e) {
         return totalAmount;
     }
 
-    // purane handleCompleteSale function ko isse replace karein
 
-// पुराना handleCompleteSale हटाकर इसे पेस्ट करें
 
-async function handleCompleteSale() {
+    async function handleCompleteSale() {
     // 1. कार्ट चेक करें
     if (posCart.length === 0) {
         return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
@@ -6263,31 +6337,45 @@ async function handleCompleteSale() {
         product_attributes: item.product_attributes
     }));
 
-    // 4. 🔥 नया: कमीशन का डेटा उठाएं
+    // 4. डेटा तैयार करें (कस्टमर और कमीशन)
+    const custMobile = document.getElementById('pos-customer-mobile').value || null;
     const painterId = document.getElementById('pos-painter-select') ? document.getElementById('pos-painter-select').value : null;
     const commMode = document.getElementById('pos-commission-mode') ? document.getElementById('pos-commission-mode').value : 'PERCENT';
     const commVal = document.getElementById('pos-commission-value') ? document.getElementById('pos-commission-value').value : '0';
 
-    // 5. डेटा तैयार करें
     const saleData = {
         customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
-        customerMobile: document.getElementById('pos-customer-mobile').value || null,
+        customerMobile: custMobile,
         total_amount: finalTotalAmount,
         sale_items: itemsForApi,
-        
         latitude: document.getElementById('pos-lat') ? document.getElementById('pos-lat').value : null,
         longitude: document.getElementById('pos-long') ? document.getElementById('pos-long').value : null,
         loanAccountNo: document.getElementById('pos-loan-account') ? document.getElementById('pos-loan-account').value : null,
-
-        // --- 🎨 PAINT & COMMISSION DATA ---
         painterId: painterId,
         painterMobile: document.getElementById('pos-painter-mobile') ? document.getElementById('pos-painter-mobile').value : null,
-        
-        // 🚀 यहाँ हम बता रहे हैं कि कमीशन कैसे काटना है
-        commissionMode: commMode, // 'PERCENT' या 'FLAT'
-        commissionValue: commVal  // दुकानदार का डाला हुआ नंबर (जैसे 5 या 100)
+        commissionMode: commMode,
+        commissionValue: commVal
     };
+
+    // ============================================================
+    // 🚀 FIX: विंडो पहले खोलें (ताकि पॉपअप ब्लॉक न हो और लाल एरर न आए)
+    // ============================================================
+    let whatsappWindow = null;
+    const isGodMode = document.getElementById('pos_auto_deliver_check')?.checked;
     
+    // नए चेकबॉक्स की स्थिति चेक करें (क्या किसी को मैसेज भेजना है?)
+    const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
+    const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
+
+    // अगर God Mode चालू है और कम से कम किसी एक को भेजना है, तो ही विंडो खोलें
+    if (isGodMode && (sendToCust || sendToMistri)) {
+        // 'DukanProWA' नाम से खोलें ताकि एक ही टैब रीयूज़ हो
+        whatsappWindow = window.open('', 'DukanProWA'); 
+        if (whatsappWindow) {
+            whatsappWindow.document.write('<div style="font-family:sans-serif;text-align:center;padding-top:20%;"><h2>🔄 बिल सेव हो रहा है...</h2><p>WhatsApp लोड हो रहा है...</p></div>');
+        }
+    }
+
     // 6. सर्वर पर भेजें
     try {
         const res = await fetchApi('/api/invoices', {
@@ -6296,30 +6384,39 @@ async function handleCompleteSale() {
         }, 'बिक्री सेव की जा रही है...');
 
         if (res.success) {
-            showMessage('सफलता', res.message, 'success'); // सर्वर बताएगा कितना कमीशन कटा
+            showMessage('सफलता', res.message, 'success');
             
-            // 7. सब रीसेट करें
-            posCart = [];
-            updatePOSCartView();
-            document.getElementById('pos-customer').value = '';
-            document.getElementById('pos-customer-mobile').value = ''; 
+            // 🚀 GOD MODE MANAGER को बुलाएं (PDF + WhatsApp के लिए)
+            await executeGodModeDelivery(res.invoiceId, saleData.customerName, saleData.customerMobile, itemsForApi, whatsappWindow);
             
-            // पेंटर फील्ड्स साफ़ करें
-            if(document.getElementById('pos-painter-mobile')) document.getElementById('pos-painter-mobile').value = '';
-            if(document.getElementById('pos-commission-value')) document.getElementById('pos-commission-value').value = ''; // कमीशन वैल्यू भी हटा दें
+            // 🛑 रिसेट लॉजिक: 
+            // अगर मिस्त्री को मैसेज भेजना बाकी है, तो फॉर्म साफ़ न करें (ताकि नीला बटन दिखे)
+            // अगर किसी को नहीं भेजना या काम हो गया, तो साफ़ कर दें
+            if (isGodMode && sendToMistri && sendToCust) {
+                // दोनों को भेजना था -> कस्टमर का गया, मिस्त्री के लिए बटन रुकेगा -> No Reset
+            } else if (isGodMode && sendToMistri && !sendToCust) {
+                // सिर्फ मिस्त्री को भेजना है -> executeGodModeDelivery उसे बटन दिखाएगा -> No Reset
+            } else {
+                // बाकी सभी मामलों में रिसेट करें
+                resetPOSButton();
+            }
 
             fetchAndRenderSales();
             if (typeof fetchAndRenderCustomers === 'function') fetchAndRenderCustomers(); 
             if (typeof renderDashboard === 'function') renderDashboard();
             
         } else {
-            throw new Error(res.message || 'अज्ञात बिक्री त्रुटि।');
+            // अगर फेल हुआ तो खुली हुई विंडो बंद कर दें
+            if (whatsappWindow) whatsappWindow.close();
+            throw new Error(res.message);
         }
     } catch (error) {
+        if (whatsappWindow) whatsappWindow.close();
         showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
     }
 }
-    // --- FORM SUBMISSION HANDLERS ---
+
+// --- FORM SUBMISSION HANDLERS ---
     
     function setupForm(formId, apiPath, successCallback) {
     const form = document.getElementById(formId);
@@ -10100,12 +10197,34 @@ function applyBusinessTypeUI(btype) {
     
     // 2. अगर सादा हार्डवेयर है (HARDWARE_GENERAL)
     else if (btype === 'HARDWARE_GENERAL') {
+        // --- पुराना कोड (बिना बदलाव के) ---
         // पेंट वाली सारी चीज़ें जबरदस्ती छुपा दें (Force Hide)
         document.querySelectorAll('.paint-only').forEach(el => el.style.display = 'none');
+        
         if(document.getElementById('module-paint-mixer')) 
             document.getElementById('module-paint-mixer').style.display = 'none';
+            
         if(document.getElementById('module-paint-estimator')) 
             document.getElementById('module-paint-estimator').style.display = 'none';
+
+        // --- पुराना Delivery Tracker अपडेट ---
+        // यह फर्नीचर वाला ही बॉक्स इस्तेमाल करेगा लेकिन हार्डवेयर के लिए
+        if(document.getElementById('module-furniture-showroom')) {
+            document.getElementById('module-furniture-showroom').style.display = 'block';
+            
+            // लिस्ट लोड करने वाला फंक्शन चलाएं (अगर मौजूद है)
+            // 🚀 FIX: यहाँ setTimeout जोड़ा गया है ताकि बॉक्स दिखने के बाद ही डेटा लोड हो
+            if(typeof loadDeliveryList === 'function') {
+                setTimeout(loadDeliveryList, 1000); 
+            }
+        }
+
+        // --- 🚀🔥 नया अपडेट (GOD MODE ADDED) ---
+        // POS में Auto-Delivery और WhatsApp वाला बॉक्स दिखाएं
+        const godBox = document.getElementById('pos-god-mode-delivery');
+        if (godBox) {
+            godBox.style.display = 'block';
+        }
     }
 
     // 2. Mobile, Electronics, SIM Store (MOBILE_SHOP, ELECTRONICS, SIM_STORE)
@@ -10250,11 +10369,70 @@ function applyBusinessTypeUI(btype) {
         }
     }
 
+
+// ============================================================
+    // 🚀 GOD MODE VISIBILITY CONTROLLER (FIXED for Retail)
+    // ============================================================
+    
+    // 1. जिन बिजनेस को मिस्त्री/लेबर की जरूरत है उनकी लिस्ट
+    const MISTRI_BUSINESS_TYPES = [
+        'HARDWARE_GENERAL', 
+        'FURNITURE', 
+        'TILES_CERAMIC', 
+        'ELECTRONICS', 
+        'PAINT_SHOP', 
+        'TENT_HOUSE', 
+        'SERVICE_CENTER',
+        'TRANSPORT'
+    ];
+
+    // 2. एलिमेंट्स ढूंढें (Direct ID से)
+    const godModeBox = document.getElementById('pos-god-mode-delivery');
+    const mistriInput = document.getElementById('pos_auto_mistri_mobile'); // मिस्त्री मोबाइल इनपुट
+    const mistriCheckbox = document.getElementById('pos_send_mistri_wa'); // मिस्त्री चेकबॉक्स
+
+    if (godModeBox) {
+        // सबसे पहले: God Mode बॉक्स को हमेशा दिखाएं (Customer के लिए)
+        godModeBox.style.display = 'block';
+
+        // अब चेक करें: क्या यह बिजनेस मिस्त्री वाला है?
+        if (MISTRI_BUSINESS_TYPES.includes(btype)) {
+            // ✅ हाँ: मिस्त्री वाले ऑप्शन दिखाएं
+            if(mistriInput) {
+                mistriInput.style.display = 'block';
+                
+                // लेबल को बिजनेस के हिसाब से बदलें (Smart Touch)
+                if(btype === 'PAINT_SHOP') mistriInput.placeholder = "Painter Mobile (Optional)";
+                else if(btype === 'TRANSPORT') mistriInput.placeholder = "Driver Mobile (Optional)";
+                else if(btype === 'ELECTRONICS') mistriInput.placeholder = "Technician Mobile (Optional)";
+                else mistriInput.placeholder = "Mistri Mobile (Optional)";
+            }
+            // चेकबॉक्स के पैरेंट (div) को दिखाएं
+            if(mistriCheckbox && mistriCheckbox.closest('.form-check')) {
+                mistriCheckbox.closest('.form-check').style.display = 'block';
+            }
+
+        } else {
+            // ❌ नहीं (Retail, Medical etc): मिस्त्री वाले ऑप्शन पूरी तरह छुपा दें
+            if(mistriInput) mistriInput.style.display = 'none'; // इनपुट बॉक्स गायब
+            
+            // चेकबॉक्स के पैरेंट (div) को छुपाएं
+            if(mistriCheckbox && mistriCheckbox.closest('.form-check')) {
+                mistriCheckbox.closest('.form-check').style.display = 'none';
+            }
+        }
+    }
+
+
     // 25-26. Professional Services (ARCHITECT_FIRM, SOFTWARE_COMPANY)
     // इनके लिए स्टैंडर्ड सर्विस इनवॉइसिंग (Service Grid) अपने आप डैशबोर्ड में लोड हो जाएगी
 
     console.log(`✅ UI Configured Successfully for: ${config.name}`);
 }
+
+
+
+
 
 
 
@@ -11300,19 +11478,26 @@ async function payPainterDue() {
 }
 
 // 1. 🛠️ REPAIR JOB CARD (ताला रिपेयरिंग की मैनुअल एंट्री)
+// 1. 🛠️ REPAIR JOB CARD (Updated with Invoice ID)
 async function createRepairJob() {
-    // फॉर्म से डेटा उठाएं
+    // नए फील्ड से वैल्यू लें
+    const invId = document.getElementById('repair_invoice_id') ? document.getElementById('repair_invoice_id').value : '';
+    const issueText = document.getElementById('repair_issue').value;
+
+    // बिल नंबर को समस्या के साथ जोड़ दें (ताकि डेटाबेस बदले बिना सेव हो जाए)
+    // सेव होगा: "[Bill: 101] Key Broken"
+    const finalIssue = invId ? `[Bill: ${invId}] ${issueText}` : issueText;
+
     const data = {
         customerName: document.getElementById('repair_customer').value,
         mobile: document.getElementById('repair_mobile').value,
-        device: document.getElementById('repair_device').value, // जैसे: Godrej Lock
-        imei: document.getElementById('repair_imei').value,     // जैसे: Serial No (Optional)
-        issue: document.getElementById('repair_issue').value,   // समस्या: Key Stuck
-        cost: document.getElementById('repair_cost').value,     // खर्चा
-        advance: document.getElementById('repair_advance').value // एडवांस
+        device: document.getElementById('repair_device').value,
+        imei: document.getElementById('repair_imei').value, 
+        issue: finalIssue, // 🚀 यहाँ हमने बिल नंबर जोड़ दिया
+        cost: document.getElementById('repair_cost').value,
+        advance: document.getElementById('repair_advance').value
     };
 
-    // चेक करें कि नाम और आइटम भरा है या नहीं
     if(!data.customerName || !data.device) {
         return showMessage("अधूरा डेटा", "❌ ग्राहक का नाम और आइटम (Device) भरना ज़रूरी है।", "warning");
     }
@@ -11322,11 +11507,13 @@ async function createRepairJob() {
         if(res.success) {
             showMessage("सफलता", `✅ जॉब कार्ड बन गया! (Job ID: ${res.jobId})`, "success");
             
-            // फॉर्म खाली करें ताकि अगली एंट्री कर सकें
+            // फॉर्म खाली करें
             document.getElementById('repair_customer').value = '';
             document.getElementById('repair_device').value = '';
             document.getElementById('repair_issue').value = '';
             document.getElementById('repair_cost').value = '';
+            document.getElementById('repair_advance').value = '';
+            if(document.getElementById('repair_invoice_id')) document.getElementById('repair_invoice_id').value = '';
         }
     } catch(e) { 
         alert(e.message); 
@@ -11359,6 +11546,408 @@ async function scheduleFurnitureDelivery() {
     }
 }
 
+// 1. डिलीवरी लिस्ट लोड करने का फंक्शन
+// 1. लिस्ट लोड करने का फंक्शन (Debug के साथ)
+async function loadDeliveryList() {
+    // हम दोनों IDs चेक करेंगे (Hardware या Furniture) ताकि गलती की गुंजाइश न रहे
+    const tbody = document.getElementById('hardware-delivery-list') || document.getElementById('furniture-delivery-list');
+    
+    if (!tbody) {
+        console.error("❌ Error: डिलीवरी लिस्ट की Table (tbody) नहीं मिली!");
+        return;
+    }
+
+    try {
+        console.log("🔄 डिलीवरी लिस्ट लोड हो रही है...");
+        
+        // API कॉल करें
+        const res = await fetchApi('/api/furniture/deliveries', { method: 'GET' }, null); 
+        
+        if (res.success && res.deliveries.length > 0) {
+            // डाटा मिल गया -> टेबल में दिखाएं
+            tbody.innerHTML = res.deliveries.map(item => `
+                <tr>
+                    <td>
+                        <span class="fw-bold text-primary">${item.invoice_id}</span>
+                    </td>
+                    <td>${new Date(item.delivery_date).toLocaleDateString('en-IN')}</td>
+                    <td class="text-center">
+                        ${item.assembly_required 
+                            ? '<span class="badge bg-danger">Mistri Yes</span>' 
+                            : '<span class="badge bg-success">No</span>'}
+                        <br>
+                        <small class="text-muted">${item.delivery_status || 'Pending'}</small>
+                    </td>
+                </tr>
+            `).join('');
+            console.log("✅ लिस्ट अपडेट हो गई");
+        } else {
+            // कोई डाटा नहीं मिला
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">अभी कोई डिलीवरी पेंडिंग नहीं है।</td></tr>`;
+        }
+    } catch (e) {
+        console.error("API Error:", e);
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">डेटा लोड नहीं हो सका।</td></tr>`;
+    }
+}
+
+// 2. पुराने scheduleFurnitureDelivery को अपडेट करें (ताकि सेव करते ही लिस्ट दिखे)
+// 2. डिलीवरी सेव करने का फंक्शन (सेव होते ही लिस्ट रिफ्रेश करेगा)
+async function scheduleFurnitureDelivery() {
+    const btn = document.querySelector('button[onclick="scheduleFurnitureDelivery()"]');
+    
+    // इनपुट्स से वैल्यू लें
+    const invoiceId = document.getElementById('furn_invoice_id').value;
+    const date = document.getElementById('furn_delivery_date').value;
+    const assembly = document.getElementById('furn_assembly').checked;
+
+    if(!date || !invoiceId) {
+        return showMessage("अधूरा डेटा", "❌ कृपया बिल नंबर और तारीख दोनों चुनें।", "warning");
+    }
+
+    // बटन को डिसेबल करें
+    if(btn) { btn.disabled = true; btn.innerHTML = "सेव हो रहा है..."; }
+
+    try {
+        const data = { invoiceId, date, assembly };
+        const res = await fetchApi('/api/furniture/update-delivery', { method: 'POST', body: data });
+        
+        if(res.success) {
+            showMessage("सफलता", "✅ डिलीवरी शेड्यूल हो गई!", "success");
+            
+            // फॉर्म साफ़ करें
+            document.getElementById('furn_invoice_id').value = '';
+            document.getElementById('furn_delivery_date').value = '';
+            document.getElementById('furn_assembly').checked = false;
+            
+            // 🚀 सबसे ज़रूरी: लिस्ट को तुरंत दोबारा लोड करें
+            setTimeout(() => {
+                loadDeliveryList(); 
+            }, 500); // आधा सेकंड रुक कर लोड करें ताकि डेटाबेस अपडेट हो जाए
+        }
+    } catch(e) { 
+        alert(e.message); 
+    } finally {
+        // बटन वापस ठीक करें
+        if(btn) { btn.disabled = false; btn.innerHTML = "Schedule Delivery"; }
+    }
+}
+
+// 🚀 GOD MODE: Helper Function to toggle Date Input
+function togglePosDeliveryDate() {
+    const isChecked = document.getElementById('pos_auto_deliver_check').checked;
+    const inputsDiv = document.getElementById('pos_delivery_inputs');
+    if (inputsDiv) {
+        inputsDiv.style.display = isChecked ? 'block' : 'none';
+        // अगर चेक किया है, तो आज की तारीख अपने आप भर दें
+        if (isChecked && !document.getElementById('pos_auto_date').value) {
+            document.getElementById('pos_auto_date').value = new Date().toISOString().split('T')[0];
+        }
+    }
+}
+// ==========================================
+// 🚀 GOD MODE: SMART BUTTON SWAP SYSTEM
+// ==========================================
+// ==========================================
+// 🚀 GOD MODE: PRE-OPEN FIX + BUTTON SWAP
+// ==========================================
+// ==========================================
+// 🚀 GOD MODE: SINGLE WINDOW FIX
+// ==========================================
+// ==========================================
+// 🚀 ENTERPRISE GOD MODE: TEMPLATE ENGINE + SMART FLOW
+// ==========================================
+
+// 1. Template Reset Helper
+function resetTemplate() {
+    const defaultTemp = `नमस्ते *{name}*,\nआपका ऑडर कंफर्म हो गया है! 🎉\n🧾 बिल नंबर: *#{bill_no}*\n💰 कुल राशि: *{amount}*\n📦 सामान: {items}\n🚚 डिलीवरी: {date}\n\nकृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
+    document.getElementById('pos_wa_template').value = defaultTemp;
+}
+
+// 2. The Template Engine (Magic Replacer)
+function getSmartMessage(template, data) {
+    return template
+        .replace(/{name}/g, data.customerName)
+        .replace(/{bill_no}/g, data.invoiceId)
+        .replace(/{amount}/g, formatCurrency(data.totalAmount)) // ₹ सिंबल के साथ
+        .replace(/{date}/g, new Date(data.date).toLocaleDateString('en-IN'))
+        .replace(/{items}/g, data.items.map(i => i.name).join(', '));
+}
+
+// 3. MAIN EXECUTION FUNCTION
+async function executeGodModeDelivery(invoiceId, customerName, customerMobile, items, preOpenedWindow) {
+    const isEnabled = document.getElementById('pos_auto_deliver_check')?.checked;
+    
+    // अगर God Mode बंद है, तो विंडो बंद करें
+    if (!isEnabled) {
+        if (preOpenedWindow) preOpenedWindow.close();
+        if (typeof loadDeliveryList === 'function') loadDeliveryList();
+        return;
+    }
+
+    // डेटा उठाएं
+    const date = document.getElementById('pos_auto_date').value;
+    const mistriMobileInput = document.getElementById('pos_auto_mistri_mobile').value; 
+    const mistriMobile = mistriMobileInput ? mistriMobileInput.trim() : null;
+    const sendToCust = document.getElementById('pos_send_cust_wa')?.checked; // नया चेकबॉक्स ID
+    const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked; // नया चेकबॉक्स ID
+
+    if (!date) {
+        if (preOpenedWindow) preOpenedWindow.close();
+        showMessage("चेतावनी", "तारीख नहीं चुनी गई!", "warning");
+        return;
+    }
+
+    try {
+        // 1. सर्वर अपडेट
+        await fetchApi('/api/furniture/update-delivery', { 
+            method: 'POST', body: { invoiceId: invoiceId, date: date, assembly: (mistriMobile ? true : false) } 
+        });
+
+        if (typeof loadDeliveryList === 'function') setTimeout(loadDeliveryList, 500);
+
+        // =======================================================
+        // 📄 STEP A: PDF डाउनलोड (Smart Flow)
+        // =======================================================
+        const totalBill = items.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
+        // अगर generateAndDownloadPDF फंक्शन मौजूद है तो कॉल करें
+        if (typeof generateAndDownloadPDF === 'function') {
+            generateAndDownloadPDF(invoiceId, customerName, items, totalBill);
+        }
+
+        // =======================================================
+        // 💬 STEP B: मैसेज तैयार करना (Template Engine)
+        // =======================================================
+        const templateRaw = document.getElementById('pos_wa_template').value;
+        
+        const templateData = {
+            customerName: customerName,
+            invoiceId: invoiceId,
+            totalAmount: totalBill,
+            date: date,
+            items: items
+        };
+
+        const finalMsg = getSmartMessage(templateRaw, templateData);
+        // =======================================================
+
+        // 2. WhatsApp लिंक बनाना
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const baseUrl = isMobileDevice ? 'https://api.whatsapp.com/send' : 'https://web.whatsapp.com/send';
+
+        // --- CASE 1: CUSTOMER को भेजें ---
+        if (sendToCust && customerMobile) {
+            const url = `${baseUrl}?phone=91${customerMobile}&text=${encodeURIComponent(finalMsg)}`;
+
+            if (preOpenedWindow && !preOpenedWindow.closed) {
+                preOpenedWindow.location.href = url;
+            } else {
+                window.open(url, 'DukanProWA'); 
+            }
+        } else {
+            if (!sendToMistri && preOpenedWindow) preOpenedWindow.close();
+        }
+
+        // --- CASE 2: MISTRI को भेजें ---
+        if (sendToMistri && mistriMobile) {
+            const btn = document.getElementById('complete-sale-btn');
+            
+            // मिस्त्री के लिए भी एक सिंपल टेम्पलेट
+            const msgMistri = `🛠️ *Job Alert*\n📍 ग्राहक: ${customerName}\n📞: ${customerMobile}\n🚚 तारीख: ${new Date(date).toLocaleDateString('en-IN')}\n📦 सामान: ${items.map(i => i.name).join(', ')}`;
+            
+            const urlMistri = `${baseUrl}?phone=91${mistriMobile}&text=${encodeURIComponent(msgMistri)}`;
+
+            // बटन बदलें
+            btn.innerHTML = `<i class="fab fa-whatsapp"></i> मिस्त्री (${mistriMobile}) को भेजें`;
+            btn.className = "btn btn-info btn-lg w-100 fw-bold";
+
+            if (!sendToCust && preOpenedWindow && !preOpenedWindow.closed) {
+                // अगर कस्टमर को नहीं भेजना था, तो इसी विंडो में मिस्त्री को खोल दें
+                preOpenedWindow.location.href = urlMistri;
+                btn.innerHTML = "✅ काम हो गया (Reset)";
+                btn.className = "btn btn-secondary btn-lg w-100";
+                btn.onclick = resetPOSButton;
+            } else {
+                btn.onclick = function() {
+                    window.open(urlMistri, 'DukanProWA');
+                    resetPOSButton();
+                };
+                showMessage("अगला कदम", "✅ बिल डाउनलोड हुआ! अब मिस्त्री को भेजने के लिए नीले बटन पर क्लिक करें।", "info");
+            }
+        } else {
+            if (sendToCust || !sendToMistri) resetPOSButton();
+        }
+
+    } catch (e) {
+        if (preOpenedWindow) preOpenedWindow.close();
+        console.error("God Mode Error:", e);
+    }
+}
+
+
+// ==========================================
+// 🧹 FINAL RESET FUNCTION (Sab Kuch Saaf Karega)
+// ==========================================
+function resetPOSButton() {
+    // 1. बटन को वापस हरा करें
+    const btn = document.getElementById('complete-sale-btn');
+    if(btn) {
+        btn.innerHTML = "बिक्री पूरी करें";
+        btn.className = "btn btn-success btn-lg w-100";
+        btn.onclick = handleCompleteSale;
+    }
+    
+    // 2. बेसिक फील्ड्स साफ़ करें
+    document.getElementById('pos-customer').value = '';
+    document.getElementById('pos-customer-mobile').value = '';
+    
+    // 3. God Mode (Mistri) फील्ड्स साफ़ करें (अगर मौजूद हैं)
+    if(document.getElementById('pos_auto_mistri_mobile')) {
+        document.getElementById('pos_auto_mistri_mobile').value = '';
+    }
+    
+    // 4. कार्ट खाली करें
+    posCart = [];
+    updatePOSCartView();
+}
+
+// ==========================================
+// 📄 INSTANT BILL PDF GENERATOR
+// ==========================================
+// ==========================================
+// 📄 PROFESSIONAL INVOICE PDF GENERATOR
+// ==========================================
+function generateAndDownloadPDF(invoiceId, customerName, items, totalAmount) {
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        // --- 1. HEADER SECTION (Colorful) ---
+        doc.setFillColor(41, 128, 185); // Professional Blue Header
+        doc.rect(0, 0, pageWidth, 35, 'F');
+
+        // Shop Name
+        const shopName = AppState.user?.shopName || "MY SHOP NAME";
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.setTextColor(255, 255, 255); // White Text
+        doc.text(shopName.toUpperCase(), 15, 15);
+
+        // Shop Details (Subtitle)
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text("Mobile: 9876543210 | Address: City, India", 15, 22);
+        doc.text("GSTIN: 22AAAAA0000A1Z5", 15, 27);
+
+        // Invoice Label
+        doc.setFontSize(16);
+        doc.text("INVOICE", pageWidth - 15, 20, { align: 'right' });
+
+        // --- 2. CUSTOMER & BILL DETAILS ---
+        doc.setTextColor(0, 0, 0); // Black Text
+        let y = 45;
+
+        // Left Side: Bill To
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("BILL TO:", 15, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(customerName.toUpperCase(), 15, y + 6);
+        // doc.text("Customer Mobile: " + customerMobile, 15, y + 12); // Optional
+
+        // Right Side: Invoice Info
+        doc.setFont("helvetica", "bold");
+        doc.text("Invoice No:", 140, y);
+        doc.text("Date:", 140, y + 6);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(`#${invoiceId}`, 170, y);
+        doc.text(new Date().toLocaleDateString('en-IN'), 170, y + 6);
+
+        // --- 3. ITEM TABLE ---
+        y += 20;
+        
+        // Table Headers
+        doc.setFillColor(230, 230, 230); // Light Grey
+        doc.rect(15, y, pageWidth - 30, 8, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        
+        doc.text("#", 18, y + 5);
+        doc.text("ITEM NAME", 30, y + 5);
+        doc.text("QTY", 120, y + 5, { align: 'center' });
+        doc.text("PRICE", 150, y + 5, { align: 'center' });
+        doc.text("TOTAL", 185, y + 5, { align: 'center' });
+
+        // Table Rows
+        y += 8;
+        doc.setFont("helvetica", "normal");
+        
+        let totalQty = 0;
+
+        items.forEach((item, index) => {
+            const lineTotal = item.quantity * item.sale_price;
+            totalQty += item.quantity;
+            
+            // Item Name Formatting (Truncate if too long)
+            let itemName = item.name;
+            if (itemName.length > 45) itemName = itemName.substring(0, 45) + "...";
+
+            doc.text(String(index + 1), 18, y + 5);
+            doc.text(itemName, 30, y + 5);
+            doc.text(String(item.quantity), 120, y + 5, { align: 'center' });
+            doc.text(formatCurrency(item.sale_price), 150, y + 5, { align: 'center' });
+            doc.text(formatCurrency(lineTotal), 185, y + 5, { align: 'center' });
+
+            // Light line between rows
+            doc.setDrawColor(220, 220, 220);
+            doc.line(15, y + 7, pageWidth - 15, y + 7);
+            
+            y += 8;
+        });
+
+        // --- 4. TOTALS SECTION ---
+        y += 5;
+        doc.setDrawColor(0, 0, 0);
+        doc.line(15, y, pageWidth - 15, y); // Bold Line
+
+        y += 7;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text("GRAND TOTAL", 140, y);
+        doc.text(formatCurrency(totalAmount), 185, y, { align: 'center' });
+
+        // Amount in words (Optional logic can be added here)
+        // doc.setFontSize(9);
+        // doc.text("Amount in Words: " + convertToWords(totalAmount), 15, y);
+
+        // --- 5. FOOTER & SIGNATURE ---
+        let footerY = pageHeight - 40;
+        
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text("Terms & Conditions:", 15, footerY);
+        doc.text("1. Goods once sold will not be taken back.", 15, footerY + 5);
+        doc.text("2. Subject to local jurisdiction.", 15, footerY + 10);
+
+        doc.text("Authorized Signature", pageWidth - 15, footerY + 20, { align: 'right' });
+
+        // Thank you note
+        doc.setFontSize(10);
+        doc.setTextColor(41, 128, 185);
+        doc.text("Thank you for your business!", pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+        // --- 6. SAVE FILE ---
+        doc.save(`Invoice_${invoiceId}.pdf`);
+        console.log("✅ Professional PDF Downloaded!");
+
+    } catch (e) {
+        console.error("PDF Error:", e);
+        showMessage("PDF Error", "PDF बनाने में समस्या आई।", "warning");
+    }
+}
 
 </script>
 
