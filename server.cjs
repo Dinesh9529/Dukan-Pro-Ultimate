@@ -6680,6 +6680,59 @@ app.get('/api/furniture/deliveries', authenticateJWT, async (req, res) => {
 });
 
 
+// [ server.cjs में इस कोड को Admin Section में जोड़ें ]
+// [ server.cjs में इस कोड को अपडेट करें ]
+
+// 12.8 Force Update Business Type (Super Admin Only)
+app.post('/api/admin/set-business-type', async (req, res) => {
+    const { adminPassword, shop_id, business_type } = req.body;
+
+    // 1. सिक्योरिटी चेक (पुराना लॉजिक - Same)
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(500).json({ success: false, message: 'Server Config Error: Password missing.' });
+    }
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड।' });
+    }
+
+    if (!shop_id || !business_type) {
+        return res.status(400).json({ success: false, message: 'Shop ID और Business Type आवश्यक है।' });
+    }
+
+    const client = await pool.connect();
+    try {
+        // 2. डेटाबेस अपडेट करें (पुराना लॉजिक - Same)
+        const result = await client.query(
+            'UPDATE shops SET business_type = $1 WHERE id = $2 RETURNING id, shop_name, business_type',
+            [business_type, shop_id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Shop ID नहीं मिली।' });
+        }
+
+        // 3. Real-time Notification भेजें (🚀 नया "Magic Switch" लॉजिक यहाँ जोड़ा गया है)
+        if (typeof broadcastToShop === 'function') {
+            broadcastToShop(shop_id, JSON.stringify({ 
+                type: 'MAGIC_TYPE_SWITCH', // ⚡ अपडेटेड: यह सिग्नल फ्रंटएंड को तुरंत UI बदलने को कहेगा
+                newType: business_type,    // ⚡ अपडेटेड: नया बिजनेस टाइप भी साथ भेजा जा रहा है
+                message: `Dukan Pro: डैशबोर्ड को '${business_type}' में बदला जा रहा है...`
+            }));
+        }
+
+        res.json({ 
+            success: true, 
+            message: `Success! Shop #${shop_id} अब '${business_type}' डैशबोर्ड पर सेट हो गई है।`,
+            data: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error("Biz Type Update Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        client.release();
+    }
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
