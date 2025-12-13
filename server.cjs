@@ -5990,28 +5990,6 @@ app.post('/api/transport/new-trip', authenticateJWT, async (req, res) => {
 // 🚀 6. NEW BUSINESS LOGIC HANDLERS (Missing Piece)
 // ============================================================
 
-// 1. 🏨 HOTEL: Check-In Logic
-async function processHotelCheckIn() {
-    const data = {
-        room_id: document.getElementById('hotel_room_select').value || '101', // Fallback for now
-        customer_name: document.getElementById('hotel_guest_name').value,
-        mobile: document.getElementById('hotel_guest_mobile').value,
-        check_in_date: document.getElementById('hotel_checkin_date').value,
-        advance: document.getElementById('hotel_advance').value
-    };
-
-    if(!data.customer_name || !data.check_in_date) return showNotification("❌ Please fill Guest Name and Date");
-
-    try {
-        const res = await fetchApi('/api/hotel/checkin', { method: 'POST', body: data });
-        if(res.success) {
-            showNotification("✅ Guest Checked In Successfully!");
-            // Clear fields
-            document.getElementById('hotel_guest_name').value = '';
-            document.getElementById('hotel_guest_mobile').value = '';
-        }
-    } catch(e) { alert(e.message); }
-}
 
 // 2. 🎓 SCHOOL: Fee Collection
 async function processSchoolFee() {
