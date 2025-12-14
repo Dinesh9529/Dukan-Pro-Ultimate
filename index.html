@@ -11991,6 +11991,7 @@ function getSmartMessage(template, data) {
 
 // 3. MAIN EXECUTION FUNCTION (MOBILE FIX APPLIED HERE)
 // [ ✅ FIXED: WhatsApp Message Indentation Fix (बाकी लॉजिक सेम है) ]
+// [ ✅ FIXED: WhatsApp Message Cleaner for Mobile & Desktop ]
 async function executeGodModeDelivery(invoiceId, customerName, customerMobile, items, preOpenedWindow) {
     const isEnabled = document.getElementById('pos_auto_deliver_check')?.checked;
     
@@ -11999,12 +12000,11 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
 
     // अगर God Mode बंद है
     if (!isEnabled) {
-        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close(); // मोबाइल पर विंडो क्लोज करने की जरूरत नहीं
+        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close(); 
         if (typeof loadDeliveryList === 'function') loadDeliveryList();
         return;
     }
 
-    // डेटा उठाएं
     const date = document.getElementById('pos_auto_date').value;
     const mistriMobileInput = document.getElementById('pos_auto_mistri_mobile').value; 
     const mistriMobile = mistriMobileInput ? mistriMobileInput.trim() : null;
@@ -12018,30 +12018,27 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
     }
 
     try {
-        // 1. सर्वर अपडेट (बैकग्राउंड में) - [OLD LOGIC SAFE]
+        // 1. सर्वर अपडेट
         await fetchApi('/api/furniture/update-delivery', { 
             method: 'POST', body: { invoiceId: invoiceId, date: date, assembly: (mistriMobile ? true : false) } 
         });
 
         if (typeof loadDeliveryList === 'function') setTimeout(loadDeliveryList, 500);
 
-        // =======================================================
-        // 📄 STEP A: PDF डाउनलोड (Mobile Friendly) - [OLD LOGIC SAFE]
-        // =======================================================
+        // 2. PDF डाउनलोड
         const totalBill = items.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
         if (typeof generateAndDownloadPDF === 'function') {
             generateAndDownloadPDF(invoiceId, customerName, items, totalBill);
         }
 
         // =======================================================
-        // 💬 STEP B: WhatsApp Logic (Mobile vs Desktop)
+        // 🧹 CLEANER: मैसेज की सफाई (Mobile Fix)
         // =======================================================
         let templateRaw = document.getElementById('pos_wa_template').value;
         
-        // 🚀 [NEW FIX]: सिर्फ यह लाइन जोड़ी गई है (बाकी सब सेम है)
-        // यह हर लाइन के आगे-पीछे का फालतू खाली स्पेस हटा देगी
-        templateRaw = templateRaw.split('\n').map(line => line.trim()).join('\n');
-        
+        // 🚀 यह लाइन जादुई है: यह हर लाइन के आगे-पीछे का खाली स्पेस हटा देगी
+        templateRaw = templateRaw.split('\n').map(line => line.trim()).filter(line => line !== '').join('\n');
+
         const templateData = {
             customerName: customerName,
             invoiceId: invoiceId,
@@ -12052,31 +12049,24 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
 
         const finalMsg = getSmartMessage(templateRaw, templateData);
 
-        // --- 🚀 KEY FIX: URL GENERATION ---
+        // --- URL जनरेशन ---
         let baseUrl;
         if (isMobileDevice) {
-            // मोबाइल के लिए: सीधा ऐप खोलें (Browser को बायपास करें)
             baseUrl = 'whatsapp://send'; 
         } else {
-            // कंप्यूटर के लिए: Web WhatsApp
             baseUrl = 'https://web.whatsapp.com/send';
         }
 
-        // --- CASE 1: CUSTOMER को भेजें ---
+        // --- 1. CUSTOMER MESSAGE ---
         if (sendToCust && customerMobile) {
-            // अगर मोबाइल नंबर में 91 नहीं है तो लगा दें
             let cleanMobile = customerMobile.replace(/[^0-9]/g, '');
             if(cleanMobile.length === 10) cleanMobile = '91' + cleanMobile;
 
             const url = `${baseUrl}?phone=${cleanMobile}&text=${encodeURIComponent(finalMsg)}`;
 
             if (isMobileDevice) {
-                // मोबाइल: थोड़ी देर रुक कर ऐप खोलें ताकि PDF डाउनलोड शुरू हो सके
-                setTimeout(() => {
-                    window.location.href = url; // 🚀 Direct App Open
-                }, 1500);
+                setTimeout(() => { window.location.href = url; }, 1500);
             } else {
-                // डेस्कटॉप: पुरानी विंडो का उपयोग करें
                 if (preOpenedWindow && !preOpenedWindow.closed) {
                     preOpenedWindow.location.href = url;
                 } else {
@@ -12084,39 +12074,30 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
                 }
             }
         } else {
-            // अगर कस्टमर को नहीं भेजना और डेस्कटॉप है, तो विंडो बंद करें
             if (!sendToMistri && preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
         }
 
-        // --- CASE 2: MISTRI को भेजें ---
+        // --- 2. MISTRI MESSAGE ---
         if (sendToMistri && mistriMobile) {
-            // मिस्त्री का नंबर साफ़ करें
             let cleanMistri = mistriMobile.replace(/[^0-9]/g, '');
             if(cleanMistri.length === 10) cleanMistri = '91' + cleanMistri;
 
             const btn = document.getElementById('complete-sale-btn');
             
-            // मिस्त्री मैसेज को भी क्लीन करें (Trim)
+            // मिस्त्री का मैसेज भी साफ़ करें
             let msgMistri = `🛠️ *Job Alert*\n📍 ग्राहक: ${customerName}\n📞: ${customerMobile}\n🚚 तारीख: ${new Date(date).toLocaleDateString('en-IN')}\n📦 सामान: ${items.map(i => i.name).join(', ')}`;
-            // (Optional: Mistri Message Clean up if needed, but above is hardcoded so it's safe)
-
+            
             const urlMistri = `${baseUrl}?phone=${cleanMistri}&text=${encodeURIComponent(msgMistri)}`;
 
-            // बटन बदलें (ताकि यूजर क्लिक कर सके)
             btn.innerHTML = `<i class="fab fa-whatsapp"></i> मिस्त्री (${mistriMobile}) को भेजें`;
             btn.className = "btn btn-info btn-lg w-100 fw-bold";
 
-            // मोबाइल पर हम तुरंत दूसरी विंडो नहीं खोल सकते (ब्राउज़र ब्लॉक कर देगा)
-            // इसलिए बटन क्लिक पर छोड़ देते हैं
-            
             btn.onclick = function() {
-                window.location.href = urlMistri; // मोबाइल के लिए डायरेक्ट लिंक
-                // थोड़ी देर बाद रिसेट करें
+                window.location.href = urlMistri; 
                 setTimeout(resetPOSButton, 2000);
             };
 
             if (!isMobileDevice) {
-                // डेस्कटॉप लॉजिक (Same as before)
                 if (!sendToCust && preOpenedWindow && !preOpenedWindow.closed) {
                     preOpenedWindow.location.href = urlMistri;
                     btn.innerHTML = "✅ काम हो गया (Reset)";
@@ -12142,7 +12123,8 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
         console.error("God Mode Error:", e);
         showMessage("Error", e.message, "danger");
     }
-}// ==========================================
+}
+
 // 🧹 FINAL RESET FUNCTION (Sab Kuch Saaf Karega)
 // ==========================================
 function resetPOSButton() {
