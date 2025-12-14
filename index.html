@@ -1994,7 +1994,7 @@
                 </div>
             </div>
 
-            <div class="mt-4">
+            <div id="hotel-room-status-section" class="mt-4" style="display:none;">
                 <h6 class="border-bottom pb-2 fw-bold text-secondary">
                     <i class="fas fa-bed"></i> Room Status (Live)
                 </h6>
@@ -2141,7 +2141,7 @@
                 </div>
             </div>
 
-            <div class="mt-3 border-top pt-3">
+            <div id="standalone-kitchen-view" class="mt-3 border-top pt-3" style="display:none;">
                 <h5 class="fw-bold text-dark mb-3">
                     <i class="fas fa-fire text-danger"></i> Active Orders (Kitchen)
                 </h5>
@@ -5062,59 +5062,56 @@ function handleNavClick(viewId) {
 
 
 
-    // [ ✅ FIXED: MOBILE RESPONSIVE SALES TABLE ]
-// [ ✅ FIXED: MOBILE RESPONSIVE SALES TABLE ]
+  // [ ✅ FIXED: SALES TABLE WITH ROBUST DATE ]
 async function fetchAndRenderSales() {
     const salesTableBody = document.getElementById('sales-table-body');  
+    if (!salesTableBody) return;
+
     salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div> लोडिंग...</td></tr>`;
     
     try {
-        const salesRes = await fetchApi('/api/invoices', { method: 'GET' }, null); // लोडर हटा दिया ताकि स्मूथ दिखे
+        const salesRes = await fetchApi('/api/invoices', { method: 'GET' }, null); 
         salesTableBody.innerHTML = ''; 
 
         if (salesRes.success && salesRes.sales && salesRes.sales.length > 0) {
             salesRes.sales.forEach(sale => {
                 
-                // 1. मोबाइल नंबर डिस्प्ले (छोटा करें)
-                let mobileDisplay = sale.customer_phone 
-                    ? `<br><small class="text-muted"><i class="fas fa-phone"></i> ${sale.customer_phone}</small>` 
-                    : '';
+                // 🚀 DATE FIX: जबरदस्ती तारीख निकालें
+                let dateStr = "---";
+                if (sale.created_at) {
+                    const d = new Date(sale.created_at);
+                    if (!isNaN(d.getTime())) {
+                        // सही तारीख मिली
+                        dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+                    } else {
+                        // अगर तारीख का फॉर्मेट गलत है
+                        dateStr = String(sale.created_at).split('T')[0]; 
+                    }
+                }
 
-                // 2. तारीख फॉर्मेट (छोटा: जैसे "14 Dec")
-                const dateObj = new Date(sale.created_at);
-                const dateStr = dateObj.toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
-
-                // 3. नाम छोटा करें (अगर बहुत लंबा है)
-                let custName = sale.customer_name;
+                let custName = sale.customer_name || 'अनाम';
                 if(custName.length > 15) custName = custName.substring(0, 15) + '..';
 
-                // --- TABLE ROW ---
                 salesTableBody.innerHTML += `
                     <tr>
                         <td class="fw-bold">#${sale.id}</td>
-                        
                         <td>
                             <span class="text-dark fw-bold">${custName}</span>
-                            ${mobileDisplay}
+                            ${sale.customer_phone ? `<br><small class="text-muted">${sale.customer_phone}</small>` : ''}
                         </td>
+                        <td>${formatCurrency(sale.total_gst || 0).replace('₹','')}</td>
+                        <td class="fw-bold text-success">${formatCurrency(sale.total_amount || 0)}</td>
                         
-                        <td>${formatCurrency(sale.total_gst).replace('₹','')}</td>
-                        
-                        <td class="fw-bold text-success">${formatCurrency(sale.total_amount)}</td>
-                        
-                        <td>${dateStr}</td>
+                        <td class="fw-bold text-dark">${dateStr}</td> 
                         
                         <td>
-                            <div class="d-flex justify-content-center">
+                            <div class="d-flex">
                                 <button class="btn btn-sm btn-secondary py-1 px-2 shadow-sm" onclick="printPOSInvoice(${sale.id})" title="Print">
                                     <i class="fas fa-print"></i>
                                 </button>
-                                
-                                <button 
-                                    class="btn btn-sm btn-success py-1 px-2 ms-1 shadow-sm" 
+                                <button class="btn btn-sm btn-success py-1 px-2 ms-1 shadow-sm" 
                                     onclick="sendWhatsAppMessage('${sale.customer_phone || ''}', '${sale.customer_name}')" 
-                                    ${!(sale.customer_phone) ? 'disabled' : ''} 
-                                    title="WhatsApp">
+                                    ${!(sale.customer_phone) ? 'disabled' : ''}>
                                     <i class="fab fa-whatsapp"></i>
                                 </button>
                             </div>
@@ -5397,6 +5394,7 @@ async function renderSalesChart() {
    // [ ✅ FIXED: ULTIMATE DASHBOARD RENDERER - ALL 31 BUSINESS TYPES EXPLICITLY HANDLED ]
 // [ ✅ FIXED: ULTIMATE DASHBOARD RENDERER - ALL 31 BUSINESS TYPES EXPLICITLY HANDLED ]
 // [ ✅ FIXED: ULTIMATE DASHBOARD - DATA LOADING FIXED ]
+// [ ✅ FIXED: DASHBOARD WITH DATE UPDATES ]
 async function renderDashboard() {
     const user = AppState.user;
     if (!user) return;
@@ -5483,7 +5481,7 @@ async function renderDashboard() {
         }
 
         // ============================================================
-        // 3. DASHBOARD DATA LOADING (यह वह हिस्सा है जो गायब था)
+        // 3. DASHBOARD DATA LOADING
         // ============================================================
         try {
             // A. Financial Summary (Top Cards)
@@ -5494,7 +5492,6 @@ async function renderDashboard() {
             }
 
             // B. Fetch Data for Dashboard Tables
-            // हम Stock और Sales API को कॉल करेंगे और डैशबोर्ड के छोटे टेबल्स को भरेंगे
             const [stockRes, salesRes] = await Promise.all([
                 fetchApi('/api/stock', { method: 'GET' }, null),
                 fetchApi('/api/invoices', { method: 'GET' }, null)
@@ -5502,15 +5499,15 @@ async function renderDashboard() {
 
             // --- 1. Low Stock Logic ---
             const lowStockItems = stockRes.success ? stockRes.stock.filter(item => item.quantity < 10) : [];
-            const lowStockCountEl = document.getElementById('low-stock-count'); // Badge
-            const lowStockBody = document.getElementById('low-stock-table-body'); // Table
+            const lowStockCountEl = document.getElementById('low-stock-count');
+            const lowStockBody = document.getElementById('low-stock-table-body');
 
             if (lowStockCountEl) lowStockCountEl.innerText = lowStockItems.length;
             
             if (lowStockBody) {
                 lowStockBody.innerHTML = '';
                 if (lowStockItems.length > 0) {
-                    lowStockItems.slice(0, 5).forEach(item => { // Show max 5 items
+                    lowStockItems.slice(0, 5).forEach(item => {
                         lowStockBody.innerHTML += `
                             <tr>
                                 <td>${item.sku}</td>
@@ -5523,26 +5520,36 @@ async function renderDashboard() {
                 }
             }
 
-            // --- 2. Recent Sales Logic ---
+            // --- 2. Recent Sales Logic (UPDATED WITH DATE) ---
             const recentSalesBody = document.getElementById('recent-sales-table-body');
             if (recentSalesBody) {
                 recentSalesBody.innerHTML = '';
                 if (salesRes.success && salesRes.sales.length > 0) {
-                    salesRes.sales.slice(0, 5).forEach(sale => { // Show max 5 sales
+                    salesRes.sales.slice(0, 5).forEach(sale => {
+                        
+                        // 🚀 NEW CODE ADDED HERE (Date Formatting)
+                        let dateStr = "---";
+                        if(sale.created_at) {
+                            dateStr = new Date(sale.created_at).toLocaleDateString('en-IN', {
+                                day: 'numeric', month: 'short'
+                            });
+                        }
+                        // 🚀 END NEW CODE
+
                         recentSalesBody.innerHTML += `
                             <tr>
                                 <td>INV-${sale.id}</td>
                                 <td>${sale.customer_name || 'Cash'}</td>
                                 <td class="fw-bold">${formatCurrency(sale.total_amount)}</td>
+                                <td class="small text-muted fw-bold">${dateStr}</td>
                             </tr>`;
                     });
                 } else {
-                    recentSalesBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted small">कोई बिक्री नहीं</td></tr>`;
+                    recentSalesBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted small">कोई बिक्री नहीं</td></tr>`;
                 }
             }
 
-            // --- 3. Total Customers Logic ---
-            // (Only if user has access to CRM)
+            // --- 3. Total Customers Logic (UPDATED WITH DATE) ---
             const canAccessCRM = (typeof checkUserPlan === 'function') ? checkUserPlan(['MEDIUM', 'PREMIUM']) : true;
             const totalCustEl = document.getElementById('total-customers');
             
@@ -5551,17 +5558,32 @@ async function renderDashboard() {
                 if (custRes.success) {
                     totalCustEl.innerText = custRes.customers.length;
                     
-                    // Optional: Recent Customers Table on Dashboard
                     const recentCustBody = document.getElementById('recent-customers-table-body');
                     if(recentCustBody) {
                         recentCustBody.innerHTML = '';
                         const sorted = custRes.customers.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+                        
                         if(sorted.length > 0) {
                             sorted.forEach(c => {
-                                recentCustBody.innerHTML += `<tr><td>${c.name}</td><td>${c.phone || '-'}</td></tr>`;
+                                
+                                // 🚀 NEW CODE ADDED HERE (Date Formatting)
+                                let joinDate = "---";
+                                if(c.created_at) {
+                                    joinDate = new Date(c.created_at).toLocaleDateString('en-IN', {
+                                        day: 'numeric', month: 'short'
+                                    });
+                                }
+                                // 🚀 END NEW CODE
+
+                                recentCustBody.innerHTML += `
+                                    <tr>
+                                        <td>${c.name}</td>
+                                        <td>${c.phone || '-'}</td>
+                                        <td class="small text-muted">${joinDate}</td>
+                                    </tr>`;
                             });
                         } else {
-                            recentCustBody.innerHTML = `<tr><td colspan="2" class="text-center text-muted small">कोई ग्राहक नहीं</td></tr>`;
+                            recentCustBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted small">कोई ग्राहक नहीं</td></tr>`;
                         }
                     }
                 }
@@ -5579,8 +5601,6 @@ async function renderDashboard() {
         }
     }
 }
-
-
     // [ नया renderDashboard() फ़ंक्शन यहाँ समाप्त होता है ]
     // ==========================================================
 // ========== UPDATED: renderReports (Bank-Style Detail) ==========
@@ -6204,89 +6224,77 @@ function resetStockForm() {
 
    // [ ✅ NEW: Unified Customer/WhatsApp Ledger for All Business Types ]
 
+// [ ✅ FIXED: CUSTOMER TABLE WITH DATE FIX ]
+// [ ✅ FIXED: CUSTOMER TABLE WITH ROBUST DATE ]
 async function fetchAndRenderCustomers() {
     const tableBody = document.getElementById('crm-table-body');
+    if (!tableBody) return;
+
     const isSalon = (AppState.user && AppState.user.businessType === 'SALON');
     
-    // 1. टेबल हेडर्स को अपडेट करें (ताकि लेजर जैसा दिखे)
+    // हेडर्स सेट करें
     const tableHead = document.querySelector('#crm table thead tr');
     if (tableHead) {
         tableHead.innerHTML = `
             <th>ग्राहक का नाम</th>
-            <th>मोबाइल (WhatsApp)</th>
-            <th>बिजनेस टाइप</th>
-            <th>बकाया (Balance)</th>
-            <th>जुड़ने की तारीख</th>
-            <th>एक्शन</th>
+            <th>मोबाइल</th>
+            <th>बकाया</th>
+            <th>जोड़ा गया (Date)</th> <th>एक्शन</th>
         `;
     }
 
-    tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary"></div><br>लेजर लोड हो रहा है...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>`;
 
     try {
-        // 2. सभी ग्राहकों को लाएं (POS और CRM दोनों से)
         const res = await fetchApi('/api/customers', { method: 'GET' });
-        
         tableBody.innerHTML = '';
         
         if (res.success && res.customers && res.customers.length > 0) {
-            
-            // 3. जिनके पास मोबाइल नंबर है, उन्हें ऊपर दिखाएं
-            const sortedCustomers = res.customers.sort((a, b) => {
-                if (a.phone && !b.phone) return -1;
-                if (!a.phone && b.phone) return 1;
-                return 0;
-            });
+            const sortedCustomers = res.customers.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
             sortedCustomers.forEach(c => {
-                // मोबाइल नंबर को साफ करें
-                const hasMobile = c.phone && c.phone.length >= 10;
-                const displayPhone = hasMobile 
+                // 🚀 DATE FIX
+                let joinDate = "---";
+                if (c.created_at) {
+                    const d = new Date(c.created_at);
+                    if (!isNaN(d.getTime())) {
+                        joinDate = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+                    }
+                }
+
+                const displayPhone = (c.phone && c.phone.length > 5) 
                     ? `<span class="fw-bold text-dark">${c.phone}</span>` 
                     : '<span class="text-muted small">--</span>';
                 
-                // WhatsApp लिंक
-                const waButton = hasMobile 
-                    ? `<button class="btn btn-sm btn-success py-0 px-2" onclick="sendWhatsAppMessage('${c.phone}', '${c.name}')" title="WhatsApp करें">
-                         <i class="fab fa-whatsapp"></i> Msg
-                       </button>`
-                    : `<button class="btn btn-sm btn-secondary py-0 px-2" disabled><i class="fab fa-whatsapp"></i></button>`;
+                const waButton = (c.phone && c.phone.length > 5)
+                    ? `<button class="btn btn-sm btn-success py-0 px-2" onclick="sendWhatsAppMessage('${c.phone}', '${c.name}')"><i class="fab fa-whatsapp"></i></button>`
+                    : ``;
 
-                // बैलेंस कलर
                 const balanceClass = c.balance > 0 ? 'text-danger fw-bold' : 'text-success';
-                
-                // बिजनेस टाइप टैग (दिखावे के लिए)
-                const badge = isSalon ? '<span class="badge bg-info text-dark">Salon Client</span>' : '<span class="badge bg-primary">Retail Customer</span>';
 
                 const row = tableBody.insertRow();
                 row.innerHTML = `
                     <td class="fw-bold">${c.name}</td>
-                    <td>
-                        ${displayPhone}
-                    </td>
-                    <td>${badge}</td>
+                    <td>${displayPhone}</td>
                     <td class="${balanceClass}">₹${formatCurrency(c.balance || 0).replace('₹', '')}</td>
-                    <td>${new Date(c.created_at).toLocaleDateString()}</td>
+                    
+                    <td class="text-muted fw-bold small">${joinDate}</td>
+                    
                     <td>
                         ${waButton}
-                        <a class="btn btn-sm btn-primary ms-1" onclick="showEditCustomerModal(${c.id})" title="Edit"><i class="fas fa-edit"></i></a>
+                        <a class="btn btn-sm btn-primary ms-1" onclick="showEditCustomerModal(${c.id})"><i class="fas fa-edit"></i></a>
                     </td>
                 `;
             });
-            
-            // 4. कुल ग्राहकों की संख्या दिखाएं (Optional)
-            // document.getElementById('total-crm-count').innerText = res.customers.length;
-
         } else {
-            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">अभी कोई ग्राहक डाटा नहीं है। POS से बिल बनाएं या Manually जोड़ें।</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">कोई डेटा नहीं।</td></tr>`;
         }
     } catch (e) {
-        console.error(e);
-        tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
     }
 }
-	
-    // --- (... पिछला जावास्क्रिप्ट कोड पार्ट 2 से जारी ...) ---
+
+// --- (... पिछला जावास्क्रिप्ट कोड पार्ट 2 से जारी ...) ---
 
     async function fetchAndRenderPurchases() {
         const tableBody = document.getElementById('purchases-table-body');
@@ -10581,21 +10589,26 @@ function applyBusinessTypeUI(btype) {
     // --- GROUP 4: HOSPITALITY & FOOD ---
 
     // 16. Restaurant / Cafe (RESTAURANT)
+   // 16. Restaurant / Cafe (RESTAURANT)
     if (features.includes('table_kot')) {
         if(document.getElementById('module-restaurant-kot')) document.getElementById('module-restaurant-kot').style.display = 'block';
+        
+        // 🚀 FIX: किचन व्यू सिर्फ रेस्टोरेंट को दिखाएं
+        if(document.getElementById('standalone-kitchen-view')) document.getElementById('standalone-kitchen-view').style.display = 'block';
+        
         loadLiveKOTs();
     }
 
-    // 17. Hotel / Lodging (HOTEL)
-    if (features.includes('room_checkin')) {
-        if(document.getElementById('module-hotel-management')) {
+   // 17. Hotel / Lodging (HOTEL)
+   if (features.includes('room_checkin')) {
+        if(document.getElementById('module-hotel-management')) 
             document.getElementById('module-hotel-management').style.display = 'block';
-            
-            // ✅ यहाँ यह लाइन जोड़ें ताकि डैशबोर्ड खुलते ही रूम लिस्ट दिख जाए
-            if (typeof loadHotelRooms === 'function') {
-                loadHotelRooms(); 
-            }
-        }
+        
+        // 🚀 FIX: रूम स्टेटस लिस्ट भी दिखाएं
+        if(document.getElementById('hotel-room-status-section')) 
+            document.getElementById('hotel-room-status-section').style.display = 'block';
+
+        if (typeof loadHotelRooms === 'function') loadHotelRooms();
     }
     // 18. Tent House / Rentals (TENT_HOUSE)
     if (features.includes('rental_dates')) {
@@ -11957,12 +11970,36 @@ function getSmartMessage(template, data) {
 }
 
 // 3. MAIN EXECUTION FUNCTION
+// ==========================================
+// 🚀 ENTERPRISE GOD MODE: SMART MOBILE FIX
+// ==========================================
+
+// 1. Template Reset Helper (Same as before)
+function resetTemplate() {
+    const defaultTemp = `नमस्ते *{name}*,\nआपका ऑडर कंफर्म हो गया है! 🎉\n🧾 बिल नंबर: *#{bill_no}*\n💰 कुल राशि: *{amount}*\n📦 सामान: {items}\n🚚 डिलीवरी: {date}\n\nकृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
+    document.getElementById('pos_wa_template').value = defaultTemp;
+}
+
+// 2. The Template Engine (Same as before)
+function getSmartMessage(template, data) {
+    return template
+        .replace(/{name}/g, data.customerName)
+        .replace(/{bill_no}/g, data.invoiceId)
+        .replace(/{amount}/g, formatCurrency(data.totalAmount))
+        .replace(/{date}/g, new Date(data.date).toLocaleDateString('en-IN'))
+        .replace(/{items}/g, data.items.map(i => i.name).join(', '));
+}
+
+// 3. MAIN EXECUTION FUNCTION (MOBILE FIX APPLIED HERE)
 async function executeGodModeDelivery(invoiceId, customerName, customerMobile, items, preOpenedWindow) {
     const isEnabled = document.getElementById('pos_auto_deliver_check')?.checked;
     
-    // अगर God Mode बंद है, तो विंडो बंद करें
+    // --- 📱 MOBILE DETECTION ---
+    const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // अगर God Mode बंद है
     if (!isEnabled) {
-        if (preOpenedWindow) preOpenedWindow.close();
+        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close(); // मोबाइल पर विंडो क्लोज करने की जरूरत नहीं
         if (typeof loadDeliveryList === 'function') loadDeliveryList();
         return;
     }
@@ -11971,17 +12008,17 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
     const date = document.getElementById('pos_auto_date').value;
     const mistriMobileInput = document.getElementById('pos_auto_mistri_mobile').value; 
     const mistriMobile = mistriMobileInput ? mistriMobileInput.trim() : null;
-    const sendToCust = document.getElementById('pos_send_cust_wa')?.checked; // नया चेकबॉक्स ID
-    const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked; // नया चेकबॉक्स ID
+    const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
+    const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
 
     if (!date) {
-        if (preOpenedWindow) preOpenedWindow.close();
+        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
         showMessage("चेतावनी", "तारीख नहीं चुनी गई!", "warning");
         return;
     }
 
     try {
-        // 1. सर्वर अपडेट
+        // 1. सर्वर अपडेट (बैकग्राउंड में)
         await fetchApi('/api/furniture/update-delivery', { 
             method: 'POST', body: { invoiceId: invoiceId, date: date, assembly: (mistriMobile ? true : false) } 
         });
@@ -11989,16 +12026,15 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
         if (typeof loadDeliveryList === 'function') setTimeout(loadDeliveryList, 500);
 
         // =======================================================
-        // 📄 STEP A: PDF डाउनलोड (Smart Flow)
+        // 📄 STEP A: PDF डाउनलोड (Mobile Friendly)
         // =======================================================
         const totalBill = items.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
-        // अगर generateAndDownloadPDF फंक्शन मौजूद है तो कॉल करें
         if (typeof generateAndDownloadPDF === 'function') {
             generateAndDownloadPDF(invoiceId, customerName, items, totalBill);
         }
 
         // =======================================================
-        // 💬 STEP B: मैसेज तैयार करना (Template Engine)
+        // 💬 STEP B: WhatsApp Logic (Mobile vs Desktop)
         // =======================================================
         const templateRaw = document.getElementById('pos_wa_template').value;
         
@@ -12011,61 +12047,94 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
         };
 
         const finalMsg = getSmartMessage(templateRaw, templateData);
-        // =======================================================
 
-        // 2. WhatsApp लिंक बनाना
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const baseUrl = isMobileDevice ? 'https://api.whatsapp.com/send' : 'https://web.whatsapp.com/send';
+        // --- 🚀 KEY FIX: URL GENERATION ---
+        let baseUrl;
+        if (isMobileDevice) {
+            // मोबाइल के लिए: सीधा ऐप खोलें (Browser को बायपास करें)
+            baseUrl = 'whatsapp://send'; 
+        } else {
+            // कंप्यूटर के लिए: Web WhatsApp
+            baseUrl = 'https://web.whatsapp.com/send';
+        }
 
         // --- CASE 1: CUSTOMER को भेजें ---
         if (sendToCust && customerMobile) {
-            const url = `${baseUrl}?phone=91${customerMobile}&text=${encodeURIComponent(finalMsg)}`;
+            // अगर मोबाइल नंबर में 91 नहीं है तो लगा दें
+            let cleanMobile = customerMobile.replace(/[^0-9]/g, '');
+            if(cleanMobile.length === 10) cleanMobile = '91' + cleanMobile;
 
-            if (preOpenedWindow && !preOpenedWindow.closed) {
-                preOpenedWindow.location.href = url;
+            const url = `${baseUrl}?phone=${cleanMobile}&text=${encodeURIComponent(finalMsg)}`;
+
+            if (isMobileDevice) {
+                // मोबाइल: थोड़ी देर रुक कर ऐप खोलें ताकि PDF डाउनलोड शुरू हो सके
+                setTimeout(() => {
+                    window.location.href = url; // 🚀 Direct App Open
+                }, 1500);
             } else {
-                window.open(url, 'DukanProWA'); 
+                // डेस्कटॉप: पुरानी विंडो का उपयोग करें
+                if (preOpenedWindow && !preOpenedWindow.closed) {
+                    preOpenedWindow.location.href = url;
+                } else {
+                    window.open(url, 'DukanProWA'); 
+                }
             }
         } else {
-            if (!sendToMistri && preOpenedWindow) preOpenedWindow.close();
+            // अगर कस्टमर को नहीं भेजना और डेस्कटॉप है, तो विंडो बंद करें
+            if (!sendToMistri && preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
         }
 
         // --- CASE 2: MISTRI को भेजें ---
         if (sendToMistri && mistriMobile) {
-            const btn = document.getElementById('complete-sale-btn');
-            
-            // मिस्त्री के लिए भी एक सिंपल टेम्पलेट
-            const msgMistri = `🛠️ *Job Alert*\n📍 ग्राहक: ${customerName}\n📞: ${customerMobile}\n🚚 तारीख: ${new Date(date).toLocaleDateString('en-IN')}\n📦 सामान: ${items.map(i => i.name).join(', ')}`;
-            
-            const urlMistri = `${baseUrl}?phone=91${mistriMobile}&text=${encodeURIComponent(msgMistri)}`;
+            // मिस्त्री का नंबर साफ़ करें
+            let cleanMistri = mistriMobile.replace(/[^0-9]/g, '');
+            if(cleanMistri.length === 10) cleanMistri = '91' + cleanMistri;
 
-            // बटन बदलें
+            const btn = document.getElementById('complete-sale-btn');
+            const msgMistri = `🛠️ *Job Alert*\n📍 ग्राहक: ${customerName}\n📞: ${customerMobile}\n🚚 तारीख: ${new Date(date).toLocaleDateString('en-IN')}\n📦 सामान: ${items.map(i => i.name).join(', ')}`;
+            const urlMistri = `${baseUrl}?phone=${cleanMistri}&text=${encodeURIComponent(msgMistri)}`;
+
+            // बटन बदलें (ताकि यूजर क्लिक कर सके)
             btn.innerHTML = `<i class="fab fa-whatsapp"></i> मिस्त्री (${mistriMobile}) को भेजें`;
             btn.className = "btn btn-info btn-lg w-100 fw-bold";
 
-            if (!sendToCust && preOpenedWindow && !preOpenedWindow.closed) {
-                // अगर कस्टमर को नहीं भेजना था, तो इसी विंडो में मिस्त्री को खोल दें
-                preOpenedWindow.location.href = urlMistri;
-                btn.innerHTML = "✅ काम हो गया (Reset)";
-                btn.className = "btn btn-secondary btn-lg w-100";
-                btn.onclick = resetPOSButton;
-            } else {
-                btn.onclick = function() {
-                    window.open(urlMistri, 'DukanProWA');
-                    resetPOSButton();
-                };
+            // मोबाइल पर हम तुरंत दूसरी विंडो नहीं खोल सकते (ब्राउज़र ब्लॉक कर देगा)
+            // इसलिए बटन क्लिक पर छोड़ देते हैं
+            
+            btn.onclick = function() {
+                window.location.href = urlMistri; // मोबाइल के लिए डायरेक्ट लिंक
+                // थोड़ी देर बाद रिसेट करें
+                setTimeout(resetPOSButton, 2000);
+            };
+
+            if (!isMobileDevice) {
+                // डेस्कटॉप लॉजिक (Same as before)
+                if (!sendToCust && preOpenedWindow && !preOpenedWindow.closed) {
+                    preOpenedWindow.location.href = urlMistri;
+                    btn.innerHTML = "✅ काम हो गया (Reset)";
+                    btn.className = "btn btn-secondary btn-lg w-100";
+                    btn.onclick = resetPOSButton;
+                } else {
+                    btn.onclick = function() {
+                        window.open(urlMistri, 'DukanProWA');
+                        resetPOSButton();
+                    };
+                }
                 showMessage("अगला कदम", "✅ बिल डाउनलोड हुआ! अब मिस्त्री को भेजने के लिए नीले बटन पर क्लिक करें।", "info");
+            } else {
+                showMessage("अगला कदम", "✅ PDF डाउनलोड हो रही है। WhatsApp खुलने का इंतज़ार करें, या नीचे बटन दबाएं।", "success");
             }
+
         } else {
             if (sendToCust || !sendToMistri) resetPOSButton();
         }
 
     } catch (e) {
-        if (preOpenedWindow) preOpenedWindow.close();
+        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
         console.error("God Mode Error:", e);
+        showMessage("Error", e.message, "danger");
     }
 }
-
 
 // ==========================================
 // 🧹 FINAL RESET FUNCTION (Sab Kuch Saaf Karega)
