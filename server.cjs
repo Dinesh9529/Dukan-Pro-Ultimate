@@ -351,6 +351,16 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
+		
+		// [ इसे server.cjs में createTables फंक्शन के अंदर पेस्ट करें ]
+        // यह चेक करेगा कि 'item_details' कॉलम है या नहीं, अगर नहीं है तो बना देगा
+        await client.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'purchases'::regclass AND attname = 'item_details') THEN
+                    ALTER TABLE purchases ADD COLUMN item_details TEXT;
+                END IF;
+            END $$;
+        `);
 
         // 6. Expenses Table (CREATE)
         await client.query(`
