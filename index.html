@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
     <link rel="icon" type="image/png" href="https://img.icons8.com/color/48/shop.png">
+    <link rel="manifest" href="manifest.json">
 
 
    
@@ -1930,23 +1931,8 @@
             </div>
 
             <div id="hardware-delivery-box" class="biz-module mt-3 border-top pt-2" style="display:none;">
-                <div id="hardware-delivery-box" class="biz-module mt-3 border-top pt-2" style="display:none;">
-                    <h6 class="text-dark small fw-bold"><i class="fas fa-truck-loading"></i> Pending Deliveries</h6>
-                    <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
-                        <table class="table table-sm table-bordered small mb-0 bg-white">
-                            <thead class="table-secondary">
-                                <tr>
-                                    <th>Invoice / Item</th>
-                                    <th>Date</th>
-                                    <th>Mistri?</th>
-                                </tr>
-                            </thead>
-                            <tbody id="hardware-delivery-list">
-                                <tr><td colspan="3" class="text-center text-muted">लोड हो रहा है...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <h6 class="text-dark small fw-bold"><i class="fas fa-truck-loading"></i> Pending Deliveries (डिलीवरी लिस्ट)</h6>
+                
                 <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
                     <table class="table table-sm table-bordered small mb-0 bg-white">
                         <thead class="table-secondary">
@@ -4673,14 +4659,27 @@ function sendWhatsAppMessage(phone, name) {
             }
 
             return responseData;
+
         } catch (error) {
+            // ============================================================
+            // 🚀 NEW UPDATION: OFFLINE LOGIC ADDED HERE
+            // ============================================================
+            if (!navigator.onLine && options.method && options.method !== 'GET') {
+                // अगर नेट नहीं है और हम कुछ सेव (POST/PUT/DELETE) कर रहे हैं
+                // तो उसे लोकल डेटाबेस में सेव कर लो
+                saveOfflineRequest(path, options.method, options.body);
+                
+                // यूजर को एरर न दिखाकर success return करो ताकि ऐप न रुके
+                return { success: true, message: "⚠️ ऑफलाइन: डेटा कतार में है (Queued)" };
+            }
+            // ============================================================
+
             if (error.name === 'AbortError') throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
             throw error;
         } finally {
             hideLoader();
         }
     }
-
 // ==========================================================
 // ========== 🚀🚀🚀 NAYA PLAN LOCK LOGIC (YAHAN PASTE KAREIN) 🚀🚀🚀 ==========
 // ==========================================================
