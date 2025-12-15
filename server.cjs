@@ -6858,32 +6858,6 @@ app.post('/api/restaurant/create-kot', authenticateJWT, async (req, res) => {
 
 // [ server.cjs में इस कोड को Paste करें ]
 
-// 5.3 🏨 HOTEL CHECK-OUT API (New)
-app.post('/api/hotel/checkout', authenticateJWT, async (req, res) => {
-    const { room_number } = req.body;
-    const shopId = req.shopId;
-
-    try {
-        // 1. रूम को 'AVAILABLE' करें और गेस्ट का नाम हटा दें
-        const result = await pool.query(
-            "UPDATE hotel_rooms SET status = 'AVAILABLE', current_guest_name = NULL WHERE shop_id = $1 AND room_number = $2 RETURNING *",
-            [shopId, room_number]
-        );
-
-        if (result.rowCount === 0) {
-            return res.status(404).json({ success: false, message: 'Room नहीं मिला या पहले से खाली है।' });
-        }
-
-        // (भविष्य में हम यहाँ बिल जनरेट करने का कोड भी जोड़ेंगे)
-
-        res.json({ success: true, message: `✅ रूम ${room_number} का चेक-आउट सफल रहा! अब यह खाली है।` });
-
-    } catch (err) {
-        console.error("Checkout Error:", err);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
 // [ server.cjs में KOT सेक्शन में इसे पेस्ट करें ]
 
 // 5.4 🍽️ GET ACTIVE KOTS (Display List)
@@ -7038,6 +7012,49 @@ app.post('/api/hotel/add-room', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: e.message });
     }
 });
+
+// [ ✅ FIXED: HOTEL CHECKOUT WITH BILLING ]
+app.post('/api/hotel/checkout', authenticateJWT, async (req, res) => {
+    const { room_number, total_bill, payment_mode, customer_name } = req.body;
+    const shopId = req.shopId;
+
+    try {
+        await pool.query('BEGIN');
+
+        // 1. कमरा खाली करें (Status = AVAILABLE)
+        const roomRes = await pool.query(
+            "UPDATE hotel_rooms SET status = 'AVAILABLE', current_guest_name = NULL WHERE shop_id = $1 AND room_number = $2 RETURNING *",
+            [shopId, room_number]
+        );
+
+        if (roomRes.rowCount === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Room नहीं मिला।' });
+        }
+
+        // 2. फाइनल बिल (Invoice) जनरेट करें
+        if (total_bill && parseFloat(total_bill) > 0) {
+            await pool.query(
+                `INSERT INTO invoices (shop_id, customer_id, total_amount, payment_mode, created_at)
+                 VALUES ($1, NULL, $2, $3, NOW())`,
+                [shopId, parseFloat(total_bill), payment_mode || 'Cash']
+            );
+            // नोट: हम यहाँ customer_name को invoice में सीधे नहीं डाल रहे क्योंकि हमारा invoice table customer_id मांगता है।
+            // लेकिन यह sales report में जुड़ जाएगा।
+        }
+
+        await pool.query('COMMIT');
+        res.json({ success: true, message: `✅ चेक-आउट सफल! ₹${total_bill} का बिल बन गया।` });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("Checkout Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
