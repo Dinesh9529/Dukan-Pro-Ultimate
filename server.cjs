@@ -5924,16 +5924,41 @@ app.post('/api/security/alert', authenticateJWT, async (req, res) => {
 app.post('/api/furniture/update-delivery', authenticateJWT, async (req, res) => {
     // अगर status नहीं भेजा, तो 'Pending' मान लो
     const { invoiceId, date, status = 'Pending', assembly } = req.body;
-    
+    const shopId = req.shopId;
+
+    // [DEBUG LOG] - सर्वर कंसोल में दिखेगा कि क्या डेटा आया
+    console.log(`[DEBUG] Delivery Request -> Shop: ${shopId}, Inv: ${invoiceId}, Date: ${date}`);
+
     try {
-        await pool.query(
-            `INSERT INTO product_deliveries (shop_id, invoice_id, delivery_date, delivery_status, assembly_required)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [req.shopId, invoiceId, date, status, assembly]
+        // 1. चेक करें कि क्या यह बिल पहले से लिस्ट में है?
+        const checkRes = await pool.query(
+            "SELECT id FROM product_deliveries WHERE shop_id = $1 AND invoice_id = $2", 
+            [shopId, String(invoiceId)] // invoiceId को String बना दिया ताकि टाइप एरर न हो
         );
+
+        if (checkRes.rows.length > 0) {
+            // ➤ अगर मौजूद है -> तो तारीख UPDATE करें (नया न बनाएं)
+            await pool.query(
+                `UPDATE product_deliveries 
+                 SET delivery_date = $1, assembly_required = $2, delivery_status = $3 
+                 WHERE shop_id = $4 AND invoice_id = $5`,
+                [date, assembly, status, shopId, String(invoiceId)]
+            );
+            console.log(`[DEBUG] ✅ Existing Invoice #${invoiceId} UPDATED.`);
+        } else {
+            // ➤ अगर नहीं है -> तो INSERT करें
+            await pool.query(
+                `INSERT INTO product_deliveries (shop_id, invoice_id, delivery_date, delivery_status, assembly_required)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [shopId, String(invoiceId), date, status, assembly]
+            );
+            console.log(`[DEBUG] ✅ New Invoice #${invoiceId} INSERTED.`);
+        }
+
         res.json({ success: true, message: 'Delivery Scheduled Successfully.' });
+
     } catch (e) { 
-        console.error("Delivery Error:", e);
+        console.error("[DEBUG] ❌ Delivery Error:", e);
         res.status(500).json({ success: false, message: e.message }); 
     }
 });
@@ -6653,16 +6678,22 @@ app.post('/api/repair/create-job', authenticateJWT, async (req, res) => {
 app.get('/api/furniture/deliveries', authenticateJWT, async (req, res) => {
     try {
         const shopId = req.shopId;
-        // जो डिलीवरी सबसे करीब है उसे सबसे ऊपर दिखाएं
+        console.log(`[DEBUG] Fetching List for Shop: ${shopId}`);
+
+        // 🚀 FIX: 'LIMIT 20' हटा दिया गया है ताकि सारा डेटा दिखे
+        // 🚀 FIX: 'ORDER BY delivery_date DESC' (ताकि नई तारीख सबसे ऊपर आए)
         const result = await pool.query(`
             SELECT * FROM product_deliveries 
             WHERE shop_id = $1 
-            ORDER BY delivery_date ASC 
-            LIMIT 20`, 
+            ORDER BY delivery_date ASC`, // जो डिलीवरी पास है वो ऊपर दिखेगी
             [shopId]
         );
+
+        console.log(`[DEBUG] ✅ Found ${result.rows.length} records.`);
         res.json({ success: true, deliveries: result.rows });
+
     } catch (e) {
+        console.error("[DEBUG] ❌ Fetch Error:", e);
         res.status(500).json({ success: false, message: e.message });
     }
 });
