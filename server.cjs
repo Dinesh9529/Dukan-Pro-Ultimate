@@ -6995,7 +6995,21 @@ app.post('/api/restaurant/generate-bill', authenticateJWT, async (req, res) => {
     }
 });
 
+// 3. 🚚 MARK DELIVERY AS DONE (Status Update API)
+app.post('/api/furniture/mark-done', authenticateJWT, async (req, res) => {
+    const { invoiceId } = req.body;
+    const shopId = req.shopId;
 
+    try {
+        await pool.query(
+            "UPDATE product_deliveries SET delivery_status = 'DELIVERED' WHERE shop_id = $1 AND invoice_id = $2",
+            [shopId, String(invoiceId)]
+        );
+        res.json({ success: true, message: 'Status updated to DELIVERED' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
