@@ -7012,6 +7012,7 @@ app.post('/api/furniture/mark-done', authenticateJWT, async (req, res) => {
 });
 
 // [ ✅ NEW API: Manually Add a Single Room ]
+// [ ✅ MISSING API: Manually Add Room ]
 app.post('/api/hotel/add-room', authenticateJWT, async (req, res) => {
     const { roomNumber } = req.body;
     const shopId = req.shopId;
@@ -7019,14 +7020,14 @@ app.post('/api/hotel/add-room', authenticateJWT, async (req, res) => {
     if(!roomNumber) return res.status(400).json({success: false, message: "Room Number required"});
 
     try {
-        // चेक करें कि रूम पहले से तो नहीं है
+        // चेक करें कि रूम पहले से मौजूद तो नहीं
         const check = await pool.query("SELECT id FROM hotel_rooms WHERE shop_id = $1 AND room_number = $2", [shopId, roomNumber]);
         
         if(check.rows.length > 0) {
             return res.status(400).json({ success: false, message: "यह रूम नंबर पहले से मौजूद है!" });
         }
 
-        // नया रूम बनाएं
+        // नया रूम डेटाबेस में डालें
         await pool.query(
             "INSERT INTO hotel_rooms (shop_id, room_number, status) VALUES ($1, $2, 'AVAILABLE')",
             [shopId, roomNumber]
