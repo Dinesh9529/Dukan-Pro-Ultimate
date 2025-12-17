@@ -5605,9 +5605,9 @@ app.post('/api/shop/set-business-type', authenticateJWT, async (req, res) => {
 
 // Saloon dashboard data (appointments summary, services stock if any, birthday count)
 
-// [ ✅ server.cjs: /api/saloon/dashboard (Date-wise & Future Booking Support) ]
+// [ ✅ server.cjs: /api/salon/dashboard (Date-wise & Future Booking Support) ]
 
-app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
+app.get('/api/salon/dashboard', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
@@ -5691,7 +5691,7 @@ app.get('/api/saloon/dashboard', authenticateJWT, async (req, res) => {
 
 // Get customers with birthdays in next N days
 // [ ✅ server.cjs: /api/saloon/upcoming-birthdays को इससे बदलें ]
-app.get('/api/saloon/upcoming-birthdays', authenticateJWT, async (req, res) => {
+app.get('/api/salon/upcoming-birthdays', authenticateJWT, async (req, res) => {
   const client = await pool.connect();
   const shopId = req.shopId;
   try {
@@ -6856,20 +6856,18 @@ app.post('/api/restaurant/create-kot', authenticateJWT, async (req, res) => {
     }
 });
 
-// [ server.cjs में इस कोड को Paste करें ]
 
-// [ server.cjs में KOT सेक्शन में इसे पेस्ट करें ]
 
-// 5.4 🍽️ GET ACTIVE KOTS (Display List)
+// [ ✅ PROFESSIONAL KOT SYSTEM: Fetch Active Orders (Preparing + Ready) ]
 app.get('/api/restaurant/active-kots', authenticateJWT, async (req, res) => {
     const shopId = req.shopId;
     try {
-        // सिर्फ वो आर्डर लाएं जो अभी बन रहे हैं ('PREPARING')
+        // अब हम 'PREPARING' और 'READY' दोनों तरह के ऑर्डर लाएंगे
         const result = await pool.query(
             `SELECT id, items_json, status, created_at 
              FROM restaurant_kots 
-             WHERE shop_id = $1 AND status = 'PREPARING' 
-             ORDER BY created_at DESC`,
+             WHERE shop_id = $1 AND status IN ('PREPARING', 'READY') 
+             ORDER BY status DESC, created_at ASC`, // READY ऊपर दिखेगा
             [shopId]
         );
         res.json({ success: true, kots: result.rows });
@@ -6878,16 +6876,26 @@ app.get('/api/restaurant/active-kots', authenticateJWT, async (req, res) => {
     }
 });
 
-// 5.5 ✅ COMPLETE KOT (Order Served)
-app.post('/api/restaurant/complete-kot', authenticateJWT, async (req, res) => {
-    const { kotId } = req.body;
+// [ ✅ PROFESSIONAL KOT SYSTEM: Update Status (Ready / Served) ]
+app.post('/api/restaurant/update-status', authenticateJWT, async (req, res) => {
+    const { kotId, status } = req.body; // status can be 'READY' or 'SERVED'
+    const shopId = req.shopId;
+
     try {
-        // स्टेटस बदलकर 'SERVED' कर दें ताकि लिस्ट से हट जाए
         await pool.query(
-            "UPDATE restaurant_kots SET status = 'SERVED' WHERE id = $1 AND shop_id = $2",
-            [kotId, req.shopId]
+            "UPDATE restaurant_kots SET status = $1 WHERE id = $2 AND shop_id = $3",
+            [status, kotId, shopId]
         );
-        res.json({ success: true, message: 'Order Served!' });
+
+        // 🔔 BROADCAST: सभी स्क्रीन्स को तुरंत खबर दें (ताकि वेटर की घंटी बजे)
+        if (typeof broadcastToShop === 'function') {
+            broadcastToShop(shopId, JSON.stringify({ 
+                type: 'KOT_UPDATE', 
+                status: status
+            }));
+        }
+
+        res.json({ success: true, message: `Order marked as ${status}` });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
