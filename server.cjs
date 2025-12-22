@@ -1867,6 +1867,8 @@ app.delete('/api/users/:userId', authenticateJWT, checkRole('ADMIN'), checkPlan(
 // [ ✅ FIXED: Trim SKU to prevent duplicates & Fix Quantity Logic ]
 
 app.post('/api/stock', authenticateJWT, checkRole('CASHIER'), async (req, res) => {
+console.log('📦 STOCK API BODY RECEIVED 👉', JSON.stringify(req.body, null, 2));
+
     const { sku, name, quantity, unit, purchase_price, sale_price, gst, cost_price, category, product_attributes, recipe, action_type } = req.body;
     const shopId = req.shopId;
 
