@@ -12797,6 +12797,43 @@ function printKOT(tableNo, items) {
     }, 500);
 }
 
+// [ ✅ FIXED: WhatsApp Share Function (Mistri & Customer) ]
+function shareInvoiceOnWhatsApp(mobileNumber, name, invoiceNo, amount, pdfUrl) {
+    console.log("WhatsApp Attempt:", mobileNumber, name);
+
+    // 1. नंबर चेक करें (Validation)
+    if (!mobileNumber) {
+        alert("❌ मोबाइल नंबर उपलब्ध नहीं है!");
+        return;
+    }
+
+    // 2. नंबर साफ़ करें (Space, -, + हटा दें)
+    let phone = mobileNumber.toString().replace(/\D/g, ''); 
+
+    // 3. '91' जोड़ें (अगर 10 अंकों का है)
+    if (phone.length === 10) {
+        phone = '91' + phone;
+    } 
+    // अगर नंबर बहुत छोटा है तो एरर दें
+    else if (phone.length < 10) {
+        alert("❌ गलत मोबाइल नंबर: " + mobileNumber);
+        return;
+    }
+
+    // 4. मैसेज तैयार करें
+    let msg = `नमस्ते ${name || 'Customer'},\n`;
+    msg += `आपका बिल (Invoice: ${invoiceNo}) बन गया है।\n`;
+    msg += `कुल राशि: ₹${amount}\n`;
+    msg += `यहाँ क्लिक करके बिल देखें: ${pdfUrl || ''}\n\n`;
+    msg += `धन्यवाद!`;
+
+    // 5. WhatsApp लिंक बनाएं
+    // (web.whatsapp.com की जगह wa.me ज्यादा भरोसेमंद है जो App और Web दोनों खोलता है)
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+
+    // 6. विंडो खोलें
+    window.open(url, '_blank');
+}			
 
 </script>
 
