@@ -17,7 +17,7 @@
 
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13451,49 +13451,70 @@ function openSmartWhatsApp(phone, message) {
 }
 
 
-
-// 🚀 2. MOBILE-FRIENDLY PDF GENERATOR
+// 🚀 UPDATED: PDF GENERATOR WITH ERROR ALERTS (For Mobile Debugging)
 window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAmount) {
-    // डेटा भरना
-    document.getElementById('inv-date').innerText = new Date().toLocaleDateString('en-IN');
-    document.getElementById('inv-no').innerText = invoiceId || '---';
-    document.getElementById('inv-customer').innerText = customerName || 'Cash Customer';
-    document.getElementById('inv-total').innerText = '₹' + parseFloat(totalAmount).toFixed(2);
-    
-    const tbody = document.getElementById('inv-items-body');
-    tbody.innerHTML = '';
-    items.forEach((item, index) => {
-        tbody.innerHTML += `
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 4px;">${index + 1}</td>
-                <td style="padding: 4px;">${item.name}</td>
-                <td style="padding: 4px;">${item.quantity}</td>
-                <td style="padding: 4px;">₹${item.sale_price}</td>
-                <td style="padding: 4px;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
-            </tr>
-        `;
-    });
+    try {
+        // 1. चेक करें कि टूल मौजूद है या नहीं
+        if (typeof html2pdf === 'undefined') {
+            alert("❌ त्रुटि: html2pdf स्क्रिप्ट लोड नहीं हुई है।\nकृपया <head> में स्क्रिप्ट टैग चेक करें या इंटरनेट कनेक्ट करें।");
+            return;
+        }
 
-    // PDF सेटिंग्स (मोबाइल फिक्स: windowWidth: 800)
-    const element = document.getElementById('invoice-content');
-    element.style.display = 'block'; 
-    
-    const opt = {
-        margin:       [5, 5, 5, 5],
-        filename:     `Bill_${invoiceId}_${customerName}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 },
-        jsPDF:        { unit: 'mm', format: 'a5', orientation: 'portrait' }
-    };
+        // 2. डेटा भरना
+        document.getElementById('inv-date').innerText = new Date().toLocaleDateString('en-IN');
+        document.getElementById('inv-no').innerText = invoiceId || '---';
+        document.getElementById('inv-customer').innerText = customerName || 'Cash Customer';
+        document.getElementById('inv-total').innerText = '₹' + parseFloat(totalAmount).toFixed(2);
+        
+        const tbody = document.getElementById('inv-items-body');
+        if (tbody) {
+            tbody.innerHTML = '';
+            items.forEach((item, index) => {
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 4px;">${index + 1}</td>
+                        <td style="padding: 4px;">${item.name}</td>
+                        <td style="padding: 4px;">${item.quantity}</td>
+                        <td style="padding: 4px;">₹${item.sale_price}</td>
+                        <td style="padding: 4px;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        }
 
-    // PDF जनरेट करें
-    html2pdf().set(opt).from(element).save().catch(err => {
-        console.error("PDF Failed:", err);
-        showMessage("PDF Error", "PDF डाउनलोड नहीं हो सका। कृपया प्रिंट बटन का उपयोग करें।", "warning");
-    });
+        // 3. PDF बनाना
+        const element = document.getElementById('invoice-content');
+        
+        if (!element) {
+            alert("❌ त्रुटि: 'invoice-content' नाम का एलिमेंट नहीं मिला!");
+            return;
+        }
+
+        // मोबाइल फिक्स: एलिमेंट को विजिबल करें
+        element.style.display = 'block'; 
+        
+        const opt = {
+            margin:       [2, 2, 2, 2], // कम मार्जिन
+            filename:     `Bill_${invoiceId}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 },
+            jsPDF:        { unit: 'mm', format: 'a5', orientation: 'portrait' }
+        };
+
+        // PDF जनरेट करें
+        html2pdf().set(opt).from(element).save().then(() => {
+            // डाउनलोड शुरू हो गया
+            console.log("PDF Started");
+        }).catch(err => {
+            // 🛑 अगर कोई एरर आया तो यह बताएगा
+            alert("❌ PDF Error: " + err.message);
+            console.error(err);
+        });
+
+    } catch (e) {
+        alert("❌ Critical Error: " + e.message);
+    }
 };
-
-
 
 
 
