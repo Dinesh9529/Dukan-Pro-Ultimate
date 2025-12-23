@@ -13450,24 +13450,24 @@ function openSmartWhatsApp(phone, message) {
     }
 }
 
-
-// 🚀 UPDATED: PDF GENERATOR WITH ERROR ALERTS (For Mobile Debugging)
+// 🚀 HYBRID PDF GENERATOR (Best of Both Worlds)
 window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAmount) {
-    try {
-        // 1. चेक करें कि टूल मौजूद है या नहीं
-        if (typeof html2pdf === 'undefined') {
-            alert("❌ त्रुटि: html2pdf स्क्रिप्ट लोड नहीं हुई है।\nकृपया <head> में स्क्रिप्ट टैग चेक करें या इंटरनेट कनेक्ट करें।");
-            return;
-        }
+    
+    // 1. चेक करें कि डिवाइस कौन सा है
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-        // 2. डेटा भरना
+    // ============================================================
+    // 💻 CASE 1: कंप्यूटर (DESKTOP) -> पुराना html2pdf तरीका
+    // ============================================================
+    if (!isMobile) {
+        // डेटा भरना (छिपे हुए इनवॉइस में)
         document.getElementById('inv-date').innerText = new Date().toLocaleDateString('en-IN');
         document.getElementById('inv-no').innerText = invoiceId || '---';
         document.getElementById('inv-customer').innerText = customerName || 'Cash Customer';
         document.getElementById('inv-total').innerText = '₹' + parseFloat(totalAmount).toFixed(2);
         
         const tbody = document.getElementById('inv-items-body');
-        if (tbody) {
+        if(tbody) {
             tbody.innerHTML = '';
             items.forEach((item, index) => {
                 tbody.innerHTML += `
@@ -13482,41 +13482,90 @@ window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAm
             });
         }
 
-        // 3. PDF बनाना
         const element = document.getElementById('invoice-content');
-        
-        if (!element) {
-            alert("❌ त्रुटि: 'invoice-content' नाम का एलिमेंट नहीं मिला!");
-            return;
-        }
+        element.style.display = 'block'; // विजिबल करें
 
-        // मोबाइल फिक्स: एलिमेंट को विजिबल करें
-        element.style.display = 'block'; 
-        
         const opt = {
-            margin:       [2, 2, 2, 2], // कम मार्जिन
+            margin:       [5, 5, 5, 5],
             filename:     `Bill_${invoiceId}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 },
+            html2canvas:  { scale: 2, useCORS: true },
             jsPDF:        { unit: 'mm', format: 'a5', orientation: 'portrait' }
         };
 
-        // PDF जनरेट करें
-        html2pdf().set(opt).from(element).save().then(() => {
-            // डाउनलोड शुरू हो गया
-            console.log("PDF Started");
-        }).catch(err => {
-            // 🛑 अगर कोई एरर आया तो यह बताएगा
-            alert("❌ PDF Error: " + err.message);
-            console.error(err);
-        });
+        // कंप्यूटर पर चुपचाप डाउनलोड करें
+        html2pdf().set(opt).from(element).save();
+        return; 
+    }
 
-    } catch (e) {
-        alert("❌ Critical Error: " + e.message);
+    // ============================================================
+    // 📱 CASE 2: मोबाइल (MOBILE) -> नया Browser Print तरीका
+    // ============================================================
+    
+    // आइटम की HTML टेबल बनाएं
+    let itemsHtml = '';
+    items.forEach((item, index) => {
+        itemsHtml += `
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">₹${item.sale_price}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
+    const date = new Date().toLocaleDateString('en-IN');
+    
+    // मोबाइल के लिए सिंपल और साफ बिल
+    const invoiceHTML = `
+        <html>
+        <head>
+            <title>Bill #${invoiceId}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: sans-serif; padding: 15px; }
+                .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 15px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th { background: #f0f0f0; text-align: left; padding: 5px; }
+                .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 15px; border-top: 2px solid #333; padding-top: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Dukan Pro</h2>
+                <p>Invoice #${invoiceId}</p>
+                <p>Date: ${date}</p>
+            </div>
+            <div>
+                <strong>Customer:</strong> ${customerName}
+            </div>
+            <table>
+                <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+                <tbody>
+                    ${items.map(i => `<tr><td>${i.name}</td><td>${i.quantity}</td><td>₹${(i.sale_price*i.quantity).toFixed(2)}</td></tr>`).join('')}
+                </tbody>
+            </table>
+            <div class="total">Total: ₹${parseFloat(totalAmount).toFixed(2)}</div>
+            
+            <script>
+                // मोबाइल पर पेज खुलते ही प्रिंट पॉपअप
+                window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+            </script>
+        </body>
+        </html>
+    `;
+
+    // मोबाइल पर नया टैब खोलें
+    const win = window.open('', '_blank');
+    if(win) {
+        win.document.write(invoiceHTML);
+        win.document.close();
+    } else {
+        alert("Pop-up blocked! Please allow pop-ups.");
     }
 };
-
-
 
 
 
