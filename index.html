@@ -14,7 +14,7 @@
     
    
 
-
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -6705,9 +6705,8 @@ function handleSearchResultClick(e) {
         return totalAmount;
     }
 
-// 🚀 MAIN SALE FUNCTION (Detailed WhatsApp Message + Mobile Safety)
+// 🚀 MAIN SALE FUNCTION (Safe Sequence: Download -> Wait 3s -> WhatsApp)
 async function handleCompleteSale() {
-    // --- 1. कार्ट चेक ---
     if (posCart.length === 0) {
         showMessage('Error', 'Cart is empty!', 'warning');
         return;
@@ -6715,7 +6714,7 @@ async function handleCompleteSale() {
 
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
     
-    // --- 2. डेटा तैयार करना ---
+    // डेटा बनाना
     const itemsForApi = posCart.map(item => ({
         sku: item.sku, name: item.name, quantity: item.quantity,
         sale_price: item.sale_price, purchase_price: parseFloat(item.purchase_price || 0),
@@ -6723,8 +6722,6 @@ async function handleCompleteSale() {
     }));
 
     const custMobile = document.getElementById('pos-customer-mobile').value || null;
-    
-    // डिलीवरी तारीख (अगर ऑटो डिलीवरी डेट चुनी है तो वो, नहीं तो आज की)
     const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
     const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
 
@@ -6740,7 +6737,6 @@ async function handleCompleteSale() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
 
-    // --- 3. सर्वर कॉल (Save to Database) ---
     try {
         if(typeof Swal !== 'undefined') Swal.showLoading();
 
@@ -6748,73 +6744,49 @@ async function handleCompleteSale() {
 
         if (res.success) {
             
-            // ✅ मैसेज तैयार करना (Detailed Format)
+            // विस्तृत मैसेज
             const itemDetails = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
-            
             const whatsappMsg = `नमस्ते *${saleData.customerName}*,\n` +
                                 `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
                                 `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
                                 `💰 कुल राशि: *₹${finalTotalAmount.toFixed(2)}*\n` +
                                 `📦 सामान: ${itemDetails}\n` +
                                 `🚚 डिलीवरी: ${deliveryDate}\n\n` +
-                                `कृपया साथ में भेजा गया PDF बिल देखें।\n` +
-                                `धन्यवाद! 🙏`;
+                                `कृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
 
-            // ============================================================
-            // 💻 CASE 1: कंप्यूटर (DESKTOP) -> आटोमेटिक
-            // ============================================================
+            // 💻 CASE 1: कंप्यूटर (सब कुछ ऑटोमेटिक)
             if (!isMobile) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Done! ✅',
-                    text: `Bill #${res.invoiceId} Saved`,
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-
-                if (typeof generateAndDownloadPDF === 'function') {
-                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
-                }
-
+                Swal.fire({ icon: 'success', title: 'Done! ✅', timer: 1500, showConfirmButton: false });
+                generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                
                 if (sendToCust && saleData.customerMobile) {
-                    // 1 सेकंड बाद मैसेज भेजें
                     setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, whatsappMsg); }, 1000);
                 }
-
                 resetPOSButton();
                 return;
             }
 
-            // ============================================================
-            // 📱 CASE 2: मोबाइल (MOBILE) -> स्टेप बाय स्टेप
-            // ============================================================
-            
+            // 📱 CASE 2: मोबाइल (सुरक्षित मोड)
             Swal.fire({
                 title: 'बिक्री सफल! 🎉',
-                html: `<p>Bill ID: <b>#${res.invoiceId}</b></p><p>Total: <b>₹${finalTotalAmount}</b></p>`,
+                text: 'बिल डाउनलोड करने के लिए नीचे क्लिक करें',
                 icon: 'success',
-                showCancelButton: true,
-                confirmButtonText: '📥 बिल डाउनलोड करें',
-                cancelButtonText: '❌ बंद करें',
+                confirmButtonText: '📥 Download Bill',
                 confirmButtonColor: '#28a745',
-                cancelButtonColor: '#d33',
                 allowOutsideClick: false
             }).then((result) => {
-                
                 if (result.isConfirmed) {
-                    // A. पहले PDF डाउनलोड करें
-                    if (typeof generateAndDownloadPDF === 'function') {
-                        generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
-                    }
+                    // 1. PDF डाउनलोड करें
+                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
 
-                    // B. अब 2.5 सेकंड बाद WhatsApp (Detailed Msg के साथ) खोलें
+                    // 2. WhatsApp के लिए 3 सेकंड रुकें (ताकि PDF पूरी हो जाए)
                     if (sendToCust && saleData.customerMobile) {
-                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-                        Toast.fire({ icon: 'success', title: 'WhatsApp खुल रहा है...' });
-                        
+                        const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 3000 });
+                        Toast.fire({ icon: 'info', title: 'WhatsApp 3 सेकंड में खुलेगा...' });
+
                         setTimeout(() => {
                             openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
-                        }, 2500);
+                        }, 3000); // 3 सेकंड का गैप
                     }
                 }
                 resetPOSButton();
@@ -6825,12 +6797,9 @@ async function handleCompleteSale() {
         }
 
     } catch (error) {
-        console.error(error);
         if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
     }
 }
-
-
 // --- FORM SUBMISSION HANDLERS ---
     
     // --- FORM SUBMISSION HANDLERS (Fixed & Updated) ---
@@ -12308,139 +12277,115 @@ function resetPOSButton() {
 // ==========================================
 // 📄 PROFESSIONAL INVOICE PDF GENERATOR
 // ==========================================
-function generateAndDownloadPDF(invoiceId, customerName, items, totalAmount) {
+// 🚀 FINAL PDF GENERATOR (Updated & Error-Free)
+window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAmount) {
+    
+    // 1. चेक करें कि मशीन (jsPDF) लोड है या नहीं
+    if (!window.jspdf) {
+        alert("⚠️ PDF सिस्टम लोड नहीं हुआ। इंटरनेट चेक करें या पेज रिफ्रेश करें।");
+        return;
+    }
+
     try {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
 
-        // --- 1. HEADER SECTION (Colorful) ---
-        doc.setFillColor(41, 128, 185); // Professional Blue Header
+        // --- 1. HEADER (Blue Professional) ---
+        doc.setFillColor(41, 128, 185); 
         doc.rect(0, 0, pageWidth, 35, 'F');
 
-        // Shop Name
-        const shopName = AppState.user?.shopName || "MY SHOP NAME";
+        // दुकान का नाम (सुरक्षित तरीके से)
+        const shopName = (typeof AppState !== 'undefined' && AppState.user?.shopName) ? AppState.user.shopName : "MY SHOP NAME";
+        
         doc.setFont("helvetica", "bold");
         doc.setFontSize(22);
-        doc.setTextColor(255, 255, 255); // White Text
+        doc.setTextColor(255, 255, 255);
         doc.text(shopName.toUpperCase(), 15, 15);
 
-        // Shop Details (Subtitle)
+        // सब-टाइटल
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.text("Mobile: 9876543210 | Address: City, India", 15, 22);
-        doc.text("GSTIN: 22AAAAA0000A1Z5", 15, 27);
 
-        // Invoice Label
         doc.setFontSize(16);
         doc.text("INVOICE", pageWidth - 15, 20, { align: 'right' });
 
-        // --- 2. CUSTOMER & BILL DETAILS ---
-        doc.setTextColor(0, 0, 0); // Black Text
+        // --- 2. CUSTOMER DETAILS ---
+        doc.setTextColor(0, 0, 0);
         let y = 45;
 
-        // Left Side: Bill To
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.text("BILL TO:", 15, y);
         doc.setFont("helvetica", "normal");
-        doc.text(customerName.toUpperCase(), 15, y + 6);
-        // doc.text("Customer Mobile: " + customerMobile, 15, y + 12); // Optional
+        doc.text((customerName || "Cash Customer").toUpperCase(), 15, y + 6);
 
-        // Right Side: Invoice Info
         doc.setFont("helvetica", "bold");
         doc.text("Invoice No:", 140, y);
         doc.text("Date:", 140, y + 6);
-        
         doc.setFont("helvetica", "normal");
-        doc.text(`#${invoiceId}`, 170, y);
+        doc.text(`#${invoiceId || '--'}`, 170, y);
         doc.text(new Date().toLocaleDateString('en-IN'), 170, y + 6);
 
-        // --- 3. ITEM TABLE ---
+        // --- 3. ITEMS TABLE ---
         y += 20;
-        
-        // Table Headers
-        doc.setFillColor(230, 230, 230); // Light Grey
+        doc.setFillColor(230, 230, 230);
         doc.rect(15, y, pageWidth - 30, 8, 'F');
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
-        
         doc.text("#", 18, y + 5);
-        doc.text("ITEM NAME", 30, y + 5);
+        doc.text("ITEM", 30, y + 5);
         doc.text("QTY", 120, y + 5, { align: 'center' });
-        doc.text("PRICE", 150, y + 5, { align: 'center' });
+        doc.text("RATE", 150, y + 5, { align: 'center' });
         doc.text("TOTAL", 185, y + 5, { align: 'center' });
 
-        // Table Rows
         y += 8;
         doc.setFont("helvetica", "normal");
-        
-        let totalQty = 0;
 
         items.forEach((item, index) => {
-            const lineTotal = item.quantity * item.sale_price;
-            totalQty += item.quantity;
-            
-            // Item Name Formatting (Truncate if too long)
-            let itemName = item.name;
-            if (itemName.length > 45) itemName = itemName.substring(0, 45) + "...";
+            let itemName = item.name || "Item";
+            // नाम बहुत लंबा हो तो छोटा करें
+            if (itemName.length > 35) itemName = itemName.substring(0, 35) + "...";
 
             doc.text(String(index + 1), 18, y + 5);
             doc.text(itemName, 30, y + 5);
             doc.text(String(item.quantity), 120, y + 5, { align: 'center' });
-            doc.text(formatCurrency(item.sale_price), 150, y + 5, { align: 'center' });
-            doc.text(formatCurrency(lineTotal), 185, y + 5, { align: 'center' });
+            doc.text(String(item.sale_price), 150, y + 5, { align: 'center' });
+            
+            // Total calculation logic fixed
+            const lineTotal = (parseFloat(item.sale_price) * parseFloat(item.quantity)).toFixed(2);
+            doc.text(String(lineTotal), 185, y + 5, { align: 'center' });
 
-            // Light line between rows
             doc.setDrawColor(220, 220, 220);
             doc.line(15, y + 7, pageWidth - 15, y + 7);
-            
             y += 8;
         });
 
-        // --- 4. TOTALS SECTION ---
+        // --- 4. TOTAL ---
         y += 5;
         doc.setDrawColor(0, 0, 0);
-        doc.line(15, y, pageWidth - 15, y); // Bold Line
-
+        doc.line(15, y, pageWidth - 15, y);
         y += 7;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         doc.text("GRAND TOTAL", 140, y);
-        doc.text(formatCurrency(totalAmount), 185, y, { align: 'center' });
+        doc.text('₹' + parseFloat(totalAmount).toFixed(2), 185, y, { align: 'center' });
 
-        // Amount in words (Optional logic can be added here)
-        // doc.setFontSize(9);
-        // doc.text("Amount in Words: " + convertToWords(totalAmount), 15, y);
-
-        // --- 5. FOOTER & SIGNATURE ---
-        let footerY = pageHeight - 40;
-        
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "normal");
-        doc.text("Terms & Conditions:", 15, footerY);
-        doc.text("1. Goods once sold will not be taken back.", 15, footerY + 5);
-        doc.text("2. Subject to local jurisdiction.", 15, footerY + 10);
-
-        doc.text("Authorized Signature", pageWidth - 15, footerY + 20, { align: 'right' });
-
-        // Thank you note
+        // --- 5. FOOTER ---
         doc.setFontSize(10);
         doc.setTextColor(41, 128, 185);
         doc.text("Thank you for your business!", pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-        // --- 6. SAVE FILE ---
+        // ✅ मोबाइल फिक्स: यह कमांड डायरेक्ट डाउनलोड करती है (कोई सफेद स्क्रीन नहीं)
         doc.save(`Invoice_${invoiceId}.pdf`);
-        console.log("✅ Professional PDF Downloaded!");
 
     } catch (e) {
-        console.error("PDF Error:", e);
-        showMessage("PDF Error", "PDF बनाने में समस्या आई।", "warning");
+        console.error(e);
+        alert("PDF Error: " + e.message);
     }
-}
-
-// [ इसे अपनी HTML फाइल के <script> सेक्शन में सबसे नीचे पेस्ट करें ]
+};// [ इसे अपनी HTML फाइल के <script> सेक्शन में सबसे नीचे पेस्ट करें ]
 
 // 🏨 HOTEL: Check-In Logic
 // 🏨 HOTEL: Check-In Logic (Updated)
@@ -13715,112 +13660,7 @@ function openSmartWhatsApp(phone, message) {
     </div>
 </div>
 
-</script>
 
-<script>
-    // 🚀 FINAL & TESTED PDF FUNCTION (Mobile Direct Download)
-window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAmount) {
-    
-    // 1. सबसे पहले चेक करें कि मशीन (jsPDF) है या नहीं
-    if (!window.jspdf) {
-        alert("⚠️ PDF सिस्टम लोड हो रहा है... कृपया 2 सेकंड रुकें और दोबारा क्लिक करें।");
-        return;
-    }
-
-    try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-
-        // --- 1. HEADER (Professional Blue) ---
-        doc.setFillColor(41, 128, 185); 
-        doc.rect(0, 0, pageWidth, 35, 'F');
-
-        const shopName = (typeof AppState !== 'undefined' && AppState.user?.shopName) ? AppState.user.shopName : "MY SHOP NAME";
-        
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(22);
-        doc.setTextColor(255, 255, 255);
-        doc.text(shopName.toUpperCase(), 15, 15);
-
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.text("Mobile: 9876543210 | Address: City, India", 15, 22);
-
-        doc.setFontSize(16);
-        doc.text("INVOICE", pageWidth - 15, 20, { align: 'right' });
-
-        // --- 2. CUSTOMER DETAILS ---
-        doc.setTextColor(0, 0, 0);
-        let y = 45;
-
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.text("BILL TO:", 15, y);
-        doc.setFont("helvetica", "normal");
-        doc.text((customerName || "Cash Customer").toUpperCase(), 15, y + 6);
-
-        doc.setFont("helvetica", "bold");
-        doc.text("Invoice No:", 140, y);
-        doc.text("Date:", 140, y + 6);
-        doc.setFont("helvetica", "normal");
-        doc.text(`#${invoiceId || '--'}`, 170, y);
-        doc.text(new Date().toLocaleDateString('en-IN'), 170, y + 6);
-
-        // --- 3. ITEMS TABLE ---
-        y += 20;
-        doc.setFillColor(230, 230, 230);
-        doc.rect(15, y, pageWidth - 30, 8, 'F');
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text("#", 18, y + 5);
-        doc.text("ITEM", 30, y + 5);
-        doc.text("QTY", 120, y + 5, { align: 'center' });
-        doc.text("RATE", 150, y + 5, { align: 'center' });
-        doc.text("TOTAL", 185, y + 5, { align: 'center' });
-
-        y += 8;
-        doc.setFont("helvetica", "normal");
-
-        items.forEach((item, index) => {
-            let itemName = item.name || "Item";
-            if (itemName.length > 35) itemName = itemName.substring(0, 35) + "...";
-
-            doc.text(String(index + 1), 18, y + 5);
-            doc.text(itemName, 30, y + 5);
-            doc.text(String(item.quantity), 120, y + 5, { align: 'center' });
-            doc.text(String(item.sale_price), 150, y + 5, { align: 'center' });
-            doc.text(String((item.sale_price * item.quantity).toFixed(2)), 185, y + 5, { align: 'center' });
-
-            doc.setDrawColor(220, 220, 220);
-            doc.line(15, y + 7, pageWidth - 15, y + 7);
-            y += 8;
-        });
-
-        // --- 4. TOTAL ---
-        y += 5;
-        doc.setDrawColor(0, 0, 0);
-        doc.line(15, y, pageWidth - 15, y);
-        y += 7;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.text("GRAND TOTAL", 140, y);
-        doc.text('₹' + parseFloat(totalAmount).toFixed(2), 185, y, { align: 'center' });
-
-        // --- 5. FOOTER ---
-        doc.setFontSize(10);
-        doc.setTextColor(41, 128, 185);
-        doc.text("Thank you for your business!", pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-        // ✅ MAIN FIX FOR MOBILE: सीधे सेव करें
-        doc.save(`Invoice_${invoiceId}.pdf`);
-
-    } catch (e) {
-        console.error(e);
-        alert("Error: " + e.message);
-    }
-};
 
     </script>
    
