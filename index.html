@@ -13697,127 +13697,127 @@ function openSmartWhatsApp(phone, message) {
 </div>
 
 <script>
-    // 🚀 HYBRID PDF FUNCTION (अलग और सुरक्षित)
-    function generateAndDownloadPDF(invoiceId, customerName, items, totalAmount) {
-        try {
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-            // ---------------------------------------------------------
-            // 💻 CASE 1: कंप्यूटर (DESKTOP)
-            // ---------------------------------------------------------
-            if (!isMobile) {
-                // डेटा भरना
-                const dateElem = document.getElementById('inv-date');
-                if(dateElem) dateElem.innerText = new Date().toLocaleDateString('en-IN');
-                
-                const noElem = document.getElementById('inv-no');
-                if(noElem) noElem.innerText = invoiceId || '---';
-                
-                const custElem = document.getElementById('inv-customer');
-                if(custElem) custElem.innerText = customerName || 'Cash Customer';
-                
-                const totalElem = document.getElementById('inv-total');
-                if(totalElem) totalElem.innerText = '₹' + parseFloat(totalAmount).toFixed(2);
-                
-                const tbody = document.getElementById('inv-items-body');
-                if(tbody) {
-                    tbody.innerHTML = '';
-                    items.forEach((item, index) => {
-                        tbody.innerHTML += `
-                            <tr style="border-bottom: 1px solid #eee;">
-                                <td style="padding: 4px;">${index + 1}</td>
-                                <td style="padding: 4px;">${item.name}</td>
-                                <td style="padding: 4px;">${item.quantity}</td>
-                                <td style="padding: 4px;">₹${item.sale_price}</td>
-                                <td style="padding: 4px;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
-                            </tr>`;
-                    });
-                }
-    
-                const element = document.getElementById('invoice-content');
-                if(element) {
-                    element.style.display = 'block'; 
-                    const opt = {
-                        margin: [5, 5, 5, 5],
-                        filename: `Bill_${invoiceId}.pdf`,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true },
-                        jsPDF: { unit: 'mm', format: 'a5', orientation: 'portrait' }
-                    };
-                    
-                    // अगर html2pdf लोड नहीं है तो अलर्ट दें
-                    if (typeof html2pdf !== 'undefined') {
-                        html2pdf().set(opt).from(element).save();
-                    } else {
-                        alert("PDF library loading... Try again in 2 seconds.");
-                    }
-                }
-                return; 
+ 
+// 🚀 HYBRID PDF FUNCTION (अलग और सुरक्षित)
+function generateAndDownloadPDF(invoiceId, customerName, items, totalAmount) {
+    try {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        // ---------------------------------------------------------
+        // 💻 CASE 1: कंप्यूटर (DESKTOP)
+        // ---------------------------------------------------------
+        if (!isMobile) {
+            // डेटा भरना
+            const dateElem = document.getElementById('inv-date');
+            if(dateElem) dateElem.innerText = new Date().toLocaleDateString('en-IN');
+            
+            const noElem = document.getElementById('inv-no');
+            if(noElem) noElem.innerText = invoiceId || '---';
+            
+            const custElem = document.getElementById('inv-customer');
+            if(custElem) custElem.innerText = customerName || 'Cash Customer';
+            
+            const totalElem = document.getElementById('inv-total');
+            if(totalElem) totalElem.innerText = '₹' + parseFloat(totalAmount).toFixed(2);
+            
+            const tbody = document.getElementById('inv-items-body');
+            if(tbody) {
+                tbody.innerHTML = '';
+                items.forEach((item, index) => {
+                    tbody.innerHTML += `
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 4px;">${index + 1}</td>
+                            <td style="padding: 4px;">${item.name}</td>
+                            <td style="padding: 4px;">${item.quantity}</td>
+                            <td style="padding: 4px;">₹${item.sale_price}</td>
+                            <td style="padding: 4px;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
+                        </tr>`;
+                });
             }
-    
-            // ---------------------------------------------------------
-            // 📱 CASE 2: मोबाइल (MOBILE) - नया टैब तरीका
-            // ---------------------------------------------------------
-            let itemsHtml = '';
-            items.forEach((item, index) => {
-                itemsHtml += `
-                    <tr>
-                        <td style="padding: 5px; border-bottom: 1px solid #ddd;">${index + 1}</td>
-                        <td style="padding: 5px; border-bottom: 1px solid #ddd;">${item.name}</td>
-                        <td style="padding: 5px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
-                        <td style="padding: 5px; border-bottom: 1px solid #ddd;">₹${item.sale_price}</td>
-                        <td style="padding: 5px; border-bottom: 1px solid #ddd;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
-                    </tr>`;
-            });
-    
-            const date = new Date().toLocaleDateString('en-IN');
-            const invoiceHTML = `
-                <html>
-                <head>
-                    <title>Bill #${invoiceId}</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        body { font-family: sans-serif; padding: 15px; }
-                        .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 15px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-                        th { background: #f0f0f0; text-align: left; padding: 5px; }
-                        .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 15px; border-top: 2px solid #333; padding-top: 10px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h2>Invoice</h2>
-                        <p>#${invoiceId} | ${date}</p>
-                    </div>
-                    <div><strong>Customer:</strong> ${customerName}</div>
-                    <table>
-                        <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
-                        <tbody>${itemsHtml}</tbody>
-                    </table>
-                    <div class="total">Total: ₹${parseFloat(totalAmount).toFixed(2)}</div>
-                    <script>
-                        setTimeout(function() { window.print(); }, 1000);
-                    <\/script>
-                </body>
-                </html>
-            `;
-    
-            const win = window.open('', '_blank');
-            if(win) {
-                win.document.write(invoiceHTML);
-                win.document.close();
-            } else {
-                alert("Please allow pop-ups for bill.");
+
+            const element = document.getElementById('invoice-content');
+            if(element) {
+                element.style.display = 'block'; 
+                const opt = {
+                    margin: [5, 5, 5, 5],
+                    filename: `Bill_${invoiceId}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a5', orientation: 'portrait' }
+                };
+                
+                // अगर html2pdf लोड नहीं है तो अलर्ट दें
+                if (typeof html2pdf !== 'undefined') {
+                    html2pdf().set(opt).from(element).save();
+                } else {
+                    alert("PDF library loading... Try again in 2 seconds.");
+                }
             }
-    
-        } catch(err) {
-            console.error("PDF Error:", err);
-            alert("PDF Error: " + err.message);
+            return; 
         }
+
+        // ---------------------------------------------------------
+        // 📱 CASE 2: मोबाइल (MOBILE) - नया टैब तरीका
+        // ---------------------------------------------------------
+        let itemsHtml = '';
+        items.forEach((item, index) => {
+            itemsHtml += `
+                <tr>
+                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">${item.name}</td>
+                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">₹${item.sale_price}</td>
+                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
+                </tr>`;
+        });
+
+        const date = new Date().toLocaleDateString('en-IN');
+        const invoiceHTML = `
+            <html>
+            <head>
+                <title>Bill #${invoiceId}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { font-family: sans-serif; padding: 15px; }
+                    .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 15px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+                    th { background: #f0f0f0; text-align: left; padding: 5px; }
+                    .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 15px; border-top: 2px solid #333; padding-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>Invoice</h2>
+                    <p>#${invoiceId} | ${date}</p>
+                </div>
+                <div><strong>Customer:</strong> ${customerName}</div>
+                <table>
+                    <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+                <div class="total">Total: ₹${parseFloat(totalAmount).toFixed(2)}</div>
+                <script>
+                    setTimeout(function() { window.print(); }, 1000);
+                <\/script>
+            </body>
+            </html>
+        `;
+
+        const win = window.open('', '_blank');
+        if(win) {
+            win.document.write(invoiceHTML);
+            win.document.close();
+        } else {
+            alert("Please allow pop-ups for bill.");
+        }
+
+    } catch(err) {
+        console.error("PDF Error:", err);
+        alert("PDF Error: " + err.message);
     }
-    </script>
-    
-    
+}
+</script>
+
     
    
 
