@@ -13696,129 +13696,113 @@ function openSmartWhatsApp(phone, message) {
     </div>
 </div>
 
-<script>
- 
-// 🚀 HYBRID PDF FUNCTION (अलग और सुरक्षित)
-function generateAndDownloadPDF(invoiceId, customerName, items, totalAmount) {
-    try {
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-        // ---------------------------------------------------------
-        // 💻 CASE 1: कंप्यूटर (DESKTOP)
-        // ---------------------------------------------------------
-        if (!isMobile) {
-            // डेटा भरना
-            const dateElem = document.getElementById('inv-date');
-            if(dateElem) dateElem.innerText = new Date().toLocaleDateString('en-IN');
-            
-            const noElem = document.getElementById('inv-no');
-            if(noElem) noElem.innerText = invoiceId || '---';
-            
-            const custElem = document.getElementById('inv-customer');
-            if(custElem) custElem.innerText = customerName || 'Cash Customer';
-            
-            const totalElem = document.getElementById('inv-total');
-            if(totalElem) totalElem.innerText = '₹' + parseFloat(totalAmount).toFixed(2);
-            
-            const tbody = document.getElementById('inv-items-body');
-            if(tbody) {
-                tbody.innerHTML = '';
-                items.forEach((item, index) => {
-                    tbody.innerHTML += `
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 4px;">${index + 1}</td>
-                            <td style="padding: 4px;">${item.name}</td>
-                            <td style="padding: 4px;">${item.quantity}</td>
-                            <td style="padding: 4px;">₹${item.sale_price}</td>
-                            <td style="padding: 4px;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
-                        </tr>`;
-                });
-            }
-
-            const element = document.getElementById('invoice-content');
-            if(element) {
-                element.style.display = 'block'; 
-                const opt = {
-                    margin: [5, 5, 5, 5],
-                    filename: `Bill_${invoiceId}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { unit: 'mm', format: 'a5', orientation: 'portrait' }
-                };
-                
-                // अगर html2pdf लोड नहीं है तो अलर्ट दें
-                if (typeof html2pdf !== 'undefined') {
-                    html2pdf().set(opt).from(element).save();
-                } else {
-                    alert("PDF library loading... Try again in 2 seconds.");
-                }
-            }
-            return; 
-        }
-
-        // ---------------------------------------------------------
-        // 📱 CASE 2: मोबाइल (MOBILE) - नया टैब तरीका
-        // ---------------------------------------------------------
-        let itemsHtml = '';
-        items.forEach((item, index) => {
-            itemsHtml += `
-                <tr>
-                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">${index + 1}</td>
-                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">${item.name}</td>
-                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
-                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">₹${item.sale_price}</td>
-                    <td style="padding: 5px; border-bottom: 1px solid #ddd;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
-                </tr>`;
-        });
-
-        const date = new Date().toLocaleDateString('en-IN');
-        const invoiceHTML = `
-            <html>
-            <head>
-                <title>Bill #${invoiceId}</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                    body { font-family: sans-serif; padding: 15px; }
-                    .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 15px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-                    th { background: #f0f0f0; text-align: left; padding: 5px; }
-                    .total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 15px; border-top: 2px solid #333; padding-top: 10px; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h2>Invoice</h2>
-                    <p>#${invoiceId} | ${date}</p>
-                </div>
-                <div><strong>Customer:</strong> ${customerName}</div>
-                <table>
-                    <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
-                    <tbody>${itemsHtml}</tbody>
-                </table>
-                <div class="total">Total: ₹${parseFloat(totalAmount).toFixed(2)}</div>
-                <script>
-                    setTimeout(function() { window.print(); }, 1000);
-                <\/script>
-            </body>
-            </html>
-        `;
-
-        const win = window.open('', '_blank');
-        if(win) {
-            win.document.write(invoiceHTML);
-            win.document.close();
-        } else {
-            alert("Please allow pop-ups for bill.");
-        }
-
-    } catch(err) {
-        console.error("PDF Error:", err);
-        alert("PDF Error: " + err.message);
-    }
-}
 </script>
 
+<script>
+    // ✅ सिर्फ बिल (Invoice) के लिए कोड - (बैलेंस शीट को डिस्टर्ब नहीं करेगा)
+    window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAmount) {
+        try {
+            // चेक करें कि jsPDF लोड है या नहीं
+            if (!window.jspdf) {
+                alert("PDF System Loading... Try again in 2 seconds.");
+                return;
+            }
     
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+    
+            // --- 1. HEADER SECTION ---
+            doc.setFillColor(41, 128, 185);
+            doc.rect(0, 0, pageWidth, 35, 'F');
+    
+            // Shop Name Logic
+            const shopName = (typeof AppState !== 'undefined' && AppState.user?.shopName) ? AppState.user.shopName : "MY SHOP NAME";
+    
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(22);
+            doc.setTextColor(255, 255, 255);
+            doc.text(shopName.toUpperCase(), 15, 15);
+    
+            // Subtitle
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text("Mobile: 9876543210 | Address: City, India", 15, 22);
+    
+            doc.setFontSize(16);
+            doc.text("INVOICE", pageWidth - 15, 20, { align: 'right' });
+    
+            // --- 2. DETAILS ---
+            doc.setTextColor(0, 0, 0);
+            let y = 45;
+    
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.text("BILL TO:", 15, y);
+            doc.setFont("helvetica", "normal");
+            doc.text((customerName || "Cash Customer").toUpperCase(), 15, y + 6);
+    
+            doc.setFont("helvetica", "bold");
+            doc.text("Invoice No:", 140, y);
+            doc.text("Date:", 140, y + 6);
+            doc.setFont("helvetica", "normal");
+            doc.text(`#${invoiceId || '--'}`, 170, y);
+            doc.text(new Date().toLocaleDateString('en-IN'), 170, y + 6);
+    
+            // --- 3. TABLE ---
+            y += 20;
+            doc.setFillColor(230, 230, 230);
+            doc.rect(15, y, pageWidth - 30, 8, 'F');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.text("#", 18, y + 5);
+            doc.text("ITEM", 30, y + 5);
+            doc.text("QTY", 120, y + 5, { align: 'center' });
+            doc.text("RATE", 150, y + 5, { align: 'center' });
+            doc.text("TOTAL", 185, y + 5, { align: 'center' });
+    
+            y += 8;
+            doc.setFont("helvetica", "normal");
+    
+            items.forEach((item, index) => {
+                let itemName = item.name;
+                if (itemName.length > 40) itemName = itemName.substring(0, 40) + "...";
+                
+                doc.text(String(index + 1), 18, y + 5);
+                doc.text(itemName, 30, y + 5);
+                doc.text(String(item.quantity), 120, y + 5, { align: 'center' });
+                doc.text(String(item.sale_price), 150, y + 5, { align: 'center' });
+                doc.text(String((item.sale_price * item.quantity).toFixed(2)), 185, y + 5, { align: 'center' });
+                
+                doc.setDrawColor(220, 220, 220);
+                doc.line(15, y + 7, pageWidth - 15, y + 7);
+                y += 8;
+            });
+    
+            // --- 4. TOTAL ---
+            y += 5;
+            doc.setDrawColor(0, 0, 0);
+            doc.line(15, y, pageWidth - 15, y);
+            y += 7;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(12);
+            doc.text("GRAND TOTAL", 140, y);
+            doc.text('₹' + parseFloat(totalAmount).toFixed(2), 185, y, { align: 'center' });
+    
+            // --- 5. FOOTER ---
+            doc.setFontSize(10);
+            doc.setTextColor(41, 128, 185);
+            doc.text("Thank you for your business!", pageWidth / 2, pageHeight - 10, { align: 'center' });
+    
+            // ✅ DIRECT DOWNLOAD COMMAND
+            doc.save(`Invoice_${invoiceId}.pdf`);
+    
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+    </script>
    
 
 </body>
