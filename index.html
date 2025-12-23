@@ -6705,16 +6705,18 @@ function handleSearchResultClick(e) {
         return totalAmount;
     }
 
-// 🚀 MAIN SALE FUNCTION (Safe Sequence: Download -> Wait 3s -> WhatsApp)
+// 🚀 MAIN SALE FUNCTION (Linked to New PDF Function)
 async function handleCompleteSale() {
+    // 1. कार्ट चेक
     if (posCart.length === 0) {
-        showMessage('Error', 'Cart is empty!', 'warning');
+        if(typeof showMessage !== 'undefined') showMessage('Error', 'Cart is empty!', 'warning');
+        else alert('Cart is empty!');
         return;
     }
 
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
     
-    // डेटा बनाना
+    // डेटा तैयार करना
     const itemsForApi = posCart.map(item => ({
         sku: item.sku, name: item.name, quantity: item.quantity,
         sale_price: item.sale_price, purchase_price: parseFloat(item.purchase_price || 0),
@@ -6744,7 +6746,7 @@ async function handleCompleteSale() {
 
         if (res.success) {
             
-            // विस्तृत मैसेज
+            // विस्तृत मैसेज (Detailed Message)
             const itemDetails = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
             const whatsappMsg = `नमस्ते *${saleData.customerName}*,\n` +
                                 `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
@@ -6754,10 +6756,14 @@ async function handleCompleteSale() {
                                 `🚚 डिलीवरी: ${deliveryDate}\n\n` +
                                 `कृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
 
-            // 💻 CASE 1: कंप्यूटर (सब कुछ ऑटोमेटिक)
+            // ==========================================
+            // 💻 CASE 1: कंप्यूटर (DESKTOP)
+            // ==========================================
             if (!isMobile) {
                 Swal.fire({ icon: 'success', title: 'Done! ✅', timer: 1500, showConfirmButton: false });
-                generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                
+                // ✅ नए फंक्शन को कॉल करें
+                downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
                 
                 if (sendToCust && saleData.customerMobile) {
                     setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, whatsappMsg); }, 1000);
@@ -6766,7 +6772,9 @@ async function handleCompleteSale() {
                 return;
             }
 
-            // 📱 CASE 2: मोबाइल (सुरक्षित मोड)
+            // ==========================================
+            // 📱 CASE 2: मोबाइल (MOBILE - SAFE MODE)
+            // ==========================================
             Swal.fire({
                 title: 'बिक्री सफल! 🎉',
                 text: 'बिल डाउनलोड करने के लिए नीचे क्लिक करें',
@@ -6776,8 +6784,9 @@ async function handleCompleteSale() {
                 allowOutsideClick: false
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // 1. PDF डाउनलोड करें
-                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                    
+                    // 1. PDF डाउनलोड करें (नए फंक्शन से - कोई वाइट स्क्रीन नहीं आएगी)
+                    downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
 
                     // 2. WhatsApp के लिए 3 सेकंड रुकें (ताकि PDF पूरी हो जाए)
                     if (sendToCust && saleData.customerMobile) {
@@ -6786,7 +6795,7 @@ async function handleCompleteSale() {
 
                         setTimeout(() => {
                             openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
-                        }, 3000); // 3 सेकंड का गैप
+                        }, 3000); // 3 सेकंड का गैप (Crash रोकने के लिए)
                     }
                 }
                 resetPOSButton();
@@ -6798,9 +6807,9 @@ async function handleCompleteSale() {
 
     } catch (error) {
         if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
+        else alert('Error: ' + error.message);
     }
-}
-// --- FORM SUBMISSION HANDLERS ---
+}// --- FORM SUBMISSION HANDLERS ---
     
     // --- FORM SUBMISSION HANDLERS (Fixed & Updated) ---
     
@@ -13664,6 +13673,113 @@ function openSmartWhatsApp(phone, message) {
 
     </script>
    
+
+    <script>
+        // ✅ FINAL PDF FUNCTION (Mobile Safe - No White Screen)
+        window.downloadBillFinal = function(invoiceId, customerName, items, totalAmount) {
+            
+            // 1. मशीन चेक करें
+            if (!window.jspdf) {
+                alert("⚠️ PDF सिस्टम लोड नहीं हुआ। इंटरनेट चेक करें।");
+                return;
+            }
+        
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+        
+                // --- DESIGN START (Professional Blue) ---
+                doc.setFillColor(41, 128, 185); 
+                doc.rect(0, 0, pageWidth, 35, 'F');
+        
+                // Shop Name Logic
+                const shopName = (typeof AppState !== 'undefined' && AppState.user?.shopName) ? AppState.user.shopName : "MY SHOP NAME";
+                
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(22);
+                doc.setTextColor(255, 255, 255);
+                doc.text(shopName.toUpperCase(), 15, 15);
+        
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.text("Mobile: 9876543210 | Address: City, India", 15, 22);
+        
+                doc.setFontSize(16);
+                doc.text("INVOICE", pageWidth - 15, 20, { align: 'right' });
+        
+                doc.setTextColor(0, 0, 0);
+                let y = 45;
+        
+                // Customer Details
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "bold");
+                doc.text("BILL TO:", 15, y);
+                doc.setFont("helvetica", "normal");
+                doc.text((customerName || "Cash Customer").toUpperCase(), 15, y + 6);
+        
+                doc.setFont("helvetica", "bold");
+                doc.text("Invoice No:", 140, y);
+                doc.text("Date:", 140, y + 6);
+                doc.setFont("helvetica", "normal");
+                doc.text(`#${invoiceId || '--'}`, 170, y);
+                doc.text(new Date().toLocaleDateString('en-IN'), 170, y + 6);
+        
+                // Table
+                y += 20;
+                doc.setFillColor(230, 230, 230);
+                doc.rect(15, y, pageWidth - 30, 8, 'F');
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(9);
+                doc.text("#", 18, y + 5);
+                doc.text("ITEM", 30, y + 5);
+                doc.text("QTY", 120, y + 5, { align: 'center' });
+                doc.text("RATE", 150, y + 5, { align: 'center' });
+                doc.text("TOTAL", 185, y + 5, { align: 'center' });
+        
+                y += 8;
+                doc.setFont("helvetica", "normal");
+        
+                items.forEach((item, index) => {
+                    let itemName = item.name || "Item";
+                    if (itemName.length > 35) itemName = itemName.substring(0, 35) + "...";
+        
+                    doc.text(String(index + 1), 18, y + 5);
+                    doc.text(itemName, 30, y + 5);
+                    doc.text(String(item.quantity), 120, y + 5, { align: 'center' });
+                    doc.text(String(item.sale_price), 150, y + 5, { align: 'center' });
+                    
+                    const lineTotal = (parseFloat(item.sale_price) * parseFloat(item.quantity)).toFixed(2);
+                    doc.text(String(lineTotal), 185, y + 5, { align: 'center' });
+        
+                    doc.setDrawColor(220, 220, 220);
+                    doc.line(15, y + 7, pageWidth - 15, y + 7);
+                    y += 8;
+                });
+        
+                y += 5;
+                doc.setDrawColor(0, 0, 0);
+                doc.line(15, y, pageWidth - 15, y);
+                y += 7;
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(12);
+                doc.text("GRAND TOTAL", 140, y);
+                doc.text('₹' + parseFloat(totalAmount).toFixed(2), 185, y, { align: 'center' });
+        
+                doc.setFontSize(10);
+                doc.setTextColor(41, 128, 185);
+                doc.text("Thank you for your business!", pageWidth / 2, pageHeight - 10, { align: 'center' });
+        
+                // 🔥 MAGIC FIX: doc.save() मोबाइल पर नया पेज नहीं खोलता, सीधे डाउनलोड करता है।
+                // कोई white screen नहीं आएगी।
+                doc.save(`Invoice_${invoiceId}.pdf`);
+        
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
+        };
+        </script>
 
 </body>
 </html>
