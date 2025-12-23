@@ -6705,111 +6705,130 @@ function handleSearchResultClick(e) {
         return totalAmount;
     }
 
-
-
-    // 🚀 4. MAIN SALE FUNCTION (Correct Sequence)
+// 🚀 MAIN SALE FUNCTION (Detailed WhatsApp Message + Mobile Safety)
 async function handleCompleteSale() {
     // --- 1. कार्ट चेक ---
     if (posCart.length === 0) {
-        return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
+        showMessage('Error', 'Cart is empty!', 'warning');
+        return;
     }
 
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
-
+    
     // --- 2. डेटा तैयार करना ---
     const itemsForApi = posCart.map(item => ({
         sku: item.sku, name: item.name, quantity: item.quantity,
         sale_price: item.sale_price, purchase_price: parseFloat(item.purchase_price || 0),
-        gst: item.gst, product_attributes: item.product_attributes
+        gst: item.gst
     }));
 
     const custMobile = document.getElementById('pos-customer-mobile').value || null;
+    
+    // डिलीवरी तारीख (अगर ऑटो डिलीवरी डेट चुनी है तो वो, नहीं तो आज की)
+    const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
+    const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
+
     const saleData = {
-        customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
+        customerName: document.getElementById('pos-customer').value || 'Cash Customer',
         customerMobile: custMobile,
         total_amount: finalTotalAmount,
         sale_items: itemsForApi,
-        latitude: document.getElementById('pos-lat')?.value,
-        longitude: document.getElementById('pos-long')?.value,
-        loanAccountNo: document.getElementById('pos-loan-account')?.value,
         painterId: document.getElementById('pos-painter-select')?.value,
-        painterMobile: document.getElementById('pos-painter-mobile')?.value,
-        commissionMode: document.getElementById('pos-commission-mode')?.value || 'PERCENT',
-        commissionValue: document.getElementById('pos-commission-value')?.value || '0'
+        painterMobile: document.getElementById('pos-painter-mobile')?.value
     };
 
-    const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
-    const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
-    
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
-    const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
-    const isGodMode = document.getElementById('pos_auto_deliver_check')?.checked;
 
-    // --- 3. सर्वर कॉल (API) ---
+    // --- 3. सर्वर कॉल (Save to Database) ---
     try {
-        console.log('🚀 Sending Sale Data...');
-        const res = await fetchApi('/api/invoices', { method: 'POST', body: saleData }, 'बिक्री सेव की जा रही है...');
+        if(typeof Swal !== 'undefined') Swal.showLoading();
+
+        const res = await fetchApi('/api/invoices', { method: 'POST', body: saleData });
 
         if (res.success) {
             
-            // --- 4. सफलता मैसेज + डाउनलोड बटन (Mobile Fix) ---
+            // ✅ मैसेज तैयार करना (Detailed Format)
+            const itemDetails = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
+            
+            const whatsappMsg = `नमस्ते *${saleData.customerName}*,\n` +
+                                `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
+                                `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
+                                `💰 कुल राशि: *₹${finalTotalAmount.toFixed(2)}*\n` +
+                                `📦 सामान: ${itemDetails}\n` +
+                                `🚚 डिलीवरी: ${deliveryDate}\n\n` +
+                                `कृपया साथ में भेजा गया PDF बिल देखें।\n` +
+                                `धन्यवाद! 🙏`;
+
+            // ============================================================
+            // 💻 CASE 1: कंप्यूटर (DESKTOP) -> आटोमेटिक
+            // ============================================================
+            if (!isMobile) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Done! ✅',
+                    text: `Bill #${res.invoiceId} Saved`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+                if (typeof generateAndDownloadPDF === 'function') {
+                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                }
+
+                if (sendToCust && saleData.customerMobile) {
+                    // 1 सेकंड बाद मैसेज भेजें
+                    setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, whatsappMsg); }, 1000);
+                }
+
+                resetPOSButton();
+                return;
+            }
+
+            // ============================================================
+            // 📱 CASE 2: मोबाइल (MOBILE) -> स्टेप बाय स्टेप
+            // ============================================================
+            
             Swal.fire({
                 title: 'बिक्री सफल! 🎉',
-                html: `<p>${res.message}</p><p>बिल ID: <b>#${res.invoiceId}</b></p>`,
+                html: `<p>Bill ID: <b>#${res.invoiceId}</b></p><p>Total: <b>₹${finalTotalAmount}</b></p>`,
                 icon: 'success',
                 showCancelButton: true,
                 confirmButtonText: '📥 बिल डाउनलोड करें',
-                cancelButtonText: 'ठीक है',
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#aaa'
+                cancelButtonText: '❌ बंद करें',
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#d33',
+                allowOutsideClick: false
             }).then((result) => {
-                if (result.isConfirmed) {
-                    // बटन दबाने पर PDF डाउनलोड करें
-                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, saleData.total_amount);
-                }
-            });
-
-            // --- 5. WhatsApp भेजना (Customer) ---
-            if (sendToCust && saleData.customerMobile) {
-                const itemNames = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
-                const msg = `नमस्ते *${saleData.customerName}*,\n` +
-                            `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
-                            `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
-                            `💰 कुल राशि: *₹${saleData.total_amount.toFixed(2)}*\n` +
-                            `📦 सामान: ${itemNames}\n` +
-                            `🚚 डिलीवरी: ${deliveryDate}\n\n` +
-                            `कृपया साथ में भेजा गया PDF बिल देखें।\n` +
-                            `धन्यवाद! 🙏`;
                 
-                // 500ms का गैप (ताकि UI रेंडर हो जाए)
-                setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, msg); }, 500);
-            }
+                if (result.isConfirmed) {
+                    // A. पहले PDF डाउनलोड करें
+                    if (typeof generateAndDownloadPDF === 'function') {
+                        generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                    }
 
-            // --- 6. WhatsApp भेजना (Mistri) ---
-            if (sendToMistri && saleData.painterMobile) {
-                 const mistriMsg = `🛠️ *Job Alert*\n📍 ग्राहक: ${saleData.customerName}\n📞: ${saleData.customerMobile}\n🚚 डिलीवरी: ${deliveryDate}`;
-                 // 2 सेकंड का गैप (ताकि पहले वाला WhatsApp खुल जाए)
-                 setTimeout(() => { openSmartWhatsApp(saleData.painterMobile, mistriMsg); }, 2000);
-            }
-
-            // --- 7. God Mode (PDF & DB Update) ---
-            await executeGodModeDelivery(res.invoiceId, saleData.customerName, saleData.customerMobile, itemsForApi, null);
-
-            // लिस्ट रिफ्रेश
-            fetchAndRenderSales();
-            if (typeof renderDashboard === 'function') renderDashboard();
+                    // B. अब 2.5 सेकंड बाद WhatsApp (Detailed Msg के साथ) खोलें
+                    if (sendToCust && saleData.customerMobile) {
+                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+                        Toast.fire({ icon: 'success', title: 'WhatsApp खुल रहा है...' });
+                        
+                        setTimeout(() => {
+                            openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
+                        }, 2500);
+                    }
+                }
+                resetPOSButton();
+            });
 
         } else {
             throw new Error(res.message);
         }
 
     } catch (error) {
-        showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
+        console.error(error);
+        if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
     }
 }
-
-
-
 
 
 // --- FORM SUBMISSION HANDLERS ---
