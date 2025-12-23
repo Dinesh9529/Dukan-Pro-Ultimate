@@ -6706,69 +6706,71 @@ function handleSearchResultClick(e) {
 
 
 
-    async function handleCompleteSale() {
-    // 1. कार्ट चेक
+    // 🚀 4. MAIN SALE FUNCTION (Correct Sequence)
+async function handleCompleteSale() {
+    // --- 1. कार्ट चेक ---
     if (posCart.length === 0) {
         return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
     }
 
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
 
-    // आइटम लिस्ट
+    // --- 2. डेटा तैयार करना ---
     const itemsForApi = posCart.map(item => ({
-        sku: item.sku,
-        name: item.name,
-        quantity: item.quantity,
-        sale_price: item.sale_price,
-        purchase_price: parseFloat(item.purchase_price || 0),
-        gst: item.gst,
-        product_attributes: item.product_attributes
+        sku: item.sku, name: item.name, quantity: item.quantity,
+        sale_price: item.sale_price, purchase_price: parseFloat(item.purchase_price || 0),
+        gst: item.gst, product_attributes: item.product_attributes
     }));
 
-    // डेटा तैयारी
     const custMobile = document.getElementById('pos-customer-mobile').value || null;
-    const painterId = document.getElementById('pos-painter-select') ? document.getElementById('pos-painter-select').value : null;
-    const commMode = document.getElementById('pos-commission-mode') ? document.getElementById('pos-commission-mode').value : 'PERCENT';
-    const commVal = document.getElementById('pos-commission-value') ? document.getElementById('pos-commission-value').value : '0';
-    
-    // डिलीवरी डेट (अगर गोदाम/फर्नीचर मोड है तो वहाँ से लें, वरना आज की तारीख)
-    const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
-    const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
-
     const saleData = {
         customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
         customerMobile: custMobile,
         total_amount: finalTotalAmount,
         sale_items: itemsForApi,
-        latitude: document.getElementById('pos-lat') ? document.getElementById('pos-lat').value : null,
-        longitude: document.getElementById('pos-long') ? document.getElementById('pos-long').value : null,
-        loanAccountNo: document.getElementById('pos-loan-account') ? document.getElementById('pos-loan-account').value : null,
-        painterId: painterId,
-        painterMobile: document.getElementById('pos-painter-mobile') ? document.getElementById('pos-painter-mobile').value : null,
-        commissionMode: commMode,
-        commissionValue: commVal
+        latitude: document.getElementById('pos-lat')?.value,
+        longitude: document.getElementById('pos-long')?.value,
+        loanAccountNo: document.getElementById('pos-loan-account')?.value,
+        painterId: document.getElementById('pos-painter-select')?.value,
+        painterMobile: document.getElementById('pos-painter-mobile')?.value,
+        commissionMode: document.getElementById('pos-commission-mode')?.value || 'PERCENT',
+        commissionValue: document.getElementById('pos-commission-value')?.value || '0'
     };
 
+    const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
+    const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
+    
     const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
     const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
     const isGodMode = document.getElementById('pos_auto_deliver_check')?.checked;
 
-    // 2. सर्वर कॉल
+    // --- 3. सर्वर कॉल (API) ---
     try {
         console.log('🚀 Sending Sale Data...');
         const res = await fetchApi('/api/invoices', { method: 'POST', body: saleData }, 'बिक्री सेव की जा रही है...');
 
         if (res.success) {
-            showMessage('सफलता', res.message, 'success');
+            
+            // --- 4. सफलता मैसेज + डाउनलोड बटन (Mobile Fix) ---
+            Swal.fire({
+                title: 'बिक्री सफल! 🎉',
+                html: `<p>${res.message}</p><p>बिल ID: <b>#${res.invoiceId}</b></p>`,
+                icon: 'success',
+                showCancelButton: true,
+                confirmButtonText: '📥 बिल डाउनलोड करें',
+                cancelButtonText: 'ठीक है',
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#aaa'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // बटन दबाने पर PDF डाउनलोड करें
+                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, saleData.total_amount);
+                }
+            });
 
-            // =========================================================
-            // 📝 1. ग्राहक के लिए विस्तृत मैसेज (DETAILED MESSAGE)
-            // =========================================================
+            // --- 5. WhatsApp भेजना (Customer) ---
             if (sendToCust && saleData.customerMobile) {
-                // सामानों के नाम की लिस्ट बनाएं
                 const itemNames = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
-
-                // आपका मनचाहा फॉर्मेट
                 const msg = `नमस्ते *${saleData.customerName}*,\n` +
                             `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
                             `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
@@ -6778,32 +6780,22 @@ function handleSearchResultClick(e) {
                             `कृपया साथ में भेजा गया PDF बिल देखें।\n` +
                             `धन्यवाद! 🙏`;
                 
-                // 🚀 फास्ट व्हाट्सएप कॉल (बिना अटके)
-                setTimeout(() => {
-                    openSmartWhatsApp(saleData.customerMobile, msg);
-                }, 500);
+                // 500ms का गैप (ताकि UI रेंडर हो जाए)
+                setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, msg); }, 500);
             }
 
-            // =========================================================
-            // 🛠️ 2. मिस्त्री के लिए मैसेज
-            // =========================================================
+            // --- 6. WhatsApp भेजना (Mistri) ---
             if (sendToMistri && saleData.painterMobile) {
                  const mistriMsg = `🛠️ *Job Alert*\n📍 ग्राहक: ${saleData.customerName}\n📞: ${saleData.customerMobile}\n🚚 डिलीवरी: ${deliveryDate}`;
-                 setTimeout(() => {
-                    openSmartWhatsApp(saleData.painterMobile, mistriMsg);
-                 }, 2500); // 2.5 सेकंड बाद
+                 // 2 सेकंड का गैप (ताकि पहले वाला WhatsApp खुल जाए)
+                 setTimeout(() => { openSmartWhatsApp(saleData.painterMobile, mistriMsg); }, 2000);
             }
 
-            // God Mode और PDF (Silent Mode - No Popup)
+            // --- 7. God Mode (PDF & DB Update) ---
             await executeGodModeDelivery(res.invoiceId, saleData.customerName, saleData.customerMobile, itemsForApi, null);
 
-            // रिसेट लॉजिक
-            if (!(isGodMode && sendToMistri && !sendToCust)) {
-                 resetPOSButton();
-            }
-
+            // लिस्ट रिफ्रेश
             fetchAndRenderSales();
-            if (typeof fetchAndRenderCustomers === 'function') fetchAndRenderCustomers();
             if (typeof renderDashboard === 'function') renderDashboard();
 
         } else {
@@ -6814,6 +6806,8 @@ function handleSearchResultClick(e) {
         showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
     }
 }
+
+
 
 // --- FORM SUBMISSION HANDLERS ---
     
@@ -12206,18 +12200,12 @@ function getSmartMessage(template, data) {
         .replace(/{items}/g, data.items.map(i => i.name).join(', '));
 }
 
-// 3. MAIN EXECUTION FUNCTION (UPDATED: NO DOUBLE WHATSAPP)
-// [ ✅ FIXED: WhatsApp Opening Logic Removed (To avoid double screens) ]
-// [ ✅ KEEPS: Server Update & PDF Download ]
+// 🚀 3. GOD MODE (Silent Database Update & PDF Trigger)
 async function executeGodModeDelivery(invoiceId, customerName, customerMobile, items, preOpenedWindow) {
     const isEnabled = document.getElementById('pos_auto_deliver_check')?.checked;
-    
-    // --- 📱 MOBILE DETECTION ---
     const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // अगर God Mode बंद है
     if (!isEnabled) {
-        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close(); 
         if (typeof loadDeliveryList === 'function') loadDeliveryList();
         return;
     }
@@ -12225,104 +12213,48 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
     const date = document.getElementById('pos_auto_date').value;
     const mistriMobileInput = document.getElementById('pos_auto_mistri_mobile').value; 
     const mistriMobile = mistriMobileInput ? mistriMobileInput.trim() : null;
-    const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
-    const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
 
-    if (!date) {
-        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
-        showMessage("चेतावनी", "तारीख नहीं चुनी गई!", "warning");
-        return;
-    }
+    if (!date) return; // तारीख नहीं तो कुछ नहीं करना
 
     try {
-        // 1. सर्वर अपडेट (DATABASE UPDATE)
+        // A. सर्वर अपडेट (Database)
         await fetchApi('/api/furniture/update-delivery', { 
             method: 'POST', body: { invoiceId: invoiceId, date: date, assembly: (mistriMobile ? true : false) } 
         });
 
         if (typeof loadDeliveryList === 'function') setTimeout(loadDeliveryList, 500);
 
-        // 2. PDF डाउनलोड (PDF GENERATION)
+        // B. PDF डाउनलोड ट्रिगर
         const totalBill = items.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
         if (typeof generateAndDownloadPDF === 'function') {
             generateAndDownloadPDF(invoiceId, customerName, items, totalBill);
         }
 
-        // =======================================================
-        // 🧹 MESSAGE GENERATION (Link create karenge par kholenge nahi)
-        // =======================================================
-        let templateRaw = document.getElementById('pos_wa_template').value;
-        templateRaw = templateRaw.split('\n').map(line => line.trim()).filter(line => line !== '').join('\n');
-
-        const templateData = {
-            customerName: customerName,
-            invoiceId: invoiceId,
-            totalAmount: totalBill,
-            date: date,
-            items: items
-        };
-
-        const finalMsg = getSmartMessage(templateRaw, templateData);
-
-        // --- URL जनरेशन ---
-        let baseUrl;
-        if (isMobileDevice) {
-            baseUrl = 'whatsapp://send'; 
-        } else {
-            baseUrl = 'https://web.whatsapp.com/send';
-        }
-
-        // --- 1. CUSTOMER MESSAGE (SILENT MODE) ---
-        // 🛑 CHANGE: यहाँ हम विंडो नहीं खोलेंगे क्योंकि handleCompleteSale यह कर चुका है
-        if (sendToCust && customerMobile) {
-            console.log("✅ GodMode: Customer WhatsApp handled by Main Function. Skipping here to prevent double tab.");
-            
-            // अगर कोई खाली विंडो खुली थी, तो उसे बंद कर दें
-            if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
-        } 
-        else {
-            if (!sendToMistri && preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
-        }
-
-        // --- 2. MISTRI MESSAGE (BUTTON SETUP ONLY) ---
-        // मिस्त्री के लिए हम बटन सेट करेंगे (ऑटोमेटिक नहीं खोलेंगे)
+        // C. मिस्त्री बटन सेटअप (अगर मिस्त्री है)
+        const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
         if (sendToMistri && mistriMobile) {
-            let cleanMistri = mistriMobile.replace(/[^0-9]/g, '');
-            if(cleanMistri.length === 10) cleanMistri = '91' + cleanMistri;
-
             const btn = document.getElementById('complete-sale-btn');
-            
             let msgMistri = `🛠️ *Job Alert*\n📍 ग्राहक: ${customerName}\n📞: ${customerMobile}\n🚚 तारीख: ${new Date(date).toLocaleDateString('en-IN')}\n📦 सामान: ${items.map(i => i.name).join(', ')}`;
             
-            const urlMistri = `${baseUrl}?phone=${cleanMistri}&text=${encodeURIComponent(msgMistri)}`;
-
-            // बटन का रंग और टेक्स्ट बदलें
-            btn.innerHTML = `<i class="fab fa-whatsapp"></i> मिस्त्री (${mistriMobile}) को भेजें`;
+            // बटन बदलें
+            btn.innerHTML = `<i class="fab fa-whatsapp"></i> मिस्त्री को भेजें`;
             btn.className = "btn btn-info btn-lg w-100 fw-bold";
-
-            // क्लिक करने पर क्या होगा
             btn.onclick = function() {
-                if(isMobileDevice) {
-                    window.location.href = urlMistri;
-                } else {
-                    window.open(urlMistri, 'DukanProWA');
-                }
+                openSmartWhatsApp(mistriMobile, msgMistri);
                 setTimeout(resetPOSButton, 2000);
             };
-
-            showMessage("अगला कदम", "✅ बिल और PDF तैयार! मिस्त्री को भेजने के लिए नीचे नीले बटन पर क्लिक करें।", "info");
-
         } else {
-            // अगर मिस्त्री को नहीं भेजना है, तो बटन रिसेट करें
-            if (sendToCust || !sendToMistri) resetPOSButton();
+             // अगर मिस्त्री नहीं है, तो बटन रिसेट करें
+             const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
+             if (sendToCust || !sendToMistri) resetPOSButton();
         }
 
     } catch (e) {
-        if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
         console.error("God Mode Error:", e);
-        showMessage("Error", e.message, "danger");
     }
 }
+
+
 // 🧹 FINAL RESET FUNCTION (Sab Kuch Saaf Karega)
 // ==========================================
 function resetPOSButton() {
@@ -13495,34 +13427,77 @@ function shareInvoiceOnWhatsApp(mobileNumber, name, invoiceNo, amount, pdfUrl) {
 }
 
 
-// ✅ स्मार्ट व्हाट्सएप फंक्शन (इसे कोड में जोड़ें)
-// ✅ 🚀 ULTRA FAST WHATSAPP OPENER
+// 🚀 1. ULTRA FAST WHATSAPP OPENER (Desktop App + Mobile App)
 function openSmartWhatsApp(phone, message) {
     if (!phone) return;
     
-    // नंबर साफ़ करें
+    // नंबर साफ़ करना (Format check)
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
 
     const encodedMsg = encodeURIComponent(message);
+    const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`;
+    
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // 1. मोबाइल के लिए (सीधे ऐप)
     if (isMobile) {
-        window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`;
-        return;
+        // मोबाइल: सीधे लिंक (Direct Link)
+        window.location.href = appUrl;
+    } else {
+        // कंप्यूटर: सीधे App ट्रिगर (Window Name 'DukanWA' ताकि एक ही टैब रहे)
+        // '_self' का मतलब है कि यह ब्राउज़र को पॉपअप दिखाने को कहेगा
+        window.open(appUrl, '_self'); 
     }
-
-    // 2. कंप्यूटर के लिए (पहले App खोलने की कोशिश करें, फिर Web)
-    // "DukanWhatsApp" नाम देने से ब्राउज़र उसी टैब को रिफ्रेश करता है, नया नहीं खोलता।
-    
-    // मेरी सलाह: अगर कंप्यूटर पर WhatsApp App है तो नीचे वाली लाइन अन-कमेंट करें:
-    // window.open(`whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`, '_self');
-
-    // अगर वेब ही यूज करना है:
-    const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`;
-    window.open(webUrl, 'DukanWhatsApp'); 
 }
+
+
+
+// 🚀 2. MOBILE-FRIENDLY PDF GENERATOR
+window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAmount) {
+    // डेटा भरना
+    document.getElementById('inv-date').innerText = new Date().toLocaleDateString('en-IN');
+    document.getElementById('inv-no').innerText = invoiceId || '---';
+    document.getElementById('inv-customer').innerText = customerName || 'Cash Customer';
+    document.getElementById('inv-total').innerText = '₹' + parseFloat(totalAmount).toFixed(2);
+    
+    const tbody = document.getElementById('inv-items-body');
+    tbody.innerHTML = '';
+    items.forEach((item, index) => {
+        tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 4px;">${index + 1}</td>
+                <td style="padding: 4px;">${item.name}</td>
+                <td style="padding: 4px;">${item.quantity}</td>
+                <td style="padding: 4px;">₹${item.sale_price}</td>
+                <td style="padding: 4px;">₹${(item.sale_price * item.quantity).toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
+    // PDF सेटिंग्स (मोबाइल फिक्स: windowWidth: 800)
+    const element = document.getElementById('invoice-content');
+    element.style.display = 'block'; 
+    
+    const opt = {
+        margin:       [5, 5, 5, 5],
+        filename:     `Bill_${invoiceId}_${customerName}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 },
+        jsPDF:        { unit: 'mm', format: 'a5', orientation: 'portrait' }
+    };
+
+    // PDF जनरेट करें
+    html2pdf().set(opt).from(element).save().catch(err => {
+        console.error("PDF Failed:", err);
+        showMessage("PDF Error", "PDF डाउनलोड नहीं हो सका। कृपया प्रिंट बटन का उपयोग करें।", "warning");
+    });
+};
+
+
+
+
+
+
 
 </script>
 
