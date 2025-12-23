@@ -6705,9 +6705,9 @@ function handleSearchResultClick(e) {
         return totalAmount;
     }
 
-// 🚀 MAIN SALE FUNCTION (Linked to New PDF Function)
+// 🚀 MAIN SALE FUNCTION (Computer = Auto PDF, Mobile = No PDF/Only WhatsApp)
 async function handleCompleteSale() {
-    // 1. कार्ट चेक
+    // --- 1. कार्ट चेक ---
     if (posCart.length === 0) {
         if(typeof showMessage !== 'undefined') showMessage('Error', 'Cart is empty!', 'warning');
         else alert('Cart is empty!');
@@ -6716,7 +6716,7 @@ async function handleCompleteSale() {
 
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
     
-    // डेटा तैयार करना
+    // --- 2. डेटा तैयार करना ---
     const itemsForApi = posCart.map(item => ({
         sku: item.sku, name: item.name, quantity: item.quantity,
         sale_price: item.sale_price, purchase_price: parseFloat(item.purchase_price || 0),
@@ -6739,6 +6739,7 @@ async function handleCompleteSale() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
 
+    // --- 3. सर्वर कॉल ---
     try {
         if(typeof Swal !== 'undefined') Swal.showLoading();
 
@@ -6756,48 +6757,53 @@ async function handleCompleteSale() {
                                 `🚚 डिलीवरी: ${deliveryDate}\n\n` +
                                 `कृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
 
-            // ==========================================
-            // 💻 CASE 1: कंप्यूटर (DESKTOP)
-            // ==========================================
+            // ============================================================
+            // 💻 CASE 1: कंप्यूटर (DESKTOP) -> अभी भी Auto Download होगा
+            // ============================================================
             if (!isMobile) {
-                Swal.fire({ icon: 'success', title: 'Done! ✅', timer: 1500, showConfirmButton: false });
-                
-                // ✅ नए फंक्शन को कॉल करें
-                downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
-                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Done! ✅',
+                    text: `Bill #${res.invoiceId} Saved`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+                // ✅ कंप्यूटर पर PDF अभी भी डाउनलोड होगी
+                if (typeof downloadBillFinal === 'function') {
+                    downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                } else if (typeof generateAndDownloadPDF === 'function') {
+                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                }
+
+                // WhatsApp
                 if (sendToCust && saleData.customerMobile) {
                     setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, whatsappMsg); }, 1000);
                 }
+
                 resetPOSButton();
                 return;
             }
 
-            // ==========================================
-            // 📱 CASE 2: मोबाइल (MOBILE - SAFE MODE)
-            // ==========================================
+            // ============================================================
+            // 📱 CASE 2: मोबाइल (MOBILE) -> सिर्फ मैसेज (No PDF Download)
+            // ============================================================
+            
+            // यहाँ हमने PDF डाउनलोड हटा दिया है ताकि White Screen न आए
             Swal.fire({
-                title: 'बिक्री सफल! 🎉',
-                text: 'बिल डाउनलोड करने के लिए नीचे क्लिक करें',
                 icon: 'success',
-                confirmButtonText: '📥 Download Bill',
-                confirmButtonColor: '#28a745',
-                allowOutsideClick: false
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    
-                    // 1. PDF डाउनलोड करें (नए फंक्शन से - कोई वाइट स्क्रीन नहीं आएगी)
-                    downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
-
-                    // 2. WhatsApp के लिए 3 सेकंड रुकें (ताकि PDF पूरी हो जाए)
-                    if (sendToCust && saleData.customerMobile) {
-                        const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 3000 });
-                        Toast.fire({ icon: 'info', title: 'WhatsApp 3 सेकंड में खुलेगा...' });
-
-                        setTimeout(() => {
-                            openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
-                        }, 3000); // 3 सेकंड का गैप (Crash रोकने के लिए)
-                    }
+                title: 'बिक्री सफल! 🎉',
+                html: `<p>Bill <b>#${res.invoiceId}</b> generated.</p>`,
+                timer: 2000, // 2 सेकंड बाद अपने आप बंद हो जाएगा
+                showConfirmButton: false
+            }).then(() => {
+                
+                // Alert बंद होने के बाद WhatsApp खुलेगा
+                if (sendToCust && saleData.customerMobile) {
+                    openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
                 }
+                
+                // POS खाली करें
                 resetPOSButton();
             });
 
@@ -6809,8 +6815,8 @@ async function handleCompleteSale() {
         if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
         else alert('Error: ' + error.message);
     }
-}// --- FORM SUBMISSION HANDLERS ---
-    
+}
+
     // --- FORM SUBMISSION HANDLERS (Fixed & Updated) ---
     
     function setupForm(formId, apiPath, successCallback) {
