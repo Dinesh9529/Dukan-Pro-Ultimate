@@ -13720,5 +13720,47 @@ window.generateAndDownloadPDF = function(invoiceId, customerName, items, totalAm
     </div>
 </div>
 
+
+<div id="invoice-content" style="display: none; width: 100%; max-width: 800px; background: #fff; padding: 20px; font-family: 'Poppins', sans-serif;">
+    
+    <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
+        <h2 style="margin: 0; color: #333;">Dukan Pro Invoice</h2> <p style="margin: 5px 0; color: #666;">आपका पता यहाँ आएगा | मो. 9999999999</p>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <div style="width: 48%;">
+            <h4 style="margin-bottom: 5px; color: #444;">बिल किसके नाम (Bill To):</h4>
+            <p style="margin: 0; font-size: 16px; font-weight: bold;" id="inv-customer">ग्राहक का नाम</p>
+        </div>
+        <div style="width: 48%; text-align: right;">
+            <p style="margin: 5px 0;"><strong>बिल नं (No):</strong> <span id="inv-no">---</span></p>
+            <p style="margin: 5px 0;"><strong>तारीख (Date):</strong> <span id="inv-date">---</span></p>
+        </div>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <thead>
+            <tr style="background-color: #f2f2f2; border-bottom: 2px solid #ddd;">
+                <th style="padding: 8px; text-align: left;">#</th>
+                <th style="padding: 8px; text-align: left;">सामान (Item)</th>
+                <th style="padding: 8px; text-align: left;">Qty</th>
+                <th style="padding: 8px; text-align: left;">Rate</th>
+                <th style="padding: 8px; text-align: left;">Total</th>
+            </tr>
+        </thead>
+        <tbody id="inv-items-body">
+            </tbody>
+    </table>
+
+    <div style="text-align: right; border-top: 2px solid #000; padding-top: 10px;">
+        <h3 style="margin: 0;">कुल राशि (Total): <span id="inv-total" style="color: #27ae60;">₹0.00</span></h3>
+    </div>
+
+    <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #888;">
+        <p>धन्यवाद! फिर अवश्य पधारें।</p>
+        <p>यह एक कंप्यूटर जनित रसीद है।</p>
+    </div>
+</div>
+
 </body>
 </html>
