@@ -12,40 +12,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <script>
-    // Yeh script har uss user ke liye chalega jo aapki site kholega
-    // Yeh browser ko majboor karega ki woh purana, ziddi cache delete kar de.
-
-    // 1. Sabhi "Service Workers" (Zombie) ko unregister karein
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            if (registrations.length > 0) {
-                console.log('Bypassing cache: Purane Service Workers ko unregister kiya ja raha hai...');
-                for(let registration of registrations) {
-                    registration.unregister();
-                }
-            }
-        }).catch(function(err) {
-            console.log('Service Worker unregistration failed: ', err);
-        });
-    }
-
-    // 2. Sabhi "Cache Storage" (Ziddi Cache) ko delete karein
-    if (window.caches) {
-        caches.keys().then(function(names) {
-            if (names.length > 0) {
-                console.log('Bypassing cache: Purane Cache Storage ko delete kiya ja raha hai...');
-                for (let name of names) {
-                    caches.delete(name);
-                }
-            }
-        });
-    }
-</script>
-
-
-
    
+
+
+
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1113,6 +1084,38 @@
     }
 }
 
+/* =======================================================
+   🔥 FORCE HIDE: फालतू फॉर्म और कचरा हटाने का ब्रह्मास्त्र
+   ======================================================= */
+
+/* 1. चश्मे और जूतों वाले पुराने सेक्शन को गायब करें */
+#prescription-fields-container, 
+#add-custom-field-btn,
+.custom-field-wrapper {
+    display: none !important;
+}
+
+/* 2. अगर कोई पुरानी 'Bulk Table' HTML में पहले से लिखी है, तो उसे छिपाएं */
+/* नोट: JS जब नया टेबल बनाएगा, तो वो इसे ओवरराइड कर लेगा */
+#dish-bulk-container {
+    display: none; 
+}
+
+/* 3. 'Chasme ke liye' या 'Jooton ke liye' वाले टेक्स्ट को छिपाने के लिए */
+/* यह उन h6 या p टैग्स को टारगेट करेगा जिनमें यह आईडी हो सकती है (अगर आपने दी है) */
+[id*="prescription"], [class*="prescription"] {
+    display: none !important;
+}
+
+/* 4. JS द्वारा बनाए गए पुराने कचरे को भी छिपा कर रखें */
+#dynamic-business-fields {
+    display: none;
+}
+
+/* ✅ Garments ke liye Anti-Theft Security panel */
+#garments-security-fields {
+    display: block !important;
+}
 
     </style>
 
@@ -1914,41 +1917,53 @@
             </div>
         
             <div id="module-furniture-showroom" class="biz-module card shadow-sm border-warning mb-4" style="display:none;">
-                <div class="card-header bg-warning text-dark"><h5><i class="fas fa-truck"></i> Delivery Tracker</h5></div>
+                <div class="card-header bg-warning text-dark">
+                    <h5><i class="fas fa-truck"></i> Delivery Tracker (शेड्यूल करें)</h5>
+                </div>
                 <div class="card-body">
                     <div class="row g-2">
-                        <div class="col-6"><input type="text" id="furn_invoice_id" class="form-control form-control-sm" placeholder="Invoice ID"></div>
-                        <div class="col-6"><input type="date" id="furn_delivery_date" class="form-control form-control-sm"></div>
+                        <div class="col-6">
+                            <input type="text" id="furn_invoice_id" class="form-control form-control-sm" placeholder="Invoice ID (e.g. 64)">
+                        </div>
+                        <div class="col-6">
+                            <input type="date" id="furn_delivery_date" class="form-control form-control-sm">
+                        </div>
                         <div class="col-12">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="furn_assembly">
-                                <label class="form-check-label small">Assembly Required (Mistri chahiye)</label>
+                                <label class="form-check-label small">Assembly Required (मिस्त्री चाहिए?)</label>
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-warning w-100 mt-2" onclick="scheduleFurnitureDelivery()">Schedule Delivery</button>
+                    <button class="btn btn-warning w-100 mt-2" onclick="scheduleFurnitureDelivery()">
+                        <i class="fas fa-save"></i> Schedule Delivery
+                    </button>
                 </div>
             </div>
 
             <div id="hardware-delivery-box" class="biz-module mt-3 border-top pt-2" style="display:none;">
-                <h6 class="text-dark small fw-bold"><i class="fas fa-truck-loading"></i> Pending Deliveries (डिलीवरी लिस्ट)</h6>
+                <h6 class="text-dark small fw-bold">
+                    <i class="fas fa-truck-loading"></i> Pending Deliveries (डिलीवरी लिस्ट)
+                    <button class="btn btn-sm btn-link float-end p-0" onclick="loadDeliveryList()">Refresh</button>
+                </h6>
                 
-                <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd;">
                     <table class="table table-sm table-bordered small mb-0 bg-white">
-                        <thead class="table-secondary">
+                        <thead class="table-secondary sticky-top">
                             <tr>
                                 <th>Invoice / Item</th>
                                 <th>Date</th>
-                                <th>Mistri?</th>
+                                <th>Status</th>
+                                <th style="width: 50px;">Action</th> </tr>
                             </tr>
                         </thead>
-                        <tbody id="hardware-delivery-list">
+                        <tbody id="delivery-list-final">
                             <tr><td colspan="3" class="text-center text-muted">लोड हो रहा है...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-        
+
             <div id="module-hotel-management" class="biz-module card shadow-sm border-danger mb-4" style="display:none;">
                 <div class="card-header bg-danger text-white"><h5><i class="fas fa-hotel"></i> Hotel Front Desk</h5></div>
                 <div class="card-body">
@@ -1980,24 +1995,30 @@
                 </div>
             </div>
 
-            <div id="hotel-room-status-section" class="mt-4" style="display:none;">
-                <h6 class="border-bottom pb-2 fw-bold text-secondary">
-                    <i class="fas fa-bed"></i> Room Status (Live)
-                </h6>
-                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                    <table class="table table-sm table-bordered text-center mb-0 bg-white">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Room No</th>
-                                <th>Status</th>
-                                <th>Guest Name</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="hotel-room-list">
-                            <tr><td colspan="4" class="text-muted">Loading Rooms...</td></tr>
-                        </tbody>
-                    </table>
+            <div id="hotel-room-status-section" class="biz-module mt-4" style="display:none;">
+    
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                    <h6 class="fw-bold text-secondary mb-0">
+                        <i class="fas fa-bed"></i> Room Status (Live)
+                    </h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-dark me-2" onclick="setupHotelRooms()" title="Create 10 dummy rooms">
+                            <i class="fas fa-magic"></i> Auto Setup
+                        </button>
+                        
+                        <button class="btn btn-sm btn-primary shadow-sm" onclick="addRoomManually()" title="Add a specific room">
+                            <i class="fas fa-plus-circle"></i> Add Room
+                        </button>
+                    </div>
+                </div>
+            
+                <div id="hotel-room-list" class="row g-3" style="max-height: 450px; overflow-y: auto; padding: 4px;">
+                    
+                    <div class="col-12 text-center text-muted mt-5">
+                        <div class="spinner-border text-secondary" role="status"></div>
+                        <p class="mt-2 small">Loading Room Status...</p>
+                    </div>
+            
                 </div>
             </div>
 
@@ -2075,22 +2096,60 @@
             </div>
         
             <div id="module-restaurant-kot" class="biz-module card shadow-sm border-warning mb-4" style="display:none;">
+
+                <button class="btn btn-dark btn-sm w-100 mb-3" onclick="enableKitchenMode()">
+                    <i class="fas fa-tv"></i> Switch to Kitchen Display Screen
+                </button>
+    
                 <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-utensils me-2"></i> KOT Manager</h5>
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-utensils me-2"></i> KOT Manager</h5>
                 </div>
                 
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="small fw-bold text-muted">Table Select करें</label>
-                        <select id="rest_table_no" class="form-select form-select-lg fw-bold text-center border-warning">
-                            </select>
-                    </div>
+                    
+                    <div class="mb-4 p-3 bg-light border rounded shadow-sm">
+                        <label class="fw-bold text-dark mb-2 d-block">
+                            <i class="fas fa-bullseye text-primary"></i> Order For (ऑर्डर किसके लिए है?):
+                        </label>
+                        
+                        <div class="d-flex gap-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="orderType" id="type_table" value="table" checked onchange="toggleOrderSource()" style="cursor: pointer; transform: scale(1.3);">
+                                <label class="form-check-label fw-bold text-dark ms-2" for="type_table" style="cursor: pointer; font-size: 1.1rem;">
+                                    🍽️ Table (Restaurant)
+                                </label>
+                            </div>
+                            
+                            <div class="form-check ms-2 border-start border-secondary ps-4">
+                                <input class="form-check-input" type="radio" name="orderType" id="type_room" value="room" onchange="toggleOrderSource()" style="cursor: pointer; transform: scale(1.3);">
+                                <label class="form-check-label fw-bold text-danger ms-2" for="type_room" style="cursor: pointer; font-size: 1.1rem;">
+                                    🛎️ Room Service
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="small fw-bold text-muted">Order Taken By (वेटर):</label>
+                            <select id="waiter_select" class="form-select form-select-sm fw-bold">
+                                <option value="Self">-- Select Name --</option>
+                                <option value="Ramesh">Ramesh</option>
+                                <option value="Suresh">Suresh</option>
+                                <option value="Mahesh">Mahesh</option>
+                                <option value="Raju">Raju</option>
+                                <option value="Deepak">Deepak</option>
+                                </select>
+                        </div>
             
+                        <label class="small text-muted fw-bold mb-1" id="order_hint">Select Location:</label>
+                        <select id="rest_table_select" class="form-select form-select-lg border-primary fw-bold shadow-sm" style="height: 50px; font-size: 1.1rem;">
+                            <option value="">-- Loading List... --</option>
+                        </select>
+                    </div>
                     <div class="position-relative mb-3">
                         <label class="small fw-bold text-muted">आइटम खोजें (Search Item)</label>
-                        <div class="input-group">
+                        <div class="input-group input-group-lg">
                             <span class="input-group-text bg-white"><i class="fas fa-search text-primary"></i></span>
-                            <input type="text" id="kot-search-input" class="form-control" 
+                            <input type="text" id="kot-search-input" class="form-control fw-bold" 
                                    placeholder="डिश का नाम लिखें..." 
                                    autocomplete="off" 
                                    onclick="handleKotSearch(true)" 
@@ -2101,38 +2160,44 @@
                         </ul>
                     </div>
                     
-                    <div class="bg-light p-2 border rounded mb-3" style="min-height: 100px;">
-                        <h6 class="small fw-bold text-secondary border-bottom pb-1">ऑर्डर लिस्ट:</h6>
+                    <div class="bg-white p-2 border rounded mb-3 shadow-sm" style="min-height: 100px;">
+                        <h6 class="small fw-bold text-secondary border-bottom pb-1 mb-2">Selected Items (ऑर्डर लिस्ट):</h6>
                         <div id="kot-added-list">
-                            <div class="text-center text-muted small mt-3">अभी कोई आइटम नहीं चुना</div>
+                            <div class="text-center text-muted small mt-3 p-3 bg-light rounded">
+                                <i class="fas fa-basket-shopping fa-2x mb-2 text-secondary"></i><br>
+                                अभी कोई आइटम नहीं चुना
+                            </div>
                         </div>
                     </div>
                     
-                    <button class="btn btn-success w-100 fw-bold shadow-sm" onclick="sendKotToKitchen()">
+                    <button class="btn btn-success btn-lg w-100 fw-bold shadow" onclick="sendKotToKitchen()">
                         <i class="fas fa-paper-plane me-2"></i> Send to Kitchen
                     </button>
             
-                    <div class="mt-3 border-top pt-3">
+                    <div class="mt-4 pt-3 border-top border-2">
                         <h5 class="fw-bold text-dark mb-3">
-                            <i class="fas fa-fire text-danger"></i> Active Orders
+                            <i class="fas fa-fire text-danger"></i> Active Orders (Running)
                         </h5>
                         <div id="active-kot-list" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
-                            <div class="text-center text-muted p-4 fs-5">No active orders</div>
+                            <div class="text-center text-muted p-4 fs-5 bg-light rounded border">
+                                No active orders
+                            </div>
                         </div>
                     </div>
                     
-                    <button class="btn btn-primary w-100 mt-2 fw-bold" onclick="transferTableToPOS()">
-                        <i class="fas fa-file-invoice-dollar"></i> Create Bill (POS)
+                    <button class="btn btn-primary w-100 mt-3 fw-bold shadow-sm" onclick="transferTableToPOS()">
+                        <i class="fas fa-file-invoice-dollar me-2"></i> Create Final Bill (POS)
                     </button>
                 </div>
             </div>
+
 
             <div id="standalone-kitchen-view" class="mt-3 border-top pt-3" style="display:none;">
                 <h5 class="fw-bold text-dark mb-3">
                     <i class="fas fa-fire text-danger"></i> Active Orders (Kitchen)
                 </h5>
                 
-                <div id="active-kot-list" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                <div id="active-kot-list-kitchen" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
                     <div class="text-center text-muted p-4 fs-5">No active orders</div>
                 </div>
             </div>
@@ -2286,6 +2351,8 @@
                 <div class="card-header">नया स्टॉक आइटम जोड़ें</div>
                 <div class="card-body">
                     <form id="add-stock-form" class="row g-3">
+
+
                         <input type="hidden" id="stock-action-type" value="add">
                         <div class="col-md-3">
                             <label for="stock-sku" class="form-label">SKU / कोड</label>
@@ -2663,6 +2730,16 @@
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <div class="mb-3 p-2 border border-success rounded bg-light">
+                                    <label class="fw-bold small text-success">Payment Mode (भुगतान का तरीका)</label>
+                                    <select id="pos-payment-mode" class="form-select form-select-sm fw-bold">
+                                        <option value="Cash" selected>💵 Cash (नकद)</option>
+                                        <option value="UPI">📱 UPI / PhonePe / GPay</option>
+                                        <option value="Card">💳 Card</option>
+                                        <option value="Credit">📕 Udhaar (Credit)</option>
+                                    </select>
                                 </div>
 
                                 <div class="mt-4">
@@ -3760,8 +3837,14 @@
     
 
 <script>
+
+    // [ ✅ इन्हें <script> शुरू होते ही सबसे ऊपर पेस्ट करें ]
+
     
 // ग्लोबल वेरिएबल (इसे सबसे ऊपर रखें)
+// ✅ GLOBAL BUSINESS TYPE
+
+
     let isMixingModeActive = false;
     let posWebSocket = null;
 	let mySalesChart = null;
@@ -4594,6 +4677,9 @@ function sendWhatsAppMessage(phone, name) {
 
     // [REPLACE THIS FUNCTION IN HTML <script>]
 
+
+      
+
         async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
         showLoader(loadingMessage);
         const controller = new AbortController();
@@ -4945,7 +5031,27 @@ function handleNavClick(viewId) {
         // --- 🚀 अस्थायी रूप से कमेंट आउट ---
         switch (viewId) {
             case 'dashboard': renderDashboard(); break;
-            case 'stock': fetchAndRenderStockList(); break;
+            case 'stock':
+    document.getElementById('stock').classList.add('active');
+    fetchAndRenderStockList();
+
+    // ✅ SALON ONLY STOCK FORM
+   // const salonStockForm = document.getElementById('add-stock-form');
+    //if (salonStockForm) {
+      //  salonStockForm.style.display =
+        //    currentBusinessType === 'SALON' ? 'flex' : 'none';
+    //}
+
+    // ✅ SALON ONLY DURATION FIELD
+    const durationDiv = document.getElementById('stock-duration-div');
+if (durationDiv) {
+    durationDiv.style.display =
+        (AppState.user?.businessType || '') === 'SALON' ? 'block' : 'none';
+}
+
+
+    break;
+
             case 'crm': fetchAndRenderCustomers(); break;
             case 'purchases': fetchAndRenderPurchases(); break;
             case 'expenses': fetchAndRenderExpenses(); break;
@@ -5722,30 +5828,36 @@ if (!checkUserPlan(['MEDIUM', 'PREMIUM'])) {
 
 
 
-
-// [ ✅ FIXED: ULTRA-PRO STOCK LIST RENDERER (ALL 31 BUSINESS TYPES EXPLICITLY LISTED) ]
 async function fetchAndRenderStockList() {
-    // Current User Business Type
-    const btype = AppState.user ? AppState.user.businessType : 'RETAIL';
-    // Salon needs special handling for Services vs Products
-    const isSalon = (btype === 'SALON'); 
+    console.log('Fetching Stock List & Configuring View...');
 
-    // --- PART A: FORM DESIGN (SMART CONFIGURATION) ---
+    // 1. Business Type Detection
+    const btype = AppState.user && AppState.user.businessType ? AppState.user.businessType.trim().toUpperCase() : 'RETAIL';
     
-    // 1. CLEANUP: Reset form state
-    const dynamicArea = document.getElementById('dynamic-business-fields');
-    if(dynamicArea) dynamicArea.remove();
-    
+    // Group Classifications for logic
+    const isSalon = (btype === 'SALON');
+    const isGarments = [ 'CLOTHING', 'GARMENTS', 'BOUTIQUE', 'FASHION' ].includes(btype);
+    const isEating = [ 'RESTAURANT', 'HOTEL', 'CAFE', 'BAKERY' ].includes(btype);
+
+    // --- PART A: FORM CLEANUP & RESET ---
+    // Remove all dynamic fields to prevent duplication
+    document.querySelectorAll('#dynamic-business-fields').forEach(el => el.remove()); 
+    const existingGarmentForm = document.getElementById('garments-security-fields');
+    if (existingGarmentForm) existingGarmentForm.remove();
+
     const cDiv = document.getElementById('consumption-ui-area');
     if(cDiv) cDiv.remove();
-
     const typeDiv = document.getElementById('stock-type-selector-area');
     if(typeDiv) typeDiv.remove();
+    
+    // Remove Bulk Container if exists
+    const bulkDiv = document.getElementById('dish-bulk-container');
+    if(bulkDiv) bulkDiv.remove();
 
     // 2. FORM ELEMENTS SELECTORS
     const form = document.getElementById('add-stock-form');
     const submitBtnDiv = form.querySelector('button[type="submit"]').parentElement;
-
+    
     // Field Wrappers
     const skuDiv = document.querySelector('label[for="stock-sku"]').parentElement;
     const qtyDiv = document.querySelector('label[for="stock-quantity"]').parentElement;
@@ -5753,27 +5865,38 @@ async function fetchAndRenderStockList() {
     const gstDiv = document.querySelector('label[for="stock-gst"]').parentElement;
     const hsnDiv = document.querySelector('label[for="stock-hsn-code"]').parentElement;
     const durationDiv = document.getElementById('stock-duration-div'); 
-    
+
     // Labels
     const nameLabel = document.querySelector('label[for="stock-name"]');
     const pPriceLabel = document.querySelector('label[for="stock-purchase-price"]');
     const sPriceLabel = document.querySelector('label[for="stock-sale-price"]');
     const qtyLabel = document.querySelector('label[for="stock-quantity"]');
+    const unitInput = document.getElementById('stock-unit');
 
-    // Custom Fields (Optical/Extra)
+    // =========================================================
+    // 🔥 FIX: OPTICAL / EXTRA DETAILS KO DEFAULT MEIN CHUPANA
+    // =========================================================
     const opticalBtn = document.getElementById('add-custom-field-btn');
     const opticalContainer = document.getElementById('prescription-fields-container');
     let extraHeader = null, extraDesc = null, extraHr = null;
-    
-    // Hide extra headers/descriptions initially
+
     document.querySelectorAll('#add-stock-form > *').forEach(el => {
-        if(el.tagName === 'H6' && el.innerText.includes('अतिरिक्त विवरण')) { extraHeader = el; el.style.display = 'none'; }
-        if(el.tagName === 'P' && el.innerText.includes('Chasme ke liye')) { extraDesc = el; el.style.display = 'none'; }
-        if(el.tagName === 'HR' && el.classList.contains('my-3') && el.nextElementSibling === extraHeader) { extraHr = el; el.style.display = 'none'; }
+        if (el.tagName === 'H6' && el.innerText.includes('अतिरिक्त विवरण')) {
+            extraHeader = el; el.style.display = 'none';
+        }
+        if (el.tagName === 'P' && el.innerText.includes('Chasme ke liye')) {
+            extraDesc = el; el.style.display = 'none';
+        }
+        if (el.tagName === 'HR' && el.nextElementSibling && el.nextElementSibling.innerText.includes('अतिरिक्त विवरण')) {
+             extraHr = el; el.style.display = 'none';
+        }
     });
 
-    if(opticalBtn) opticalBtn.closest('.col-12').style.display = 'none';
-    if(opticalContainer) opticalContainer.style.display = 'none';
+    if (opticalBtn) {
+        const wrapper = opticalBtn.closest('.col-12') || opticalBtn.parentElement;
+        if(wrapper) wrapper.style.display = 'none';
+    }
+    if (opticalContainer) opticalContainer.style.display = 'none';
 
     // Reset Standard Visibility
     skuDiv.style.display = 'block';
@@ -5783,31 +5906,65 @@ async function fetchAndRenderStockList() {
     gstDiv.style.display = 'block';
     if(durationDiv) durationDiv.style.display = 'none';
 
-    // Default Labels
+    // Reset Labels
     nameLabel.innerText = 'आइटम का नाम';
     pPriceLabel.innerText = 'खरीद मूल्य (₹)';
     sPriceLabel.innerText = 'बिक्री मूल्य (₹)';
     qtyLabel.innerText = 'मात्रा (Qty)';
-    document.getElementById('stock-unit').placeholder = "Pcs / Kg / Box";
+    unitInput.placeholder = "Pcs / Kg / Box";
 
     // =========================================================
-    // 🏗️ BUSINESS SPECIFIC LOGIC (ALL 31 TYPES LISTED)
+    // 🔥 GARMENTS SPECIAL: ANTI-THEFT FORM
+    // =========================================================
+    if (isGarments) {
+        nameLabel.innerText = 'Design Name / Article No.';
+        unitInput.placeholder = "Pcs";
+
+        const securityDiv = document.createElement('div');
+        securityDiv.id = 'garments-security-fields';
+        securityDiv.className = 'col-12 p-3 mb-3 border rounded border-danger bg-danger bg-opacity-10';
+        securityDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-danger fw-bold m-0"><i class="fas fa-shield-alt"></i> Anti-Theft Security</h6>
+                <span class="badge bg-danger">SECURE MODE</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="sec-tag-attached" checked>
+                        <label class="form-check-label fw-bold text-dark" for="sec-tag-attached">Hard Tag Attached (हार्ड टैग)</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="small fw-bold">Scan RFID / Barcode</label>
+                    <input type="text" id="sec-rfid-code" class="form-control form-control-sm" placeholder="Scan Tag Here">
+                </div>
+                <div class="col-md-6">
+                    <label class="small fw-bold">Section</label>
+                    <select id="sec-floor-loc" class="form-select form-select-sm">
+                        <option>Men's Section</option>
+                        <option>Women's Section</option>
+                        <option>Kids Section</option>
+                    </select>
+                </div>
+            </div>`;
+        form.insertBefore(securityDiv, submitBtnDiv);
+    }
+
+    // =========================================================
+    // 🏗️ BUSINESS SPECIFIC LOGIC (FULL 31 TYPES LISTED)
     // =========================================================
 
     switch (btype) {
-        
-        // --- 1. SALON (Unique UI) ---
-       // --- 1. SALON, RESTAURANT & HOTEL (Menu / Service Mode) ---
-      // --- 1. SALON, RESTAURANT & HOTEL (Menu / Service Mode) ---
-      case 'SALON':
+        // --- 1. SALON & FOOD (Menu / Service Mode) ---
+        case 'SALON':
         case 'RESTAURANT':
         case 'HOTEL':
-            
-            // 1. लेबल्स तय करें
+        case 'CAFE':
+        case 'BAKERY':
             const typeALabel = (btype === 'SALON') ? 'सर्विस (Service)' : 'डिश (Dish / Food)';
             const typeBLabel = 'प्रोडक्ट (Inventory)';
 
-            // 2. Inject Type Selector
             const typeSelectDiv = document.createElement('div');
             typeSelectDiv.id = 'stock-type-selector-area';
             typeSelectDiv.className = 'col-12 mb-3 p-2 bg-warning bg-opacity-10 border border-warning rounded';
@@ -5825,107 +5982,68 @@ async function fetchAndRenderStockList() {
                 </div>`;
             form.insertBefore(typeSelectDiv, form.firstChild);
 
-            // 3. Inject Consumption UI (Optional placeholder)
-            const consumptionDiv = document.createElement('div');
-            consumptionDiv.id = 'consumption-ui-area';
-            consumptionDiv.className = 'col-12 mt-3 p-3 bg-light border rounded';
-            consumptionDiv.innerHTML = `
-                <h6 class="text-primary"><i class="fas fa-flask me-2"></i> खपत (Consumption) जोड़ें (Optional)</h6>
-                <div class="row g-2 align-items-end">
-                    <div class="col-7"><input type="text" id="recipe-consumable-sku" class="form-control form-control-sm" placeholder="SKU e.g. SHAMPOO-1L"></div>
-                    <div class="col-3"><input type="number" id="recipe-qty" class="form-control form-control-sm" placeholder="Qty"></div>
-                    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-success w-100" onclick="addRecipeRow()">+</button></div>
-                </div>
-                <div id="recipe-list" class="mt-2"></div>
-                <input type="hidden" id="stock-recipe-data">
-            `;
-            form.insertBefore(consumptionDiv, submitBtnDiv);
-
-            // 4. Toggle Logic (Updated for Bulk Entry)
             window.toggleSmartFields = function() {
                 const isService = document.getElementById('typeService').checked;
-                const isSalon = (btype === 'SALON');
-
-                // कॉमन फील्ड्स छुपाएं
                 hsnDiv.style.display = 'none';
                 gstDiv.style.display = 'none';
                 
                 if (isService) {
-                    // --- DISH / SERVICE MODE (Bulk Entry) ---
-                    
-                    // 1. पुराने सिंगल इनपुट्स छुपाएं
                     qtyDiv.style.display = 'none';
                     unitDiv.style.display = 'none';
                     skuDiv.style.display = 'none';
                     pPriceLabel.parentElement.style.display = 'none';
-                    
-                    // नाम और प्राइस भी छुपाएं (क्योंकि अब टेबल है)
                     sPriceLabel.parentElement.style.display = 'none'; 
                     nameLabel.parentElement.style.display = 'none';
-
-                    // Consumption भी छुपाएं (Bulk में नहीं चाहिए)
-                    if(consumptionDiv) consumptionDiv.style.display = 'none';
                     if(durationDiv) durationDiv.style.display = 'none';
 
-                    // 2. Multi-Row Container बनाएं या दिखाएं
                     let multiRowContainer = document.getElementById('dish-bulk-container');
                     if (!multiRowContainer) {
                         multiRowContainer = document.createElement('div');
                         multiRowContainer.id = 'dish-bulk-container';
                         multiRowContainer.className = 'col-12 mt-2 p-3 border rounded bg-light';
                         multiRowContainer.innerHTML = `
-                            <h6 class="text-primary mb-3"><i class="fas fa-list"></i> एक साथ कई डिशेज जोड़ें</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered mb-0 bg-white">
-                                    <thead class="table-warning">
-                                        <tr>
-                                            <th style="width: 60%;">Name (डिश का नाम)</th>
-                                            <th style="width: 30%;">Price (₹)</th>
-                                            <th style="width: 10%;"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="dish-bulk-body">
-                                        </tbody>
-                                </table>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="addDishRow()">
-                                <i class="fas fa-plus"></i> Add More Dish
-                            </button>
-                        `;
+                            <div id="hotel-bulk-dish-section">
+                                <h6 class="text-primary mb-3"></h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0 bg-white">
+                                        <thead class="table-warning">
+                                            <tr><th style="width: 60%;">Name</th><th style="width: 30%;">Price (₹)</th><th style="width: 10%;"></th></tr>
+                                        </thead>
+                                        <tbody id="dish-bulk-body"></tbody>
+                                    </table>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" id="bulk-add-btn" onclick="addDishRow()">
+                                    <i class="fas fa-plus"></i> Add More
+                                </button>
+                            </div>`;
                         form.insertBefore(multiRowContainer, submitBtnDiv);
-                        
-                        // पहली खाली रो जोड़ें
                         if(typeof window.addDishRow === 'function') window.addDishRow();
                     }
                     multiRowContainer.style.display = 'block';
-
-                    // 3. डमी वैल्यूज भरें (ताकि फॉर्म सबमिट हो सके)
+                    const titleEl = multiRowContainer.querySelector('h6');
+                    const btnEl = document.getElementById('bulk-add-btn');
+                    if (isSalon) {
+                        if(titleEl) titleEl.innerHTML = '<i class="fas fa-cut"></i> Bulk Services Entry';
+                        if(btnEl) btnEl.innerHTML = '<i class="fas fa-plus"></i> Add Service';
+                    } else {
+                        if(titleEl) titleEl.innerHTML = '<i class="fas fa-utensils"></i> Bulk Menu Entry';
+                        if(btnEl) btnEl.innerHTML = '<i class="fas fa-plus"></i> Add Dish';
+                    }
                     document.getElementById('stock-quantity').value = '10000';
                     document.getElementById('stock-unit').value = isSalon ? 'Session' : 'Plate';
                     document.getElementById('stock-purchase-price').value = '0';
                     document.getElementById('stock-sku').value = 'BULK-' + Date.now();
                     document.getElementById('stock-name').value = 'BULK_ENTRY'; 
                     document.getElementById('stock-sale-price').value = '0';
-
                 } else {
-                    // --- PRODUCT MODE (Normal Stock) ---
-                    
-                    // Bulk Container छुपाएं
                     const multiRowContainer = document.getElementById('dish-bulk-container');
                     if (multiRowContainer) multiRowContainer.style.display = 'none';
-
-                    // बाकी सब वापस दिखाएं
                     qtyDiv.style.display = 'block';
                     unitDiv.style.display = 'block';
                     skuDiv.style.display = 'block';
                     pPriceLabel.parentElement.style.display = 'block';
-                    
                     sPriceLabel.parentElement.style.display = 'block';
                     nameLabel.parentElement.style.display = 'block';
-                    nameLabel.innerText = 'आइटम का नाम';
-                    sPriceLabel.innerText = 'बिक्री मूल्य';
-
-                    // रीसेट करें
                     document.getElementById('stock-quantity').value = '';
                     document.getElementById('stock-unit').value = 'Pcs';
                     document.getElementById('stock-sku').value = '';
@@ -5934,37 +6052,28 @@ async function fetchAndRenderStockList() {
                     document.getElementById('stock-sale-price').value = '';
                 }
             };
-            
-            // पेज लोड होते ही चलाएं
             window.toggleSmartFields();
             break;
             
-          
-        // --- GROUP 1: RETAIL WITH EXPIRY/BATCH ---
+        // --- 2. RETAIL & FOOD (Expiry/Batch) ---
         case 'PHARMACY':
         case 'SWEET_SHOP':
-        case 'GYM': // Supplements
-        case 'RETAIL': // General Store (Sometimes needs expiry)
+        case 'GYM': 
+        case 'RETAIL': 
+        case 'GROCERY':
             const expiryDiv = document.createElement('div');
             expiryDiv.id = 'dynamic-business-fields';
             expiryDiv.className = 'col-12 border rounded p-3 mt-2 bg-light mb-3';
             expiryDiv.innerHTML = `
                 <h6 class="text-primary small fw-bold"><i class="fas fa-clock"></i> Expiry & Batch Details</h6>
                 <div class="row g-2">
-                    <div class="col-md-6">
-                        <label class="form-label small">Expiry Date</label>
-                        <input type="date" id="stock-expiry" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small">Batch Number</label>
-                        <input type="text" id="stock-batch" class="form-control form-control-sm" placeholder="Batch No.">
-                    </div>
-                </div>
-            `;
+                    <div class="col-md-6"><label class="form-label small">Expiry Date</label><input type="date" id="stock-expiry" class="form-control form-control-sm"></div>
+                    <div class="col-md-6"><label class="form-label small">Batch Number</label><input type="text" id="stock-batch" class="form-control form-control-sm" placeholder="Batch No."></div>
+                </div>`;
             form.insertBefore(expiryDiv, submitBtnDiv);
             break;
 
-        // --- GROUP 2: MOBILE & ELECTRONICS (IMEI) ---
+        // --- 3. ELECTRONICS (IMEI) ---
         case 'MOBILE_SHOP':
         case 'ELECTRONICS':
         case 'SIM_STORE':
@@ -5974,46 +6083,52 @@ async function fetchAndRenderStockList() {
             imeiDiv.innerHTML = `
                 <label class="form-label small text-info fw-bold">Device Details</label>
                 <div class="row g-2">
-                    <div class="col-md-6">
-                        <input type="text" id="item_imei" class="form-control form-control-sm" placeholder="IMEI / Serial No">
-                    </div>
-                    <div class="col-md-6">
-                        <input type="text" id="item_model" class="form-control form-control-sm" placeholder="Model / Color">
-                    </div>
-                </div>
-            `;
+                    <div class="col-md-6"><input type="text" id="item_imei" class="form-control form-control-sm" placeholder="IMEI / Serial No"></div>
+                    <div class="col-md-6"><input type="text" id="item_model" class="form-control form-control-sm" placeholder="Model / Color"></div>
+                </div>`;
             form.insertBefore(imeiDiv, submitBtnDiv);
             break;
 
-        // --- GROUP 3: HARDWARE & PAINT ---
+        // --- 4. HARDWARE ---
         case 'HARDWARE_PAINT':
-            document.getElementById('stock-unit').placeholder = "Liters / Kg / Drum";
+            unitInput.placeholder = "Liters / Kg / Drum";
             break;
 
-        // --- GROUP 4: TILES & CERAMIC ---
+        // --- 5. TILES ---
         case 'TILES_CERAMIC':
             qtyLabel.innerText = "Quantity (Boxes)";
             if(document.getElementById('module-tiles-calc')) 
                document.getElementById('module-tiles-calc').style.display = 'block';
             break;
 
-        // --- GROUP 5: TENT HOUSE / RENTAL ---
+        // --- 6. TENT HOUSE ---
         case 'TENT_HOUSE':
             if(document.getElementById('module-rental-stock')) 
                document.getElementById('module-rental-stock').style.display = 'block';
             sPriceLabel.innerText = "Replacement Cost (If Lost)";
             break;
 
-        // --- GROUP 6: MEDICAL & OPTICAL (Special Fields) ---
+        // --- 7. MEDICAL (No Optical Fields) ---
         case 'DENTIST': 
         case 'DOCTOR_CLINIC':
         case 'ORTHOPEDIC':
         case 'SONOGRAPHY':
         case 'PHYSIOTHERAPY':
         case 'PATHOLOGY':
+             break; // Standard behavior, don't show optical fields
+
+        // --- 8. OPTICAL (SHOW HIDDEN FIELDS) ---
+        case 'OPTICAL':
+            if (extraHeader) extraHeader.style.display = 'block';
+            if (extraDesc) extraDesc.style.display = 'block';
+            if (extraHr) extraHr.style.display = 'block';
+            if (opticalBtn) {
+                const wrapper = opticalBtn.closest('.col-12') || opticalBtn.parentElement;
+                if(wrapper) wrapper.style.display = 'block';
+            }
             break;
 
-        // --- GROUP 7: FINANCE & SERVICES (No Physical Stock usually) ---
+        // --- 9. SERVICES / OFFICE / MISC ---
         case 'LOAN_DSA':
         case 'RECOVERY_AGENT':
         case 'INSURANCE_AGENCY':
@@ -6021,41 +6136,49 @@ async function fetchAndRenderStockList() {
         case 'SOFTWARE_COMPANY':
         case 'SCHOOL':
         case 'TRANSPORT':
-        case 'HOTEL':
-        case 'RESTAURANT':
         case 'SERVICE_CENTER':
+            break; // Standard entry
+
+        // --- 10. CLOTHING / LIFESTYLE (Garments Logic handled globally) ---
         case 'TAILOR':
         case 'CLOTHING':
         case 'FURNITURE':
         case 'JEWELLERY':
+        case 'GARMENTS':
+        case 'BOUTIQUE':
+        case 'FASHION':
             break;
 
         default:
-            // Standard Retail View
             break;
     }
 
-    // --- PART B: TABLE RENDER (Data Loading) ---
+    // --- PART B: TABLE RENDER ---
     const tableHead = document.querySelector('#stock table thead');
     const tableBody = document.getElementById('stock-table-body');
     const tableFoot = document.getElementById('stock-table-foot');
 
+    // 1. SET TABLE HEADERS
     if (isSalon) {
-        tableHead.innerHTML = `
-            <tr>
-                <th style="width:10%">Type</th>
-                <th style="width:25%">Name</th>
-                <th style="width:15%">Stock/Unit</th> 
-                <th style="width:15%">Cost (₹)</th>
-                <th style="width:15%">Price (₹)</th>
-                <th style="width:20%">Action</th>
-            </tr>`;
+        tableHead.innerHTML = `<tr><th style="width:10%">Type</th><th style="width:25%">Name</th><th style="width:15%">Stock/Unit</th><th style="width:15%">Cost (₹)</th><th style="width:15%">Price (₹)</th><th style="width:20%">Action</th></tr>`;
+    } else if (isGarments) {
+        // ✅ Corrected Headers for Garments (7 Cols)
+        tableHead.innerHTML = `<tr>
+            <th style="width:15%">Article/SKU</th>
+            <th style="width:20%">Design Name</th>
+            <th style="width:10%">Stock</th>
+            <th style="width:10%">Cost (₹)</th>
+            <th style="width:10%">Price (₹)</th>
+            <th style="width:15%">Last Updated</th>
+            <th style="width:20%">Action</th>
+        </tr>`;
     } else {
         tableHead.innerHTML = `<tr><th>SKU</th><th>Item Name</th><th>Qty</th><th>Purchase</th><th>Sale</th><th>GST %</th><th>Updated</th><th>Attributes/Expiry</th><th>Action</th></tr>`;
     }
 
-    tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center py-3"><div class="spinner-border text-primary"></div></td></tr>`;
-    tableFoot.innerHTML = '';
+    const initialColSpan = isSalon ? 6 : (isGarments ? 7 : 9); 
+    tableBody.innerHTML = `<tr><td colspan="${initialColSpan}" class="text-center py-3"><div class="spinner-border text-primary"></div></td></tr>`;
+    if(tableFoot) tableFoot.innerHTML = '';
 
     try {
         const res = await fetchApi('/api/stock', { method: 'GET' });
@@ -6070,10 +6193,10 @@ async function fetchAndRenderStockList() {
                 const row = tableBody.insertRow();
                 const attrs = item.product_attributes || {};
                 
-                // 🚀 FIX: SKU को Safe String में बदलें (ताकि क्लिक काम करे)
                 const safeSku = item.sku.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                 const itemDataSafe = JSON.stringify({ sku: item.sku, name: item.name, sale_price: item.sale_price, purchase_price: item.purchase_price }).replace(/"/g, '&quot;');
 
+                // 1. SALON ROW
                 if (isSalon) {
                     const isSvc = (item.sku && String(item.sku).startsWith('SVC-')) || item.unit === 'Session';
                     const typeBadge = isSvc ? `<span class="badge bg-primary">Service</span>` : `<span class="badge bg-success">Product</span>`;
@@ -6087,9 +6210,37 @@ async function fetchAndRenderStockList() {
                         <td>${formatCurrency(item.price || item.sale_price)}</td>
                         <td>
                             <button class="btn btn-sm btn-outline-primary me-1" onclick="editStockItem('${safeSku}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry('stock', '${safeSku}')"><i class="fas fa-trash"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${safeSku}')"><i class="fas fa-trash"></i></button>
                         </td>`;
-                } else {
+                } 
+                // 2. GARMENTS ROW
+                else if (isGarments) {
+                    totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
+                    totalSaleValue += (item.sale_price || 0) * (item.quantity || 0);
+
+                    const anti = item.product_attributes || {};
+                    const lockIcon = anti.is_secured
+                    ? `<i class="fas fa-lock text-danger ms-1" title="Anti-Theft Enabled"></i>`
+                    : '';
+
+
+                    row.innerHTML = `
+                        <td><span class="badge bg-secondary">${item.sku}</span></td>
+                        <td class="fw-bold text-dark">
+                            ${item.name} ${lockIcon}
+                        </td>
+                        <td><span class="fw-bold">${item.quantity}</span> Pcs</td>
+                        <td>${formatCurrency(item.purchase_price || 0)}</td>
+                        <td>${formatCurrency(item.sale_price)}</td>
+                        <td>${new Date(item.updated_at).toLocaleDateString()}</td> 
+                        <td>
+                            <button class="btn btn-sm btn-primary me-1" onclick="editStockItem('${safeSku}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-info text-white me-1" onclick="printItemSticker(${itemDataSafe})"><i class="fas fa-qrcode"></i></button>
+                            <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${safeSku}')"><i class="fas fa-trash"></i></button>
+                        </td>`;
+                } 
+                // 3. STANDARD ROW
+                else {
                     totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
                     totalSaleValue += (item.sale_price || 0) * (item.quantity || 0);
 
@@ -6115,21 +6266,20 @@ async function fetchAndRenderStockList() {
             });
 
             if (!isSalon) {
-                tableFoot.innerHTML = `<tr class="fw-bold bg-light"><td colspan="3">कुल (Total)</td><td>${formatCurrency(totalPurchaseValue)}</td><td>${formatCurrency(totalSaleValue)}</td><td colspan="4"></td></tr>`;
+                // Gap Calculation: Garments = 2 (7 cols - 5 used). Standard = 4 (9 cols - 5 used).
+                const footerGap = isGarments ? 2 : 4;
+                tableFoot.innerHTML = `<tr class="fw-bold bg-light"><td colspan="3">कुल (Total)</td><td>${formatCurrency(totalPurchaseValue)}</td><td>${formatCurrency(totalSaleValue)}</td><td colspan="${footerGap}"></td></tr>`;
             }
         } else {
-            tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center text-muted py-4">कोई डेटा नहीं मिला।</td></tr>`;
+            const emptyColSpan = isSalon ? 6 : (isGarments ? 7 : 9);
+            tableBody.innerHTML = `<tr><td colspan="${emptyColSpan}" class="text-center text-muted py-4">कोई डेटा नहीं मिला।</td></tr>`;
         }
     } catch (e) {
         console.error(e);
-        tableBody.innerHTML = `<tr><td colspan="${isSalon ? 6 : 9}" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
+        const errorColSpan = isSalon ? 6 : (isGarments ? 7 : 9);
+        tableBody.innerHTML = `<tr><td colspan="${errorColSpan}" class="text-center text-danger">त्रुटि: ${e.message}</td></tr>`;
     }
 }
-
-
-
-
-
 
 function editStockItem(sku) {
     // 1. Fetch Fresh Data
@@ -6557,15 +6707,14 @@ function handleSearchResultClick(e) {
 
 
     async function handleCompleteSale() {
-    // 1. कार्ट चेक करें
+    // 1. कार्ट चेक
     if (posCart.length === 0) {
         return showMessage('त्रुटि', 'बिक्री पूरी करने के लिए कार्ट में आइटम जोड़ें।', 'warning');
     }
 
-    // 2. कुल राशि निकालें
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
 
-    // 3. आइटम तैयार करें
+    // आइटम लिस्ट
     const itemsForApi = posCart.map(item => ({
         sku: item.sku,
         name: item.name,
@@ -6576,11 +6725,15 @@ function handleSearchResultClick(e) {
         product_attributes: item.product_attributes
     }));
 
-    // 4. डेटा तैयार करें (कस्टमर और कमीशन)
+    // डेटा तैयारी
     const custMobile = document.getElementById('pos-customer-mobile').value || null;
     const painterId = document.getElementById('pos-painter-select') ? document.getElementById('pos-painter-select').value : null;
     const commMode = document.getElementById('pos-commission-mode') ? document.getElementById('pos-commission-mode').value : 'PERCENT';
     const commVal = document.getElementById('pos-commission-value') ? document.getElementById('pos-commission-value').value : '0';
+    
+    // डिलीवरी डेट (अगर गोदाम/फर्नीचर मोड है तो वहाँ से लें, वरना आज की तारीख)
+    const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
+    const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
 
     const saleData = {
         customerName: document.getElementById('pos-customer').value || 'अनाम ग्राहक',
@@ -6596,61 +6749,68 @@ function handleSearchResultClick(e) {
         commissionValue: commVal
     };
 
-    // ============================================================
-    // 🚀 FIX: विंडो पहले खोलें (ताकि पॉपअप ब्लॉक न हो और लाल एरर न आए)
-    // ============================================================
-    let whatsappWindow = null;
-    const isGodMode = document.getElementById('pos_auto_deliver_check')?.checked;
-    
-    // नए चेकबॉक्स की स्थिति चेक करें (क्या किसी को मैसेज भेजना है?)
     const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
     const sendToMistri = document.getElementById('pos_send_mistri_wa')?.checked;
+    const isGodMode = document.getElementById('pos_auto_deliver_check')?.checked;
 
-    // अगर God Mode चालू है और कम से कम किसी एक को भेजना है, तो ही विंडो खोलें
-    if (isGodMode && (sendToCust || sendToMistri)) {
-        // 'DukanProWA' नाम से खोलें ताकि एक ही टैब रीयूज़ हो
-        whatsappWindow = window.open('', 'DukanProWA'); 
-        if (whatsappWindow) {
-            whatsappWindow.document.write('<div style="font-family:sans-serif;text-align:center;padding-top:20%;"><h2>🔄 बिल सेव हो रहा है...</h2><p>WhatsApp लोड हो रहा है...</p></div>');
-        }
-    }
-
-    // 6. सर्वर पर भेजें
+    // 2. सर्वर कॉल
     try {
-        const res = await fetchApi('/api/invoices', {
-            method: 'POST',
-            body: saleData
-        }, 'बिक्री सेव की जा रही है...');
+        console.log('🚀 Sending Sale Data...');
+        const res = await fetchApi('/api/invoices', { method: 'POST', body: saleData }, 'बिक्री सेव की जा रही है...');
 
         if (res.success) {
             showMessage('सफलता', res.message, 'success');
-            
-            // 🚀 GOD MODE MANAGER को बुलाएं (PDF + WhatsApp के लिए)
-            await executeGodModeDelivery(res.invoiceId, saleData.customerName, saleData.customerMobile, itemsForApi, whatsappWindow);
-            
-            // 🛑 रिसेट लॉजिक: 
-            // अगर मिस्त्री को मैसेज भेजना बाकी है, तो फॉर्म साफ़ न करें (ताकि नीला बटन दिखे)
-            // अगर किसी को नहीं भेजना या काम हो गया, तो साफ़ कर दें
-            if (isGodMode && sendToMistri && sendToCust) {
-                // दोनों को भेजना था -> कस्टमर का गया, मिस्त्री के लिए बटन रुकेगा -> No Reset
-            } else if (isGodMode && sendToMistri && !sendToCust) {
-                // सिर्फ मिस्त्री को भेजना है -> executeGodModeDelivery उसे बटन दिखाएगा -> No Reset
-            } else {
-                // बाकी सभी मामलों में रिसेट करें
-                resetPOSButton();
+
+            // =========================================================
+            // 📝 1. ग्राहक के लिए विस्तृत मैसेज (DETAILED MESSAGE)
+            // =========================================================
+            if (sendToCust && saleData.customerMobile) {
+                // सामानों के नाम की लिस्ट बनाएं
+                const itemNames = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
+
+                // आपका मनचाहा फॉर्मेट
+                const msg = `नमस्ते *${saleData.customerName}*,\n` +
+                            `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
+                            `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
+                            `💰 कुल राशि: *₹${saleData.total_amount.toFixed(2)}*\n` +
+                            `📦 सामान: ${itemNames}\n` +
+                            `🚚 डिलीवरी: ${deliveryDate}\n\n` +
+                            `कृपया साथ में भेजा गया PDF बिल देखें।\n` +
+                            `धन्यवाद! 🙏`;
+                
+                // 🚀 फास्ट व्हाट्सएप कॉल (बिना अटके)
+                setTimeout(() => {
+                    openSmartWhatsApp(saleData.customerMobile, msg);
+                }, 500);
+            }
+
+            // =========================================================
+            // 🛠️ 2. मिस्त्री के लिए मैसेज
+            // =========================================================
+            if (sendToMistri && saleData.painterMobile) {
+                 const mistriMsg = `🛠️ *Job Alert*\n📍 ग्राहक: ${saleData.customerName}\n📞: ${saleData.customerMobile}\n🚚 डिलीवरी: ${deliveryDate}`;
+                 setTimeout(() => {
+                    openSmartWhatsApp(saleData.painterMobile, mistriMsg);
+                 }, 2500); // 2.5 सेकंड बाद
+            }
+
+            // God Mode और PDF (Silent Mode - No Popup)
+            await executeGodModeDelivery(res.invoiceId, saleData.customerName, saleData.customerMobile, itemsForApi, null);
+
+            // रिसेट लॉजिक
+            if (!(isGodMode && sendToMistri && !sendToCust)) {
+                 resetPOSButton();
             }
 
             fetchAndRenderSales();
-            if (typeof fetchAndRenderCustomers === 'function') fetchAndRenderCustomers(); 
+            if (typeof fetchAndRenderCustomers === 'function') fetchAndRenderCustomers();
             if (typeof renderDashboard === 'function') renderDashboard();
-            
+
         } else {
-            // अगर फेल हुआ तो खुली हुई विंडो बंद कर दें
-            if (whatsappWindow) whatsappWindow.close();
             throw new Error(res.message);
         }
+
     } catch (error) {
-        if (whatsappWindow) whatsappWindow.close();
         showMessage('त्रुटि', `बिक्री विफल: ${error.message}`, 'danger');
     }
 }
@@ -6787,6 +6947,22 @@ function handleSearchResultClick(e) {
                         addAttr(data.product_attributes, 'cyl_os_near', 'stock_cyl_os_near');
                         addAttr(data.product_attributes, 'axs_os_near', 'stock_axs_os_near');
                     }
+
+// 👇👇👇 यह कोड 'setupForm' के अंदर 'add-stock-form' वाले हिस्से में पेस्ट करें 👇👇👇
+
+// ===============================================
+// 🔥 GARMENTS ANTI-THEFT DATA (यहाँ जोड़ें)
+// ===============================================
+const tagCheck = document.getElementById('sec-tag-attached');
+if (tagCheck) { 
+    // अगर स्क्रीन पर लाल डब्बा (Anti-Theft) मौजूद है
+    data.product_attributes.is_secured = true;
+    data.product_attributes.has_hard_tag = tagCheck.checked;
+    data.product_attributes.rfid_code = document.getElementById('sec-rfid-code')?.value || '';
+    data.product_attributes.floor_section = document.getElementById('sec-floor-loc')?.value || '';
+}
+// ===============================================
+
 
                 // ============================================================
                 // 2. CUSTOMER FORM LOGIC
@@ -7406,22 +7582,37 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
 
 
     function addItem() {
-        const itemName = document.getElementById('itemName').value; //
-        const quantity = parseFloat(document.getElementById('quantity').value); //
-        const price = parseFloat(document.getElementById('price').value); //
-        const gst = parseFloat(document.getElementById('gst').value) || 0; //
+    const itemName = document.getElementById('itemName').value;
+    const quantity = parseFloat(document.getElementById('quantity').value);
+    const price = parseFloat(document.getElementById('price').value);
+    const gst = parseFloat(document.getElementById('gst').value) || 0;
 
-        if (!itemName || !quantity || !price) {
-            showMessage('Error', 'Please fill Item Name, Quantity, and Rate.', 'danger');
-            return;
-        }
+    // 🔎 Current selected stock item (assume POS dropdown / search se aata hai)
+    const selectedStockItem = currentStock.find(i => i.name === itemName);
 
-        items.push({ name: itemName, quantity: quantity, price: price, gst: gst });
-        updateInvoicePreview();
-        
-        document.getElementById('item-form').reset(); //
-        document.getElementById('itemName').focus();
+    // 🔐 ANTI-THEFT CHECK (⭐ यही MAIN चीज है)
+    if (selectedStockItem?.product_attributes?.is_secured) {
+        alert('⚠️ Anti-Theft Item Detected!\nBilling ke bina exit allowed nahi.');
     }
+
+    if (!itemName || !quantity || !price) {
+        showMessage('Error', 'Please fill Item Name, Quantity, and Rate.', 'danger');
+        return;
+    }
+
+    items.push({
+        name: itemName,
+        quantity: quantity,
+        price: price,
+        gst: gst,
+        is_secured: selectedStockItem?.product_attributes?.is_secured || false
+    });
+
+    updateInvoicePreview();
+    document.getElementById('item-form').reset();
+    document.getElementById('itemName').focus();
+}
+
 
     function deleteItem(index) {
         if (confirm('Are you sure you want to delete this item?')) {
@@ -7664,17 +7855,20 @@ function updateShopDisplay(user) {
      * Clears auth data and reloads the page to show login screen
      */
      function logout() {
-        AppState.token = null;
-        AppState.user = null;
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('authUser');
-        if(AppState.licenseTimerId) clearInterval(AppState.licenseTimerId);
-        window.location.reload(); 
-        
-        // 🚀 नया: रीलोड करने से पहले लॉगिन पेज दिखाएँ (वैकल्पिक, लेकिन स्मूथ)
-        const authContainerNew = document.getElementById('auth-container-new');
-        if (authContainerNew) authContainerNew.classList.remove('hidden');
-    }
+    AppState.token = null;
+    AppState.user = null;
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    if(AppState.licenseTimerId) clearInterval(AppState.licenseTimerId);
+    
+    // window.location.reload(); // ✅ इसे हटा दिया (कमेंट कर दिया)
+    
+    // रिफ्रेश की जगह लॉगिन स्क्रीन दिखाएं
+    document.getElementById('login-wrapper-main').classList.add('active');
+    document.getElementById('auth-container-new').classList.remove('hidden');
+    document.getElementById('sidebar').classList.add('locked');
+    document.getElementById('main-content').classList.add('locked');
+}
     
     // NEW: License Timer and Renewal Warning
     function startLicenseTimer(expiryDateStr) {
@@ -8376,6 +8570,7 @@ document.getElementById('quick-add-save-btn').addEventListener('click', async ()
         unit: 'Pcs'  // Default unit
     };
 
+
     // 2. Jaanch karein ki data bhara hai ya nahi
     if (!itemData.sku || !itemData.name || !itemData.sale_price || !itemData.purchase_price) {
         showMessage('त्रुटि', 'कृपया सभी फ़ील्ड (SKU, नाम, बिक्री मूल्य, खरीद मूल्य) भरें।', 'danger');
@@ -8387,6 +8582,9 @@ document.getElementById('quick-add-save-btn').addEventListener('click', async ()
     try {
         // 3. "Stock Prabandhan" mein item save karein (Server API Call)
         // Yeh wahi API hai jo aapka 'Stock Management' page istemaal karta hai
+        console.log('FINAL ITEM DATA SENT TO SERVER:', itemData);
+        console.log('SENDING TO SERVER →', JSON.stringify(itemData, null, 2));
+        console.log('🚀 FINAL PAYLOAD TO SERVER 👉', JSON.stringify(itemData, null, 2));
         const res = await fetchApi('/api/stock', {
             method: 'POST',
             body: itemData
@@ -8400,13 +8598,17 @@ document.getElementById('quick-add-save-btn').addEventListener('click', async ()
         // 4. "Bikri (POS) Cart" mein item add karein
         // Hum server se mile data ka istemaal karenge
         const newItemForCart = {
-            sku: res.stock.sku,
-            name: res.stock.name,
-            sale_price: parseFloat(res.stock.sale_price),
-            purchase_price: parseFloat(res.stock.purchase_price || 0),
-            gst: parseFloat(res.stock.gst || 0),
-            quantity: 1
-        };
+    sku: res.stock.sku,
+    name: res.stock.name,
+    sale_price: parseFloat(res.stock.sale_price),
+    purchase_price: parseFloat(res.stock.purchase_price || 0),
+    gst: parseFloat(res.stock.gst || 0),
+    quantity: 1,
+
+    // 🔐 VERY IMPORTANT: Anti-Theft data POS तक पहुंचे
+    product_attributes: res.stock.product_attributes || {}
+};
+
 
         // 'currentStock' list ko bhi update karein (taaki quantity check kaam kare)
         currentStock.push(res.stock);
@@ -10740,88 +10942,88 @@ function applyBusinessTypeUI(btype) {
 // [ ✅ FIXED: Salon Dashboard Loader (With Date/Time Sorting) ]
 
 async function loadSalonDashboard() {
+    let res = null;   // ✅ res ko function scope me lao
+
     try {
-        // 1. डैशबोर्ड का डेटा लाएं
-        const res = await fetchApi('/api/saloon/dashboard', { method: 'GET' });
-        
-        if (!res.success) throw new Error(res.message || 'No data');
-
-        // 2. कार्ड्स अपडेट करें
-        document.getElementById('salon-today-sales').innerText = formatCurrency(res.today_sales || 0);
-        // अब हम appointments + sales दोनों की गिनती दिखा रहे हैं
-        document.getElementById('salon-today-appts').innerText = (res.appointments || []).length;
-        document.getElementById('salon-birthdays-count').innerText = res.upcoming_birthdays || 0;
-        document.getElementById('salon-low-stock').innerText = res.low_stock_count || 0;
-
-        // 3. "Recent Customers / Booking List" रेंडर करें
-        const custBody = document.getElementById('salon-recent-customers-body');
-        const appts = res.appointments || [];
-        
-        if (appts.length > 0) {
-            custBody.innerHTML = appts.map(a => {
-                const dateObj = new Date(a.event_time);
-                const today = new Date();
-                const isToday = dateObj.toDateString() === today.toDateString();
-                
-                // तारीख और समय फॉर्मेटिंग
-                const dateStr = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-
-                // "Today" या "Date" बैज
-                const dayDisplay = isToday 
-                    ? `<span class="badge bg-success">Today</span>` 
-                    : `<span class="badge bg-warning text-dark">${dateStr}</span>`;
-
-                // Icon: Sale vs Booking
-                const typeIcon = a.type === 'SALE' 
-                    ? `<i class="fas fa-check-circle text-success" title="Completed Sale"></i>` 
-                    : `<i class="fas fa-clock text-primary" title="Upcoming Booking"></i>`;
-
-                // WhatsApp Message
-                const wpMsg = isToday 
-                    ? `नमस्ते ${a.customer_name}, आपकी आज की बुकिंग ${timeStr} पर है।`
-                    : `नमस्ते ${a.customer_name}, आपकी बुकिंग ${dateStr} को ${timeStr} पर पक्की है।`;
-
-                return `
-                <tr>
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <div class="me-2">${typeIcon}</div>
-                            <div>
-                                <div class="fw-bold text-dark">${a.customer_name}</div>
-                                <small class="text-muted" style="font-size: 0.8rem;">
-                                    ${a.service_name || 'Service'}
-                                </small>
-                            </div>
-                        </div>
-                    </td>
-                    <td>
-                        ${dayDisplay} <br>
-                        <small class="fw-bold text-dark">${timeStr}</small>
-                    </td>
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <span class="me-2 small">${a.customer_mobile || '--'}</span>
-                            <button class="btn btn-sm btn-success py-0 px-2" 
-                                onclick="sendWhatsAppMessage('${a.customer_mobile}', '${wpMsg}')"
-                                title="WhatsApp Reminder">
-                                <i class="fab fa-whatsapp"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            }).join('');
-        } else {
-            custBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted p-3">कोई बुकिंग या ग्राहक नहीं।</td></tr>`;
-        }
-
-        // 4. ग्राफ (Chart) अपडेट करें
-        renderSalonChart();
-
-    } catch (err) {
-        console.error('loadSalonDashboard Error:', err);
+        res = await fetchApi('/api/salon/dashboard');
+    } catch (e) {
+        console.warn('Salon dashboard failed, continuing UI', e);
+        return; // ❗ dashboard data nahi aaya, aage ka code mat chalao
     }
+
+    // 2. कार्ड्स अपडेट करें
+    document.getElementById('salon-today-sales').innerText =
+        formatCurrency(res.today_sales || 0);
+
+    document.getElementById('salon-today-appts').innerText =
+        (res.appointments || []).length;
+
+    document.getElementById('salon-birthdays-count').innerText =
+        res.upcoming_birthdays || 0;
+
+    document.getElementById('salon-low-stock').innerText =
+        res.low_stock_count || 0;
+
+    // 3. "Recent Customers / Booking List"
+    const custBody = document.getElementById('salon-recent-customers-body');
+    const appts = res.appointments || [];
+
+    if (appts.length > 0) {
+        custBody.innerHTML = appts.map(a => {
+            const dateObj = new Date(a.event_time);
+            const today = new Date();
+            const isToday = dateObj.toDateString() === today.toDateString();
+
+            const dateStr = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+            const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+            const dayDisplay = isToday
+                ? `<span class="badge bg-success">Today</span>`
+                : `<span class="badge bg-warning text-dark">${dateStr}</span>`;
+
+            const typeIcon = a.type === 'SALE'
+                ? `<i class="fas fa-check-circle text-success"></i>`
+                : `<i class="fas fa-clock text-primary"></i>`;
+
+            const wpMsg = isToday
+                ? `नमस्ते ${a.customer_name}, आपकी आज की बुकिंग ${timeStr} पर है।`
+                : `नमस्ते ${a.customer_name}, आपकी बुकिंग ${dateStr} को ${timeStr} पर पक्की है।`;
+
+            return `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="me-2">${typeIcon}</div>
+                        <div>
+                            <div class="fw-bold text-dark">${a.customer_name}</div>
+                            <small class="text-muted">${a.service_name || 'Service'}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    ${dayDisplay}<br>
+                    <small class="fw-bold text-dark">${timeStr}</small>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <span class="me-2 small">${a.customer_mobile || '--'}</span>
+                        <button class="btn btn-sm btn-success py-0 px-2"
+                            onclick="sendWhatsAppMessage('${a.customer_mobile}', '${wpMsg}')">
+                            <i class="fab fa-whatsapp"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    } else {
+        custBody.innerHTML =
+            `<tr><td colspan="3" class="text-center text-muted p-3">
+                कोई बुकिंग या ग्राहक नहीं।
+            </td></tr>`;
+    }
+
+    // 4. ग्राफ अपडेट
+    renderSalonChart();
 }
 
 // --- Salon Chart Function ---
@@ -11815,82 +12017,100 @@ async function createRepairJob() {
 }
 
 // 2. 🚛 DELIVERY TRACKER (तिजोरी डिलीवरी की मैनुअल एंट्री)
-async function scheduleFurnitureDelivery() {
-    const data = {
-        invoiceId: document.getElementById('furn_invoice_id').value, // बिल नंबर
-        date: document.getElementById('furn_delivery_date').value,   // कब भेजना है
-        assembly: document.getElementById('furn_assembly').checked   // मिस्त्री चाहिए? (Checkbox)
-    };
-
-    if(!data.date) {
-        return showMessage("तारीख चुनें", "❌ डिलीवरी की तारीख चुनें।", "warning");
-    }
-
-    try {
-        const res = await fetchApi('/api/furniture/update-delivery', { method: 'POST', body: data });
-        if(res.success) {
-            showMessage("सफलता", "✅ डिलीवरी शेड्यूल हो गई!", "success");
-            
-            // फॉर्म खाली करें
-            document.getElementById('furn_invoice_id').value = '';
-            document.getElementById('furn_delivery_date').value = '';
-        }
-    } catch(e) { 
-        alert(e.message); 
-    }
-}
 
 // 1. डिलीवरी लिस्ट लोड करने का फंक्शन
 // 1. लिस्ट लोड करने का फंक्शन (Debug के साथ)
+// [ ✅ FIXED: LOAD DELIVERY LIST (TARGETS NEW ID) ]
+// [ ✅ FIXED: Delivery List Loader (Targets New ID) ]
+// [ ✅ FIXED: DELIVERY LIST LOADER (NO CACHE) ]
+// [ ✅ FIXED: DELIVERY LIST LOADER (NO CACHE & AUTO-SCROLL) ]
+// [ ✅ UPDATED: DELIVERY LIST (Hides Completed Items) ]
 async function loadDeliveryList() {
-    // हम दोनों IDs चेक करेंगे (Hardware या Furniture) ताकि गलती की गुंजाइश न रहे
-    const tbody = document.getElementById('hardware-delivery-list') || document.getElementById('furniture-delivery-list');
-    
-    if (!tbody) {
-        console.error("❌ Error: डिलीवरी लिस्ट की Table (tbody) नहीं मिली!");
-        return;
-    }
+    const tbody = document.getElementById('delivery-list-final');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-primary"><div class="spinner-border spinner-border-sm"></div> लोड हो रहा है...</td></tr>`;
 
     try {
-        console.log("🔄 डिलीवरी लिस्ट लोड हो रही है...");
+        // टाइमस्टैम्प से फ्रेश डेटा लाएं
+        const uniqueUrl = '/api/furniture/deliveries?t=' + new Date().getTime();
+        const res = await fetchApi(uniqueUrl, { method: 'GET' }, null);
         
-        // API कॉल करें
-        const res = await fetchApi('/api/furniture/deliveries', { method: 'GET' }, null); 
-        
-        if (res.success && res.deliveries.length > 0) {
-            // डाटा मिल गया -> टेबल में दिखाएं
-            tbody.innerHTML = res.deliveries.map(item => `
-                <tr>
-                    <td>
-                        <span class="fw-bold text-primary">${item.invoice_id}</span>
-                    </td>
-                    <td>${new Date(item.delivery_date).toLocaleDateString('en-IN')}</td>
-                    <td class="text-center">
-                        ${item.assembly_required 
-                            ? '<span class="badge bg-danger">Mistri Yes</span>' 
-                            : '<span class="badge bg-success">No</span>'}
-                        <br>
-                        <small class="text-muted">${item.delivery_status || 'Pending'}</small>
-                    </td>
-                </tr>
-            `).join('');
-            console.log("✅ लिस्ट अपडेट हो गई");
+        tbody.innerHTML = ''; 
+
+        if (res.success && res.deliveries && res.deliveries.length > 0) {
+            
+            // 🚀 सिर्फ वही दिखाएं जो 'DELIVERED' नहीं हैं
+            const pendingItems = res.deliveries.filter(item => item.delivery_status !== 'DELIVERED');
+
+            if (pendingItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-success fw-bold py-3">✅ सब काम पूरा हो गया! (No Pending)</td></tr>`;
+                return;
+            }
+
+            pendingItems.forEach(item => {
+                const dateObj = new Date(item.delivery_date);
+                const dateStr = !isNaN(dateObj) 
+                    ? dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                    : item.delivery_date;
+
+                const mistriBadge = item.assembly_required 
+                    ? '<span class="badge bg-danger ms-1" style="font-size:0.7em">Mistri</span>' 
+                    : '';
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>
+                            <span class="fw-bold text-dark">#${item.invoice_id}</span>
+                            ${mistriBadge}
+                        </td>
+                        <td>${dateStr}</td>
+                        <td><span class="badge bg-warning text-dark">Pending</span></td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-success border-0" 
+                                onclick="markDeliveryDone('${item.invoice_id}')" 
+                                title="काम हो गया (Mark Done)">
+                                <i class="fas fa-check-circle fa-lg"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
         } else {
-            // कोई डाटा नहीं मिला
-            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">अभी कोई डिलीवरी पेंडिंग नहीं है।</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">कोई पेंडिंग डिलीवरी नहीं है।</td></tr>`;
         }
     } catch (e) {
         console.error("API Error:", e);
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">डेटा लोड नहीं हो सका।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading data.</td></tr>`;
     }
 }
 
+// [ ✅ NEW FUNCTION: Mark as Done ]
+async function markDeliveryDone(invoiceId) {
+    if(!confirm("क्या डिलीवरी पूरी हो गई है? यह लिस्ट से हट जाएगा।")) return;
+
+    try {
+        const res = await fetchApi('/api/furniture/mark-done', { 
+            method: 'POST', 
+            body: { invoiceId } 
+        });
+
+        if (res.success) {
+            // तुरंत लिस्ट रिफ्रेश करें -> आइटम गायब हो जाएगा
+            loadDeliveryList();
+            showMessage("सफलता", "✅ डिलीवरी कम्पलीट! लिस्ट से हटा दिया गया।", "success");
+        }
+    } catch (e) {
+        alert(e.message);
+    }
+}
 // 2. पुराने scheduleFurnitureDelivery को अपडेट करें (ताकि सेव करते ही लिस्ट दिखे)
 // 2. डिलीवरी सेव करने का फंक्शन (सेव होते ही लिस्ट रिफ्रेश करेगा)
+// [ ✅ FIXED: Delivery Schedule Function (With Auto-Refresh) ]
+// [ ✅ FIXED: DELIVERY SCHEDULE FUNCTION ]
 async function scheduleFurnitureDelivery() {
     const btn = document.querySelector('button[onclick="scheduleFurnitureDelivery()"]');
     
-    // इनपुट्स से वैल्यू लें
     const invoiceId = document.getElementById('furn_invoice_id').value;
     const date = document.getElementById('furn_delivery_date').value;
     const assembly = document.getElementById('furn_assembly').checked;
@@ -11899,11 +12119,11 @@ async function scheduleFurnitureDelivery() {
         return showMessage("अधूरा डेटा", "❌ कृपया बिल नंबर और तारीख दोनों चुनें।", "warning");
     }
 
-    // बटन को डिसेबल करें
-    if(btn) { btn.disabled = true; btn.innerHTML = "सेव हो रहा है..."; }
+    if(btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> सेव हो रहा है...'; }
 
     try {
         const data = { invoiceId, date, assembly };
+        // डेटा भेजें
         const res = await fetchApi('/api/furniture/update-delivery', { method: 'POST', body: data });
         
         if(res.success) {
@@ -11914,18 +12134,16 @@ async function scheduleFurnitureDelivery() {
             document.getElementById('furn_delivery_date').value = '';
             document.getElementById('furn_assembly').checked = false;
             
-            // 🚀 सबसे ज़रूरी: लिस्ट को तुरंत दोबारा लोड करें
-            setTimeout(() => {
-                loadDeliveryList(); 
-            }, 500); // आधा सेकंड रुक कर लोड करें ताकि डेटाबेस अपडेट हो जाए
+            // 🚀 लिस्ट को 1 सेकंड बाद रिफ्रेश करें (ताकि सर्वर डेटा सेव कर ले)
+            setTimeout(loadDeliveryList, 1000); 
         }
     } catch(e) { 
-        alert(e.message); 
+        showMessage("त्रुटि", e.message, "danger"); 
     } finally {
-        // बटन वापस ठीक करें
-        if(btn) { btn.disabled = false; btn.innerHTML = "Schedule Delivery"; }
+        if(btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Schedule Delivery'; }
     }
 }
+
 
 // 🚀 GOD MODE: Helper Function to toggle Date Input
 function togglePosDeliveryDate() {
@@ -11988,9 +12206,9 @@ function getSmartMessage(template, data) {
         .replace(/{items}/g, data.items.map(i => i.name).join(', '));
 }
 
-// 3. MAIN EXECUTION FUNCTION (MOBILE FIX APPLIED HERE)
-// [ ✅ FIXED: WhatsApp Message Indentation Fix (बाकी लॉजिक सेम है) ]
-// [ ✅ FIXED: WhatsApp Message Cleaner for Mobile & Desktop ]
+// 3. MAIN EXECUTION FUNCTION (UPDATED: NO DOUBLE WHATSAPP)
+// [ ✅ FIXED: WhatsApp Opening Logic Removed (To avoid double screens) ]
+// [ ✅ KEEPS: Server Update & PDF Download ]
 async function executeGodModeDelivery(invoiceId, customerName, customerMobile, items, preOpenedWindow) {
     const isEnabled = document.getElementById('pos_auto_deliver_check')?.checked;
     
@@ -12017,25 +12235,23 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
     }
 
     try {
-        // 1. सर्वर अपडेट
+        // 1. सर्वर अपडेट (DATABASE UPDATE)
         await fetchApi('/api/furniture/update-delivery', { 
             method: 'POST', body: { invoiceId: invoiceId, date: date, assembly: (mistriMobile ? true : false) } 
         });
 
         if (typeof loadDeliveryList === 'function') setTimeout(loadDeliveryList, 500);
 
-        // 2. PDF डाउनलोड
+        // 2. PDF डाउनलोड (PDF GENERATION)
         const totalBill = items.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
         if (typeof generateAndDownloadPDF === 'function') {
             generateAndDownloadPDF(invoiceId, customerName, items, totalBill);
         }
 
         // =======================================================
-        // 🧹 CLEANER: मैसेज की सफाई (Mobile Fix)
+        // 🧹 MESSAGE GENERATION (Link create karenge par kholenge nahi)
         // =======================================================
         let templateRaw = document.getElementById('pos_wa_template').value;
-        
-        // 🚀 यह लाइन जादुई है: यह हर लाइन के आगे-पीछे का खाली स्पेस हटा देगी
         templateRaw = templateRaw.split('\n').map(line => line.trim()).filter(line => line !== '').join('\n');
 
         const templateData = {
@@ -12056,64 +12272,48 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
             baseUrl = 'https://web.whatsapp.com/send';
         }
 
-        // --- 1. CUSTOMER MESSAGE ---
+        // --- 1. CUSTOMER MESSAGE (SILENT MODE) ---
+        // 🛑 CHANGE: यहाँ हम विंडो नहीं खोलेंगे क्योंकि handleCompleteSale यह कर चुका है
         if (sendToCust && customerMobile) {
-            let cleanMobile = customerMobile.replace(/[^0-9]/g, '');
-            if(cleanMobile.length === 10) cleanMobile = '91' + cleanMobile;
-
-            const url = `${baseUrl}?phone=${cleanMobile}&text=${encodeURIComponent(finalMsg)}`;
-
-            if (isMobileDevice) {
-                setTimeout(() => { window.location.href = url; }, 1500);
-            } else {
-                if (preOpenedWindow && !preOpenedWindow.closed) {
-                    preOpenedWindow.location.href = url;
-                } else {
-                    window.open(url, 'DukanProWA'); 
-                }
-            }
-        } else {
+            console.log("✅ GodMode: Customer WhatsApp handled by Main Function. Skipping here to prevent double tab.");
+            
+            // अगर कोई खाली विंडो खुली थी, तो उसे बंद कर दें
+            if (preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
+        } 
+        else {
             if (!sendToMistri && preOpenedWindow && !isMobileDevice) preOpenedWindow.close();
         }
 
-        // --- 2. MISTRI MESSAGE ---
+        // --- 2. MISTRI MESSAGE (BUTTON SETUP ONLY) ---
+        // मिस्त्री के लिए हम बटन सेट करेंगे (ऑटोमेटिक नहीं खोलेंगे)
         if (sendToMistri && mistriMobile) {
             let cleanMistri = mistriMobile.replace(/[^0-9]/g, '');
             if(cleanMistri.length === 10) cleanMistri = '91' + cleanMistri;
 
             const btn = document.getElementById('complete-sale-btn');
             
-            // मिस्त्री का मैसेज भी साफ़ करें
             let msgMistri = `🛠️ *Job Alert*\n📍 ग्राहक: ${customerName}\n📞: ${customerMobile}\n🚚 तारीख: ${new Date(date).toLocaleDateString('en-IN')}\n📦 सामान: ${items.map(i => i.name).join(', ')}`;
             
             const urlMistri = `${baseUrl}?phone=${cleanMistri}&text=${encodeURIComponent(msgMistri)}`;
 
+            // बटन का रंग और टेक्स्ट बदलें
             btn.innerHTML = `<i class="fab fa-whatsapp"></i> मिस्त्री (${mistriMobile}) को भेजें`;
             btn.className = "btn btn-info btn-lg w-100 fw-bold";
 
+            // क्लिक करने पर क्या होगा
             btn.onclick = function() {
-                window.location.href = urlMistri; 
+                if(isMobileDevice) {
+                    window.location.href = urlMistri;
+                } else {
+                    window.open(urlMistri, 'DukanProWA');
+                }
                 setTimeout(resetPOSButton, 2000);
             };
 
-            if (!isMobileDevice) {
-                if (!sendToCust && preOpenedWindow && !preOpenedWindow.closed) {
-                    preOpenedWindow.location.href = urlMistri;
-                    btn.innerHTML = "✅ काम हो गया (Reset)";
-                    btn.className = "btn btn-secondary btn-lg w-100";
-                    btn.onclick = resetPOSButton;
-                } else {
-                    btn.onclick = function() {
-                        window.open(urlMistri, 'DukanProWA');
-                        resetPOSButton();
-                    };
-                }
-                showMessage("अगला कदम", "✅ बिल डाउनलोड हुआ! अब मिस्त्री को भेजने के लिए नीले बटन पर क्लिक करें।", "info");
-            } else {
-                showMessage("अगला कदम", "✅ PDF डाउनलोड हो रही है। WhatsApp खुलने का इंतज़ार करें, या नीचे बटन दबाएं।", "success");
-            }
+            showMessage("अगला कदम", "✅ बिल और PDF तैयार! मिस्त्री को भेजने के लिए नीचे नीले बटन पर क्लिक करें।", "info");
 
         } else {
+            // अगर मिस्त्री को नहीं भेजना है, तो बटन रिसेट करें
             if (sendToCust || !sendToMistri) resetPOSButton();
         }
 
@@ -12123,7 +12323,6 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
         showMessage("Error", e.message, "danger");
     }
 }
-
 // 🧹 FINAL RESET FUNCTION (Sab Kuch Saaf Karega)
 // ==========================================
 function resetPOSButton() {
@@ -12351,158 +12550,304 @@ async function processHotelCheckIn() {
 
 // 1. 🏨 LIST LOAD FUNCTION (इसे अपडेट करें)
 async function loadHotelRooms() {
-    const tbody = document.getElementById('hotel-room-list');
-    if (!tbody) {
-        console.warn("⚠️ Room List Table नहीं मिली!"); 
-        return;
-    }
+    const container = document.getElementById('hotel-room-list'); 
+    if (!container) return;
+
+    // Table view हटाकर Grid View (डिब्बे) बना रहे हैं
+    container.parentElement.innerHTML = `<div id="room-grid-area" class="row g-3"></div>`;
+    const grid = document.getElementById('room-grid-area');
 
     try {
         const res = await fetchApi('/api/hotel/rooms', { method: 'GET' }, null);
 
         if (res.success && res.rooms.length > 0) {
-            tbody.innerHTML = res.rooms.map(room => {
+            grid.innerHTML = res.rooms.map(room => {
                 const isOccupied = room.status === 'OCCUPIED';
+                const colorClass = isOccupied ? 'bg-danger text-white' : 'bg-success text-white';
+                const icon = isOccupied ? 'fa-bed' : 'fa-door-open';
                 
-                // अगर बुक है तो 'RED' और 'Check-Out' बटन
-                // अगर खाली है तो 'GREEN' और 'Book' बटन
-                return `
-                    <tr>
-                        <td class="fw-bold fs-5">${room.room_number}</td>
-                        <td>
-                            ${isOccupied 
-                                ? '<span class="badge bg-danger">Occupied</span>' 
-                                : '<span class="badge bg-success">Available</span>'}
-                        </td>
-                        <td class="fw-bold text-primary">
-                            ${room.current_guest_name || '-'}
-                        </td>
-                        <td>
-                            ${isOccupied 
-                                ? `<button class="btn btn-sm btn-dark w-100" onclick="checkoutGuest('${room.room_number}')">
-                                     <i class="fas fa-sign-out-alt"></i> Check-Out
-                                   </button>` 
-                                : `<button class="btn btn-sm btn-outline-success w-100" onclick="selectRoom('${room.room_number}')">
-                                     <i class="fas fa-check"></i> Select
-                                   </button>`
-                            }
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        } else {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-muted p-3">कोई कमरा नहीं मिला (No Rooms Added)</td></tr>`;
-        }
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-// 2. 🏨 CHECK-OUT FUNCTION (नया)
-async function checkoutGuest(roomNo) {
-    if(!confirm(`क्या आप Room ${roomNo} का चेक-आउट करना चाहते हैं?\n(इससे रूम खाली हो जाएगा)`)) return;
-
-    try {
-        const res = await fetchApi('/api/hotel/checkout', { 
-            method: 'POST', 
-            body: { room_number: roomNo } 
-        });
-
-        if(res.success) {
-            showMessage("Check-Out", res.message, "success");
-            loadHotelRooms(); // 🚀 लिस्ट को तुरंत रिफ्रेश करें (ताकि एंट्री हट जाए)
-        } else {
-            showMessage("Error", res.message, "danger");
-        }
-    } catch(e) {
-        alert(e.message);
-    }
-}
-
-// 3. रूम सेलेक्ट करने का छोटा हेल्पर
-function selectRoom(roomNo) {
-    document.getElementById('hotel_room_select').value = roomNo;
-    document.getElementById('hotel_guest_name').focus();
-}
-// [ इसे अपनी HTML फाइल के <script> सेक्शन में सबसे नीचे पेस्ट करें ]
-
-// 1. "+ Add More Item" बटन का फंक्शन
-
-// 2. "Send to Kitchen" बटन का फंक्शन
-
-// [ इसे script टैग में नीचे पेस्ट करें ]
-
-// 1. KOT लिस्ट लोड करने का फंक्शन
-// [ इसे अपनी script में replace करें ]
-
-// 1. KOT लिस्ट (Big Fonts Version)
-async function loadLiveKOTs() {
-    const container = document.getElementById('active-kot-list');
-    if (!container) return;
-
-    try {
-        const res = await fetchApi('/api/restaurant/active-kots', { method: 'GET' }, null);
-        
-        if (res.success && res.kots.length > 0) {
-            container.innerHTML = res.kots.map(kot => {
-                // डेटा पार्स करें (tableNo और items)
-                let data = {};
-                try { data = typeof kot.items_json === 'string' ? JSON.parse(kot.items_json) : kot.items_json; } catch(e){}
+                // गेस्ट का नाम दिखाएं (अगर है तो)
+                const guestName = room.current_guest_name || 'Guest';
+                const guestInfo = isOccupied ? `<small>${guestName}</small>` : '<small>Empty</small>';
                 
-                const tableNo = data.tableNo || '?';
-                const itemsList = data.items || [];
-                
-                // आइटम्स की लिस्ट बनाएं
-                const itemsHtml = itemsList.map(i => 
-                    `<div class="d-flex justify-content-between border-bottom py-1">
-                        <span class="fw-bold">${i.item}</span>
-                        <span class="badge bg-primary rounded-pill">${i.qty}</span>
-                     </div>`
-                ).join('');
-
-                const time = new Date(kot.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                // 🚀 [यहाँ किया है बदलाव] 🚀
+                // भरा है तो 'checkoutGuest' (नाम के साथ), खाली है तो 'selectRoom'
+                const action = isOccupied 
+                    ? `checkoutGuest('${room.room_number}', '${guestName}')` 
+                    : `selectRoom('${room.room_number}')`;
 
                 return `
-                    <div class="card mb-2 shadow-sm border-warning">
-                        <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between p-2">
-                            <span class="badge bg-dark">Table ${tableNo}</span>
-                            <small class="text-muted">${time}</small>
-                        </div>
-                        <div class="card-body p-2" style="font-size: 0.9rem;">
-                            ${itemsHtml}
-                            <button class="btn btn-sm btn-success w-100 mt-2" onclick="completeKOT(${kot.id})">
-                                <i class="fas fa-check"></i> Order Ready (Done)
-                            </button>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <div class="card shadow-sm ${colorClass} text-center p-3" 
+                             style="cursor: pointer; transition: 0.3s;"
+                             onclick="${action}">
+                            <h4 class="mb-1">${room.room_number}</h4>
+                            <i class="fas ${icon} fa-2x mb-2"></i>
+                            <div class="text-truncate">${guestInfo}</div>
                         </div>
                     </div>
                 `;
             }).join('');
         } else {
-            container.innerHTML = `<div class="text-center text-muted p-3"><i class="fas fa-utensils"></i> कोई पेंडिंग आर्डर नहीं</div>`;
+            grid.innerHTML = `<div class="alert alert-warning col-12">कोई कमरा नहीं मिला। '+ Add Room' बटन दबाएं।</div>`;
+        }
+    } catch (e) { console.error(e); }
+}
+// 2. 🏨 CHECK-OUT FUNCTION (नया)
+// [ ✅ NEW: Open Checkout Modal ]
+let currentCheckoutRoom = null;
+let currentCheckoutGuest = null;
+
+function checkoutGuest(roomNo, guestName = 'Guest') {
+    // 1. डेटा सेट करें
+    currentCheckoutRoom = roomNo;
+    currentCheckoutGuest = guestName; // (अगर guestName नहीं आ रहा तो कोई बात नहीं)
+
+    // 2. Modal में दिखाएं
+    document.getElementById('co_room_no').innerText = `Room ${roomNo}`;
+    document.getElementById('co_guest_name').innerText = `Guest: ${guestName}`;
+    document.getElementById('co_amount').value = ''; // खाली करें
+
+    // 3. Modal खोलें
+    const modal = new bootstrap.Modal(document.getElementById('hotelCheckoutModal'));
+    modal.show();
+}
+
+/// [ ✅ FIXED: CHECKOUT FORM LISTENER (Safety Check Added) ]
+document.addEventListener("DOMContentLoaded", () => {
+    
+    const checkoutForm = document.getElementById('checkout-form');
+
+    if (checkoutForm) {
+        checkoutForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const amount = document.getElementById('co_amount').value;
+            const mode = document.getElementById('co_mode').value;
+
+            if(!amount || amount <= 0) {
+                if(!confirm("बिल अमाउंट 0 है। क्या आप बिना पैसे लिए चेक-आउट करना चाहते हैं?")) return;
+            }
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true; 
+            btn.innerHTML = 'Processing...';
+
+            try {
+                // Global variables (currentCheckoutRoom, etc) defined outside
+                const res = await fetchApi('/api/hotel/checkout', { 
+                    method: 'POST', 
+                    body: { 
+                        room_number: window.currentCheckoutRoom, // Using window to be safe
+                        total_bill: amount,
+                        payment_mode: mode,
+                        customer_name: window.currentCheckoutGuest
+                    } 
+                });
+
+                if(res.success) {
+                    showMessage("Success", res.message, "success");
+                    
+                    // Modal बंद करें
+                    const modalEl = document.getElementById('hotelCheckoutModal');
+                    if (modalEl) {
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
+
+                    if (typeof loadHotelRooms === 'function') loadHotelRooms();
+                } else {
+                    showMessage("Error", res.message, "danger");
+                }
+            } catch(e) {
+                alert(e.message);
+            } finally {
+                if(btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Collect & Checkout';
+                }
+            }
+        });
+        console.log("✅ Checkout Form initialized successfully.");
+    } else {
+        console.warn("⚠️ Warning: 'checkout-form' not found. Make sure HTML Modal is placed correctly.");
+    }
+});
+
+// 3. रूम सेलेक्ट करने का छोटा हेल्पर
+// [ ✅ FIXED: SELECT ROOM FUNCTION ]
+function selectRoom(roomNo) {
+    // 1. इनपुट बॉक्स ढूंढें
+    const roomInput = document.getElementById('hotel_room_select');
+    const guestInput = document.getElementById('hotel_guest_name');
+
+    if (roomInput) {
+        // 2. वैल्यू सेट करें
+        roomInput.value = roomNo;
+        
+        // 3. फॉर्म की तरफ स्क्रॉल करें (ताकि यूजर को दिखे)
+        document.getElementById('module-hotel-management').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+
+        // 4. गेस्ट के नाम पर फोकस करें (ताकि टाइपिंग शुरू कर सकें)
+        setTimeout(() => {
+            if(guestInput) guestInput.focus();
+        }, 500);
+
+        // 5. एक छोटा मैसेज दिखाएं
+        // (अगर आपके पास showMessage फंक्शन है तो)
+        if(typeof showMessage === 'function') {
+            showMessage("Room Selected", `Room ${roomNo} चुना गया। अब गेस्ट का नाम भरें।`, "info");
+        }
+    } else {
+        console.error("Error: 'hotel_room_select' इनपुट बॉक्स नहीं मिला!");
+        alert("Error: फॉर्म लोड नहीं हुआ है। पेज रिफ्रेश करें।");
+    }
+}// 1. "+ Add More Item" बटन का फंक्शन
+
+// [ ✅ FIXED: KOT LIST (With Permanent Buttons & Manual Refresh) ]
+// [ ✅ FIXED: COMPACT KOT LIST (Auto Height + Visible Buttons) ]
+async function loadLiveKOTs() {
+    const containerWaiter = document.getElementById('active-kot-list');
+    const containerKitchen = document.getElementById('active-kot-list-kitchen');
+
+    if (!containerWaiter && !containerKitchen) return;
+
+    // 1. 📏 लिस्ट की ऊंचाई बढ़ाना (ताकि बटन न कटे)
+    if(containerWaiter) containerWaiter.style.maxHeight = '85vh'; // स्क्रीन का 85% हिस्सा
+    if(containerKitchen) containerKitchen.style.maxHeight = '85vh'; 
+
+    try {
+        const res = await fetchApi('/api/restaurant/active-kots', { method: 'GET' }, null);
+        
+        if (res.success && res.kots && res.kots.length > 0) {
+            
+            const cardsHtml = res.kots.map(kot => {
+                let data = {};
+                try { data = typeof kot.items_json === 'string' ? JSON.parse(kot.items_json) : kot.items_json; } catch(e) {}
+                
+                const tableNo = data.tableNo || '??';
+                const waiter = data.waiter || 'Waitr';
+
+                // 2. 📉 छोटा और साफ़ आइटम लिस्ट (Compact List)
+                const itemsList = (data.items || []).map(i => 
+                    `<div class="d-flex justify-content-between border-bottom border-light py-1" style="font-size: 0.85rem;">
+                        <span class="text-dark fw-bold">${i.item}</span>
+                        <span class="badge bg-secondary" style="font-size: 0.8em;">x${i.qty}</span>
+                    </div>`
+                ).join('');
+
+                // 3. ✨ छोटा कार्ड डिज़ाइन (ताकि बटन हमेशा दिखे)
+                return `
+                    <div class="card mb-2 shadow-sm border-0" style="border-radius: 8px; border-left: 4px solid #0d6efd !important;">
+                        <div class="card-header bg-white p-2 d-flex justify-content-between align-items-center border-bottom">
+                            <div>
+                                <span class="badge bg-primary me-1">${tableNo}</span>
+                                <small class="text-muted fw-bold" style="font-size: 0.75rem;">👤 ${waiter}</small>
+                            </div>
+                            <small class="text-dark fw-bold" style="font-size: 0.75rem;">
+                                🕒 ${new Date(kot.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                            </small>
+                        </div>
+                        <div class="card-body p-2 bg-light">
+                            ${itemsList}
+                            
+                            <button class="btn btn-success btn-sm w-100 mt-2 fw-bold shadow-sm" style="font-size: 0.85rem;" onclick="completeKOT(${kot.id})">
+                                <i class="fas fa-check"></i> Done
+                            </button>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            // HTML सेट करें
+            if (containerWaiter) containerWaiter.innerHTML = cardsHtml;
+            if (containerKitchen) containerKitchen.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-dark">${res.kots.length} Pending</span>
+                    <button class="btn btn-sm btn-outline-dark py-0" onclick="loadLiveKOTs()">↻ Refresh</button>
+                </div>
+                ${cardsHtml}`;
+
+        } else {
+            const emptyHtml = `<div class="text-center text-muted p-4 border rounded bg-light"><small>No Active Orders</small><br><button class="btn btn-sm btn-link text-decoration-none" onclick="loadLiveKOTs()">Refresh</button></div>`;
+            if (containerWaiter) containerWaiter.innerHTML = emptyHtml;
+            if (containerKitchen) containerKitchen.innerHTML = emptyHtml;
         }
     } catch(e) { console.error(e); }
 }
-
-/// ✅ 2. KOT को 'Done' करने का फंक्शन
+// [ ✅ FUNCTION: Complete Order ]
 async function completeKOT(kotId) {
-    if(!confirm("क्या यह खाना टेबल पर सर्व कर दिया गया है?")) return;
+    if(!confirm("क्या ऑर्डर पूरा हो गया है?")) return;
     try {
         await fetchApi('/api/restaurant/complete-kot', { method: 'POST', body: { kotId } });
         loadLiveKOTs(); // लिस्ट रिफ्रेश करें
     } catch(e) { alert(e.message); }
 }
 
+
+// [ ✅ Ensure this function exists too ]
+async function completeKOT(kotId) {
+    if(!confirm("क्या यह आर्डर पूरा हो गया है? (List से हट जाएगा)")) return;
+    
+    try {
+        const res = await fetchApi('/api/restaurant/complete-kot', { method: 'POST', body: { kotId } });
+        if(res.success) {
+            // तुरंत लिस्ट रिफ्रेश करें
+            await loadLiveKOTs();
+            showMessage("सफलता", "✅ ऑर्डर पूरा हुआ!", "success");
+        } else {
+            showMessage("त्रुटि", res.message, "danger");
+        }
+    } catch(e) { 
+        alert("Error: " + e.message); 
+    }
+}
+
+
+
+// हेल्पर फंक्शन (ताकि कोड साफ़ रहे)
+function safeJsonParse(str) { try { return typeof str === 'string' ? JSON.parse(str) : str; } catch { return {}; } }
+function createItemsHtml(items) { return (items||[]).map(i => `<div class="d-flex justify-content-between border-bottom py-1"><span>${i.item}</span><span class="badge bg-primary">${i.qty}</span></div>`).join(''); }
+function formatTime(iso) { return new Date(iso).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }
+
+
+
+/// ✅ 2. KOT को 'Done' करने का फंक्शन
+async function completeKOT(kotId) {
+    if(!confirm("क्या यह खाना टेबल पर सर्व कर दिया गया है? (List se hat jayega)")) return;
+    
+    // बटन को डिसेबल करने का लॉजिक (Optional Visual Feedback)
+    // हम सीधे API कॉल करेंगे
+    
+    try {
+        const res = await fetchApi('/api/restaurant/complete-kot', { method: 'POST', body: { kotId } });
+        if(res.success) {
+            // तुरंत लिस्ट रिफ्रेश करें
+            await loadLiveKOTs();
+            showMessage("सफलता", "✅ ऑर्डर लिस्ट से हटा दिया गया!", "success");
+        } else {
+            showMessage("त्रुटि", res.message, "danger");
+        }
+    } catch(e) { 
+        alert("Error: " + e.message); 
+    }
+}
+
 // [ इसे Script सेक्शन में नीचे पेस्ट करें ]
 
 // 🍽️ KOT को POS बिलिंग में भेजने का फंक्शन
+// [ ✅ UPDATED: Transfer to POS (Uses new Dropdown ID) ]
 async function transferTableToPOS() {
-    const tableId = document.getElementById('rest_table_no').value;
+    // 🚀 Note: ID बदला है
+    const tableId = document.getElementById('rest_table_select').value;
     
     if(!tableId) {
-        return showMessage("त्रुटि", "कृपया Table Number डालें जिसका बिल बनाना है।", "warning");
+        return showMessage("त्रुटि", "कृपया Table/Room चुनें जिसका बिल बनाना है।", "warning");
     }
 
-    if(!confirm(`Table ${tableId} का बिल बनाना चाहते हैं? (सारे KOTs इसमें जुड़ जाएंगे)`)) return;
+    if(!confirm(`क्या आप ${tableId} का बिल बनाना चाहते हैं?`)) return;
 
     try {
         const res = await fetchApi('/api/restaurant/generate-bill', { 
@@ -12511,13 +12856,9 @@ async function transferTableToPOS() {
         }, 'बिल बन रहा है...');
 
         if (res.success && res.items.length > 0) {
-            // 1. POS स्क्रीन खोलें
-            renderView('sales'); 
+            renderView('sales'); // POS खोलें
             
-            // 2. कार्ट खाली करें (वैकल्पिक, अगर आप पुराना हटाना चाहते हैं)
-            // posCart = []; 
-
-            // 3. आइटम्स को POS कार्ट में डालें
+            // आइटम्स को POS कार्ट में डालें
             res.items.forEach(item => {
                 posCart.push({
                     sku: item.sku,
@@ -12529,17 +12870,8 @@ async function transferTableToPOS() {
                 });
             });
 
-            // 4. कार्ट व्यू अपडेट करें
             updatePOSCartView();
-            
-            // 5. एक प्यारा मैसेज दिखाएं
-            showMessage("सफलता", `✅ Table ${tableId} के आइटम्स बिल में जुड़ गए!`, "success");
-            
-            // 6. अगर किसी आइटम की कीमत 0 है, तो चेतावनी दें
-            const zeroPriceItems = res.items.filter(i => i.sale_price === 0);
-            if(zeroPriceItems.length > 0) {
-                alert("⚠️ कुछ आइटम्स की कीमत (Price) 0 है क्योंकि वे स्टॉक में नहीं मिले। कृपया POS में मैनुअल रेट डालें।");
-            }
+            showMessage("सफलता", `✅ ${tableId} के आइटम्स बिल में जुड़ गए!`, "success");
 
         } else {
             showMessage("Info", res.message || "कोई आइटम नहीं मिला।", "info");
@@ -12548,7 +12880,6 @@ async function transferTableToPOS() {
         showMessage("त्रुटि", e.message, "danger");
     }
 }
-
 
 // 1. एक नई डिश की लाइन जोड़ने का फंक्शन
 window.addDishRow = function() {
@@ -12567,55 +12898,108 @@ window.addDishRow = function() {
     row.querySelector('.dish-name').focus();
 };
 
+// ==========================================
+// 🚀 SUPER FAST KOT MANAGER (Optimized)
+// ==========================================
 
 // ==========================================
-// 🚀 FINAL KOT SYSTEM (Auto Table + Smart Search)
+// 🚀 SUPER FAST KOT MANAGER (Optimized)
 // ==========================================
 
-let kotCart = []; // अस्थायी कार्ट
+// ==========================================
+// 🚀 SUPER FAST KOT MANAGER (Error Fixed Version)
+// ==========================================
 
-// 1. पेज लोड होते ही टेबल लिस्ट बनाना
-function initRestaurantTables() {
-    const select = document.getElementById('rest_table_no');
-    if(!select) return;
-    
-    // अगर पहले से ऑप्शन हैं तो न छेड़ें
-    if(select.options.length > 1) return;
+// 1. Safe Global Variable Declaration (यह एरर को रोकेगा)
+// अगर पहले से बने हैं तो ठीक, नहीं तो नए बनाओ
+if (typeof window.kotCart === 'undefined') window.kotCart = [];
+if (typeof window.cachedRooms === 'undefined') window.cachedRooms = null;
+if (typeof window.lastRoomFetchTime === 'undefined') window.lastRoomFetchTime = 0;
 
-    select.innerHTML = ''; // साफ़ करें
-    
-    // Table 1 से 20 तक जोड़ें
-    for(let i=1; i<=20; i++) {
-        const opt = document.createElement('option');
-        opt.value = i;
-        opt.innerText = `Table ${i}`;
-        select.appendChild(opt);
+// 2. KOT शुरू करते समय स्टॉक और रूम्स पहले ही लोड कर लें
+async function initKotSection() {
+    // Global variable का उपयोग करें
+    if (!window.currentStock || window.currentStock.length === 0) {
+        fetchApi('/api/stock', { method: 'GET' }, null).then(res => {
+            if(res.success) window.currentStock = res.stock;
+        });
     }
     
-    // कुछ एक्स्ट्रा ऑप्शन (होटल के लिए)
-    const extra = ['Room Service', 'Parcel / Takeaway', 'Staff Food'];
-    extra.forEach(ex => {
-        const opt = document.createElement('option');
-        opt.value = ex;
-        opt.innerText = ex;
-        select.appendChild(opt);
-    });
+    await refreshRoomCache();
+    toggleOrderSource();
 }
 
-// इस फंक्शन को तुरंत कॉल करें और RenderDashboard में भी डाल दें
-document.addEventListener('DOMContentLoaded', initRestaurantTables);
+// 3. रूम्स को सर्वर से लाने का स्मार्ट फंक्शन
+async function refreshRoomCache() {
+    const now = Date.now();
+    // 30 सेकंड का कैश चेक
+    if (window.cachedRooms && (now - window.lastRoomFetchTime < 30000)) {
+        return; 
+    }
 
+    try {
+        const res = await fetchApi('/api/hotel/rooms', { method: 'GET' }, null);
+        if (res.success) {
+            window.cachedRooms = res.rooms;
+            window.lastRoomFetchTime = now;
+        }
+    } catch (e) { console.error(e); }
+}
 
-// 2. आइटम सर्च (Smart Search)
-async function handleKotSearch(showAll = false) {
+// 4. टेबल और रूम के बीच स्विच करना
+async function toggleOrderSource() {
+    const isRoom = document.getElementById('type_room').checked;
+    const select = document.getElementById('rest_table_select');
+    
+    if(!select) return; // सुरक्षा चेक
+    select.innerHTML = ''; 
+
+    if (isRoom) {
+        select.classList.remove('border-primary');
+        select.classList.add('border-danger');
+
+        if (!window.cachedRooms) await refreshRoomCache();
+
+        const occupiedRooms = window.cachedRooms ? window.cachedRooms.filter(r => r.status === 'OCCUPIED') : [];
+
+        if (occupiedRooms.length > 0) {
+            select.innerHTML = occupiedRooms.map(r => 
+                `<option value="${r.room_number}">Room ${r.room_number} (${r.current_guest_name || 'Guest'})</option>`
+            ).join('');
+        } else {
+            select.innerHTML = '<option value="">No Guests Checked In</option>';
+        }
+
+    } else {
+        select.classList.remove('border-danger');
+        select.classList.add('border-primary');
+        
+        let options = '<option value="">-- Select Table --</option>';
+        for(let i=1; i<=20; i++) {
+            options += `<option value="T-${i}">Table ${i}</option>`;
+        }
+        options += '<option value="VIP">VIP Table</option>';
+        options += '<option value="Staff">Staff Food</option>';
+        options += '<option value="Parcel">Parcel / Takeaway</option>';
+        
+        select.innerHTML = options;
+    }
+}
+
+// 5. आइटम सर्च (Search)
+function handleKotSearch(showAll = false) {
     const input = document.getElementById('kot-search-input');
     const list = document.getElementById('kot-search-results');
     const query = input.value.toLowerCase().trim();
 
-    // स्टॉक लोड करें अगर खाली है
-    if (!currentStock || currentStock.length === 0) {
-        const res = await fetchApi('/api/stock', { method: 'GET' });
-        if (res.success) currentStock = res.stock;
+    if (!window.currentStock || window.currentStock.length === 0) {
+        fetchApi('/api/stock', { method: 'GET' }, null).then(res => {
+            if(res.success) {
+                window.currentStock = res.stock;
+                handleKotSearch(showAll);
+            }
+        });
+        if(!showAll) return; 
     }
 
     if (!showAll && query.length === 0) {
@@ -12623,18 +13007,15 @@ async function handleKotSearch(showAll = false) {
         return;
     }
 
-    // फ़िल्टर करें
     const matches = showAll 
-        ? currentStock 
-        : currentStock.filter(item => item.name.toLowerCase().includes(query));
+        ? window.currentStock 
+        : window.currentStock.filter(item => item.name.toLowerCase().includes(query));
 
     if (matches.length > 0) {
-        list.innerHTML = matches.map(item => `
+        list.innerHTML = matches.slice(0, 50).map(item => `
             <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
                 onclick="addKotItem('${item.sku}')" style="cursor: pointer;">
-                <div>
-                    <strong>${item.name}</strong>
-                </div>
+                <div><strong>${item.name}</strong></div>
                 <span class="badge bg-success rounded-pill">₹${item.sale_price}</span>
             </li>
         `).join('');
@@ -12645,48 +13026,136 @@ async function handleKotSearch(showAll = false) {
     }
 }
 
-// 3. कार्ट में आइटम जोड़ना
+// 6. आइटम ऐड करना
 function addKotItem(sku) {
-    const item = currentStock.find(i => i.sku === sku);
-    if (!item) return;
+    const cleanSku = String(sku).trim();
+    const item = window.currentStock.find(i => String(i.sku).trim() === cleanSku);
+    
+    if (!item) {
+        // अगर आइटम नहीं मिला, तो हो सकता है स्टॉक पुराना हो
+        console.error("Item not found in currentStock:", sku);
+        return;
+    }
 
-    const existing = kotCart.find(i => i.sku === sku);
+    // window.kotCart का उपयोग करें
+    const existing = window.kotCart.find(i => i.sku === cleanSku);
+    
     if (existing) {
         existing.qty++;
     } else {
-        kotCart.push({ sku: item.sku, name: item.name, qty: 1 });
+        window.kotCart.push({ 
+            sku: item.sku, 
+            name: item.name, 
+            qty: 1,
+            price: item.sale_price 
+        });
     }
 
-    renderKotList();
+    renderKotList(); 
     
-    // सर्च बॉक्स रीसेट
     const searchInput = document.getElementById('kot-search-input');
     searchInput.value = '';
     document.getElementById('kot-search-results').style.display = 'none';
     searchInput.focus();
 }
 
-// 4. कार्ट दिखाना (HTML Render)
+// 7. लिस्ट रेंडर करना
 function renderKotList() {
     const container = document.getElementById('kot-added-list');
     
-    if (kotCart.length === 0) {
-        container.innerHTML = `<div class="text-center text-muted small mt-3">अभी कोई आइटम नहीं चुना</div>`;
+    if (window.kotCart.length === 0) {
+        container.innerHTML = `<div class="text-center text-muted small mt-3 p-3 bg-light rounded">
+            <i class="fas fa-basket-shopping fa-2x mb-2 text-secondary"></i><br>
+            अभी कोई आइटम नहीं चुना
+        </div>`;
         return;
     }
 
-    container.innerHTML = kotCart.map((item, index) => `
-        <div class="d-flex justify-content-between align-items-center border-bottom py-2 bg-white px-2 mb-1 rounded">
-            <span class="fw-bold text-dark">${item.name}</span>
-            <div class="d-flex align-items-center">
-                <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="updateKotQty(${index}, -1)">-</button>
+    container.innerHTML = window.kotCart.map((item, index) => `
+        <div class="d-flex justify-content-between align-items-center border-bottom py-2 bg-white px-2 mb-1 rounded shadow-sm">
+            <div>
+                <span class="fw-bold text-dark">${item.name}</span>
+                <br><small class="text-muted">₹${item.price} x ${item.qty} = ₹${item.price * item.qty}</small>
+            </div>
+            <div class="d-flex align-items-center bg-light rounded p-1 border">
+                <button class="btn btn-sm btn-danger py-0 px-2 fw-bold" onclick="updateKotQty(${index}, -1)">-</button>
                 <span class="mx-2 fw-bold" style="min-width:20px; text-align:center;">${item.qty}</span>
-                <button class="btn btn-sm btn-outline-success py-0 px-2" onclick="updateKotQty(${index}, 1)">+</button>
-                <button class="btn btn-sm text-danger ms-3" onclick="removeKotItem(${index})"><i class="fas fa-trash"></i></button>
+                <button class="btn btn-sm btn-success py-0 px-2 fw-bold" onclick="updateKotQty(${index}, 1)">+</button>
+                <button class="btn btn-sm text-danger ms-2 border-start ps-2" onclick="removeKotItem(${index})"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     `).join('');
 }
+
+function updateKotQty(index, change) {
+    if (window.kotCart[index].qty + change > 0) {
+        window.kotCart[index].qty += change;
+        renderKotList();
+    } else {
+        removeKotItem(index);
+    }
+}
+
+function removeKotItem(index) {
+    window.kotCart.splice(index, 1);
+    renderKotList();
+}
+
+// सेटअप
+document.addEventListener('DOMContentLoaded', () => {
+    initKotSection();
+});
+
+
+// 1. पेज लोड होते ही टेबल लिस्ट बनाना
+// [ ✅ FIXED: Initialize Tables (Same Logic, New System) ]
+function initRestaurantTables() {
+    // यह फ़ंक्शन पेज लोड होने पर अपने आप "Table Mode" सेट कर देगा
+    // और 1 से 20 टेबल + एक्स्ट्रा ऑप्शन लिस्ट में भर देगा।
+    
+    // पुराना लॉजिक अब 'toggleOrderSource' के अंदर शिफ्ट हो गया है,
+    // इसलिए हमें बस उसे कॉल करना है।
+    if (typeof toggleOrderSource === 'function') {
+        toggleOrderSource();
+    }
+}
+// इस फंक्शन को तुरंत कॉल करें और RenderDashboard में भी डाल दें
+document.addEventListener('DOMContentLoaded', initRestaurantTables);
+
+
+
+// [ ✅ LOAD WAITERS DYNAMICALLY ]
+async function loadWaiters() {
+    const select = document.getElementById('waiter_select');
+    if(!select) return;
+
+    try {
+        // सर्वर से स्टाफ लिस्ट मंगाएं
+        const res = await fetchApi('/api/users', { method: 'GET' }, null);
+        
+        if (res.success && res.users) {
+            // ड्रॉपडाउन को खाली करें और डिफ़ॉल्ट ऑप्शन डालें
+            select.innerHTML = '<option value="Self">-- Select Waiter --</option>';
+            
+            // लिस्ट से नाम भरकर ड्रॉपडाउन में डालें
+            res.users.forEach(user => {
+                // सिर्फ उन्हें दिखाएं जो एक्टिव हैं
+                if(user.status === 'active') {
+                    const opt = document.createElement('option');
+                    opt.value = user.name;
+                    opt.innerText = user.name;
+                    select.appendChild(opt);
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Waiters load error:", e);
+    }
+}
+
+// पेज लोड होते ही वेटर लिस्ट अपडेट करें
+document.addEventListener('DOMContentLoaded', loadWaiters);
+
 
 // 5. मात्रा अपडेट
 function updateKotQty(index, change) {
@@ -12700,50 +13169,61 @@ function removeKotItem(index) {
     kotCart.splice(index, 1);
     renderKotList();
 }
-
-// 6. किचन में भेजना (Send to Kitchen)
-// ✅ 4. किचन में भेजने का मुख्य फंक्शन (Updated)
+// [ ✅ FIXED: KOT SENDING (Update UI First, Then Print) ]
 async function sendKotToKitchen() {
-    const tableId = document.getElementById('rest_table_no').value;
+    const tableId = document.getElementById('rest_table_select').value;
     
-    // items array बनाने का लॉजिक (आपके पुराने कोड के अनुसार)
-    // अगर आप स्मार्ट सर्च यूज़ कर रहे हैं तो kotCart यूज़ करें, नहीं तो manual logic
-    // यहाँ मैं मान रहा हूँ कि आप मेरे पिछले स्मार्ट सर्च कोड (kotCart) का उपयोग कर रहे हैं:
-    
+    // 1. कार्ट चेक करें
     if (typeof kotCart === 'undefined' || kotCart.length === 0) {
         return showMessage("खाली ऑर्डर", "❌ कृपया कम से कम एक आइटम चुनें।", "warning");
     }
     
-    // API के लिए डेटा तैयार करें
+    if(!tableId) {
+        return showMessage("Table Missing", "❌ कृपया Table या Room चुनें।", "warning");
+    }
+    
+    // 2. वेटर का नाम लें (अगर ड्रॉपडाउन है तो)
+    const waiterSelect = document.getElementById('waiter_select');
+    const waiterName = waiterSelect ? waiterSelect.value : 'Server';
+
+    // 3. डेटा तैयार करें
     const itemsToSend = kotCart.map(i => ({ item: i.name, qty: i.qty }));
 
+    // 4. बटन को 'Loading' करें
     const btn = document.querySelector('button[onclick="sendKotToKitchen()"]');
-    if(btn) { btn.disabled = true; btn.innerHTML = 'Sending...'; }
+    if(btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...'; }
 
     try {
+        // 5. सर्वर पर भेजें
         const res = await fetchApi('/api/restaurant/create-kot', {
             method: 'POST',
-            body: { tableId, items: itemsToSend }
+            body: { tableId, items: itemsToSend, waiter: waiterName }
         });
 
         if (res.success) {
-            showMessage("सफलता", "✅ KOT किचन में भेज दिया गया!", "success");
+            // ✅ SUCCESS!
+            showMessage("सफलता", "✅ ऑर्डर किचन में चला गया!", "success");
+
+            // 6. 🚀 CRITICAL FIX: पहले स्क्रीन अपडेट करें (ताकि यूजर को दिखे)
+            if (typeof loadLiveKOTs === 'function') await loadLiveKOTs(); // लिस्ट रिफ्रेश
             
-            // 🖨️ 1. डायरेक्ट प्रिंट करें
-            printKOT(tableId, itemsToSend);
-
-            // 🔄 2. एक्टिव आर्डर लिस्ट रिफ्रेश करें
-            loadLiveKOTs(); 
-
-            // 🧹 3. कार्ट खाली करें
+            // 7. कार्ट खाली करें
             kotCart = []; 
-            if(typeof renderKotList === 'function') renderKotList(); // UI साफ़ करें
+            if(typeof renderKotList === 'function') renderKotList();
+
+            // 8. 🖨️ आखिर में प्रिंट निकालें (0.5 सेकंड रुककर ताकि स्क्रीन अपडेट हो जाए)
+            // अगर आपको PDF/Print नहीं चाहिए, तो नीचे वाली लाइन हटा दें
+            setTimeout(() => {
+                if(typeof printKOT === 'function') printKOT(tableId, itemsToSend, waiterName, res.kotId || 'New');
+            }, 500);
+            
         } else {
             showMessage("त्रुटि", res.message, "danger");
         }
     } catch (e) {
         showMessage("Error", e.message, "danger");
     } finally {
+        // बटन को वापस नॉर्मल करें
         if(btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane me-2"></i> Send to Kitchen'; }
     }
 }
@@ -12757,44 +13237,223 @@ initRestaurantTables();
 // ==========================================
 
 // ✅ 3. KOT प्रिंट करने का फंक्शन (Direct Print)
-function printKOT(tableNo, items) {
+function printKOT(tableNo, items, waiter, kotId) {
+    // छोटी पर्ची का डिज़ाइन (Thermal Printer Friendly)
     const printContent = `
-        <div style="font-family: monospace; width: 300px; padding: 10px; border: 1px solid #000;">
-            <h3 style="text-align: center; margin: 0;">👨‍🍳 KOT (Kitchen Order)</h3>
-            <p style="text-align: center; margin: 5px 0; font-size: 12px;">${new Date().toLocaleString()}</p>
+        <div style="font-family: monospace; width: 280px; font-size: 12px; font-weight: bold;">
+            <div style="text-align: center;">** KITCHEN ORDER **</div>
+            <div style="text-align: center;">KOT #: ${kotId} | ${new Date().toLocaleTimeString()}</div>
             <hr style="border-top: 1px dashed #000;">
-            <h2 style="text-align: center; margin: 10px 0;">TABLE: ${tableNo}</h2>
+            <div style="font-size: 16px;">TABLE: ${tableNo}</div>
+            <div>WAITER: ${waiter}</div>
             <hr style="border-top: 1px dashed #000;">
-            <table style="width: 100%; text-align: left; font-size: 14px;">
-                <thead>
-                    <tr><th style="width: 70%;">Item</th><th style="width: 30%; text-align: right;">Qty</th></tr>
-                </thead>
-                <tbody>
-                    ${items.map(i => `
-                        <tr>
-                            <td style="padding: 4px 0; font-weight: bold;">${i.item}</td>
-                            <td style="padding: 4px 0; text-align: right; font-weight: bold; font-size: 16px;">${i.qty}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
+            <table style="width: 100%; text-align: left;">
+                ${items.map(i => `
+                    <tr>
+                        <td style="width: 75%;">${i.item}</td>
+                        <td style="width: 25%; text-align: right; font-size: 14px;">x${i.qty}</td>
+                    </tr>
+                `).join('')}
             </table>
             <hr style="border-top: 1px dashed #000;">
-            <p style="text-align: center; margin-top: 10px;">** CHEF COPY **</p>
         </div>
     `;
 
-    // प्रिंट विंडो खोलें
-    const printWindow = window.open('', '', 'height=600,width=400');
-    printWindow.document.write('<html><head><title>Print KOT</title></head><body>');
-    printWindow.document.write(printContent);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
+    // नई विंडो खोलकर प्रिंट कमांड दें
+    const win = window.open('', '', 'height=500,width=400');
+    win.document.write('<html><body>');
+    win.document.write(printContent);
+    win.document.write('</body></html>');
+    win.document.close();
+    win.print(); // यह सीधे प्रिंट डायलॉग खोलेगा
     
-    // थोड़ा रुककर प्रिंट करें
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+    // मोबाइल पर विंडो अपने आप बंद करने के लिए (वैकल्पिक)
+    setTimeout(() => { win.close(); }, 1000);
+}
+
+// [ ✅ AUTO SETUP: Create 10 Rooms (101-110) ]
+async function setupHotelRooms() {
+    if(!confirm("क्या आप ऑटोमैटिक 10 रूम (101-110) बनाना चाहते हैं?")) return;
+
+    showLoader("रूम्स बन रहे हैं...");
+
+    try {
+        // 101 से 110 तक लूप चलाएं
+        for (let i = 101; i <= 110; i++) {
+            await fetchApi('/api/hotel/add-room', { 
+                method: 'POST', 
+                body: { roomNumber: i.toString() } 
+            }, null); // null का मतलब हर बार लोडर न दिखाएं
+        }
+
+        hideLoader();
+        showMessage("सफलता", "✅ 10 रूम्स सफलतापूर्वक बन गए!", "success");
+        loadHotelRooms(); // तुरंत लिस्ट रिफ्रेश करें
+
+    } catch (e) {
+        hideLoader();
+        alert("Error: " + e.message);
+    }
+}
+
+
+// [ ✅ MANUAL ADD: Add Single Room ]
+async function addRoomManually() {
+    // 1. रूम नंबर पूछें
+    const roomNo = prompt("नया रूम नंबर डालें (Example: 201, 305, VIP-1):");
+    
+    // अगर खाली छोड़ दिया या कैंसिल किया तो रुक जाएं
+    if (!roomNo || roomNo.trim() === "") return;
+
+    // 2. सर्वर पर भेजें
+    try {
+        const res = await fetchApi('/api/hotel/add-room', { 
+            method: 'POST', 
+            body: { roomNumber: roomNo.trim() } 
+        }, 'रूम बन रहा है...');
+
+        if (res.success) {
+            showMessage("सफलता", `✅ रूम ${roomNo} बन गया!`, "success");
+            loadHotelRooms(); // लिस्ट रिफ्रेश करें ताकि रूम दिखे
+        } else {
+            alert("❌ " + res.message);
+        }
+    } catch (e) {
+        alert("Error: " + e.message);
+    }
+}
+
+// [ ✅ KITCHEN MODE: Hides everything except Active Orders ]
+function enableKitchenMode() {
+    if(!confirm("क्या आप किचन डिस्प्ले मोड चालू करना चाहते हैं? (बाकी सब छुप जाएगा)")) return;
+
+    // 1. साइडबार और हेडर छुपाएं
+    document.getElementById('sidebar').style.display = 'none';
+    document.querySelector('.navbar-toggler').style.display = 'none';
+    
+    // 2. मेन कंटेंट को फुल स्क्रीन करें
+    const main = document.getElementById('main-content');
+    main.style.marginLeft = '0';
+    main.style.padding = '5px';
+
+    // 3. सब कुछ छुपाएं
+    document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.biz-module').forEach(el => el.style.display = 'none');
+
+    // 4. सिर्फ KOT वाला हिस्सा दिखाएं
+    const kotSection = document.getElementById('module-restaurant-kot');
+    kotSection.style.display = 'block';
+    
+    // 5. KOT सेक्शन के अंदर भी सिर्फ 'Active Orders' दिखाएं (ऊपर का सर्च बॉक्स हटा दें)
+    // (Optional: अगर आप सर्च बॉक्स भी छुपाना चाहते हैं तो नीचे वाली लाइन अन-कमेंट करें)
+    // document.querySelector('#module-restaurant-kot .card-body').children[0].style.display = 'none'; 
+
+    // 6. किचन व्यू कंटेनर दिखाएं
+    const kitchenView = document.getElementById('standalone-kitchen-view');
+    if(kitchenView) {
+        kitchenView.style.display = 'block';
+        // बड़े फोंट कर दें ताकि दूर से दिखे
+        kitchenView.style.fontSize = '1.2rem'; 
+    }
+    
+    alert("✅ किचन मोड चालू है। बाहर निकलने के लिए पेज रिफ्रेश करें।");
+    
+    // ऑटो रिफ्रेश शुरू करें
+    setInterval(loadLiveKOTs, 5000);
+}
+
+// [ ✂️ SALON CLEANUP CODE ]
+document.addEventListener('DOMContentLoaded', () => {
+    const user = JSON.parse(localStorage.getItem('authUser'));
+    
+    // अगर यूजर होटल नहीं है (यानी Salon या Retail है)
+    if (user && user.business_type !== 'HOTEL') {
+        const hotelOnlyPart = document.getElementById('hotel-bulk-dish-section');
+        if (hotelOnlyPart) {
+            hotelOnlyPart.style.display = 'none'; // इसे छुपा दो
+        }
+    }
+});
+
+
+// [ 🔥 FORCE REMOVE: HOTEL SECTION IN SALON ]
+// यह कोड हर आधे सेकंड में चेक करेगा और अगर सैलून में होटल वाला हिस्सा दिखा तो उसे मिटा देगा
+setInterval(() => {
+    // 1. यूजर चेक करें
+    let user = null;
+    try { user = JSON.parse(localStorage.getItem('authUser')); } catch(e){}
+
+    // 2. अगर यूजर SALON या RETAIL है (HOTEL नहीं है)
+    if (user && user.business_type !== 'HOTEL') {
+        
+        // उस बॉक्स को ढूंढें जिसमें "एक साथ कई डिशेज जोड़ें" लिखा है
+        document.querySelectorAll('h6').forEach(heading => {
+            if (heading.innerText.includes('एक साथ कई डिशेज जोड़ें') || heading.innerText.includes('Bulk Dishes')) {
+                
+                // उसके पूरे डिब्बे (Container) को ढूंढें
+                const container = heading.closest('.col-12') || heading.parentElement.parentElement;
+                
+                // और उसे हटा दें
+                if (container) {
+                    container.remove();
+                    console.log("🚫 Salon Dashboard: Hotel Dish Section Removed Forcefully.");
+                }
+            }
+        });
+    }
+}, 500); // 500ms (हर आधे सेकंड में चेक)
+
+// ================================================================
+// 1. MEASUREMENT SAVE KARNE KA DIMAG (Hath-Pair) 🧠✋
+// ================================================================
+async function saveMeasurement() {
+    const customerId = document.getElementById('measure-customer-id')?.value;
+    const itemType = document.getElementById('measure-item')?.value;
+    const details = document.getElementById('measure-details')?.value;
+    const deliveryDate = document.getElementById('measure-date')?.value;
+
+    if (!customerId || !details) {
+        alert("❌ कृपया Customer ID और नाप (Details) दोनों भरें!");
+        return;
+    }
+
+    // Button ko loading banayein
+    const btn = document.querySelector('#add-measurement-modal .btn-info');
+    const oldText = btn.innerText;
+    btn.innerText = "Saving...";
+    btn.disabled = true;
+
+    try {
+        // Server par bhejen
+        const res = await fetchApi('/api/measurements', {
+            method: 'POST',
+            body: JSON.stringify({
+                customer_id: customerId,
+                item_type: itemType,
+                measurements: details,
+                delivery_date: deliveryDate
+            })
+        });
+
+        if (res.success) {
+            alert("✅ नाप (Measurement) सफलतापूर्वक सेव हो गया!");
+            // Modal band karein (Bootstrap 5 logic)
+            const modalEl = document.getElementById('add-measurement-modal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+            
+            // Form clear karein
+            document.getElementById('measurement-form').reset();
+        } else {
+            alert("❌ Error: " + (res.message || "Save nahi hua"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("❌ सर्वर एरर: सेव नहीं हो सका।");
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
 }
 
 // [ ✅ FIXED: WhatsApp Share Function (Mistri & Customer) ]
@@ -12833,7 +13492,37 @@ function shareInvoiceOnWhatsApp(mobileNumber, name, invoiceNo, amount, pdfUrl) {
 
     // 6. विंडो खोलें
     window.open(url, '_blank');
-}			
+}
+
+
+// ✅ स्मार्ट व्हाट्सएप फंक्शन (इसे कोड में जोड़ें)
+// ✅ 🚀 ULTRA FAST WHATSAPP OPENER
+function openSmartWhatsApp(phone, message) {
+    if (!phone) return;
+    
+    // नंबर साफ़ करें
+    let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+
+    const encodedMsg = encodeURIComponent(message);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // 1. मोबाइल के लिए (सीधे ऐप)
+    if (isMobile) {
+        window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`;
+        return;
+    }
+
+    // 2. कंप्यूटर के लिए (पहले App खोलने की कोशिश करें, फिर Web)
+    // "DukanWhatsApp" नाम देने से ब्राउज़र उसी टैब को रिफ्रेश करता है, नया नहीं खोलता।
+    
+    // मेरी सलाह: अगर कंप्यूटर पर WhatsApp App है तो नीचे वाली लाइन अन-कमेंट करें:
+    // window.open(`whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`, '_self');
+
+    // अगर वेब ही यूज करना है:
+    const webUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`;
+    window.open(webUrl, 'DukanWhatsApp'); 
+}
 
 </script>
 
@@ -12950,6 +13639,86 @@ function shareInvoiceOnWhatsApp(mobileNumber, name, invoiceNo, amount, pdfUrl) {
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="hotelCheckoutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-file-invoice-dollar"></i> Hotel Checkout & Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <h2 id="co_room_no" class="fw-bold text-danger">Room 101</h2>
+                    <p id="co_guest_name" class="text-muted mb-0">Guest: Rahul Kumar</p>
+                </div>
+                
+                <form id="checkout-form">
+                    <div class="mb-3">
+                        <label class="fw-bold small">Final Bill Amount (₹)</label>
+                        <input type="number" id="co_amount" class="form-control form-control-lg fw-bold text-success" placeholder="0.00">
+                        <small class="text-muted">*Room Rent + Food - Advance</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="fw-bold small">Payment Mode</label>
+                        <select id="co_mode" class="form-select">
+                            <option value="Cash" selected>Cash</option>
+                            <option value="UPI">UPI / PhonePe</option>
+                            <option value="Card">Card</option>
+                        </select>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="fas fa-sign-out-alt"></i> Collect & Checkout
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="add-measurement-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">📏 New Measurement</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="measurement-form">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Customer ID / Name</label>
+                        <input type="text" id="measure-customer-id" class="form-control" placeholder="Enter Customer ID">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Type</label>
+                            <select id="measure-item" class="form-select">
+                                <option>Shirt</option><option>Pant</option><option>Suit</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Delivery</label>
+                            <input type="date" id="measure-date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-2">
+                        <label class="form-label">Details</label>
+                        <textarea id="measure-details" class="form-control" rows="3" placeholder="Measurements..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-info text-white" onclick="saveMeasurement()">Save Data</button>
             </div>
         </div>
     </div>
