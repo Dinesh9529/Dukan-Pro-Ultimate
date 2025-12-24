@@ -45,7 +45,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 const PORT = process.env.PORT || 10000;
 const SECRET_KEY = process.env.SECRET_KEY ||
 'a_very_strong_secret_key_for_hashing'; // Must be secure!
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+const JWT_SECRET = process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025';
 // Stronger JWT Secret
 
 // --- Encryption Constants (Retained for license key hashing) ---
@@ -1109,9 +1109,9 @@ const authenticateJWT = async (req, res, next) => {
     if (authHeader) {
         const token = authHeader.split(' ')[1];
         try {
-            // ✅ UPDATE: यहाँ 'default_secret' हटाकर 'secret_key' किया गया है
-            // ताकि Login और Data Fetch दोनों की चाबी (Key) एक हो जाए।
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+            // ✅ UPDATE: यहाँ हमने सीधा global 'JWT_SECRET' वेरिएबल का इस्तेमाल किया है
+            // ताकि Register, Login और Verification तीनों की चाबी (Key) एक ही रहे।
+            const decoded = jwt.verify(token, JWT_SECRET);
 
             // --- 2. 🚀 REAL-TIME CHECK (पुराना लॉजिक सुरक्षित है) ---
             const client = await pool.connect();
@@ -1163,6 +1163,7 @@ const authenticateJWT = async (req, res, next) => {
         res.status(401).json({ success: false, message: 'अनधिकृत पहुँच।' });
     }
 };
+
 /**
  * Middleware for Role-Based Access Control (RBAC).
  * Role hierarchy: ADMIN (3) > MANAGER (2) > CASHIER (1)
@@ -1550,23 +1551,25 @@ app.post('/api/login', async (req, res) => {
         const shopAddOns = user.add_ons || {}; 
         const businessType = user.business_type || 'RETAIL'; 
 
-        // --- Step 5: Token Payload ---
-        const tokenUser = {
-            id: user.id,
-            email: user.email,
-            shopId: user.shop_id,
-            name: user.name,
-            mobile: user.mobile,
-            role: user.role,
-            shopName: user.shop_name,
-            licenseExpiryDate: shopExpiryDate, 
-            status: user.status,
-            plan_type: shopPlanType,
-            add_ons: shopAddOns,
-            businessType: businessType
-        };
-        
-        const token = jwt.sign(tokenUser, process.env.JWT_SECRET || 'secret_key', { expiresIn: '30d' });
+        // [✅ FIXED LOGIN CODE]
+// --- Step 5: Token Payload ---
+const tokenUser = {
+    id: user.id,
+    email: user.email,
+    shopId: user.shop_id,
+    name: user.name,
+    mobile: user.mobile,
+    role: user.role,
+    shopName: user.shop_name,
+    licenseExpiryDate: shopExpiryDate,
+    status: user.status,
+    plan_type: shopPlanType,
+    add_ons: shopAddOns,
+    businessType: businessType
+};
+
+// 🔴 यहाँ पहले 'secret_key' लिखा था, उसे हटाकर JWT_SECRET करें
+const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         // --- Step 6: Check SHOP's License Expiry ---
         const expiryDate = shopExpiryDate ? new Date(shopExpiryDate) : null;
