@@ -46,6 +46,9 @@ const PORT = process.env.PORT || 10000;
 const SECRET_KEY = process.env.SECRET_KEY ||
 'a_very_strong_secret_key_for_hashing'; // Must be secure!
 const JWT_SECRET = process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025';
+
+// 👇👇👇 यह लाइन अभी जोड़ें (This is the FIX) 👇👇👇
+const GLOBAL_ADMIN_PASS = process.env.GLOBAL_ADMIN_PASSWORD;
 // Stronger JWT Secret
 
 // --- Encryption Constants (Retained for license key hashing) ---
@@ -6269,23 +6272,33 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 });
 
 // [PASTE THIS IN server.cjs (ADMIN SECTION)]
-// 12.7 Find Shop Details (Smart Search & Fixes)
+// 12.7 Find Shop Details (SECURE ENV VERSION)
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
 
-    // 1. पासवर्ड चेक
-    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
-         return res.status(500).json({ success: false, message: 'Server Error: Password Config Missing' });
+    // 1. Environment Variable से पासवर्ड निकालें
+    const securePass = process.env.GLOBAL_ADMIN_PASSWORD;
+
+    // 🛑 SAFETY CHECK: अगर Render में पासवर्ड सेट करना भूल गए हैं
+    if (!securePass) {
+        console.error("🚨 CRITICAL ERROR: GLOBAL_ADMIN_PASSWORD is not set in Render Environment Variables!");
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Server Error: Admin Password config is missing on Server.' 
+        });
     }
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+
+    // 2. पासवर्ड मैच करें (Strict Check)
+    // .trim() लगाया है ताकि अगर स्पेस गलती से आ गया हो तो वो हट जाए
+    if (String(adminPassword).trim() !== String(securePass).trim()) {
+        console.warn(`⚠️ Failed Admin Login Attempt. Input: ${adminPassword}`);
         return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
     }
 
     try {
-        // 2. Query का लॉजिक (Expiry Date और Status को सही से निकालें)
         let sql = `
             SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
-                   s.status,  -- यह कॉलम DB में होना जरूरी है
+                   s.status, 
                    s.license_expiry_date as expiry_date, 
                    u.name as owner_name, u.mobile as owner_mobile, u.email
             FROM shops s
@@ -6295,21 +6308,17 @@ app.post('/api/admin/find-shop', async (req, res) => {
         let params = [];
         
         if (query) {
-            // स्मार्ट सर्च: ID या नाम में कहीं भी मैच हो
             sql += ` WHERE s.id::text ILIKE $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
-            params.push(`%${query}%`); // वाइल्डकार्ड (%) दोनों तरफ लगाएं
+            params.push(`%${query}%`);
         }
         
         sql += ` ORDER BY s.id DESC LIMIT 50`;
 
         const result = await pool.query(sql, params);
-        
-        // सफलता!
         res.json({ success: true, shops: result.rows });
 
     } catch (err) {
         console.error("Find Shop Error:", err);
-        // असली एरर फ्रंटएंड को भेजें ताकि पता चले क्या गलत है
         res.status(500).json({ success: false, message: "DB Error: " + err.message });
     }
 });
