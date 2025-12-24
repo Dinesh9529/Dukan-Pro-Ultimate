@@ -1312,6 +1312,117 @@ app.post('/api/admin/grant-addon', async (req, res) => {
         res.status(500).json({ success: false, message: 'ऐड-ऑन देने में विफल: ' + err.message });
     }
 });
+
+
+// ================================================================
+// 🚀 MISSING ADMIN ROUTES (Add this to server.cjs)
+// ================================================================
+
+// 1. Find Shop (Search by ID, Name, or Mobile)
+app.post('/api/admin/find-shop', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        let sqlQuery;
+        let params;
+
+        // अगर query नंबर है, तो ID या मोबाइल से खोजें
+        if (!isNaN(query)) {
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
+                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                WHERE s.id = $1 OR u.mobile LIKE $2
+            `;
+            params = [query, `%${query}%`];
+        } else {
+            // नाम से खोजें
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
+                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                WHERE s.shop_name ILIKE $1
+            `;
+            params = [`%${query}%`];
+        }
+
+        const result = await pool.query(sqlQuery, params);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        console.error("Find Shop Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. Update Shop Status (Block/Unblock)
+app.post('/api/admin/update-shop-status', async (req, res) => {
+    const { adminPassword, shop_id, status } = req.body; // status: 'active' or 'blocked'
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        await pool.query('UPDATE shops SET status = $1 WHERE id = $2', [status, shop_id]);
+        res.json({ success: true, message: `Shop #${shop_id} का स्टेटस अब '${status}' है।` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. Upgrade Shop Plan (Extend Days + Change Plan)
+app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
+    const { adminPassword, shop_id, new_plan, extend_days } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        // पहले मौजूदा expiry date लाएं
+        const shopRes = await pool.query('SELECT license_expiry_date FROM shops WHERE id = $1', [shop_id]);
+        if (shopRes.rows.length === 0) return res.json({ success: false, message: 'Shop not found' });
+
+        let currentExpiry = new Date(shopRes.rows[0].license_expiry_date || new Date());
+        if (currentExpiry < new Date()) currentExpiry = new Date(); // अगर एक्सपायर हो चुका है तो आज से शुरू करें
+
+        // दिन जोड़ें
+        currentExpiry.setDate(currentExpiry.getDate() + parseInt(extend_days));
+
+        await pool.query(
+            'UPDATE shops SET plan_type = $1, license_expiry_date = $2 WHERE id = $3',
+            [new_plan, currentExpiry, shop_id]
+        );
+
+        res.json({ success: true, message: `अपग्रेड सफल! Plan: ${new_plan}, नई Expiry: ${currentExpiry.toLocaleDateString()}` });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. Set Business Type (Switcher)
+app.post('/api/admin/set-business-type', async (req, res) => {
+    const { adminPassword, shop_id, business_type } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        await pool.query('UPDATE shops SET business_type = $1 WHERE id = $2', [business_type, shop_id]);
+        res.json({ success: true, message: `Shop #${shop_id} का बिज़नेस टाइप '${business_type}' सेट हो गया है।` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 /* ============================================== */
 /* === 🚀 Naya API yahaan samapt hota hai === */
 /* ============================================== */
