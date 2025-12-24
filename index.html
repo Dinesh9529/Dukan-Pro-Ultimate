@@ -19,6 +19,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +29,61 @@
         /* ====================================================================
          === DUKAN PRO - MODERN AESTHETIC REDESIGN (INDIGO/CYAN) ===
          ====================================================================
-        */
+      /* 📱 MOBILE FIX: Final Consolidated Code (Scroll + Buttons) */
+@media (max-width: 768px) {
+    
+    /* 1. टेबल कंटेनर (कार्ट) की सेटिंग */
+    .table-responsive {
+        display: block;
+        width: 100%;
+        overflow-x: auto !important; /* ⬅️ यह लाइन दाएं-बाएं स्क्रॉल कराएगी */
+        overflow-y: auto !important; /* ऊपर-नीचे स्क्रॉल */
+        max-height: 45vh; /* स्क्रीन का 45% हिस्सा */
+        -webkit-overflow-scrolling: touch; /* स्मूथ स्क्रॉलिंग */
+        border: 1px solid #ddd;
+        margin-bottom: 80px; /* नीचे जगह ताकि बटन के पीछे न छिपे */
+    }
+
+    /* 2. टेबल के अंदर का टेक्स्ट (ताकि वो सिकुड़े नहीं) */
+    .table th, .table td {
+        white-space: nowrap !important; /* ⬅️ यह सबसे जरूरी है स्क्रॉल बनाने के लिए */
+        vertical-align: middle;
+        padding: 8px 5px;
+        font-size: 0.9rem;
+    }
+
+    /* 3. "हटाएं" (Cross Button) और "कुल" को चिपका कर रखें (Sticky) - Optional */
+    .table th:last-child, 
+    .table td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: #fff; /* स्क्रॉल होने पर पीछे का न दिखे */
+        z-index: 5;
+        border-left: 2px solid #eee;
+    }
+
+    /* 4. नीचे के बटन (Sale/Pay) फिक्स रहें */
+    .card-footer, .pos-footer-buttons {
+        position: fixed !important;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        z-index: 9999;
+        padding: 10px;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+        border-top: 1px solid #eee;
+    }
+
+    /* 5. बॉडी को पैडिंग दें */
+    body {
+        padding-bottom: 160px !important;
+    }
+}
+
+
+
+
     
         /* --- 1. नए और सुंदर रंगों को डिफाइन करना --- */
         :root {
@@ -603,7 +658,7 @@
 .table-responsive {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* परछाई (Shadow) */
     border-radius: 10px; /* गोल कोने */
-    overflow: hidden; /* कोनों को साफ रखने के लिए */
+    overflow: auto; /* कोनों को साफ रखने के लिए */
     border: 1px solid #cbd5e0; /* बाहरी बॉर्डर */
 }
 
@@ -1118,11 +1173,63 @@
     display: block !important;
 }
 
+
+/* 🖨️ THERMAL PRINTER STYLE (58mm / 80mm) */
+@media print {
+    /* 1. वेबसाइट का बाकी सब कुछ छिपा दें */
+    body * {
+        visibility: hidden;
+    }
+
+    /* 2. सिर्फ पर्ची को दिखाएं */
+    #thermal-receipt-area, #thermal-receipt-area * {
+        visibility: visible;
+    }
+
+    /* 3. पर्ची की पोजीशन सेट करें */
+    #thermal-receipt-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%; /* प्रिंटर अपने आप चौड़ाई ले लेगा */
+        margin: 0;
+        padding: 0;
+    }
+
+    /* 4. पेज मार्जिन हटाएं (कागज बचाने के लिए) */
+    @page {
+        margin: 0;
+        size: auto;
+    }
+}
+
+/* स्क्रीन पर पर्ची कैसी दिखेगी (फिलहाल छिपा कर रखें) */
+#thermal-receipt-area {
+    display: none; /* स्क्रीन पर नहीं दिखेगा */
+    width: 58mm;   /* स्टैंडर्ड छोटी पर्ची (आप 80mm भी कर सकते हैं) */
+    background: white;
+    padding: 10px;
+    font-family: 'Courier New', monospace; /* रसीद वाला फॉन्ट */
+    font-size: 12px;
+    color: black;
+}
+
+.receipt-header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+.receipt-bold { font-weight: bold; }
+.receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+.receipt-table th { text-align: left; border-bottom: 1px dashed #000; font-size: 10px; }
+.receipt-table td { text-align: left; font-size: 11px; padding-top: 2px; }
+.receipt-footer { text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px; font-size: 10px; }
+
+
+
     </style>
 
 </head>
 
 <body>
+
+
 
     <input type="text" id="barcode-scanner-input" autocomplete="off">
 
@@ -2636,22 +2743,26 @@
                                 <hr>
         
                                 <h5>बिलिंग कार्ट</h5>
-                                <div class="table-responsive mb-3" style="min-height: 150px;">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>आइटम</th>
-                                                <th style="width: 15%;">Qty</th>
-                                                <th>दर</th>
-                                                <th>कुल</th>
-                                                <th style="width: 1%;"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="pos-cart-body">
-                                            <tr><td colspan="5" class="text-center text-muted">कार्ट खाली है।</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
+<div class="table-responsive mb-3" style="min-height: 150px;">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th style="width: 40%;">आइटम</th>
+
+                <th style="width: 15%;">Qty</th>
+
+                <th style="width: 15%;">दर</th>
+
+                <th style="width: 15%;">कुल</th>
+
+                <th style="width: 15%; text-align: center;">हटाएं</th>
+            </tr>
+        </thead>
+        <tbody id="pos-cart-body">
+            <tr><td colspan="5" class="text-center text-muted">कार्ट खाली है।</td></tr>
+        </tbody>
+    </table>
+</div>
                                 
                                 <div class="d-flex justify-content-between fw-bold mb-2">
                                     <span>कुल टैक्सेबल राशि:</span>
@@ -2743,13 +2854,24 @@
                                     </select>
                                 </div>
 
-                                <div class="mt-4">
+                                <div class="mt-4 d-flex gap-2">
                                     <button 
                                         type="button" 
-                                        class="btn btn-success btn-lg w-100" 
+                                        class="btn btn-success btn-lg flex-grow-1" 
                                         id="complete-sale-btn"
                                         onclick="handleCompleteSale()"
-                                    >बिक्री पूरी करें</button>
+                                    >
+                                        <i class="fas fa-check-circle"></i> बिक्री पूरी करें
+                                    </button>
+                                
+                                    <button 
+                                        type="button" 
+                                        class="btn btn-danger btn-lg" 
+                                        onclick="resetPOSButton()" 
+                                        title="कार्ट खाली करें (Reset)"
+                                    >
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -2761,6 +2883,16 @@
                         <div class="card-body">
                             <div class="mb-3 d-flex justify-content-end">
                                 <button class="btn btn-sm btn-outline-secondary" id="refresh-sales-btn" onclick="fetchAndRenderSales()"><i class="fas fa-sync-alt"></i> ताज़ा करें</button>
+                                <div class="mb-3 d-flex justify-content-end">
+                                    <button class="btn btn-sm btn-outline-secondary" id="refresh-sales-btn" onclick="fetchAndRenderSales()">
+                                        <i class="fas fa-sync-alt"></i> ताज़ा करें
+                                    </button>
+                                
+                                    <button class="btn btn-dark btn-sm ms-2" onclick="SecurityLogger.showLogs()" title="View Security Logs">
+                                        <i class="fas fa-shield-alt"></i> Logs
+                                    </button>
+                                </div>
+
                             </div>
                             <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
                                 <table class="table table-striped table-hover">
@@ -3865,6 +3997,17 @@
 }
     
    
+
+// 🛡️ MASTER CHECK: क्या यह कपड़े की दुकान है?
+function isGarmentBusiness() {
+    // यहाँ हम चेक करेंगे कि सेटिंग में बिज़नेस टाइप क्या है
+    // अगर आपने business type किसी और नाम से save किया है तो 'business_type' को बदल दें
+    const type = localStorage.getItem('business_type') || ''; 
+    
+    // अगर टाइप में 'garment', 'cloth', 'fashion' या 'boutique' शब्द है तो TRUE मिलेगा
+    return /garment|cloth|fashion|boutique|tailor/i.test(type);
+}
+
 // [ initPosWebSocket फ़ंक्शन को इस कोड से बदल दें ]
 
 // [ यह initPosWebSocket फ़ंक्शन का नया कोड है ]
@@ -6511,53 +6654,44 @@ async function fetchAndRenderCustomers() {
     // NEW: Modified to show all items on click (showAll = true)
     // [ ✅ SKU सर्च को स्मार्ट बनाने के लिए इसे पेस्ट करें ]
 
+// ✅ UPDATED SEARCH: अब सर्च लिस्ट में भी 🔒 (Lock) दिखेगा
 function handleItemSearch(showAll = false) {
-    // जो टाइप किया है उसे छोटा (lowercase) करें और स्पेस हटाएँ
     const query = document.getElementById('pos-item-search').value.toLowerCase().trim();
     const resultsUl = document.getElementById('pos-search-results');
-    
-    // अगर कुछ नहीं लिखा तो लिस्ट खाली करें (अगर showAll false है)
+
     if (!showAll && query.length < 1) {
         resultsUl.innerHTML = '';
         return;
     }
 
-    // स्टॉक लिस्ट में ढूँढें (Name या SKU मैच करें)
-    const results = (showAll && query.length === 0)
-        ? currentStock // सब दिखाएं
-        : currentStock.filter(item => 
-            (item.name && item.name.toLowerCase().includes(query)) || 
-            (item.sku && item.sku.toLowerCase().includes(query)) // 🚀 SKU मैचिंग
-        );
+    const results = (showAll && query.length === 0) ? currentStock
+        : currentStock.filter(item => (item.name && item.name.toLowerCase().includes(query)) || (item.sku && item.sku.toLowerCase().includes(query)));
 
-    // रिजल्ट दिखाएं (सिर्फ पहले 50 ताकि हैंग न हो)
     if (results.length > 0) {
-        resultsUl.innerHTML = results.slice(0, 50).map(item => `
-            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
-                data-sku="${item.sku}" style="cursor: pointer;">
-                
-                <div>
-                    <strong>${item.name}</strong>
-                    <br>
-                    <small class="text-muted">
-                        Stock: ${item.quantity} ${item.unit || ''} 
-                        ${item.product_attributes && item.product_attributes.Size ? `| Size: ${item.product_attributes.Size}` : ''}
-                    </small>
-                </div>
+        resultsUl.innerHTML = results.slice(0, 50).map(item => {
+            
+            // --- 🔥 NEW: LOCK ICON LOGIC ---
+            // चेक करें कि आइटम पर लॉक लगा है या नहीं
+            const isSecured = item.is_secured === true || (item.product_attributes && item.product_attributes.is_secured === true);
+            const lockIcon = isSecured ? '<i class="fas fa-lock text-danger ms-2" title="Anti-Theft Protected"></i>' : '';
+            // --------------------------------
 
+            return `
+            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-sku="${item.sku}" style="cursor: pointer;">
+                <div>
+                    <strong>${item.name}</strong> ${lockIcon} <br>
+                    <small class="text-muted"> Stock: ${item.quantity} ${item.unit || ''} ${item.product_attributes && item.product_attributes.Size ? `| Size: ${item.product_attributes.Size}` : ''} </small>
+                </div>
                 <div class="text-end">
-                    <span class="badge bg-warning text-dark mb-1">${item.sku}</span>
-                    <br>
+                    <span class="badge bg-warning text-dark mb-1">${item.sku}</span> <br>
                     <span class="fw-bold text-success">${formatCurrency(item.sale_price)}</span>
                 </div>
-
             </li>
-        `).join('');
+        `}).join('');
     } else {
         resultsUl.innerHTML = '<li class="list-group-item text-muted">कोई आइटम नहीं मिला (SKU चेक करें)</li>';
     }
-}
-    // [ ✅ क्लिक फिक्स: ताकि लिस्ट में कहीं भी क्लिक करने पर आइटम ऐड हो जाए ]
+}    // [ ✅ क्लिक फिक्स: ताकि लिस्ट में कहीं भी क्लिक करने पर आइटम ऐड हो जाए ]
 
 function handleSearchResultClick(e) {
     // जिस एलिमेंट पर क्लिक हुआ, उसके सबसे करीबी 'li' को ढूंढें
@@ -6574,81 +6708,147 @@ function handleSearchResultClick(e) {
     }
 }    
     // NEW: Centralized function to add SKU to cart (used by barcode and search)
-    function addSKUToCart(sku) {
-        const selectedItem = currentStock.find(item => item.sku === sku);
+   // ✅ UPDATED FUNCTION: Cart me Security Data safe tarike se add karega
+// ✅ UPDATED: addSKUToCart (With Timestamp for Smart Delete)
+function addSKUToCart(sku) {
+    const selectedItem = currentStock.find(item => item.sku === sku);
+        
+    if (selectedItem) {
+
+        // ============================================================
+        // 🚨 NEW ADDITION: TICKET SWITCH ALERT (Visual Verification)
+        // ============================================================
+        // यह कोड गारमेंट्स में आइटम की फोटो स्क्रीन पर फ्लैश करेगा
+        // ताकि कैशियर देख सके कि टैग और कपड़ा मैच हो रहा है या नहीं।
+        const businessType = localStorage.getItem('business_type');
+        
+        // चेक करें: क्या यह गारमेंट्स बिज़नेस है?
+        if (businessType === 'Garments' || businessType === 'GARMENTS' || businessType === 'CLOTHING') {
+            // अगर फोटो नहीं है तो डिफ़ॉल्ट फोटो लो
+            const itemImg = selectedItem.image || 'https://cdn-icons-png.flaticon.com/512/2652/2652218.png';
             
-        if (selectedItem) {
-            // Check stock quantity
-            if(selectedItem.quantity <= 0) {
-                return showMessage('स्टॉक नहीं है', `${selectedItem.name} स्टॉक में समाप्त हो गया है।`, 'danger');
+            if(typeof Swal !== 'undefined') {
+                Swal.fire({
+                    // नाम और दाम बड़े अक्षरों में दिखाओ
+                    title: `<span style="color:#2c3e50">${selectedItem.name}</span>`,
+                    html: `
+                        <div style="font-size: 28px; font-weight: bold; color: #d35400;">₹${selectedItem.sale_price}</div>
+                        <p style="color: #7f8c8d; font-size: 12px; margin-top:5px;">SKU: ${selectedItem.sku}</p>
+                    `,
+                    imageUrl: itemImg,
+                    imageWidth: 250,  // फोटो का साइज़
+                    imageHeight: 250,
+                    imageAlt: 'Product Image',
+                    timer: 2000,       // 2 सेकंड बाद अपने आप बंद हो जाएगा
+                    showConfirmButton: false, // बटन दबाने की जरूरत नहीं
+                    backdrop: `rgba(0,0,0,0.5)`, // पीछे का बैकग्राउंड धुंधला करें
+                    background: '#ffffff'
+                });
             }
-            
-            const existingCartItem = posCart.find(item => item.sku === sku);
-            if (existingCartItem) {
-                // Check stock against cart
-                if(existingCartItem.quantity >= selectedItem.quantity) {
-                    return showMessage('स्टॉक नहीं है', `आपके पास स्टॉक में केवल ${selectedItem.quantity} ${selectedItem.name} हैं।`, 'warning');
-                }
-                existingCartItem.quantity++;
-            } else {
-                posCart.push({ 
-    ...selectedItem, 
-    quantity: 1,
-    purchase_price: parseFloat(selectedItem.purchase_price || 0),
-    product_attributes: selectedItem.product_attributes // <-- YEH NAYI LINE HAI
-});
-            }
-            updatePOSCartView();
-        } else {
-             showMessage('नहीं मिला', `SKU ${sku} स्टॉक में नहीं मिला।`, 'warning');
+        }
+        // ============================================================
+
+
+        // 1. Stock Check (OLD CODE STARTS HERE - UNTOUCHED)
+        if(selectedItem.quantity <= 0) {
+            return showMessage('स्टॉक नहीं है', `${selectedItem.name} स्टॉक में समाप्त हो गया है।`, 'danger');
         }
         
-        document.getElementById('pos-item-search').value = '';
-        document.getElementById('pos-search-results').innerHTML = '';
-        document.getElementById('pos-item-search').focus();
-    }
-
-    function updatePOSCartView() {
-        const cartBody = document.getElementById('pos-cart-body');
-        if(!cartBody) return; // Prevent errors if view is not active
-
-        if (posCart.length === 0) {
-            cartBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">कार्ट खाली है।</td></tr>`;
+        const existingCartItem = posCart.find(item => item.sku === sku);
+        
+        if (existingCartItem) {
+            // 2. Quantity Check
+            if(existingCartItem.quantity >= selectedItem.quantity) {
+                return showMessage('स्टॉक नहीं है', `आपके पास स्टॉक में केवल ${selectedItem.quantity} ${selectedItem.name} हैं।`, 'warning');
+            }
+            existingCartItem.quantity++;
+            // नोट: पुराने आइटम का टाइम अपडेट नहीं करेंगे, ताकि 1 मिनट वाला रूल सही चले
         } else {
-            cartBody.innerHTML = posCart.map((item, index) => {
-                const saleTotal = item.sale_price * item.quantity;
-                const stockItem = currentStock.find(s => s.sku === item.sku);
-                const maxStock = stockItem ? stockItem.quantity : item.quantity; // Get current stock level
+            // 3. New Item Logic (With Security Check)
+            
+            // --- SAFE SECURITY CHECK START ---
+            const attributes = selectedItem.product_attributes || {};
+            const isSecured = attributes.is_secured === true;
+            // --- SAFE SECURITY CHECK END ---
+
+            posCart.push({ 
+                ...selectedItem, 
+                quantity: 1,
+                purchase_price: parseFloat(selectedItem.purchase_price || 0),
                 
-                return `
-    <tr>
-        <td>
-            ${item.name}
-            <small class="d-block text-info">${formatAttributes(item.product_attributes)}</small>
-        </td>
-        <td>
-                            <input 
-                                type="number" 
-                                class="form-control form-control-sm" 
-                                style="width: 100px;"
-                                value="${item.quantity}" 
-                                min="1" 
-                                max="${maxStock}"
-                                onchange="updateCartQuantity(${index}, this.value)"
-                                onblur="validateCartQuantity(${index}, this.value, ${maxStock})"
-                            >
-                        </td>
-                        <td>${formatCurrency(item.sale_price)}</td>
-                        <td>${formatCurrency(saleTotal)}</td>
-                        <td><button class="btn btn-danger btn-sm" onclick="removeFromCart(${index})">&times;</button></td>
-                    </tr>
-                `;
-            }).join('');
+                // ✅ ये दो लाइनें सबसे जरूरी हैं (Step 2 के लिए)
+                product_attributes: attributes, 
+                is_secured: isSecured,
+
+                // 🔥 NEW UPDATE: Smart Delete Time Tracking
+                addedAt: Date.now() 
+            });
         }
-        calculatePOSTotals();
+        
+        updatePOSCartView(); // View update
+        
+    } else {
+         showMessage('नहीं मिला', `SKU ${sku} स्टॉक में नहीं मिला।`, 'warning');
     }
     
-    // NEW: Validate quantity on blur (after changing)
+    // Search Box Clear
+    const searchInput = document.getElementById('pos-item-search');
+    if(searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+}
+
+// ✅ UPDATED VIEW: अब नाम के आगे 🔒 (Red Lock) दिखेगा
+// ✅ UPDATED VIEW (Smart Display)
+function updatePOSCartView() {
+    const cartBody = document.getElementById('pos-cart-body');
+    if(!cartBody) return;
+
+    if (posCart.length === 0) {
+        cartBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">कार्ट खाली है।</td></tr>`;
+    } else {
+        // 🔥 CHECK: क्या यह गारमेंट बिज़नेस है?
+        const showSecurity = isGarmentBusiness(); 
+
+        cartBody.innerHTML = posCart.map((item, index) => {
+            const saleTotal = item.sale_price * item.quantity;
+            const stockItem = currentStock.find(s => s.sku === item.sku);
+            const maxStock = stockItem ? stockItem.quantity : item.quantity;
+            
+            // --- LOCK LOGIC ---
+            // अगर गारमेंट बिज़नेस है, तभी लॉक दिखाओ, वरना नहीं
+            let lockIcon = '';
+            if (showSecurity) {
+                const isSecured = item.is_secured === true || (item.product_attributes && item.product_attributes.is_secured === true);
+                lockIcon = isSecured ? '<span class="text-danger ms-2" title="Anti-Theft Protected"><i class="fas fa-lock"></i></span>' : '';
+            }
+            // ------------------
+
+            return `
+                <tr>
+                    <td>
+                        ${item.name} ${lockIcon}
+                        <small class="d-block text-info">${formatAttributes(item.product_attributes)}</small>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm" style="width: 100px;"
+                            value="${item.quantity}" min="1" max="${maxStock}"
+                            onchange="updateCartQuantity(${index}, this.value)"
+                            onblur="validateCartQuantity(${index}, this.value, ${maxStock})">
+                    </td>
+                    <td>${formatCurrency(item.sale_price)}</td>
+                    <td>${formatCurrency(saleTotal)}</td>
+                    <td><button class="btn btn-danger btn-sm" onclick="removeFromCart(${index})">&times;</button></td>
+                </tr>
+            `;
+        }).join('');
+    }
+    calculatePOSTotals();
+}
+
+
+// NEW: Validate quantity on blur (after changing)
     function validateCartQuantity(index, newQuantity, maxStock) {
         const quantity = parseInt(newQuantity);
         if (quantity > maxStock) {
@@ -6672,10 +6872,80 @@ function handleSearchResultClick(e) {
         updatePOSCartView(); 
     }
 
-    function removeFromCart(index) {
-        posCart.splice(index, 1);
-        updatePOSCartView();
+    // 🛡️ SECURITY UPDATE: Single Item Remove
+// अब एक आइटम हटाने पर भी पासवर्ड/वार्निंग मांगेगा
+// ✅ UPDATED SINGLE REMOVE
+// 🛡️ SMART DELETE SYSTEM (1 Minute Rule)
+function removeFromCart(index) {
+    // 1. अगर गारमेंट्स बिज़नेस नहीं है, तो सीधा हटाओ
+    if (typeof isGarmentBusiness === 'function' && !isGarmentBusiness()) {
+        performSingleDelete(index);
+        return;
     }
+
+    const item = posCart[index];
+    // लॉक चेक करें
+    const isSecured = item.is_secured === true || (item.product_attributes && item.product_attributes.is_secured === true);
+    
+    // --- ⏰ TIME CHECK ---
+    const timeNow = Date.now();
+    const timeAdded = item.addedAt || timeNow; // अगर टाइम नहीं है तो अभी का मान लो
+    const timeDiff = (timeNow - timeAdded) / 1000; // सेकंड्स में अंतर
+    const ALLOWED_TIME = 60; // 60 सेकंड (1 मिनट) की छूट
+
+    // CASE A: अगर 1 मिनट के अंदर गलती सुधारी जा रही है
+    if (timeDiff <= ALLOWED_TIME) {
+        // सिर्फ कन्फर्मेशन मांगो (PIN नहीं)
+        // Toast message दिखाएं कि बिना पिन के हटा दिया गया
+        const toast = Swal.mixin({
+            toast: true, position: 'top-end', showConfirmButton: false, timer: 2000
+        });
+        toast.fire({ icon: 'info', title: 'Quick Delete (Under 1 min)' });
+        
+        performSingleDelete(index); 
+        return;
+    }
+
+    // CASE B: अगर 1 मिनट से ज्यादा हो गया (अब PIN चाहिए)
+    if (isSecured) {
+        Swal.fire({
+            title: '🔐 Manager Approval Required',
+            html: `Item: <b>${item.name}</b><br>Time elapsed: ${Math.floor(timeDiff/60)} mins.<br><br>इसे हटाने के लिए <b>Manager PIN</b> डालें:`,
+            icon: 'warning',
+            input: 'password', 
+            inputPlaceholder: 'Enter PIN (Default: 1234)',
+            showCancelButton: true,
+            confirmButtonText: 'Unlock & Delete',
+            confirmButtonColor: '#d33'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const enteredPin = result.value;
+                const managerPin = "1234"; // 🔑 यहाँ अपना असली पिन सेट करें
+
+                if (enteredPin === managerPin) {
+                    // 🕵️‍♂️ लॉग में कारण के साथ नोट करें
+                    if(typeof SecurityLogger !== 'undefined') {
+                        SecurityLogger.log('FORCE_DELETE_LATE', `Authorized by Manager: Removed ${item.name}`);
+                    }
+                    performSingleDelete(index);
+                    Swal.fire('Deleted', 'आइटम हटा दिया गया।', 'success');
+                } else {
+                    Swal.fire('Error', 'गलत पिन! आइटम नहीं हटाया जा सकता।', 'error');
+                }
+            }
+        });
+    } else {
+        // अगर लॉक नहीं है तो नार्मल डिलीट
+        performSingleDelete(index);
+    }
+}
+
+
+// असली डिलीट करने वाला फंक्शन
+function performSingleDelete(index) {
+    posCart.splice(index, 1); // लिस्ट से हटाएं
+    updatePOSCartView(); // व्यू अपडेट करें
+}
 
     function calculatePOSTotals() {
         let subtotal = 0;
@@ -6706,6 +6976,9 @@ function handleSearchResultClick(e) {
     }
 
 // 🚀 MAIN SALE FUNCTION (Computer = Auto PDF, Mobile = No PDF/Only WhatsApp)
+// 🚀 FINAL UPDATED SALE FUNCTION
+// (Includes: Anti-Theft Unlock + Mistri Message + Mobile No-Crash Logic)
+// ✅ UPDATED: Complete Sale Function (WhatsApp + Thermal Print + PDF Choice)
 async function handleCompleteSale() {
     // --- 1. कार्ट चेक ---
     if (posCart.length === 0) {
@@ -6713,6 +6986,9 @@ async function handleCompleteSale() {
         else alert('Cart is empty!');
         return;
     }
+
+    // ✅ ANTI-THEFT GUARD: ब्राउज़र को बताएं कि बिलिंग चल रही है
+    window.isBillingProcess = true; 
 
     const finalTotalAmount = parseFloat(document.getElementById('pos-total-amount').innerText.replace(/[^0-9.]/g, ''));
     
@@ -6724,6 +7000,13 @@ async function handleCompleteSale() {
     }));
 
     const custMobile = document.getElementById('pos-customer-mobile').value || null;
+    
+    // मिस्त्री (Painter) का डेटा
+    const painterId = document.getElementById('pos-painter-select')?.value;
+    const painterMobile = document.getElementById('pos-painter-mobile')?.value;
+    const painterSelect = document.getElementById('pos-painter-select');
+    const painterName = painterSelect && painterSelect.selectedIndex >= 0 ? painterSelect.options[painterSelect.selectedIndex].text : 'Partner';
+
     const deliveryDateRaw = document.getElementById('pos_auto_date')?.value;
     const deliveryDate = deliveryDateRaw ? new Date(deliveryDateRaw).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
 
@@ -6732,8 +7015,8 @@ async function handleCompleteSale() {
         customerMobile: custMobile,
         total_amount: finalTotalAmount,
         sale_items: itemsForApi,
-        painterId: document.getElementById('pos-painter-select')?.value,
-        painterMobile: document.getElementById('pos-painter-mobile')?.value
+        painterId: painterId,
+        painterMobile: painterMobile
     };
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -6747,7 +7030,7 @@ async function handleCompleteSale() {
 
         if (res.success) {
             
-            // विस्तृत मैसेज (Detailed Message)
+            // --- 💬 MESSAGE 1: ग्राहक के लिए (Customer Message) ---
             const itemDetails = itemsForApi.map(i => `${i.name} (x${i.quantity})`).join(', ');
             const whatsappMsg = `नमस्ते *${saleData.customerName}*,\n` +
                                 `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
@@ -6757,54 +7040,92 @@ async function handleCompleteSale() {
                                 `🚚 डिलीवरी: ${deliveryDate}\n\n` +
                                 `कृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
 
+            // --- 💬 MESSAGE 2: मिस्त्री के लिए (Mistri/Painter Message) ---
+            let mistriMsg = "";
+            if (painterMobile) {
+                mistriMsg = `नमस्ते *${painterName}*,\n` +
+                            `आपके रेफरेन्स से नई बिक्री हुई है! 🤝\n` +
+                            `ग्राहक: ${saleData.customerName}\n` +
+                            `बिल नंबर: #${res.invoiceId}\n` +
+                            `कुल राशि: ₹${finalTotalAmount.toFixed(2)}\n\n` +
+                            `आपका कमीशन आपके खाते में जोड़ दिया गया है। धन्यवाद!`;
+            }
+
             // ============================================================
-            // 💻 CASE 1: कंप्यूटर (DESKTOP) -> अभी भी Auto Download होगा
+            // 💻 CASE 1: कंप्यूटर (DESKTOP) -> Ask Choice (PDF vs Thermal)
             // ============================================================
             if (!isMobile) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Done! ✅',
-                    text: `Bill #${res.invoiceId} Saved`,
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-
-                // ✅ कंप्यूटर पर PDF अभी भी डाउनलोड होगी
-                if (typeof downloadBillFinal === 'function') {
-                    downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
-                } else if (typeof generateAndDownloadPDF === 'function') {
-                    generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
-                }
-
-                // WhatsApp
+                
+                // --- WhatsApp (बैकग्राउंड में भेजें) ---
                 if (sendToCust && saleData.customerMobile) {
                     setTimeout(() => { openSmartWhatsApp(saleData.customerMobile, whatsappMsg); }, 1000);
                 }
+                if (painterMobile && mistriMsg) {
+                    setTimeout(() => { openSmartWhatsApp(painterMobile, mistriMsg); }, 3000);
+                }
 
-                resetPOSButton();
+                // --- 🌟 NEW POPUP: PDF या Thermal Print? ---
+                Swal.fire({
+                    title: '✅ बिल बन गया!',
+                    text: `Invoice #${res.invoiceId} सहेजा गया। अब आप क्या करना चाहते हैं?`,
+                    icon: 'success',
+                    showDenyButton: true,       // दूसरा बटन (Thermal)
+                    showCancelButton: true,     // तीसरा बटन (Close)
+                    confirmButtonText: '📄 PDF डाउनलोड (A4)',
+                    denyButtonText: '🖨️ थर्मल प्रिंट (Parchi)',
+                    cancelButtonText: '❌ बंद करें',
+                    confirmButtonColor: '#0d6efd',
+                    denyButtonColor: '#ffc107',
+                    cancelButtonColor: '#6c757d',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    
+                    // A. अगर PDF बटन दबाया
+                    if (result.isConfirmed) {
+                        if (typeof generateAndDownloadPDF === 'function') {
+                            generateAndDownloadPDF(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                        } else if (typeof downloadBillFinal === 'function') {
+                            downloadBillFinal(res.invoiceId, saleData.customerName, itemsForApi, finalTotalAmount);
+                        }
+                    } 
+                    
+                    // B. अगर Thermal Print बटन दबाया
+                    else if (result.isDenied) {
+                        generateThermalPrint(res.invoiceId, saleData.customerName, posCart, finalTotalAmount);
+                    }
+
+                    // C. अंत में कार्ट खाली करें
+                    resetPOSButton(true);
+                    window.isBillingProcess = false;
+                });
+
                 return;
             }
 
             // ============================================================
-            // 📱 CASE 2: मोबाइल (MOBILE) -> सिर्फ मैसेज (No PDF Download)
+            // 📱 CASE 2: मोबाइल (MOBILE) -> Only Messages (जैसा पहले था)
             // ============================================================
-            
-            // यहाँ हमने PDF डाउनलोड हटा दिया है ताकि White Screen न आए
             Swal.fire({
                 icon: 'success',
                 title: 'बिक्री सफल! 🎉',
                 html: `<p>Bill <b>#${res.invoiceId}</b> generated.</p>`,
-                timer: 2000, // 2 सेकंड बाद अपने आप बंद हो जाएगा
+                timer: 2000, 
                 showConfirmButton: false
             }).then(() => {
                 
-                // Alert बंद होने के बाद WhatsApp खुलेगा
+                // WhatsApp 1: Customer
                 if (sendToCust && saleData.customerMobile) {
                     openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
                 }
+
+                // WhatsApp 2: Mistri
+                else if (painterMobile && mistriMsg) {
+                    setTimeout(() => { openSmartWhatsApp(painterMobile, mistriMsg); }, 1000);
+                }
                 
-                // POS खाली करें
-                resetPOSButton();
+                // ✅ ANTI-THEFT UNLOCK: यहाँ true भेजें
+                resetPOSButton(true);
+                window.isBillingProcess = false;
             });
 
         } else {
@@ -6812,10 +7133,12 @@ async function handleCompleteSale() {
         }
 
     } catch (error) {
+        window.isBillingProcess = false; // प्रोसेस रोकें
         if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
         else alert('Error: ' + error.message);
     }
 }
+
 
     // --- FORM SUBMISSION HANDLERS (Fixed & Updated) ---
     
@@ -8605,9 +8928,10 @@ document.getElementById('quick-add-save-btn').addEventListener('click', async ()
     gst: parseFloat(res.stock.gst || 0),
     quantity: 1,
 
-    // 🔐 VERY IMPORTANT: Anti-Theft data POS तक पहुंचे
+    // 🔐 MUST ADD
     product_attributes: res.stock.product_attributes || {}
 };
+
 
 
         // 'currentStock' list ko bhi update karein (taaki quantity check kaam kare)
@@ -10632,24 +10956,22 @@ function applyBusinessTypeUI(btype) {
     console.log("Applying UI for Business Type:", btype);
 
     // 1. सबसे पहले, सभी स्पेशल बिजनेस वाले सेक्शन/बटन और मॉड्यूल छुपा दें (Global Reset)
-    // यह सुनिश्चित करता है कि पिछली स्क्रीन का कचरा साफ हो जाए
     document.querySelectorAll('.biz-module').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.paint-only, .salon-only, .mobile-only, .medical-only, .restaurant-only').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.input-group-special').forEach(el => el.style.display = 'none');
 
-    // 2. MASTER CONFIG से सेटिंग्स लाएं (main.js से)
+    // 2. MASTER CONFIG से सेटिंग्स लाएं
     const config = (typeof MASTER_BUSINESS_CONFIG !== 'undefined') ? MASTER_BUSINESS_CONFIG[btype] : null;
 
     if (!config) {
         console.warn(`Unknown Business Type: ${btype}. Defaulting to Retail view.`);
-        return; // अगर टाइप नहीं मिला तो Retail (Default) रखें
+        return; 
     }
 
-    // 3. लेबल्स अपडेट करें (जैसे Customer को Patient या Student कहना)
+    // 3. लेबल्स अपडेट करें
     const custLabel = document.querySelector('label[for="pos-customer"]');
     if (custLabel) custLabel.innerText = config.labels.customer || "ग्राहक का नाम";
     
-    // स्टॉक लेबल अपडेट (Qty vs Liters vs Boxes)
     const stockQtyLabel = document.querySelector('label[for="stock-quantity"]');
     if(stockQtyLabel) stockQtyLabel.innerText = `मात्रा (${config.labels.stock || 'Qty'})`;
 
@@ -10657,189 +10979,117 @@ function applyBusinessTypeUI(btype) {
     const features = config.features || [];
 
     // ============================================================
-    // 🏗️ MODULE ACTIVATION LOGIC (For ALL 31 Business Types)
+    // 🏗️ MODULE ACTIVATION LOGIC
     // ============================================================
 
-    // --- GROUP 1: RETAIL SPECIALS ---
-    
- // applyBusinessTypeUI फंक्शन के अंदर इस हिस्से को बदलें:
-
     // --- GROUP 3: HARDWARE & PAINT LOGIC ---
-    
-    // 1. अगर पेंट शॉप है (PAINT_SHOP)
     if (btype === 'PAINT_SHOP') {
-        // पेंट वाले सारे बॉक्स दिखाएं
-        document.querySelectorAll('.paint-only').forEach(el => el.style.display = 'block'); // POS में पेंटर सेलेक्ट
-        
-        if(document.getElementById('module-paint-mixer')) 
-            document.getElementById('module-paint-mixer').style.display = 'block'; // डैशबोर्ड पर मिक्सर
-            
-        if(document.getElementById('module-paint-estimator')) 
-            document.getElementById('module-paint-estimator').style.display = 'block'; // एस्टीमेटर
-            
-        if (typeof loadPainters === 'function') loadPainters(); // पेंटर लिस्ट लोड करें
+        document.querySelectorAll('.paint-only').forEach(el => el.style.display = 'block');
+        if(document.getElementById('module-paint-mixer')) document.getElementById('module-paint-mixer').style.display = 'block';
+        if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'block';
+        if (typeof loadPainters === 'function') loadPainters();
         if (typeof fetchAndRenderPaintHistory === 'function') fetchAndRenderPaintHistory();
     } 
-    
-    // 2. अगर सादा हार्डवेयर है (HARDWARE_GENERAL)
     else if (btype === 'HARDWARE_GENERAL') {
-        // --- पुराना कोड (बिना बदलाव के) ---
-        // पेंट वाली सारी चीज़ें जबरदस्ती छुपा दें (Force Hide)
         document.querySelectorAll('.paint-only').forEach(el => el.style.display = 'none');
-        
-        if(document.getElementById('module-paint-mixer')) 
-            document.getElementById('module-paint-mixer').style.display = 'none';
-            
-        if(document.getElementById('module-paint-estimator')) 
-            document.getElementById('module-paint-estimator').style.display = 'none';
+        if(document.getElementById('module-paint-mixer')) document.getElementById('module-paint-mixer').style.display = 'none';
+        if(document.getElementById('module-paint-estimator')) document.getElementById('module-paint-estimator').style.display = 'none';
 
-        // --- पुराना Delivery Tracker अपडेट ---
-        // यह फर्नीचर वाला ही बॉक्स इस्तेमाल करेगा लेकिन हार्डवेयर के लिए (Input Box)
         if(document.getElementById('module-furniture-showroom')) {
             document.getElementById('module-furniture-showroom').style.display = 'block';
-            
-            // लिस्ट लोड करने वाला फंक्शन चलाएं (अगर मौजूद है)
-            // 🚀 FIX: यहाँ setTimeout जोड़ा गया है ताकि बॉक्स दिखने के बाद ही डेटा लोड हो
             if(typeof loadDeliveryList === 'function') {
                 setTimeout(loadDeliveryList, 1000); 
             }
         }
 
-        // --- 🚀 NEW FIX: "Pending Deliveries" लिस्ट बॉक्स को यहाँ दिखाएं ---
-        // (बाकी जगह यह 'biz-module' क्लास की वजह से छिपा रहेगा)
         if(document.getElementById('hardware-delivery-box')) {
             document.getElementById('hardware-delivery-box').style.display = 'block';
         }
 
-        // --- 🚀🔥 नया अपडेट (GOD MODE ADDED) ---
-        // POS में Auto-Delivery और WhatsApp वाला बॉक्स दिखाएं
         const godBox = document.getElementById('pos-god-mode-delivery');
-        if (godBox) {
-            godBox.style.display = 'block';
-        }
+        if (godBox) godBox.style.display = 'block';
     }
 
-    // 2. Mobile, Electronics, SIM Store (MOBILE_SHOP, ELECTRONICS, SIM_STORE)
+    // Mobile, Electronics, SIM Store
     if (features.includes('imei_scan')) {
         if(document.getElementById('module-imei-scan')) document.getElementById('module-imei-scan').style.display = 'block';
-        // सर्च बॉक्स में हिंट दें
         const searchInput = document.getElementById('pos-item-search');
         if(searchInput) searchInput.placeholder = "आइटम का नाम, SKU या IMEI स्कैन करें...";
     }
 
-    // 3. Furniture Showroom (FURNITURE)
+    // Furniture Showroom
     if (features.includes('delivery_tracking')) {
         if(document.getElementById('module-furniture-showroom')) document.getElementById('module-furniture-showroom').style.display = 'block';
     }
 
-    // 4. Sweet Shop / Bakery (SWEET_SHOP)
-    // (इनका मुख्य काम Expiry और Manufacturing Date है जो स्टॉक फॉर्म में दिखेगा)
-    if (btype === 'SWEET_SHOP') {
-        // अगर कोई स्पेशल मॉड्यूल है तो यहाँ खोलें
-    }
+    // Sweet Shop (Expiry logic handled in stock form)
 
     // --- GROUP 2: MEDICAL & HEALTH ---
-    
-    // 5-11. Doctors & Labs (DOCTOR_CLINIC, ORTHOPEDIC, DENTIST, SONOGRAPHY, PHYSIOTHERAPY, PATHOLOGY, PHARMACY)
     if (features.includes('prescription_pad') || features.includes('report_templates')) {
         const medMod = document.getElementById('module-prescription-pad');
         if(medMod) {
             medMod.style.display = 'block';
-            // यह टाइटल को सही करता है (e.g., "Dental Clinic Report")
             const titleEl = document.getElementById('medical-title-text');
             if(titleEl) titleEl.innerText = config.name + " Report";
         }
         if(typeof setupDoctorDashboard === 'function') setupDoctorDashboard(btype);
     }
 
-    // 7. Dentist Special (DENTIST)
     if (features.includes('tooth_chart')) {
         const teethBox = document.getElementById('box-dentist-chart');
         if(teethBox) teethBox.style.display = 'block';
     }
 
-    // 9. Sonography Special (SONOGRAPHY)
     if (btype === 'SONOGRAPHY') {
         const lmpBox = document.getElementById('box-lmp-calc');
         if(lmpBox) lmpBox.style.display = 'block';
     }
 
     // --- GROUP 3: SERVICES & PERSONAL CARE ---
-
-    // 12. Salon / Spa (SALON)
     if (btype === 'SALON') {
         document.querySelectorAll('.salon-only').forEach(el => el.style.display = '');
-        // नोट: Salon का डैशबोर्ड 'renderDashboard' फंक्शन में लोड होता है
     }
 
-    // 13. Gym / Fitness (GYM)
     if (features.includes('attendance')) {
         if(document.getElementById('module-gym-access')) document.getElementById('module-gym-access').style.display = 'block';
     }
 
-    // 14. Tailor / Boutique (TAILOR, CLOTHING)
     if (features.includes('tailoring_measurements')) {
         if(document.getElementById('module-tailor-measurements')) document.getElementById('module-tailor-measurements').style.display = 'block';
     }
 
-    // 15. Repairing Center (SERVICE_CENTER)
     if (features.includes('job_card')) {
         if(document.getElementById('module-repair-job')) document.getElementById('module-repair-job').style.display = 'block';
     }
 
     // --- GROUP 4: HOSPITALITY & FOOD ---
-
-    // 16. Restaurant / Cafe (RESTAURANT)
-   // 16. Restaurant / Cafe (RESTAURANT)
     if (features.includes('table_kot')) {
         if(document.getElementById('module-restaurant-kot')) document.getElementById('module-restaurant-kot').style.display = 'block';
-        
-        // 🚀 FIX: किचन व्यू सिर्फ रेस्टोरेंट को दिखाएं
         if(document.getElementById('standalone-kitchen-view')) document.getElementById('standalone-kitchen-view').style.display = 'block';
-        
         loadLiveKOTs();
     }
 
-   // 17. Hotel / Lodging (HOTEL)
-   if (features.includes('room_checkin')) {
-        if(document.getElementById('module-hotel-management')) 
-            document.getElementById('module-hotel-management').style.display = 'block';
-        
-        // 🚀 FIX: रूम स्टेटस लिस्ट भी दिखाएं
-        if(document.getElementById('hotel-room-status-section')) 
-            document.getElementById('hotel-room-status-section').style.display = 'block';
-
+    if (features.includes('room_checkin')) {
+        if(document.getElementById('module-hotel-management')) document.getElementById('module-hotel-management').style.display = 'block';
+        if(document.getElementById('hotel-room-status-section')) document.getElementById('hotel-room-status-section').style.display = 'block';
         if (typeof loadHotelRooms === 'function') loadHotelRooms();
-    }
-    // 18. Tent House / Rentals (TENT_HOUSE)
-    if (features.includes('rental_dates')) {
-        // यह मॉड्यूल स्टॉक फॉर्म के अंदर दिखता है, लेकिन अगर डैशबोर्ड पर भी कुछ है तो यहाँ दिखाएं
-        // (फिलहाल स्टॉक फॉर्म में handled है)
     }
 
     // --- GROUP 5: CONSTRUCTION & TRANSPORT ---
-
-    // 19. Tiles & Ceramic (TILES_CERAMIC)
     if (features.includes('sqft_calc')) {
-        // स्टॉक फॉर्म में SqFt कैलकुलेटर दिखाएं
         if(document.getElementById('module-tiles-calc')) document.getElementById('module-tiles-calc').style.display = 'block';
     }
 
-    // 20. Transport / Logistics (TRANSPORT)
     if (features.includes('trip_management')) {
         if(document.getElementById('module-transport-trip')) document.getElementById('module-transport-trip').style.display = 'block';
     }
 
     // --- GROUP 6: EDUCATION ---
-
-    // 21. School / Coaching (SCHOOL)
     if (features.includes('fees_management')) {
         if(document.getElementById('module-school-fees')) document.getElementById('module-school-fees').style.display = 'block';
     }
 
     // --- GROUP 7: FINANCE & OTHERS ---
-
-    // 22-24. Finance Agents (LOAN_DSA, RECOVERY_AGENT, INSURANCE_AGENCY)
     if (features.includes('geo_tagging') || features.includes('commission_calc') || btype === 'RECOVERY_AGENT') {
         if(document.getElementById('module-geo-tagging')) document.getElementById('module-geo-tagging').style.display = 'block';
         if(document.getElementById('module-finance-collection')) document.getElementById('module-finance-collection').style.display = 'block';
@@ -10848,93 +11098,80 @@ function applyBusinessTypeUI(btype) {
         if(searchInput) searchInput.placeholder = "EMI Account, Loan No या Policy खोजें...";
     }
 
-
-    // ... (applyBusinessTypeUI फंक्शन के अंदर, सबसे नीचे) ...
-
-    // 🚀 HARDWARE SPECIAL FIX: नाम बदलें (Mobile -> Lock)
+    // HARDWARE SPECIAL FIX
     if (btype === 'HARDWARE_GENERAL') {
-        
-        // 1. "Device Model" को "Item Name" करें
         const deviceInput = document.getElementById('repair_device');
-        if (deviceInput) {
-            deviceInput.placeholder = "Item Name (Lock/Safe)";
-        }
-
-        // 2. "IMEI / Serial" को "Key Code / Serial No" करें
+        if (deviceInput) deviceInput.placeholder = "Item Name (Lock/Safe)";
         const imeiInput = document.getElementById('repair_imei');
-        if (imeiInput) {
-            imeiInput.placeholder = "Key Code / Serial No";
-        }
-
-        // 3. "Problem Description" को "Issue" करें
+        if (imeiInput) imeiInput.placeholder = "Key Code / Serial No";
         const issueInput = document.getElementById('repair_issue');
-        if (issueInput) {
-            issueInput.placeholder = "Problem (e.g. Key Stuck, Handle Broken)";
-        }
+        if (issueInput) issueInput.placeholder = "Problem (e.g. Key Stuck, Handle Broken)";
     }
 
-
-// ============================================================
-    // 🚀 GOD MODE VISIBILITY CONTROLLER (FIXED for Retail)
-    // ============================================================
-    
-    // 1. जिन बिजनेस को मिस्त्री/लेबर की जरूरत है उनकी लिस्ट
-    const MISTRI_BUSINESS_TYPES = [
-        'HARDWARE_GENERAL', 
-        'FURNITURE', 
-        'TILES_CERAMIC', 
-        'ELECTRONICS', 
-        'PAINT_SHOP', 
-        'TENT_HOUSE', 
-        'SERVICE_CENTER',
-        'TRANSPORT'
-    ];
-
-    // 2. एलिमेंट्स ढूंढें (Direct ID से)
+    // 🚀 GOD MODE VISIBILITY CONTROLLER
+    const MISTRI_BUSINESS_TYPES = ['HARDWARE_GENERAL', 'FURNITURE', 'TILES_CERAMIC', 'ELECTRONICS', 'PAINT_SHOP', 'TENT_HOUSE', 'SERVICE_CENTER', 'TRANSPORT'];
     const godModeBox = document.getElementById('pos-god-mode-delivery');
-    const mistriInput = document.getElementById('pos_auto_mistri_mobile'); // मिस्त्री मोबाइल इनपुट
-    const mistriCheckbox = document.getElementById('pos_send_mistri_wa'); // मिस्त्री चेकबॉक्स
+    const mistriInput = document.getElementById('pos_auto_mistri_mobile');
+    const mistriCheckbox = document.getElementById('pos_send_mistri_wa');
 
     if (godModeBox) {
-        // सबसे पहले: God Mode बॉक्स को हमेशा दिखाएं (Customer के लिए)
         godModeBox.style.display = 'block';
-
-        // अब चेक करें: क्या यह बिजनेस मिस्त्री वाला है?
         if (MISTRI_BUSINESS_TYPES.includes(btype)) {
-            // ✅ हाँ: मिस्त्री वाले ऑप्शन दिखाएं
             if(mistriInput) {
                 mistriInput.style.display = 'block';
-                
-                // लेबल को बिजनेस के हिसाब से बदलें (Smart Touch)
                 if(btype === 'PAINT_SHOP') mistriInput.placeholder = "Painter Mobile (Optional)";
                 else if(btype === 'TRANSPORT') mistriInput.placeholder = "Driver Mobile (Optional)";
                 else if(btype === 'ELECTRONICS') mistriInput.placeholder = "Technician Mobile (Optional)";
                 else mistriInput.placeholder = "Mistri Mobile (Optional)";
             }
-            // चेकबॉक्स के पैरेंट (div) को दिखाएं
             if(mistriCheckbox && mistriCheckbox.closest('.form-check')) {
                 mistriCheckbox.closest('.form-check').style.display = 'block';
             }
-
         } else {
-            // ❌ नहीं (Retail, Medical etc): मिस्त्री वाले ऑप्शन पूरी तरह छुपा दें
-            if(mistriInput) mistriInput.style.display = 'none'; // इनपुट बॉक्स गायब
-            
-            // चेकबॉक्स के पैरेंट (div) को छुपाएं
+            if(mistriInput) mistriInput.style.display = 'none';
             if(mistriCheckbox && mistriCheckbox.closest('.form-check')) {
                 mistriCheckbox.closest('.form-check').style.display = 'none';
             }
         }
     }
 
-
-    // 25-26. Professional Services (ARCHITECT_FIRM, SOFTWARE_COMPANY)
-    // इनके लिए स्टैंडर्ड सर्विस इनवॉइसिंग (Service Grid) अपने आप डैशबोर्ड में लोड हो जाएगी
+    // ============================================================
+    // 🚨 NEW UPDATE: ANTI-THEFT BUTTON LOGIC (For Garments Only)
+    // ============================================================
+    // यह कोड चेक करता है कि बिज़नेस Garments है या नहीं।
+    
+    const theftBtnId = 'dynamic-theft-btn-container';
+    const existingBtn = document.getElementById(theftBtnId);
+    
+    // यहाँ हमने Garments और Clothing दोनों को शामिल किया है
+    if (btype === 'Garments' || btype === 'GARMENTS' || btype === 'CLOTHING') {
+        
+        // ✅ अगर Garments है, तो बटन बनाओ (अगर पहले से नहीं है)
+        if (!existingBtn) {
+            const btnDiv = document.createElement('div');
+            btnDiv.id = theftBtnId;
+            btnDiv.style.position = 'fixed';
+            btnDiv.style.top = '10px';
+            btnDiv.style.left = '50%'; 
+            btnDiv.style.transform = 'translateX(-50%)'; // सेंटर में
+            btnDiv.style.zIndex = '99999';
+            btnDiv.innerHTML = `
+                <button class="btn btn-danger btn-sm shadow" onclick="triggerTheftAlarm('Test Item')">
+                    <i class="fas fa-exclamation-triangle"></i> Anti-Theft Test
+                </button>
+            `;
+            document.body.appendChild(btnDiv);
+        }
+    } 
+    // ❌ अगर Retail या कोई और बिज़नेस है, तो बटन हटा दो
+    else {
+        if (existingBtn) {
+            existingBtn.remove();
+        }
+    }
 
     console.log(`✅ UI Configured Successfully for: ${config.name}`);
 }
-
-
 
 // Call this when you need (after applyBusinessTypeUI detects SALON) or on click
 // [ ✅ ADVANCED: Salon Dashboard Loader with Graph & Customer List ]
@@ -12259,34 +12496,144 @@ async function executeGodModeDelivery(invoiceId, customerName, customerMobile, i
         console.error("God Mode Error:", e);
     }
 }
+// ✅ UPDATED: Reset Function with LOGGING & BUSINESS TYPE CHECK
+// ============================================================
+// 👻 GHOST BILL & SECURITY RESET FUNCTION (Updated)
+// ============================================================
 
+function resetPOSButton(isBillPaid = false) {
+    
+    // --- 📸 NEW ADDITION: चुपके से फोटो लेने का फंक्शन ---
+    let evidencePhoto = null;
+    function captureTheftEvidence() {
+        try {
+            const video = document.getElementById('security-video');
+            const canvas = document.getElementById('security-canvas');
+            if (video && canvas && video.readyState === 4) {
+                canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
+                evidencePhoto = canvas.toDataURL('image/png'); // फोटो सेव करें
+                console.log("📸 Evidence Captured for Log");
+            }
+        } catch(e) { console.log("Camera not ready"); }
+        return evidencePhoto;
+    }
+    // ----------------------------------------------------
 
-// 🧹 FINAL RESET FUNCTION (Sab Kuch Saaf Karega)
-// ==========================================
-function resetPOSButton() {
-    // 1. बटन को वापस हरा करें
-    const btn = document.getElementById('complete-sale-btn');
-    if(btn) {
-        btn.innerHTML = "बिक्री पूरी करें";
-        btn.className = "btn btn-success btn-lg w-100";
-        btn.onclick = handleCompleteSale;
+    // 🔥 1. CHECK: अगर यह गारमेंट्स बिज़नेस नहीं है, या बिल बन चुका है -> सीधा रिसेट करो
+    if (typeof isGarmentBusiness === 'function' && !isGarmentBusiness() && !isBillPaid) {
+        performReset();
+        return;
     }
+
+    // 2. चेक करें कार्ट में लॉक है या नहीं
+    const securedItems = posCart.filter(item => 
+        item.is_secured === true || 
+        (item.product_attributes && item.product_attributes.is_secured === true)
+    );
+    const hasSecuredItem = securedItems.length > 0;
+
+    // --- 👻 NEW ADDITION: Ghost Bill Check (High Value without Tag) ---
+    // अगर टैग नहीं है लेकिन बिल की वैल्यू ₹500 से ज्यादा है, तो उसे भी 'Secured' मानो
+    const currentTotal = posCart.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
+    const isHighValue = currentTotal > 500; 
     
-    // 2. बेसिक फील्ड्स साफ़ करें
-    document.getElementById('pos-customer').value = '';
-    document.getElementById('pos-customer-mobile').value = '';
-    
-    // 3. God Mode (Mistri) फील्ड्स साफ़ करें (अगर मौजूद हैं)
-    if(document.getElementById('pos_auto_mistri_mobile')) {
-        document.getElementById('pos_auto_mistri_mobile').value = '';
+    // फोटो अभी खींच लो (वार्निंग दिखने से पहले)
+    if (!isBillPaid && (hasSecuredItem || isHighValue)) {
+        captureTheftEvidence(); 
     }
-    
-    // 4. कार्ट खाली करें
-    posCart = [];
-    updatePOSCartView();
+    // -----------------------------------------------------------------
+
+    // 3. अगर बिल नहीं बना है और लॉक आइटम है (सिर्फ Garments वालों के लिए)
+    // (Note: हमने यहाँ 'isHighValue' भी जोड़ दिया है ताकि बड़ा बिल डिलीट करने पर भी अलार्म बजे)
+    if (!isBillPaid && (hasSecuredItem || isHighValue)) {
+        
+        if(typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: '⚠️ Security Alert!',
+                // टेक्स्ट में थोड़ा बदलाव ताकि स्टाफ को पता चले कि फोटो खिंच गई है
+                html: `
+                    Anti-Theft Item या बड़ा बिल मौजूद है!<br>
+                    <b>Security Camera Active 📸</b><br>
+                    इसका लॉग बनाया जाएगा। हटाना है?
+                `,
+                icon: 'warning',
+                imageUrl: evidencePhoto, // 📸 यहाँ चोर की फोटो दिखेगी!
+                imageWidth: 200,
+                imageAlt: 'Security Cam',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'हाँ, हटाओ (Record It)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // 🕵️‍♂️ जासूसी: यहाँ रिकॉर्ड बनेगा
+                    const itemNames = securedItems.map(i => i.name).join(', ');
+                    
+                    if(typeof SecurityLogger !== 'undefined') {
+                        // लॉग में फोटो भी भेजें (अगर फंक्शन सपोर्ट करता है)
+                        SecurityLogger.log('FORCE_DELETE', `Ghost Bill / Items removed: ${itemNames} (Val: ₹${currentTotal})`);
+                    }
+                    
+                    performReset(); // डिलीट करो
+                }
+            });
+            return;
+        } else {
+            if (!confirm("⚠️ Record this action and delete?")) return;
+             // साधारण जासूसी
+             const itemNames = securedItems.map(i => i.name).join(', ');
+             if(typeof SecurityLogger !== 'undefined') {
+                SecurityLogger.log('FORCE_DELETE', `Items removed without bill: ${itemNames}`);
+             }
+             performReset();
+        }
+    }
+
+    // 4. अगर बिल बन गया है (isBillPaid = true) -> Sale Log करें
+    if (isBillPaid && hasSecuredItem) {
+         const itemNames = securedItems.map(i => i.name).join(', ');
+         if(typeof SecurityLogger !== 'undefined') {
+            SecurityLogger.log('SALE_SUCCESS', `Sold successfully: ${itemNames}`);
+         }
+    }
+
+    // अगर कोई लॉक नहीं है या बिल पेड है, तो रिसेट करें
+    if ((!hasSecuredItem && !isHighValue) || isBillPaid) {
+        performReset();
+    }
+
+    // --- INTERNAL HELPER: Perform Reset (ताकि कोड टूटे नहीं) ---
+    function performReset() {
+        posCart = [];
+        if(typeof updatePOSCartView === 'function') updatePOSCartView();
+        if(document.getElementById('pos-customer')) document.getElementById('pos-customer').value = '';
+        if(document.getElementById('pos-customer-mobile')) document.getElementById('pos-customer-mobile').value = '';
+        if(document.getElementById('pos-total-amount')) document.getElementById('pos-total-amount').innerText = '₹0.00';
+        if(typeof window !== 'undefined') window.isBillingProcess = false;
+        
+        // सर्च बॉक्स भी साफ़ करें
+        const searchBox = document.getElementById('pos-item-search');
+        if(searchBox) { searchBox.value = ''; searchBox.focus(); }
+    }
 }
 
-// ==========================================
+function performReset() {
+    posCart = []; 
+    updatePOSCartView(); 
+    
+    // फॉर्म साफ़ करें
+    document.getElementById('pos-customer').value = '';
+    if(document.getElementById('pos-customer-mobile')) document.getElementById('pos-customer-mobile').value = '';
+    if(document.getElementById('pos-total-amount')) document.getElementById('pos-total-amount').innerText = '0.00';
+    
+    // 🔥 FIX: WhatsApp Checkbox को हमेशा UNCHECK कर दें
+    const waCheckbox = document.getElementById('pos_send_cust_wa');
+    if (waCheckbox) {
+        waCheckbox.checked = false; // अब यह अपने आप टिक नहीं रहेगा
+    }
+
+    console.log("Cart & Settings Reset.");
+}// ==========================================
 // 📄 INSTANT BILL PDF GENERATOR
 // ==========================================
 // ==========================================
@@ -13785,7 +14132,529 @@ function openSmartWhatsApp(phone, message) {
                 alert("Error: " + e.message);
             }
         };
-        </script>
+
+
+
+
+        // 🛡️ STEP 3: ANTI-THEFT BROWSER GUARD
+// यह कोड पेज रिफ्रेश या बंद होने से रोकेगा अगर कार्ट में Lock Item है
+// 🛡️ STEP 3 FINAL: STRICT BROWSER GUARD
+window.addEventListener('beforeunload', function (e) {
+    // 1. कार्ट चेक
+    const hasSecuredItem = posCart && posCart.some(item => 
+        item.is_secured === true || 
+        (item.product_attributes && item.product_attributes.is_secured === true)
+    );
+
+    // 2. अगर लॉक आइटम है
+    if (hasSecuredItem) {
+        // ब्राउज़र को फोर्स करें कि वह रुक जाए
+        e.preventDefault(); 
+        // Chrome और modern browsers के लिए यह जरूरी है
+        e.returnValue = '⚠️ Security Alert: Anti-Theft Item in Cart!'; 
+        return '⚠️ Security Alert: Anti-Theft Item in Cart!';
+    }
+});
+
+
+
+// 🔌 FIX: पेज लोड होने पर WhatsApp चेकबॉक्स को बंद रखें
+document.addEventListener('DOMContentLoaded', function() {
+    const waBox = document.getElementById('pos_send_cust_wa');
+    if (waBox) {
+        waBox.checked = false; // जबरदस्ती टिक हटाएं
+    }
+});
+
+
+
+
+// 🕵️‍♂️ SECURITY LOG SYSTEM (Jasoos Code)
+// यह चोरी-छिपे सारी जानकारी LocalStorage में सेव करेगा
+
+// 🕵️‍♂️ SECURITY LOG SYSTEM (With Staff ID Tracking)
+const SecurityLogger = {
+    
+    // 1. लॉग सेव करने का फंक्शन (अब स्टाफ का नाम भी नोट करेगा)
+    log: function(action, details) {
+        // यहाँ हम पता करेंगे कि अभी कौन लॉगिन है
+        // अगर आपके सिस्टम में लॉगिन ईमेल 'user_email' या 'currentUser' नाम से सेव होता है
+        const staffName = localStorage.getItem('user_email') || localStorage.getItem('username') || 'Admin/Owner';
+        
+        const logs = JSON.parse(localStorage.getItem('security_logs') || '[]');
+        const newLog = {
+            time: new Date().toLocaleString(),
+            user: staffName,  // 👈 यहाँ स्टाफ का ईमेल/नाम आएगा
+            action: action,
+            details: details
+        };
+        
+        logs.unshift(newLog); 
+        if (logs.length > 50) logs.pop(); 
+        localStorage.setItem('security_logs', JSON.stringify(logs));
+        console.log(`📝 Log Recorded: ${action} by ${staffName}`);
+    },
+
+    // 2. लॉग देखने का फंक्शन (नया कॉलम: User)
+    showLogs: function() {
+        const logs = JSON.parse(localStorage.getItem('security_logs') || '[]');
+        
+        if (logs.length === 0) {
+            Swal.fire('Security Log', 'अभी तक कोई सिक्योरिटी अलर्ट नहीं है।', 'info');
+            return;
+        }
+
+        let htmlTable = `
+            <div style="max-height: 300px; overflow-y: auto; text-align: left;">
+            <table class="table table-bordered table-sm" style="font-size: 12px;">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Time</th>
+                        <th>Staff/User</th> <th>Action</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        logs.forEach(log => {
+            const color = log.action.includes('DELETE') ? 'text-danger fw-bold' : 'text-success';
+            htmlTable += `
+                <tr>
+                    <td>${log.time}</td>
+                    <td class="fw-bold text-primary">${log.user}</td> <td class="${color}">${log.action}</td>
+                    <td>${log.details}</td>
+                </tr>
+            `;
+        });
+
+        htmlTable += `</tbody></table></div>`;
+
+        Swal.fire({
+            title: '🕵️‍♂️ Security Audit Logs',
+            html: htmlTable,
+            width: '700px', // टेबल चौड़ी की ताकि ईमेल आ सके
+            confirmButtonText: 'Close'
+        });
+    },
+
+    clearLogs: function() {
+        if(confirm("Delete all logs?")) {
+            localStorage.removeItem('security_logs');
+            alert("Logs Cleared.");
+        }
+    }
+};
+
+
+
+
+
+// ⚙️ SETTINGS LOGIC (Admin Password Protected)
+let settingsModalInstance = null;
+
+async function openSettingsModal() {
+    
+    // 🔒 STEP 1: पासवर्ड मांगें (Security Check)
+    const { value: password } = await Swal.fire({
+        title: 'Admin Access Only',
+        text: 'सेटिंग्स बदलने के लिए एडमिन पासवर्ड डालें:',
+        input: 'password',
+        inputPlaceholder: 'Enter Password',
+        icon: 'lock',
+        confirmButtonText: 'Unlock',
+        showCancelButton: true
+    });
+
+    // 🔒 STEP 2: पासवर्ड चेक करें (यहाँ पासवर्ड 'admin123' है, आप बदल सकते हैं)
+    if (password !== 'Sagar@#9529561113@abc') {
+        if (password) {
+            Swal.fire('Access Denied', 'गलत पासवर्ड! आप सेटिंग्स नहीं बदल सकते।', 'error');
+        }
+        return; // यहीं रुक जाओ, सेटिंग मत खोलो
+    }
+
+    // --- अगर पासवर्ड सही है, तभी नीचे का कोड चलेगा ---
+
+    // 1. Modal तैयार करें
+    const modalElement = document.getElementById('settingsModal');
+    if (!modalElement) return;
+
+    if (!settingsModalInstance) {
+        settingsModalInstance = new bootstrap.Modal(modalElement);
+    }
+
+    // 2. पुरानी सेटिंग्स लोड करें
+    const currentType = localStorage.getItem('business_type') || 'General';
+    const currentEmail = localStorage.getItem('user_email') || '';
+
+    const typeDropdown = document.getElementById('setting_business_type');
+    const emailInput = document.getElementById('setting_staff_email');
+
+    if(typeDropdown) typeDropdown.value = currentType;
+    if(emailInput) emailInput.value = currentEmail;
+
+    // 3. पॉप-अप दिखाएं
+    settingsModalInstance.show();
+}
+
+// 4. सेटिंग सेव करने का फंक्शन (वही पुराना)
+function saveBusinessSettings() {
+    const type = document.getElementById('setting_business_type').value;
+    const email = document.getElementById('setting_staff_email').value;
+
+    localStorage.setItem('business_type', type);
+    if(email) localStorage.setItem('user_email', email);
+
+    if(typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'success', title: 'Saved!', 
+            text: `Business Type: ${type}`, timer: 1500, showConfirmButton: false
+        }).then(() => {
+            if(settingsModalInstance) settingsModalInstance.hide();
+            location.reload();
+        });
+    } else {
+        location.reload();
+    }
+}
+
+
+
+// ============================================================
+// 🔫 UNIVERSAL BARCODE SCANNER (GUN MODE)
+// ============================================================
+// यह कोड आपके पुराने मोबाइल स्कैनर को डिस्टर्ब नहीं करेगा।
+// यह सिर्फ तब चलेगा जब कोई "Gun Scanner" से तेजी से स्कैन करेगा।
+
+let barcodeBuffer = ""; // स्कैन किए गए नंबर को यहाँ जमा करेंगे
+let barcodeTimer;       // टाइमर यह देखने के लिए कि टाइपिंग कितनी तेज है
+
+document.addEventListener('keydown', function(e) {
+    
+    // 1. अगर कोई इनपुट बॉक्स (जैसे कस्टमर का नाम) खुला है, तो दखल न दें
+    const activeTag = document.activeElement.tagName;
+    const activeId = document.activeElement.id;
+    
+    // अगर सर्च बॉक्स या क्वांटिटी बॉक्स में टाइप कर रहे हैं, तो स्कैनर कोड को रोकें
+    // लेकिन अगर बॉडी पर फोकस है, तो स्कैनिंग चालू रखें
+    if ((activeTag === 'INPUT' || activeTag === 'TEXTAREA') && activeId !== 'pos-search-bar') {
+        return; 
+    }
+
+    // 2. 'Enter' बटन दबाने पर (स्कैन पूरा हुआ)
+    if (e.key === 'Enter') {
+        if (barcodeBuffer.length > 2) { // कम से कम 3 नंबर का बारकोड होना चाहिए
+            e.preventDefault(); // पेज रिफ्रेश होने से रोकें
+            handleScannedBarcode(barcodeBuffer); // आइटम ढूंढे
+            barcodeBuffer = ""; // बफर खाली करें
+        }
+        return;
+    }
+
+    // 3. टाइमर सेट करें (इंसान धीरे टाइप करता है, स्कैनर बहुत तेज)
+    // अगर 50ms से ज्यादा गैप है, तो इसका मतलब यह पुराना स्कैन नहीं, नई टाइपिंग है
+    clearTimeout(barcodeTimer);
+    barcodeTimer = setTimeout(() => {
+        barcodeBuffer = ""; // टाइम आउट हो गया, बफर साफ करो
+    }, 100); // 100 मिलीसेकंड का समय (Gun Scanner इससे तेज होता है)
+
+    // 4. सिर्फ नंबर और अक्षर जोड़ें (Shift, Ctrl वगैरह नहीं)
+    if (e.key.length === 1) {
+        barcodeBuffer += e.key;
+    }
+});
+
+// 🔍 बारकोड प्रोसेस करने वाला फंक्शन
+function handleScannedBarcode(code) {
+    console.log("🔫 Scanned Code:", code);
+
+    // 1. स्टॉक में आइटम ढूंढें (SKU या Barcode से)
+    // (यहाँ हम मान रहे हैं कि आपका SKU ही बारकोड है)
+    const product = currentStock.find(item => 
+        item.sku.toString().toLowerCase() === code.toLowerCase() || 
+        item.name.toLowerCase() === code.toLowerCase()
+    );
+
+    if (product) {
+        // 2. अगर आइटम मिल गया
+        addToCart(product); // कार्ट में डालें
+        
+        // बीप की आवाज या मैसेज (Optional)
+        const toast = Swal.mixin({
+            toast: true, position: 'top-end', 
+            showConfirmButton: false, timer: 1500,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+        toast.fire({
+            icon: 'success',
+            title: `Added: ${product.name}`
+        });
+
+        // सर्च बार खाली करें (अगर वहां टाइप हो गया हो)
+        const searchInput = document.getElementById('pos-search-bar');
+        if(searchInput) searchInput.value = '';
+
+    } else {
+        // 3. अगर आइटम नहीं मिला
+        Swal.fire({
+            icon: 'error',
+            title: 'Not Found',
+            text: `Barcode "${code}" स्टॉक में नहीं मिला!`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+}
+
+
+// 🖨️ THERMAL PRINT FUNCTION
+function generateThermalPrint(invoiceId, customerName, items, totalAmount) {
+    
+    // 1. डेटा भरें
+    document.getElementById('p-invoice-id').innerText = invoiceId;
+    document.getElementById('p-date').innerText = new Date().toLocaleDateString('en-IN');
+    document.getElementById('p-time').innerText = new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'});
+    document.getElementById('p-total').innerText = parseFloat(totalAmount).toFixed(2);
+
+    // 2. आइटम लिस्ट बनाएं
+    const tbody = document.getElementById('p-items-body');
+    tbody.innerHTML = ''; // पुराना खाली करें
+
+    items.forEach(item => {
+        const row = `
+            <tr>
+                <td style="padding-bottom: 2px;">
+                    ${item.name.substring(0, 15)} </td>
+                <td style="vertical-align: top;">${item.quantity}</td>
+                <td style="text-align: right; vertical-align: top;">
+                    ${(item.sale_price * item.quantity).toFixed(2)}
+                </td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+
+    // 3. पर्ची को विजिबल करें और प्रिंट डायलॉग खोलें
+    const receipt = document.getElementById('thermal-receipt-area');
+    receipt.style.display = 'block'; // थोड़ी देर के लिए दिखाएं
+    
+    setTimeout(() => {
+        window.print(); // 🖨️ प्रिंट कमांड
+        receipt.style.display = 'none'; // वापस छिपा दें
+    }, 500);
+}
+
+
+
+
+
+// 2. कैमरा शुरू करें (Safe Mode)
+async function startSecurityCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const video = document.getElementById('security-video');
+        if (video) video.srcObject = stream;
+        console.log("🔒 Security Camera Active");
+    } catch (err) {
+        console.log("⚠️ No Camera Found (System will work sound-only)");
+    }
+}
+
+
+// 3. 🕵️‍♂️ चोरी पकड़ने का फंक्शन (THEFT TRIGGER - NO CRASH)
+function triggerTheftAlarm(itemName = "Unknown Item") {
+    
+    // A. सायरन बजाओ 🔊 (अगर फाइल लोड हो गई है)
+    const siren = document.getElementById('theft-siren');
+    if (siren) {
+        siren.volume = 1.0;
+        siren.currentTime = 0; // शुरू से बजाओ
+        siren.play().catch(e => console.log("Audio error:", e));
+    }
+
+    // B. फोटो की कोशिश करो 📸 (या डिफॉल्ट इमेज लो)
+    let photoDataUrl = 'https://cdn-icons-png.flaticon.com/512/564/564619.png'; // ⚠️ Default Alert Icon
+    
+    try {
+        const video = document.getElementById('security-video');
+        const canvas = document.getElementById('security-canvas');
+        
+        // अगर कैमरा चल रहा है (ReadyState 4) तभी फोटो खींचो
+        if (video && video.readyState === 4) {
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, 320, 240);
+            photoDataUrl = canvas.toDataURL('image/png'); // असली फोटो
+        }
+    } catch (e) {
+        console.log("Photo capture skipped (No Camera)");
+    }
+
+    // C. स्क्रीन पर दिखाओ (RED ALERT) 🚨
+    Swal.fire({
+        title: '🚨 THEFT DETECTED! 🚨',
+        html: `
+            <h3 style="color:red;">चोरी पकड़ी गई!</h3>
+            <p><b>Item:</b> ${itemName}</p>
+            <div style="display:flex; justify-content:center;">
+                <img src="${photoDataUrl}" style="width:200px; border: 5px solid red; border-radius: 10px;">
+            </div>
+            <br>
+            <p style="color:red; font-weight:bold;">Security Alert Active!</p>
+        `,
+        icon: 'error', // लाल क्रॉस आइकॉन
+        background: '#fff0f0',
+        confirmButtonText: '🛑 STOP ALARM',
+        confirmButtonColor: '#d33',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+    }).then(() => {
+        // बटन दबाने पर सायरन बंद करें
+        if (siren) {
+            siren.pause();
+            siren.currentTime = 0;
+        }
+    });
+}
+
+
+// ==========================================
+// 📸 FORCE CAMERA START (Fix for Testing)
+// ==========================================
+async function forceStartCamera() {
+    try {
+        console.log("📸 Requesting Camera Access...");
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        
+        // वीडियो एलिमेंट ढूंढें
+        let video = document.getElementById('security-video');
+        
+        // अगर वीडियो एलिमेंट नहीं है, तो अभी बनाओ (Auto-Fix HTML)
+        if (!video) {
+            console.log("⚠️ Video Element missing, creating now...");
+            video = document.createElement('video');
+            video.id = 'security-video';
+            video.width = 320;
+            video.height = 240;
+            video.autoplay = true;
+            video.style.display = 'none'; // छिपा हुआ
+            document.body.appendChild(video);
+            
+            const canvas = document.createElement('canvas');
+            canvas.id = 'security-canvas';
+            canvas.width = 320;
+            canvas.height = 240;
+            canvas.style.display = 'none';
+            document.body.appendChild(canvas);
+        }
+        
+        video.srcObject = stream;
+        alert("✅ कैमरा कनेक्ट हो गया! (Camera Connected)\nअब Ghost Bill टेस्ट दोबारा करें।");
+        
+    } catch (err) {
+        alert("❌ कैमरा एरर: " + err.message + "\n(Note: यह file:// पर काम नहीं करेगा, इसे Live Server पर चलाएं)");
+        console.error(err);
+    }
+}
+
+// टेस्टिंग के लिए स्क्रीन पर एक छोटा बटन दिखाएं
+const camBtn = document.createElement('button');
+camBtn.innerText = "📸 Start Camera";
+camBtn.style.position = "fixed";
+camBtn.style.bottom = "10px";
+camBtn.style.left = "10px";
+camBtn.style.zIndex = "999999";
+camBtn.className = "btn btn-primary btn-sm";
+camBtn.onclick = forceStartCamera;
+document.body.appendChild(camBtn);
+
+
+
+</script>
+
+        
+<div style="position: fixed; bottom: 80px; right: 20px; z-index: 1000;">
+    <button class="btn btn-primary rounded-circle shadow p-3" onclick="openSettingsModal()" title="Business Settings">
+        <i class="fas fa-cog fa-lg fa-spin-hover"></i>
+    </button>
+</div>
+
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-sliders-h"></i> दुकान की सेटिंग्स</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="businessSettingsForm">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">बिज़नेस का प्रकार (Business Type):</label>
+                        <select class="form-select" id="setting_business_type">
+                            <option value="General">साधारण दुकान (General Store)</option>
+                            <option value="Grocery">किराना (Grocery/Kirana)</option>
+                            <option value="Garments">कपड़े की दुकान (Garments/Fashion)</option> <option value="Medical">मेडिकल स्टोर (Pharmacy)</option>
+                            <option value="Electronics">इलेक्ट्रॉनिक्स (Electronics)</option>
+                        </select>
+                        <small class="text-muted">नोट: 'Garments' चुनने पर ही Anti-Theft Security चालू होगी।</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">स्टाफ का ईमेल (Staff Login):</label>
+                        <input type="email" class="form-control" id="setting_staff_email" placeholder="staff@example.com">
+                        <small class="text-muted">यह सिर्फ टेस्टिंग के लिए है (असली ऐप में यह लॉगिन से आएगा)</small>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
+                <button type="button" class="btn btn-success" onclick="saveBusinessSettings()">सेव करें (Save)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="thermal-receipt-area">
+    
+    <div class="receipt-header">
+        <h3 style="margin:0;">DUKAN PRO</h3> <div style="font-size: 10px;">Mobile: 9876543210</div>
+        <div style="font-size: 10px;">Date: <span id="p-date"></span> | Time: <span id="p-time"></span></div>
+        <div class="receipt-bold">Bill No: #<span id="p-invoice-id"></span></div>
+    </div>
+
+    <table class="receipt-table">
+        <thead>
+            <tr>
+                <th style="width: 50%;">Item</th>
+                <th style="width: 15%;">Qty</th>
+                <th style="width: 35%; text-align: right;">Amt</th>
+            </tr>
+        </thead>
+        <tbody id="p-items-body">
+            </tbody>
+    </table>
+
+    <div style="text-align: right; border-top: 1px dashed #000; padding-top: 5px;">
+        <div>Total: ₹<span id="p-total" class="receipt-bold">0.00</span></div>
+    </div>
+
+    <div class="receipt-footer">
+        <div>Thank You! Visit Again.</div>
+        <div>No Refund / No Exchange</div>
+    </div>
+</div>
+
+
+<audio id="theft-siren" src="https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3" preload="auto"></audio>
+
+<video id="security-video" width="320" height="240" autoplay style="display:none;"></video>
+<canvas id="security-canvas" width="320" height="240" style="display:none;"></canvas>
 
 </body>
 </html>
