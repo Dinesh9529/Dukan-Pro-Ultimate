@@ -1655,6 +1655,12 @@
                 <i class="fas fa-check-circle text-success"></i> लाइसेंस लोड हो रहा है...
             </div>
             
+            <li class="nav-item ms-2">
+                <button class="btn btn-danger fw-bold" data-bs-toggle="modal" data-bs-target="#securityModal" style="border-radius: 20px;">
+                    <i class="fas fa-user-shield"></i> Guard Check
+                </button>
+            </li>
+
             <button id="logout-btn" class="btn btn-sm btn-danger w-100"><i class="fas fa-sign-out-alt me-2"></i>लॉगआउट</button>
             
             <p class="text-muted mt-2 mb-0 text-center small">v1.0.3 Corrected</p>
@@ -14419,46 +14425,87 @@ function handleScannedBarcode(code) {
     }
 }
 
-
-// 🖨️ THERMAL PRINT FUNCTION
+// 🖨️ SMART THERMAL PRINT FUNCTION (Final Version)
 function generateThermalPrint(invoiceId, customerName, items, totalAmount) {
     
-    // 1. डेटा भरें
+    // 1. रसीद एरिया को ढूंढें और दिखाएं
+    const receipt = document.getElementById('thermal-receipt-area');
+    if (!receipt) return alert("Error: Receipt HTML Missing!");
+    
+    receipt.style.display = 'block'; // प्रिंटर को दिखाने के लिए विजिबल करें
+
+    // 2. बेसिक डेटा भरें
     document.getElementById('p-invoice-id').innerText = invoiceId;
     document.getElementById('p-date').innerText = new Date().toLocaleDateString('en-IN');
     document.getElementById('p-time').innerText = new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'});
     document.getElementById('p-total').innerText = parseFloat(totalAmount).toFixed(2);
 
-    // 2. आइटम लिस्ट बनाएं
+    // 3. आइटम टेबल भरें
     const tbody = document.getElementById('p-items-body');
-    tbody.innerHTML = ''; // पुराना खाली करें
+    tbody.innerHTML = ''; // पुरानी लिस्ट साफ़ करें
+
+    let totalQty = 0; // आइटम गिनने के लिए
 
     items.forEach(item => {
+        const qty = Number(item.quantity || 1);
+        totalQty += qty; // कुल गिनती जोड़ें
+
         const row = `
             <tr>
-                <td style="padding-bottom: 2px;">
-                    ${item.name.substring(0, 15)} </td>
-                <td style="vertical-align: top;">${item.quantity}</td>
+                <td style="padding-bottom: 2px;">${item.name.substring(0, 15)}</td>
+                <td style="vertical-align: top; text-align: center;">${qty}</td>
                 <td style="text-align: right; vertical-align: top;">
-                    ${(item.sale_price * item.quantity).toFixed(2)}
+                    ${(item.sale_price * qty).toFixed(2)}
                 </td>
             </tr>
         `;
         tbody.innerHTML += row;
     });
 
-    // 3. पर्ची को विजिबल करें और प्रिंट डायलॉग खोलें
-    const receipt = document.getElementById('thermal-receipt-area');
-    receipt.style.display = 'block'; // थोड़ी देर के लिए दिखाएं
-    
-    setTimeout(() => {
-        window.print(); // 🖨️ प्रिंट कमांड
-        receipt.style.display = 'none'; // वापस छिपा दें
-    }, 500);
+    // 4. 🚀 SMART GATE PASS SYSTEM ---------------------------
+    const qrImg = document.getElementById('p-qrcode');
+    const qtySpan = document.getElementById('p-total-qty');
+    let isPrinted = false; // यह झंडा (Flag) है जो डबल प्रिंट रोकेगा
+
+    // प्रिंट करने वाला फंक्शन (जो एक ही बार चलेगा)
+    function finalizePrint() {
+        if (isPrinted) return; // अगर पहले ही प्रिंट हो गया तो रुको
+        isPrinted = true;
+        
+        window.print(); 
+        receipt.style.display = 'none'; // काम होने के बाद छिपा दें
+    }
+
+    if (qrImg && qtySpan) {
+        // आइटम की गिनती सेट करें
+        qtySpan.innerText = totalQty;
+
+        // QR कोड इमेज का लिंक डालें
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${invoiceId}`;
+
+        // ✅ Plan A: जैसे ही इमेज लोड हो, तुरंत प्रिंट करो (Fastest)
+        qrImg.onload = function() {
+            finalizePrint();
+        };
+
+        // ⚠️ Plan B: अगर इमेज लोड न हो (Error), तो भी प्रिंट करो (रुकना नहीं है)
+        qrImg.onerror = function() {
+            finalizePrint();
+        };
+
+        // ⏰ Plan C: बैकअप टाइमर (अगर इंटरनेट बहुत स्लो है)
+        // 2.5 सेकंड बाद यह जबरदस्ती प्रिंट कर देगा
+        setTimeout(() => {
+            if (!isPrinted) {
+                finalizePrint();
+            }
+        }, 3000);
+
+    } else {
+        // अगर Gate Pass सेक्शन नहीं है, तो नार्मल प्रिंट करें
+        finalizePrint();
+    }
 }
-
-
-
 
 
 // 2. कैमरा शुरू करें (Safe Mode)
@@ -14607,6 +14654,84 @@ function requestLicenseKey() {
 }
 
 
+
+
+// --- 👮 SECURITY GUARD LOGIC ---
+
+// 1. Verify Bill (Gate Pass)
+async function verifyGatePass() {
+    const billNo = document.getElementById('sec-invoice-id').value;
+    const resBox = document.getElementById('sec-result');
+    
+    if(!billNo) return alert("Enter Bill Number");
+    
+    resBox.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
+
+    try {
+        const res = await fetchApi('/api/security/verify-gate-pass', {
+            method: 'POST',
+            body: { invoiceId: billNo }
+        });
+
+        if(res.success) {
+            // Play Success Sound (Beep)
+            new Audio('https://www.soundjay.com/buttons/sounds/button-3.mp3').play();
+            
+            let itemList = res.items.map(i => `<div class="small text-start border-bottom">${i.item_name} (x${i.quantity})</div>`).join('');
+            
+            resBox.innerHTML = `
+                <div class="alert alert-success mt-2">
+                    <div class="display-6"><i class="fas fa-check-circle"></i> VERIFIED</div>
+                    <div class="small">Bill Date: ${new Date(res.invoice.created_at).toLocaleDateString()}</div>
+                    <div class="mt-2 bg-white p-2 rounded text-dark" style="max-height:100px; overflow-y:auto;">
+                        ${itemList}
+                    </div>
+                </div>`;
+        } else {
+            // Play Error Sound
+            new Audio('https://www.soundjay.com/buttons/sounds/beep-03.mp3').play();
+            resBox.innerHTML = `<div class="alert alert-danger mt-2 display-6"><i class="fas fa-times-circle"></i> FAKE BILL!</div>`;
+        }
+    } catch(e) {
+        resBox.innerHTML = `<span class="text-danger">${e.message}</span>`;
+    }
+}
+
+// 2. Trigger Alarm (Siren)
+function triggerTheftAlarm() {
+    const siren = document.getElementById('theft-siren');
+    
+    // अगर सायरन बज रहा है, तो बंद करें
+    if (!siren.paused) {
+        siren.pause();
+        siren.currentTime = 0;
+        return;
+    }
+
+    // सायरन बजाएं
+    siren.play().catch(e => alert("Please interact with document first"));
+    
+    // Log to Server
+    fetchApi('/api/security/log-theft', { 
+        method: 'POST', 
+        body: { reason: 'Guard Panic Button Pressed' } 
+    });
+
+    // Visual Flash Effect
+    document.body.style.animation = "flashRed 0.5s infinite";
+    setTimeout(() => { document.body.style.animation = ""; }, 5000);
+}
+
+// Add CSS for Flash Effect
+const style = document.createElement('style');
+style.innerHTML = `
+@keyframes flashRed {
+    0% { background-color: #fff; }
+    50% { background-color: #ffcccc; }
+    100% { background-color: #fff; }
+}`;
+document.head.appendChild(style);
+
 </script>
 
         
@@ -14654,19 +14779,20 @@ function requestLicenseKey() {
 </div>
 
 
-<div id="thermal-receipt-area">
+<div id="thermal-receipt-area" style="display:none; width: 58mm; font-family: 'Courier New', monospace; font-size: 12px; background: #fff; color: #000;">
     
-    <div class="receipt-header">
-        <h3 style="margin:0;">DUKAN PRO</h3> <div style="font-size: 10px;">Mobile: 9876543210</div>
+    <div class="receipt-header" style="text-align: center; margin-bottom: 5px;">
+        <h3 style="margin:0;">DUKAN PRO</h3> 
+        <div style="font-size: 10px;">Mobile: 9876543210</div>
         <div style="font-size: 10px;">Date: <span id="p-date"></span> | Time: <span id="p-time"></span></div>
-        <div class="receipt-bold">Bill No: #<span id="p-invoice-id"></span></div>
+        <div class="receipt-bold" style="font-weight: bold; margin-top: 2px;">Bill No: #<span id="p-invoice-id"></span></div>
     </div>
 
-    <table class="receipt-table">
-        <thead>
+    <table class="receipt-table" style="width: 100%; border-collapse: collapse; font-size: 11px;">
+        <thead style="border-bottom: 1px dashed #000;">
             <tr>
-                <th style="width: 50%;">Item</th>
-                <th style="width: 15%;">Qty</th>
+                <th style="width: 50%; text-align: left;">Item</th>
+                <th style="width: 15%; text-align: center;">Qty</th>
                 <th style="width: 35%; text-align: right;">Amt</th>
             </tr>
         </thead>
@@ -14674,21 +14800,62 @@ function requestLicenseKey() {
             </tbody>
     </table>
 
-    <div style="text-align: right; border-top: 1px dashed #000; padding-top: 5px;">
-        <div>Total: ₹<span id="p-total" class="receipt-bold">0.00</span></div>
+    <div style="text-align: right; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">
+        <div style="font-size: 14px; font-weight: bold;">Total: ₹<span id="p-total">0.00</span></div>
     </div>
 
-    <div class="receipt-footer">
+    <div style="border-top: 2px dashed black; margin-top: 10px; padding-top: 5px; text-align: center;">
+        <h4 style="margin:0;">🚪 GATE PASS</h4>
+        <div style="font-size: 10px;">Security Check Required</div>
+        
+        <img id="p-qrcode" src="" style="width: 100px; height: 100px; margin: 5px;">
+        
+        <div style="font-size: 12px; font-weight: bold;">
+            Items: <span id="p-total-qty">0</span> | Paid ✅
+        </div>
+    </div>
+    <div class="receipt-footer" style="text-align: center; margin-top: 10px; font-size: 10px;">
         <div>Thank You! Visit Again.</div>
         <div>No Refund / No Exchange</div>
     </div>
 </div>
 
-
 <audio id="theft-siren" src="https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3" preload="auto"></audio>
 
 <video id="security-video" width="320" height="240" autoplay style="display:none;"></video>
 <canvas id="security-canvas" width="320" height="240" style="display:none;"></canvas>
+
+
+
+<div class="modal fade" id="securityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-user-shield"></i> Security Guard Panel</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                
+                <div class="mb-4">
+                    <h6><i class="fas fa-qrcode"></i> Scan Bill QR / Enter Bill No</h6>
+                    <div class="input-group mb-2">
+                        <input type="number" id="sec-invoice-id" class="form-control form-control-lg text-center fw-bold" placeholder="Bill #">
+                        <button class="btn btn-dark" onclick="verifyGatePass()">Verify</button>
+                    </div>
+                    <div id="sec-result" class="fw-bold mt-2"></div>
+                </div>
+
+                <hr>
+
+                <div class="d-grid">
+                    <button class="btn btn-outline-danger btn-lg py-3 fw-bold" onclick="triggerTheftAlarm()">
+                        <i class="fas fa-bell fa-shake"></i> चोर पकड़ो (Panic Alarm)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
