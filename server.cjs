@@ -7274,6 +7274,58 @@ app.post('/api/admin/find-shop', async (req, res) => {
     }
 });
 
+// ==========================================
+// 🛡️ GARMENTS SECURITY & GATE PASS API
+// ==========================================
+
+// 1. गार्ड द्वारा बिल चेक करना (Verify Gate Pass)
+app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => {
+    const { invoiceId } = req.body;
+    const shopId = req.shopId;
+
+    try {
+        // बिल ढूँढें
+        const invRes = await pool.query(
+            `SELECT id, total_amount, created_at, customer_id FROM invoices WHERE id = $1 AND shop_id = $2`,
+            [invoiceId, shopId]
+        );
+
+        if (invRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: '❌ अमान्य बिल! यह बिल सिस्टम में नहीं है।' });
+        }
+
+        // बिल का सामान (Items) लाएं
+        const itemsRes = await pool.query(
+            `SELECT item_name, quantity, item_sku FROM invoice_items WHERE invoice_id = $1`,
+            [invoiceId]
+        );
+
+        res.json({
+            success: true,
+            message: '✅ Verified! (जाने दें)',
+            invoice: invRes.rows[0],
+            items: itemsRes.rows
+        });
+
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// 2. चोरी का अलार्म लॉग करना (Siren Log)
+app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
+    const { reason, items } = req.body; // e.g. "Tag detected at door"
+    try {
+        await pool.query(
+            `INSERT INTO security_alerts (shop_id, status, rfid_tag_detected, alert_time) VALUES ($1, 'UNRESOLVED', $2, NOW())`,
+            [req.shopId, reason || 'Manual Panic Alarm']
+        );
+        res.json({ success: true, message: 'Theft Logged' });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
