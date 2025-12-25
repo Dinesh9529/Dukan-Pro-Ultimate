@@ -7343,16 +7343,20 @@ app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
-
-// 3. Admin History (No Change Needed here)
-app.post('/api/admin/security-history', async (req, res) => {
-    const { adminPassword, shop_id } = req.body;
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({ success: false });
+// 3. Security History Report (दुकानदार के लिए) - NO PASSWORD REQUIRED
+app.post('/api/shop/security-history', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
+    // यहाँ हम user का shopId टोकन से ले रहे हैं (पासवर्ड की जरूरत नहीं)
+    const shopId = req.shopId;
 
     try {
-        const result = await pool.query(`SELECT * FROM security_logs WHERE shop_id = $1 ORDER BY id DESC LIMIT 50`, [shop_id]);
+        const result = await pool.query(
+            `SELECT * FROM security_logs WHERE shop_id = $1 ORDER BY id DESC LIMIT 50`, 
+            [shopId]
+        );
         res.json({ success: true, logs: result.rows });
-    } catch (e) { res.status(500).json({ message: e.message }); }
+    } catch (e) { 
+        res.status(500).json({ message: e.message }); 
+    }
 });
 
 
