@@ -1173,16 +1173,19 @@ const authenticateJWT = async (req, res, next) => {
  */
 /* [Line 86] - यह आपका मौजूदा checkRole फ़ंक्शन है */
 const checkRole = (requiredRole) => (req, res, next) => {
-    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1 };
-    const userRoleValue = roles[req.userRole];
+    // GUARD को सबसे कम पावर (Level 0) दें
+    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1, 'GUARD': 0 };
+    
+    const userRoleValue = roles[req.userRole] || 0;
     const requiredRoleValue = roles[requiredRole.toUpperCase()];
 
     if (userRoleValue >= requiredRoleValue) {
-        next(); // Authorized
+        next();
     } else {
-        res.status(403).json({ success: false, message: 'इस कार्य को करने के लिए पर्याप्त अनुमतियाँ नहीं हैं। (आवश्यक: ' + requiredRole + ')' });
+        res.status(403).json({ success: false, message: 'Permission Denied' });
     }
 };
+
 /* [Line 94] - checkRole फ़ंक्शन यहाँ समाप्त होता है */
 
 
@@ -1780,9 +1783,9 @@ app.post('/api/users', authenticateJWT, checkRole('ADMIN'), checkPlan(['MEDIUM',
     // 🌟 FIX: Added 'status' field
     const { name, email, password, role = 'CASHIER', status = 'pending' } = req.body;
     const shopId = req.shopId;
-
-    if (!name || !email || !password || !['ADMIN', 'MANAGER', 'CASHIER','ACCOUNTANT'].includes(role.toUpperCase())) {
-        return res.status(400).json({ success: false, message: 'मान्य नाम, ईमेल, पासवर्ड और रोल आवश्यक है।' });
+	
+    if (!name || !email || !password || !['ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD'].includes(role.toUpperCase())) {
+        return res.status(400).json({ success: false, message: 'Invalid Role or Missing Fields' });
     }
 
    try {
