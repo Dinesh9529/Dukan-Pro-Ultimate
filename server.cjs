@@ -238,7 +238,7 @@ async function createTables() {
                 email TEXT UNIQUE NOT NULL, 
                 password_hash TEXT NOT NULL, 
                 name TEXT NOT NULL, 
-                role TEXT DEFAULT 'CASHIER' CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD')),
+                role TEXT DEFAULT 'CASHIER',
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
