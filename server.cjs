@@ -7159,6 +7159,226 @@ app.post('/api/hotel/checkout', authenticateJWT, async (req, res) => {
 
 
 
+// ================================================================
+// 🛑 SUPER ADMIN DANGEROUS TOOLS (Add to server.cjs)
+// ================================================================
+
+// 1. Direct Validity Extension (Without License Key)
+app.post('/api/admin/force-extend', async (req, res) => {
+    const { adminPassword, shop_id, duration_type } = req.body; // type: '3M', '6M', '1Y', '5Y', '10Y'
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत पासवर्ड!' });
+    }
+
+    try {
+        let interval;
+        switch(duration_type) {
+            case '3M': interval = '3 months'; break;
+            case '6M': interval = '6 months'; break;
+            case '12M': interval = '1 year'; break;
+            case '5Y': interval = '5 years'; break;
+            case '10Y': interval = '10 years'; break;
+            default: return res.json({success: false, message: "Invalid Duration"});
+        }
+
+        // SQL Injection Safe Query using Interval
+        await pool.query(
+            `UPDATE shops SET license_expiry_date = (CURRENT_DATE + INTERVAL '${interval}'), status = 'active' WHERE id = $1`,
+            [shop_id]
+        );
+
+        res.json({ success: true, message: `✅ Shop ${shop_id} की वैलिडिटी ${interval} बढ़ा दी गई है!` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. SQL Console (Run Direct Queries) - ⚠️ VERY DANGEROUS
+app.post('/api/admin/run-sql', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत पासवर्ड!' });
+    }
+
+    // सुरक्षा: केवल SELECT या UPDATE/DELETE को अनुमति दें (optional)
+    try {
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows, rowCount: result.rowCount });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// 3. Super Master List (All Details)
+app.post('/api/admin/get-all-details', async (req, res) => {
+    const { adminPassword } = req.body;
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({ success: false });
+
+    try {
+        const sql = `
+            SELECT 
+                s.id as shop_id, 
+                s.shop_name, 
+                s.plan_type, 
+                s.business_type,
+                TO_CHAR(s.license_expiry_date, 'DD-MM-YYYY') as expiry,
+                s.status,
+                u.name as owner_name, 
+                u.mobile, 
+                u.email,
+                TO_CHAR(u.created_at, 'DD-MM-YYYY') as reg_date
+            FROM shops s
+            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+            ORDER BY s.id ASC
+        `;
+        const result = await pool.query(sql);
+        res.json({ success: true, shops: result.rows });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
+
+
+// ================================================================
+// 🚀 SUPER ADMIN POWER TOOLS (Update in server.cjs)
+// ================================================================
+
+// 1. Find Shop (Updated to Show ALL List if query is empty)
+app.post('/api/admin/find-shop', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        let sqlQuery;
+        let params = [];
+
+        // अगर सर्च बॉक्स खाली है -> तो सभी दुकानें दिखाओ (Master List)
+        if (!query || query.toString().trim() === '') {
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.business_type, 
+                       s.license_expiry_date as expiry_date, s.status, s.created_at,
+                       u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                ORDER BY s.id DESC
+            `;
+        } 
+        // अगर नंबर है -> ID या मोबाइल से खोजें
+        else if (!isNaN(query)) {
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.business_type, 
+                       s.license_expiry_date as expiry_date, s.status, s.created_at,
+                       u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                WHERE s.id = $1 OR u.mobile LIKE $2
+            `;
+            params = [query, `%${query}%`];
+        } 
+        // अगर टेक्स्ट है -> नाम या ईमेल से खोजें
+        else {
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.business_type, 
+                       s.license_expiry_date as expiry_date, s.status, s.created_at,
+                       u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                WHERE s.shop_name ILIKE $1 OR u.email ILIKE $1
+            `;
+            params = [`%${query}%`];
+        }
+
+        const result = await pool.query(sqlQuery, params);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        console.error("Find Shop Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. 🚀 Emergency Force Extend (Direct Database Update without Key)
+app.post('/api/admin/force-extend', async (req, res) => {
+    const { adminPassword, shop_id, duration_type } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Access Denied' });
+    }
+
+    try {
+        let interval;
+        // Interval mapping for PostgreSQL
+        switch(duration_type) {
+            case '3M': interval = '3 months'; break;
+            case '6M': interval = '6 months'; break;
+            case '12M': interval = '1 year'; break;
+            case '5Y': interval = '5 years'; break;
+            case '10Y': interval = '10 years'; break;
+            default: return res.json({success: false, message: "Invalid Duration Type"});
+        }
+
+        // Update expiry date directly
+        await pool.query(
+            `UPDATE shops SET license_expiry_date = (CURRENT_DATE + INTERVAL '${interval}'), status = 'active' WHERE id = $1`,
+            [shop_id]
+        );
+
+        res.json({ success: true, message: `✅ Shop #${shop_id} की वैलिडिटी ${interval} बढ़ा दी गई है!` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. 👨‍💻 SQL Console (Run Direct Queries)
+app.post('/api/admin/run-sql', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Access Denied' });
+    }
+
+    // Safety Check: Prevent DROP TABLE commands if you want safety
+    if (query.trim().toUpperCase().startsWith('DROP')) {
+        return res.status(400).json({ success: false, message: 'DROP commands are restricted for safety.' });
+    }
+
+    try {
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows, rowCount: result.rowCount });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// 4. Update Business Type & Addons (Existing routes preserved)
+app.post('/api/admin/set-business-type', async (req, res) => {
+    const { adminPassword, shop_id, business_type } = req.body;
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({success:false});
+    
+    try {
+        await pool.query('UPDATE shops SET business_type = $1 WHERE id = $2', [business_type, shop_id]);
+        res.json({ success: true, message: "Business Type Updated" });
+    } catch(e) { res.status(500).json({message: e.message}); }
+});
+
+app.post('/api/admin/grant-addon', async (req, res) => {
+    const { adminPassword, shop_id, add_ons } = req.body;
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({success:false});
+
+    try {
+        await pool.query('UPDATE shops SET add_ons = $1 WHERE id = $2', [add_ons, shop_id]);
+        res.json({ success: true, message: "Add-ons Saved" });
+    } catch(e) { res.status(500).json({message: e.message}); }
+});
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
