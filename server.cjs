@@ -1314,53 +1314,7 @@ app.post('/api/admin/grant-addon', async (req, res) => {
 });
 
 
-// ================================================================
-// 🚀 MISSING ADMIN ROUTES (Add this to server.cjs)
-// ================================================================
-
-// 1. Find Shop (Search by ID, Name, or Mobile)
-app.post('/api/admin/find-shop', async (req, res) => {
-    const { adminPassword, query } = req.body;
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
-    }
-
-    try {
-        let sqlQuery;
-        let params;
-
-        // अगर query नंबर है, तो ID या मोबाइल से खोजें
-        if (!isNaN(query)) {
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
-                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                WHERE s.id = $1 OR u.mobile LIKE $2
-            `;
-            params = [query, `%${query}%`];
-        } else {
-            // नाम से खोजें
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
-                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                WHERE s.shop_name ILIKE $1
-            `;
-            params = [`%${query}%`];
-        }
-
-        const result = await pool.query(sqlQuery, params);
-        res.json({ success: true, shops: result.rows });
-
-    } catch (err) {
-        console.error("Find Shop Error:", err);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
+//
 // 2. Update Shop Status (Block/Unblock)
 app.post('/api/admin/update-shop-status', async (req, res) => {
     const { adminPassword, shop_id, status } = req.body; // status: 'active' or 'blocked'
@@ -6353,58 +6307,6 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
     }
 });
 
-// [PASTE THIS IN server.cjs (ADMIN SECTION)]
-// 12.7 Find Shop Details (SECURE ENV VERSION)
-app.post('/api/admin/find-shop', async (req, res) => {
-    const { adminPassword, query } = req.body;
-
-    // 1. Environment Variable से पासवर्ड निकालें
-    const securePass = process.env.GLOBAL_ADMIN_PASSWORD;
-
-    // 🛑 SAFETY CHECK: अगर Render में पासवर्ड सेट करना भूल गए हैं
-    if (!securePass) {
-        console.error("🚨 CRITICAL ERROR: GLOBAL_ADMIN_PASSWORD is not set in Render Environment Variables!");
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Server Error: Admin Password config is missing on Server.' 
-        });
-    }
-
-    // 2. पासवर्ड मैच करें (Strict Check)
-    // .trim() लगाया है ताकि अगर स्पेस गलती से आ गया हो तो वो हट जाए
-    if (String(adminPassword).trim() !== String(securePass).trim()) {
-        console.warn(`⚠️ Failed Admin Login Attempt. Input: ${adminPassword}`);
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
-    }
-
-    try {
-        let sql = `
-            SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
-                   s.status, 
-                   s.license_expiry_date as expiry_date, 
-                   u.name as owner_name, u.mobile as owner_mobile, u.email
-            FROM shops s
-            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-        `;
-        
-        let params = [];
-        
-        if (query) {
-            sql += ` WHERE s.id::text ILIKE $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
-            params.push(`%${query}%`);
-        }
-        
-        sql += ` ORDER BY s.id DESC LIMIT 50`;
-
-        const result = await pool.query(sql, params);
-        res.json({ success: true, shops: result.rows });
-
-    } catch (err) {
-        console.error("Find Shop Error:", err);
-        res.status(500).json({ success: false, message: "DB Error: " + err.message });
-    }
-});
-
 // --- ADMIN: BLOCK/UNBLOCK SHOP (CORRECTED) ---
 app.post('/api/admin/update-shop-status', async (req, res) => {
     const { adminPassword, shop_id, status } = req.body;
@@ -7240,70 +7142,6 @@ app.post('/api/admin/get-all-details', async (req, res) => {
     }
 });
 
-
-
-
-// ================================================================
-// 🚀 SUPER ADMIN POWER TOOLS (Update in server.cjs)
-// ================================================================
-
-// 1. Find Shop (Updated to Show ALL List if query is empty)
-app.post('/api/admin/find-shop', async (req, res) => {
-    const { adminPassword, query } = req.body;
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
-    }
-
-    try {
-        let sqlQuery;
-        let params = [];
-
-        // अगर सर्च बॉक्स खाली है -> तो सभी दुकानें दिखाओ (Master List)
-        if (!query || query.toString().trim() === '') {
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.business_type, 
-                       s.license_expiry_date as expiry_date, s.status, s.created_at,
-                       u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                ORDER BY s.id DESC
-            `;
-        } 
-        // अगर नंबर है -> ID या मोबाइल से खोजें
-        else if (!isNaN(query)) {
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.business_type, 
-                       s.license_expiry_date as expiry_date, s.status, s.created_at,
-                       u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                WHERE s.id = $1 OR u.mobile LIKE $2
-            `;
-            params = [query, `%${query}%`];
-        } 
-        // अगर टेक्स्ट है -> नाम या ईमेल से खोजें
-        else {
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.business_type, 
-                       s.license_expiry_date as expiry_date, s.status, s.created_at,
-                       u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                WHERE s.shop_name ILIKE $1 OR u.email ILIKE $1
-            `;
-            params = [`%${query}%`];
-        }
-
-        const result = await pool.query(sqlQuery, params);
-        res.json({ success: true, shops: result.rows });
-
-    } catch (err) {
-        console.error("Find Shop Error:", err);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
 // 2. 🚀 Emergency Force Extend (Direct Database Update without Key)
 app.post('/api/admin/force-extend', async (req, res) => {
     const { adminPassword, shop_id, duration_type } = req.body;
@@ -7378,7 +7216,63 @@ app.post('/api/admin/grant-addon', async (req, res) => {
     } catch(e) { res.status(500).json({message: e.message}); }
 });
 
+// ================================================================
+// 🚀 SUPER ADMIN POWER TOOLS (FINAL & SINGLE VERSION)
+// ================================================================
 
+// 1. Find Shop / Master List (Corrected)
+app.post('/api/admin/find-shop', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    // Password Check
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत पासवर्ड!' });
+    }
+
+    try {
+        let sqlQuery;
+        let params = [];
+
+        // 🛡️ Base Query: यह वो सारी जानकारी है जो Master List मांग रही है
+        // COALESCE का मतलब: अगर डेटा न हो, तो Default वैल्यू दिखाओ (ताकि क्रैश न हो)
+        const baseQuery = `
+            SELECT 
+                s.id, 
+                s.shop_name, 
+                COALESCE(s.plan_type, 'TRIAL') as plan_type,
+                COALESCE(s.business_type, 'RETAIL') as business_type,
+                s.license_expiry_date as expiry_date, 
+                s.status, 
+                s.created_at,
+                u.mobile as owner_mobile, 
+                u.email as owner_email
+            FROM shops s
+            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+        `;
+
+        // Case 1: अगर सर्च खाली है -> सब दिखाओ (Master List)
+        if (!query || query.toString().trim() === '') {
+            sqlQuery = baseQuery + ` ORDER BY s.id DESC`;
+        } 
+        // Case 2: अगर नंबर है -> ID या मोबाइल से खोजो
+        else if (!isNaN(query)) {
+            sqlQuery = baseQuery + ` WHERE s.id = $1 OR u.mobile LIKE $2 ORDER BY s.id DESC`;
+            params = [query, `%${query}%`];
+        } 
+        // Case 3: अगर नाम है -> नाम या ईमेल से खोजो
+        else {
+            sqlQuery = baseQuery + ` WHERE s.shop_name ILIKE $1 OR u.email ILIKE $1 ORDER BY s.id DESC`;
+            params = [`%${query}%`];
+        }
+
+        const result = await pool.query(sqlQuery, params);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        console.error("Find Shop Error:", err);
+        res.status(500).json({ success: false, message: "Server Error: " + err.message });
+    }
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
