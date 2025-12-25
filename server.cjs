@@ -243,15 +243,21 @@ async function createTables() {
             );
         `);
         
-        // (यह सुनिश्चित करता है कि पुराने यूज़र्स के लिए भी यह काम करे)
-        await client.query(`
-            DO $$ BEGIN
-                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-                ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT'));
-            EXCEPTION WHEN duplicate_object THEN
-                -- कंस्ट्रेंट पहले से ही मौजूद है या दूसरी टेबल द्वारा उपयोग में है, कोई बात नहीं
-            END $$;
-        `);
+      // 🚀 FIX: 'GUARD' रोल को लिस्ट में शामिल किया गया
+await client.query(`
+    DO $$ BEGIN
+        -- 1. पुराना कंस्ट्रेंट हटाएं
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+        
+        -- 2. नया कंस्ट्रेंट लगाएं जिसमें 'GUARD' भी शामिल हो
+        ALTER TABLE users ADD CONSTRAINT users_role_check 
+        CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD'));
+        
+    EXCEPTION WHEN others THEN
+        -- अगर कोई एरर आए (जैसे 'GUARD' डेटा पहले से मौजूद हो), तो लॉग करें पर क्रैश न करें
+        RAISE NOTICE 'Constraint update skipped: %', SQLERRM;
+    END $$;
+`);
         
         // ===================================================================
         // [ ✅ NAYA CODE FIX YAHAN SE SHURU HOTA HAI ]
