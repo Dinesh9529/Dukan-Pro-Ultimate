@@ -7277,8 +7277,11 @@ app.post('/api/admin/find-shop', async (req, res) => {
 // ==========================================
 // 🛡️ GARMENTS SECURITY & GATE PASS API
 // ==========================================
+// ================================================================
+// 🛡️ ADVANCED SECURITY SYSTEM (Double Scan + History + Returns)
+// ================================================================
 
-// 1. गार्ड द्वारा बिल चेक करना (Verify Gate Pass)
+// 1. Verify Bill (With 3-Layer Protection)
 app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => {
     const { invoiceId } = req.body;
     const shopId = req.shopId;
@@ -7286,24 +7289,42 @@ app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => 
     try {
         // बिल ढूँढें
         const invRes = await pool.query(
-            `SELECT id, total_amount, created_at, customer_id FROM invoices WHERE id = $1 AND shop_id = $2`,
+            `SELECT id, total_amount, created_at, customer_id, status, is_scanned 
+             FROM invoices WHERE id = $1 AND shop_id = $2`,
             [invoiceId, shopId]
         );
 
+        // CASE 1: बिल नहीं मिला (Fake Bill)
         if (invRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: '❌ अमान्य बिल! यह बिल सिस्टम में नहीं है।' });
+            await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'FAKE_BILL', $2)`, [shopId, `Fake Bill #${invoiceId} scanned`]);
+            return res.status(404).json({ success: false, code: 'FAKE', message: '❌ FAKE BILL! डेटाबेस में नहीं है।' });
         }
 
-        // बिल का सामान (Items) लाएं
-        const itemsRes = await pool.query(
-            `SELECT item_name, quantity, item_sku FROM invoice_items WHERE invoice_id = $1`,
-            [invoiceId]
-        );
+        const invoice = invRes.rows[0];
+
+        // CASE 2: बिल कैंसिल या रिटर्न हो चुका है (Cancelled)
+        if (invoice.status === 'CANCELLED' || invoice.status === 'RETURNED') {
+            await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'CANCELLED_TRY', $2)`, [shopId, `Cancelled Bill #${invoiceId} tried`]);
+            return res.status(400).json({ success: false, code: 'CANCELLED', message: '⚠️ यह बिल कैंसिल हो चुका है!' });
+        }
+
+        // CASE 3: बिल पहले ही यूज़ हो चुका है (Double Scan)
+        if (invoice.is_scanned) {
+            await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'DOUBLE_SCAN', $2)`, [shopId, `Duplicate Scan Attempt #${invoiceId}`]);
+            return res.status(400).json({ success: false, code: 'USED', message: '⚠️ WARNING: यह बिल पहले ही पास हो चुका है!' });
+        }
+
+        // ✅ SUCCESS: सब सही है, अब इसे "Scanned" मार्क करें
+        await pool.query(`UPDATE invoices SET is_scanned = TRUE WHERE id = $1`, [invoiceId]);
+
+        // आइटम लाएं
+        const itemsRes = await pool.query(`SELECT item_name, quantity FROM invoice_items WHERE invoice_id = $1`, [invoiceId]);
 
         res.json({
             success: true,
+            code: 'OK',
             message: '✅ Verified! (जाने दें)',
-            invoice: invRes.rows[0],
+            invoice: invoice,
             items: itemsRes.rows
         });
 
@@ -7312,20 +7333,28 @@ app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => 
     }
 });
 
-// 2. चोरी का अलार्म लॉग करना (Siren Log)
+// 2. Log Panic Button / Theft
 app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
-    const { reason, items } = req.body; // e.g. "Tag detected at door"
+    const { reason } = req.body;
     try {
         await pool.query(
-            `INSERT INTO security_alerts (shop_id, status, rfid_tag_detected, alert_time) VALUES ($1, 'UNRESOLVED', $2, NOW())`,
-            [req.shopId, reason || 'Manual Panic Alarm']
+            `INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'PANIC_ALARM', $2)`,
+            [req.shopId, reason || 'Guard pressed Panic Button']
         );
-        res.json({ success: true, message: 'Theft Logged' });
+        res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
+// 3. Admin: Security History Report
+app.post('/api/admin/security-history', async (req, res) => {
+    const { adminPassword, shop_id } = req.body;
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({ success: false });
 
-
+    try {
+        const result = await pool.query(`SELECT * FROM security_logs WHERE shop_id = $1 ORDER BY id DESC LIMIT 50`, [shop_id]);
+        res.json({ success: true, logs: result.rows });
+    } catch (e) { res.status(500).json({ message: e.message }); }
+});
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
