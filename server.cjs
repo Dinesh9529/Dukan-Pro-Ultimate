@@ -7273,21 +7273,16 @@ app.post('/api/admin/find-shop', async (req, res) => {
         res.status(500).json({ success: false, message: "Server Error: " + err.message });
     }
 });
-
-// ==========================================
-// 🛡️ GARMENTS SECURITY & GATE PASS API
-// ==========================================
 // ================================================================
-// 🛡️ ADVANCED SECURITY SYSTEM (Double Scan + History + Returns)
-// ================================================================
-// ================================================================
-// 🛡️ ADVANCED SECURITY SYSTEM (FIXED & CORRECTED)
+// 🛡️ SECURITY SYSTEM (FINAL FIXED VERSION)
 // ================================================================
 
-// 1. Verify Bill (Fixed: authenticateToken)
-app.post('/api/security/verify-gate-pass', authenticateToken, async (req, res) => {
+// 1. Verify Bill (Using authenticateJWT)
+app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => {
     const { invoiceId } = req.body;
-    const shopId = req.shopId; // authenticateToken shopId deta hai
+    const shopId = req.shopId; // authenticateJWT से shopId मिलेगा
+
+    if (!invoiceId) return res.status(400).json({ success: false, message: "Bill Number Required" });
 
     try {
         // बिल ढूँढें
@@ -7305,13 +7300,13 @@ app.post('/api/security/verify-gate-pass', authenticateToken, async (req, res) =
 
         const invoice = invRes.rows[0];
 
-        // CASE 2: बिल कैंसिल या रिटर्न हो चुका है (Cancelled)
+        // CASE 2: बिल कैंसिल हो चुका है
         if (invoice.status === 'CANCELLED' || invoice.status === 'RETURNED') {
             await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'CANCELLED_TRY', $2)`, [shopId, `Cancelled Bill #${invoiceId} tried`]);
             return res.status(400).json({ success: false, code: 'CANCELLED', message: '⚠️ यह बिल कैंसिल हो चुका है!' });
         }
 
-        // CASE 3: बिल पहले ही यूज़ हो चुका है (Double Scan)
+        // CASE 3: बिल पहले ही स्कैन हो चुका है (Double Scan)
         if (invoice.is_scanned) {
             await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'DOUBLE_SCAN', $2)`, [shopId, `Duplicate Scan Attempt #${invoiceId}`]);
             return res.status(400).json({ success: false, code: 'USED', message: '⚠️ WARNING: यह बिल पहले ही पास हो चुका है!' });
@@ -7333,12 +7328,12 @@ app.post('/api/security/verify-gate-pass', authenticateToken, async (req, res) =
 
     } catch (e) {
         console.error("Security Verify Error:", e);
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: "DB Error: " + e.message });
     }
 });
 
-// 2. Log Panic Button (Fixed: authenticateToken)
-app.post('/api/security/log-theft', authenticateToken, async (req, res) => {
+// 2. Log Panic Button (Using authenticateJWT)
+app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
     const { reason } = req.body;
     try {
         await pool.query(
