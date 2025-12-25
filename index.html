@@ -14,7 +14,7 @@
     
    
 
-    
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -1658,6 +1658,12 @@
             <li class="nav-item ms-2">
                 <button class="btn btn-danger fw-bold" data-bs-toggle="modal" data-bs-target="#securityModal" style="border-radius: 20px;">
                     <i class="fas fa-user-shield"></i> Guard Check
+                </button>
+            </li>
+
+            <li class="nav-item ms-2 mt-2">
+                <button class="btn btn-warning fw-bold text-dark" onclick="showSecurityReport()" style="border-radius: 20px; width: 100%;">
+                    <i class="fas fa-file-shield"></i> View Logs
                 </button>
             </li>
 
@@ -3364,6 +3370,7 @@
                                 <option value="MANAGER">मैनेजर (Manager)</option>
                                 <option value="ACCOUNTANT">Accountant (CA Access)</option>
                                 <option value="ADMIN">एडमिन (Admin)</option>
+                                <option value="GUARD">गार्ड (Security Guard)</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -9488,6 +9495,12 @@ const landingButtons = document.getElementById('landing-buttons-container');
             saveAuthData(data.token, data.user);
             startLicenseTimer(data.user.licenseExpiryDate);
 
+            if (data.user.role === 'GUARD') {
+            console.log("👮‍♂️ GUARD DETECTED: Redirecting...");
+            renderGuardInterface(); 
+            return; // 🛑 यहीं रुक जाओ, आगे का कोड नहीं चलेगा
+        }
+
             if (data.requiresLicense) {
                 // 🚀 फिक्स: लाइसेंस एक्सपायर होने पर सिर्फ Modal दिखाएँ (बैकग्राउंड पहले से ही दिख रहा है)
                 showMessage('लाइसेंस आवश्यक', data.message, 'warning');
@@ -14659,13 +14672,15 @@ function requestLicenseKey() {
 // --- 👮 SECURITY GUARD LOGIC ---
 
 // 1. Verify Bill (Gate Pass)
+// --- 👮 UPGRADED SECURITY LOGIC ---
+
 async function verifyGatePass() {
     const billNo = document.getElementById('sec-invoice-id').value;
     const resBox = document.getElementById('sec-result');
     
     if(!billNo) return alert("Enter Bill Number");
     
-    resBox.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
+    resBox.innerHTML = '<div class="spinner-border text-light"></div> Checking...';
 
     try {
         const res = await fetchApi('/api/security/verify-gate-pass', {
@@ -14674,26 +14689,44 @@ async function verifyGatePass() {
         });
 
         if(res.success) {
-            // Play Success Sound (Beep)
+            // ✅ SUCCESS (Green)
             new Audio('https://www.soundjay.com/buttons/sounds/button-3.mp3').play();
-            
             let itemList = res.items.map(i => `<div class="small text-start border-bottom">${i.item_name} (x${i.quantity})</div>`).join('');
             
             resBox.innerHTML = `
                 <div class="alert alert-success mt-2">
-                    <div class="display-6"><i class="fas fa-check-circle"></i> VERIFIED</div>
-                    <div class="small">Bill Date: ${new Date(res.invoice.created_at).toLocaleDateString()}</div>
-                    <div class="mt-2 bg-white p-2 rounded text-dark" style="max-height:100px; overflow-y:auto;">
-                        ${itemList}
-                    </div>
+                    <div class="display-6 fw-bold"><i class="fas fa-check-circle"></i> VERIFIED</div>
+                    <div class="badge bg-success mb-2">FRESH ENTRY</div>
+                    <div class="bg-white text-dark p-2 rounded text-start" style="max-height:100px; overflow-y:auto;">${itemList}</div>
                 </div>`;
         } else {
-            // Play Error Sound
+            // ❌ FAILURE CASES
             new Audio('https://www.soundjay.com/buttons/sounds/beep-03.mp3').play();
-            resBox.innerHTML = `<div class="alert alert-danger mt-2 display-6"><i class="fas fa-times-circle"></i> FAKE BILL!</div>`;
+            
+            if (res.code === 'USED') {
+                // ⚠️ DOUBLE SCAN (Yellow/Orange)
+                resBox.innerHTML = `
+                    <div class="alert alert-warning mt-2 text-dark">
+                        <div class="display-6 fw-bold"><i class="fas fa-exclamation-triangle"></i> STOP!</div>
+                        <div class="fw-bold fs-5">ALREADY SCANNED</div>
+                        <div class="small">यह बिल पहले ही पास हो चुका है।</div>
+                    </div>`;
+            } else if (res.code === 'CANCELLED') {
+                // 🚫 CANCELLED (Red)
+                resBox.innerHTML = `
+                    <div class="alert alert-danger mt-2">
+                        <div class="display-6 fw-bold"><i class="fas fa-ban"></i> INVALID</div>
+                        <div class="fw-bold">CANCELLED BILL</div>
+                    </div>`;
+                triggerTheftAlarm();
+            } else {
+                // 🚨 FAKE (Red & Flash)
+                resBox.innerHTML = `<div class="alert alert-danger mt-2 display-6 fw-bold"><i class="fas fa-skull-crossbones"></i> FAKE BILL</div>`;
+                triggerTheftAlarm();
+            }
         }
     } catch(e) {
-        resBox.innerHTML = `<span class="text-danger">${e.message}</span>`;
+        resBox.innerHTML = `<span class="text-white bg-danger p-1">Error: ${e.message}</span>`;
     }
 }
 
@@ -14731,6 +14764,268 @@ style.innerHTML = `
     100% { background-color: #fff; }
 }`;
 document.head.appendChild(style);
+
+
+
+// ============================================
+// 📸 1. CAMERA SCANNER LOGIC
+// ============================================
+let html5QrcodeScanner;
+
+function startQRScanner() {
+    const readerDiv = document.getElementById('qr-reader');
+    readerDiv.style.display = 'block';
+    document.getElementById('btn-start-cam').style.display = 'none'; // बटन छिपा दें
+
+    html5QrcodeScanner = new Html5QrcodeScanner(
+        "qr-reader", { fps: 10, qrbox: 250 }
+    );
+
+    html5QrcodeScanner.render((decodedText) => {
+        // ✅ सफलता! QR स्कैन हो गया
+        console.log("Scanned Code:", decodedText);
+        
+        // 1. स्कैनिंग बंद करें
+        html5QrcodeScanner.clear();
+        readerDiv.style.display = 'none';
+        document.getElementById('btn-start-cam').style.display = 'inline-block';
+
+        // 2. बिल नंबर को बॉक्स में डालें
+        // (अगर QR में पूरा URL है, तो सिर्फ नंबर निकालें, नहीं तो सीधा टेक्स्ट लें)
+        let billNo = decodedText;
+        if(decodedText.includes('data=')) {
+            billNo = decodedText.split('data=')[1];
+        }
+
+        document.getElementById('sec-invoice-id').value = billNo;
+
+        // 3. अपने आप Verify बटन दबा दें
+        verifyGatePass();
+
+    }, (errorMessage) => {
+        // स्कैनिंग चल रही है... कोई एरर नहीं दिखाना
+    });
+}
+
+
+// ============================================
+// 📊 2. ADMIN SECURITY REPORT LOGIC
+// ============================================
+// 📊 ADMIN SECURITY REPORT (Corrected: No Password Needed)
+async function showSecurityReport() {
+    
+    // अब कोई पासवर्ड नहीं मांगेंगे। सीधा API कॉल करेंगे।
+    // (क्योंकि यूजर पहले से लॉगिन है, token अपने आप जाएगा)
+
+    try {
+        const res = await fetchApi('/api/shop/security-history', {
+            method: 'POST',
+            body: {} // खाली बॉडी भेज रहे हैं
+        });
+
+        if(res.success) {
+            const tbody = document.getElementById('security-log-body');
+            tbody.innerHTML = '';
+
+            if(res.logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center">कोई रिकॉर्ड नहीं मिला (No Logs Found)</td></tr>';
+            }
+
+            res.logs.forEach(log => {
+                let color = 'text-dark';
+                let icon = '<i class="fas fa-info-circle"></i>';
+
+                if(log.event_type === 'FAKE_BILL') {
+                    color = 'text-danger fw-bold';
+                    icon = '<i class="fas fa-skull-crossbones"></i>';
+                }
+                if(log.event_type === 'PANIC_ALARM') {
+                    color = 'text-danger bg-warning';
+                    icon = '<i class="fas fa-bell"></i>';
+                }
+                if(log.event_type === 'DOUBLE_SCAN') {
+                    color = 'text-primary';
+                    icon = '<i class="fas fa-copy"></i>';
+                }
+
+                const time = new Date(log.created_at).toLocaleString('en-IN', { hour: '2-digit', minute:'2-digit', day:'numeric', month:'short' });
+
+                tbody.innerHTML += `
+                    <tr class="${color}">
+                        <td>${time}</td>
+                        <td>${icon} ${log.event_type}</td>
+                        <td>${log.description}</td>
+                    </tr>
+                `;
+            });
+
+            // Modal खोलें
+            new bootstrap.Modal(document.getElementById('securityReportModal')).show();
+        } else {
+            alert("Error: रिपोर्ट लोड नहीं हो पाई।");
+        }
+    } catch(e) {
+        alert("Server Error: " + e.message);
+    }
+}
+
+// 🔒 FINAL GUARD DASHBOARD (OVERLAY METHOD - 100% SAFE)
+function applyGuardSecurity() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    // चेक करें: क्या यूजर गार्ड है?
+    if (user.role && user.role.toUpperCase() === 'GUARD') {
+        
+        console.log("👮‍♂️ GUARD ACTIVE: Launching Security App...");
+
+        // 1. अगर पहले से गार्ड डैशबोर्ड बना है, तो दोबारा मत बनाओ
+        if (document.getElementById('guard-screen-overlay')) return;
+
+        // 2. एक नया 'Overlay' बनाए जो पूरी पुरानी स्क्रीन को ढक ले
+        const overlay = document.createElement('div');
+        overlay.id = 'guard-screen-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #1a1a2e;
+            z-index: 99999;
+            overflow-y: auto;
+            font-family: sans-serif;
+            display: flex; flex-direction: column;
+        `;
+
+        // 3. इसके अंदर गार्ड का डैशबोर्ड डालें (HTML)
+        overlay.innerHTML = `
+            <div style="background-color: #dc3545; padding: 15px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                <div style="font-size: 20px; font-weight:bold;"><i class="fas fa-shield-alt"></i> SECURITY GATE</div>
+                <button onclick="logout()" class="btn btn-outline-light btn-sm fw-bold">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+
+            <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+                
+                <div class="mb-4 text-center">
+                    <i class="fas fa-user-lock text-danger fa-4x border border-4 border-danger rounded-circle p-4 bg-dark"></i>
+                </div>
+
+                <h3 class="text-white mb-3">SCAN GATE PASS</h3>
+
+                <div id="qr-reader" style="width: 100%; max-width: 350px; border: 2px solid #0f0; display:none; margin-bottom: 15px;"></div>
+
+                <div style="width: 100%; max-width: 350px;" class="d-grid gap-3">
+                    
+                    <button id="btn-start-cam" onclick="startQRScanner()" class="btn btn-primary btn-lg fw-bold shadow">
+                        <i class="fas fa-camera"></i> START CAMERA
+                    </button>
+
+                    <div class="input-group input-group-lg shadow">
+                        <input type="number" id="sec-invoice-id" class="form-control text-center fw-bold" placeholder="Bill No.">
+                        <button class="btn btn-success fw-bold" onclick="verifyGatePass()">CHECK</button>
+                    </div>
+
+                    <div id="sec-result" class="text-center text-white fw-bold mt-2"></div>
+                </div>
+            </div>
+
+            <div class="p-3 bg-dark border-top border-secondary mt-auto">
+                <button onclick="triggerTheftAlarm()" class="btn btn-outline-danger w-100 btn-lg fw-bold py-3 text-uppercase">
+                    <i class="fas fa-bell fa-shake"></i> EMERGENCY ALARM 🚨
+                </button>
+                <div class="text-center text-secondary mt-2 small">System Active • User: ${user.name}</div>
+            </div>
+        `;
+
+        // 4. इस नई स्क्रीन को बॉडी में सबसे ऊपर चिपका दें
+        document.body.appendChild(overlay);
+
+        // 5. पुरानी स्क्रीन के स्क्रॉल बार को बंद कर दें (ताकि पीछे कुछ न हिले)
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+// इसे Login होने के बाद कॉल करें और Page Load पर भी
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(applyGuardSecurity, 500); // थोड़ा रुक कर चलाएं ताकि Bootstrap लोड हो जाए
+});
+
+
+
+// 🔒 FINAL ULTIMATE GUARD INTERFACE
+function renderGuardInterface() {
+    const user = JSON.parse(localStorage.getItem('user') || localStorage.getItem('authUser') || '{}');
+    
+    if (user.role !== 'GUARD') return;
+
+    // 1. पुरानी पूरी बॉडी को खाली कर दें (DELETE EVERYTHING)
+    document.body.innerHTML = '';
+    
+    // 2. बैकग्राउंड सेट करें
+    document.body.style.backgroundColor = "#1a1a2e";
+    document.body.style.margin = "0";
+    document.body.style.fontFamily = "sans-serif";
+
+    // 3. नया गार्ड इंटरफ़ेस (HTML) डालें
+    document.body.innerHTML = `
+        <div style="display: flex; flex-direction: column; height: 100vh;">
+            
+            <div style="background: #dc3545; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">
+                <div style="font-size: 18px; font-weight: bold;">🛡️ GATE SECURITY</div>
+                <button onclick="fullLogout()" style="background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 5px 12px; border-radius: 4px; cursor: pointer;">
+                    LOGOUT
+                </button>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+                
+                <div style="background: #252540; padding: 30px; border-radius: 15px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    
+                    <div style="font-size: 60px; color: #dc3545; margin-bottom: 20px;">👮‍♂️</div>
+                    <h3 style="color: white; margin-bottom: 25px;">SCAN GATE PASS</h3>
+
+                    <div id="qr-reader" style="width: 100%; display:none; border: 2px solid #28a745; margin-bottom: 15px;"></div>
+
+                    <button id="btn-start-cam" onclick="startQRScanner()" style="width: 100%; background: #0d6efd; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; margin-bottom: 15px; cursor: pointer;">
+                        📷 START CAMERA
+                    </button>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <input type="number" id="sec-invoice-id" placeholder="Bill No." style="flex: 1; padding: 10px; border: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 18px;">
+                        <button onclick="verifyGatePass()" style="background: #198754; color: white; border: none; padding: 0 20px; font-weight: bold; border-radius: 6px; cursor: pointer;">CHECK</button>
+                    </div>
+
+                    <div id="sec-result" style="min-height: 40px; color: white; font-weight: bold;"></div>
+
+                </div>
+
+            </div>
+
+            <div style="padding: 15px; background: #111;">
+                <button onclick="triggerTheftAlarm()" style="width: 100%; background: transparent; border: 2px solid #dc3545; color: #dc3545; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer;">
+                    🚨 EMERGENCY ALARM
+                </button>
+            </div>
+
+        </div>
+    `;
+}
+
+// 4. Logout Function for Guard
+function fullLogout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    localStorage.removeItem('user');
+    location.reload(); 
+}
+
+// 5. Auto Check on Load
+document.addEventListener('DOMContentLoaded', () => {
+    const user = JSON.parse(localStorage.getItem('user') || localStorage.getItem('authUser') || '{}');
+    if (user.role === 'GUARD') {
+        renderGuardInterface(); 
+    }
+});
+
 
 </script>
 
@@ -14836,8 +15131,13 @@ document.head.appendChild(style);
             </div>
             <div class="modal-body text-center">
                 
+                <div id="qr-reader" style="width: 100%; display:none;"></div>
+                <button id="btn-start-cam" class="btn btn-outline-dark mb-3" onclick="startQRScanner()">
+                    <i class="fas fa-camera"></i> Camera चालू करें
+                </button>
+
                 <div class="mb-4">
-                    <h6><i class="fas fa-qrcode"></i> Scan Bill QR / Enter Bill No</h6>
+                    <h6>Scan QR or Enter Bill No</h6>
                     <div class="input-group mb-2">
                         <input type="number" id="sec-invoice-id" class="form-control form-control-lg text-center fw-bold" placeholder="Bill #">
                         <button class="btn btn-dark" onclick="verifyGatePass()">Verify</button>
@@ -14846,7 +15146,6 @@ document.head.appendChild(style);
                 </div>
 
                 <hr>
-
                 <div class="d-grid">
                     <button class="btn btn-outline-danger btn-lg py-3 fw-bold" onclick="triggerTheftAlarm()">
                         <i class="fas fa-bell fa-shake"></i> चोर पकड़ो (Panic Alarm)
@@ -14856,6 +15155,32 @@ document.head.appendChild(style);
         </div>
     </div>
 </div>
+
+
+<div class="modal fade" id="securityReportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title fw-bold text-dark">🚨 Security Logs (चोरी का रिकॉर्ड)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-bordered table-sm" style="font-size:12px;">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>समय</th>
+                            <th>घटना (Event)</th>
+                            <th>विवरण (Detail)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="security-log-body">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 </body>
 </html>
