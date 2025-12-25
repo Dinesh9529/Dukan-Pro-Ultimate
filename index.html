@@ -4018,7 +4018,7 @@
     return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
     
-   
+
 
 // 🛡️ MASTER CHECK: क्या यह कपड़े की दुकान है?
 function isGarmentBusiness() {
@@ -4174,7 +4174,92 @@ function closePosWebSocket() {
 
 
    const __backend_url = 'https://dukan-pro-ultimate.onrender.com';
-    const SERVER_TIMEOUT = 20000; // 20 seconds for slow connections
+    const SERVER_TIMEOUT = 15000; // 20 seconds for slow connections
+
+
+    async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
+    if (typeof showLoader === 'function') showLoader(loadingMessage);
+    
+    const controller = new AbortController();
+    // SERVER_TIMEOUT डिफाइन न होने पर 10 सेकंड का बैकअप
+    const configTimeout = typeof SERVER_TIMEOUT !== 'undefined' ? SERVER_TIMEOUT : 10000;
+    const timeoutId = setTimeout(() => controller.abort(), configTimeout);
+
+    // Get token safely
+    const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    let body = options.body === undefined ? null : options.body;
+
+    if (body instanceof FormData) {
+        delete headers['Content-Type'];
+    } else if (body !== null && typeof body !== 'string') {
+        try {
+            body = JSON.stringify(body);
+        } catch (err) {
+            console.warn('fetchApi: stringify failed', err);
+        }
+    }
+
+    try {
+        const response = await fetch(__backend_url + path, {
+            ...options,
+            headers,
+            body,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        // 🚀 अपडेट: बेहतर JSON पार्सिंग (अगर रिस्पॉन्स खाली हो तो क्रैश नहीं होगा)
+        const text = await response.text();
+        let responseData = {};
+        if (text) {
+            try { responseData = JSON.parse(text); } catch (e) { responseData = { message: text }; }
+        }
+
+        if (!response.ok) {
+    if (response.status === 401) {
+        console.warn("सत्र समाप्त।");
+        // sessionStorage और localStorage साफ करें ताकि लूप न बने
+        sessionStorage.clear();
+        return; 
+    }
+    throw new Error(responseData.message || `Error: ${response.status}`);
+}
+
+        return responseData;
+
+    } catch (error) {
+        // 1. TIMEOUT ERROR
+        if (error.name === 'AbortError') {
+            const timeoutMsg = 'सर्वर धीमा है, कृपया दोबारा कोशिश करें।';
+            if (typeof showToast === 'function') showToast(timeoutMsg, "warning");
+            else alert(timeoutMsg);
+            throw new Error(timeoutMsg);
+        }
+
+        // 2. OFFLINE LOGIC
+        if (!navigator.onLine && options.method && options.method !== 'GET') {
+            if (typeof saveOfflineRequest === 'function') {
+                saveOfflineRequest(path, options.method, options.body);
+            }
+            return { success: true, message: "⚠️ ऑफलाइन: डेटा कतार में है (Queued)" };
+        }
+
+        console.error("🌐 API Error:", error.message);
+        throw error;
+
+    } finally {
+        if (typeof hideLoader === 'function') hideLoader();
+    }
+}
 
 // ==========================================
 // 🚀 MISSING CONFIGURATION (इसे पेस्ट करें)
@@ -4846,93 +4931,7 @@ function sendWhatsAppMessage(phone, name) {
 
       
 
-        async function fetchApi(path, options = {}, loadingMessage = 'डेटा लोड हो रहा है...') {
-        showLoader(loadingMessage);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT);
-
-        // get token
-        const token = AppState.token || localStorage.getItem('authToken');
-
-        // start with default headers, keep any provided headers
-        const headers = {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        };
-
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        // Prepare body:
-        let body = options.body === undefined ? null : options.body;
-
-        // If body is FormData -> let fetch set Content-Type (remove header)
-        if (body instanceof FormData) {
-            delete headers['Content-Type'];
-        } else if (body !== null) {
-            // If user already passed a string (JSON string), use it as-is
-            if (typeof body === 'string') {
-                // assume valid JSON string
-            } else {
-                // otherwise stringify a plain object / number / array safely
-                try {
-                    body = JSON.stringify(body);
-                } catch (err) {
-                    // fallback: keep as-is (so we don't break existing behaviour)
-                    console.warn('fetchApi: body stringify failed, sending raw body', err);
-                }
-            }
-        }
-
-        try {
-            const response = await fetch(__backend_url + path, {
-                ...options,
-                headers,
-                body,
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            // try parse JSON even if body empty
-            const text = await response.text().catch(() => '');
-            let responseData = {};
-            try { responseData = text ? JSON.parse(text) : {}; } catch (e) { responseData = {}; }
-
-            if (!response.ok) {
-                // 🚀 FIX: सिर्फ 401 (Invalid Token) पर लॉगआउट करें
-                if (response.status === 401) {
-                    showMessage('सत्र समाप्त', 'आपका सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'danger');
-                    logout();
-                }
-                
-                // 403 (Plan Locked) या अन्य एरर पर सिर्फ एरर फेंकें (ताकि कैच ब्लॉक उसे संभाल ले)
-                // इससे लॉगआउट नहीं होगा
-                throw new Error(responseData.message || `सर्वर एरर: ${response.status}`);
-            }
-
-            return responseData;
-
-        } catch (error) {
-            // ============================================================
-            // 🚀 NEW UPDATION: OFFLINE LOGIC ADDED HERE
-            // ============================================================
-            if (!navigator.onLine && options.method && options.method !== 'GET') {
-                // अगर नेट नहीं है और हम कुछ सेव (POST/PUT/DELETE) कर रहे हैं
-                // तो उसे लोकल डेटाबेस में सेव कर लो
-                saveOfflineRequest(path, options.method, options.body);
-                
-                // यूजर को एरर न दिखाकर success return करो ताकि ऐप न रुके
-                return { success: true, message: "⚠️ ऑफलाइन: डेटा कतार में है (Queued)" };
-            }
-            // ============================================================
-
-            if (error.name === 'AbortError') throw new Error('सर्वर से कनेक्ट होने में बहुत समय लगा।');
-            throw error;
-        } finally {
-            hideLoader();
-        }
-    }
-// ==========================================================
+        // ==========================================================
 // ========== 🚀🚀🚀 NAYA PLAN LOCK LOGIC (YAHAN PASTE KAREIN) 🚀🚀🚀 ==========
 // ==========================================================
 
@@ -7630,6 +7629,12 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
         
         initDashboardSocket();
         fetchAndRenderPaintHistory();
+
+        // लॉगिन के तुरंत बाद डेटा फेच करना शुरू करें
+    if (typeof initKotSection === 'function') initKotSection();
+    if (typeof refreshRoomCache === 'function') refreshRoomCache();
+    if (typeof loadWaiters === 'function') loadWaiters();
+
     };
 
     /**
@@ -8122,27 +8127,7 @@ setupForm('add-expense-form', '/api/expenses', fetchAndRenderExpenses);
             showMessage('Success', 'Bill cleared.', 'success');
         }
     }
-   // ===================================
-    // STEP 6: NEW AUTHENTICATION FLOW & NEW FEATURES
-    // ===================================
-
-    /**
-     * Saves auth data to AppState and localStorage
-     */
-     function saveAuthData(token, user) {
-        AppState.token = token;
-        AppState.user = user;
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('authUser', JSON.stringify(user));
-        
-        // Update UI with user info
-        updateShopDisplay(user);
-    }
-    
-    // NEW: Update Shop Name/Logo in UI
-   // NEW: Update Shop Name/Logo in UI
-  // NEW: Update Shop Name/Logo in UI
- // [REPLACE THIS FUNCTION IN HTML <script>]
+ 
 
 function updateShopDisplay(user) {
     if (!user) return;
@@ -8195,6 +8180,22 @@ function updateShopDisplay(user) {
     }
 }
 
+
+function saveAuthData(token, user) {
+    if (typeof AppState !== 'undefined') {
+        AppState.token = token;
+        AppState.user = user;
+    }
+    // localStorage की जगह sessionStorage का उपयोग करें
+    sessionStorage.setItem('authToken', token);
+    sessionStorage.setItem('authUser', JSON.stringify(user));
+    
+    // अगर आप चाहते हैं कि रिफ्रेश करने पर भी लॉगिन रहे, तो इसे भी रख सकते हैं
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('authUser', JSON.stringify(user));
+    
+    console.log("✅ Auth data saved for tab session:", user.role);
+}
 
     /**
      * Clears auth data and reloads the page to show login screen
@@ -9365,15 +9366,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // 🚀 फिक्स: सिर्फ नए लॉगिन कंटेनर को पकड़ें
     const newLoginContainer = document.getElementById('auth-container-new'); 
     
-    // 🚀 फिक्स: पुराना कंटेनर अब मौजूद नहीं है, उसे हटा दें
-    // const oldLoginContainer = document.getElementById('auth-container'); 
-
-    const token = localStorage.getItem('authToken');
-    const user = JSON.parse(localStorage.getItem('authUser'));
+    // 🚀 मल्टी-टैब फिक्स: पहले sessionStorage (टैब का अपना डेटा) चेक करें, फिर localStorage
+    const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+    const userData = sessionStorage.getItem('authUser') || localStorage.getItem('authUser');
+    const user = userData ? JSON.parse(userData) : null;
 
     if (token && user) {
         console.log("टोकन मिला, लॉगिन स्थिति की जाँच की जा रही है...");
-        saveAuthData(token, user);
+        
+        // AppState और Session दोनों को सिंक करें
+        saveAuthData(token, user); 
+        
         startLicenseTimer(user.licenseExpiryDate);
 
         const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
@@ -9385,43 +9388,52 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage('लाइसेंस आवश्यक', 'आपका लाइसेंस समाप्त हो गया है। कृपया सक्रिय करें।', 'warning');
 
             // 🚀 फिक्स: लैंडिंग बटन को छिपाएँ
-            document.getElementById('landing-buttons-container').classList.add('hidden');
+            const landingBtns = document.getElementById('landing-buttons-container');
+            if (landingBtns) landingBtns.classList.add('hidden');
             
             // 🚀 फिक्स: लॉगिन रैपर (Wrapper) को दिखाएँ
-            document.getElementById('login-wrapper-main').classList.add('active'); 
+            const loginWrapper = document.getElementById('login-wrapper-main');
+            if (loginWrapper) loginWrapper.classList.add('active'); 
 
-            // 🚀 फिक्स: नया लॉगिन पेज (बैकग्राउंड के लिए) दिखाएँ
+            // 🚀 फिक्स: नया लॉगिन पेज दिखाएँ
             if (newLoginContainer) newLoginContainer.classList.remove('hidden');
 
-            // ऐप के हिस्से (जैसे साइडबार) अनलॉक करें
+            // ऐप के हिस्से लॉक/अनलॉक करें
             document.getElementById('sidebar').classList.remove('locked');
             document.getElementById('menu-toggle').classList.remove('locked');
-            document.getElementById('main-content').classList.add('locked'); // मुख्य कंटेंट लॉक रखें
+            document.getElementById('main-content').classList.add('locked'); 
+            
             applyRBAC(user.role);
-            licenseModal.show(); // लाइसेंस Modal को फॉर्म के ऊपर दिखाएँ
+            licenseModal.show(); 
 
         } else {
             // --- 🚀 केस 2: सब कुछ सही है (टोकन और लाइसेंस) ---
             console.log("टोकन और लाइसेंस मान्य हैं। ऐप अनलॉक हो रहा है।");
             
-            // 🚀 फिक्स: नया लॉगिन पेज छिपाएँ
             if (newLoginContainer) newLoginContainer.classList.add('hidden');
             
-            unlockApplication(); // ऐप को पूरी तरह अनलॉक करें
+            // 🚀 मल्टी-टैब सुधार: रोल के हिसाब से सही इंटरफ़ेस खोलें
+            if (user.role === 'GUARD') {
+                if (typeof renderGuardInterface === 'function') {
+                    renderGuardInterface();
+                }
+            } else {
+                unlockApplication(); // एडमिन के लिए नॉर्मल अनलॉक
+            }
         }
 
     } else {
-        // --- 🚀 केस 3: कोई टोकन नहीं मिला (लॉगआउट है) ---
+        // --- 🚀 केस 3: कोई टोकन नहीं मिला ---
         console.log("कोई टोकन नहीं मिला। लॉगिन स्क्रीन दिखा रहा है।");
         
-        // 🚀 फिक्स: सिर्फ नया लॉगिन पेज दिखाएँ
         if (newLoginContainer) newLoginContainer.classList.remove('hidden');
 
-        // ऐप के बाकी हिस्सों को लॉक रखें
         document.getElementById('sidebar').classList.add('locked');
         document.getElementById('main-content').classList.add('locked');
         document.getElementById('menu-toggle').classList.add('locked');
     }
+});
+
 
     // --- बाकी के सभी लिस्नर (Event Listeners) ---
 // --- 🚀 (नया) लैंडिंग पेज बटन लिस्नर ---
@@ -9469,162 +9481,164 @@ const landingButtons = document.getElementById('landing-buttons-container');
 
     // --- (यहाँ से 'बाकी के सभी लिस्नर' शुरू होते हैं) ---
 
+// ==========================================
+    // LOGIN & REGISTRATION LOGIC
+    // ==========================================
 
-
-    
-    // Login Form
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        const msgEl = document.getElementById('login-message');
-        const btn = document.getElementById('login-submit-btn');
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> लॉग इन हो रहा है...`;
-
-        try {
-            const res = await fetch(__backend_url + '/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) { throw new Error(data.message || 'लॉगिन विफल'); }
-
-            msgEl.innerText = 'सफलता! लोड हो रहा है...';
-            saveAuthData(data.token, data.user);
-            startLicenseTimer(data.user.licenseExpiryDate);
-
-            if (data.user.role === 'GUARD') {
-            console.log("👮‍♂️ GUARD DETECTED: Redirecting...");
-            renderGuardInterface(); 
-            return; // 🛑 यहीं रुक जाओ, आगे का कोड नहीं चलेगा
-        }
-
-            if (data.requiresLicense) {
-                // 🚀 फिक्स: लाइसेंस एक्सपायर होने पर सिर्फ Modal दिखाएँ (बैकग्राउंड पहले से ही दिख रहा है)
-                showMessage('लाइसेंस आवश्यक', data.message, 'warning');
-                if (newLoginContainer) newLoginContainer.classList.remove('hidden'); // सुनिश्चित करें कि बैकग्राउंड दिखे
-                document.getElementById('sidebar').classList.remove('locked');
-                document.getElementById('menu-toggle').classList.remove('locked');
-                document.getElementById('main-content').classList.add('locked');
-                applyRBAC(data.user.role);
-                licenseModal.show();
-            } else {
-                unlockApplication(); // सब सही है, ऐप अनलॉक करें
-            }
-        } catch (error) {
-            msgEl.innerText = error.message;
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = 'लॉगिन';
-        }
-    });
-
-    // Registration Form
-// [ ✅ FIXED: Registration Form Handler - Correct ID Used ]
-
-// [ ✅ FIXED: Registration Logic with Unique ID ]
-
-document.getElementById('register-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const shopName = document.getElementById('register-shop-name').value;
-    const name = document.getElementById('register-name').value;
-    const email = document.getElementById('register-email').value;
-    const mobile = document.getElementById('register-mobile').value;
-    const password = document.getElementById('register-password').value;
-    
-    // 🚀 FIX: नई यूनिक ID से वैल्यू उठाएं
-    const typeElement = document.getElementById('unique-biz-type');
-    const businessType = typeElement ? typeElement.value : ''; 
-
-    // 🛑 चेक: अगर कुछ नहीं चुना, तो रोक दें
-    if (!businessType) {
-        alert("कृपया बिजनेस का प्रकार चुनें!");
-        return;
-    }
-
-    // 📢 डिबग: यह अलर्ट आपको बताएगा कि क्या जा रहा है
-    // alert("रजिस्टर हो रहा है: " + businessType); 
-
-    const msgEl = document.getElementById('register-message');
-    const btn = document.getElementById('register-submit-btn');
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> रजिस्टर हो रहा है...`;
-
-    try {
-        const res = await fetch(__backend_url + '/api/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                shopName, 
-                name, 
-                email, 
-                mobile, 
-                password, 
-                business_type: businessType // यह 'SALON' भेजेगा
-            })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) { throw new Error(data.message || 'रजिस्ट्रेशन विफल'); }
-
-        msgEl.innerText = 'सफलता! ऐप लोड हो रहा है...';
-        
-        saveAuthData(data.token, data.user);
-        
-        // 🚀 UI को तुरंत अपडेट करें
-        applyBusinessTypeUI(data.user.businessType);
-        
-        startLicenseTimer(data.user.licenseExpiryDate);
-        showMessage('सफलता!', `आपका ${data.user.businessType} अकाउंट बन गया है!`, 'success');
-        
-        if (typeof newLoginContainer !== 'undefined') newLoginContainer.classList.remove('hidden');
-        document.getElementById('sidebar').classList.remove('locked');
-        document.getElementById('menu-toggle').classList.remove('locked');
-        document.getElementById('main-content').classList.add('locked');
-        
-        if (typeof applyRBAC === 'function') applyRBAC(data.user.role);
-        
-        const licenseModal = new bootstrap.Modal(document.getElementById('licenseModal'));
-        licenseModal.show();
-
-    } catch (error) {
-        msgEl.innerText = error.message;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'अकाउंट बनाएं';
-    }
-});
-
-    // License Activation Form
-    document.getElementById('license-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const key = document.getElementById("license-key-input").value.trim();
-        const messageEl = document.getElementById("license-message");
-        messageEl.innerText = 'सत्यापित किया जा रहा है...';
-
-        try {
-           const res = await fetchApi('/api/activate-license', {
-                method: 'POST',
-                body: { licenseKey: key }
-           }, 'लाइसेंस सक्रिय किया जा रहा है...');
+    // 1. Login Form Handler
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const msgEl = document.getElementById('login-message');
+            const btn = document.getElementById('login-submit-btn');
             
-            if (res.success) {
-                saveAuthData(res.token, res.user);
-                startLicenseTimer(res.user.licenseExpiryDate);
-                licenseModal.hide();
-                showMessage('सफलता', res.message, 'success');
-                unlockApplication(); // <<< अब ऐप को अनलॉक करें
-            } else {
-                throw new Error(res.message || 'अमान्य या समाप्त लाइसेंस।');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> लॉगिन हो रहा है...`;
+
+            try {
+                const res = await fetch(__backend_url + '/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await res.json();
+                if (!res.ok || !data.success) { 
+                    throw new Error(data.message || 'लॉगिन विफल'); 
+                }
+
+                msgEl.innerText = 'सफलता! लोड हो रहा है...';
+                saveAuthData(data.token, data.user);
+
+                // 🛡️ SECURITY GUARD CHECK
+                if (data.user && data.user.role === 'GUARD') {
+                    console.log("👮‍♂️ Guard detected! Loading Guard UI...");
+                    if (typeof renderGuardInterface === 'function') {
+                        renderGuardInterface(); 
+                    } else {
+                        alert("Security Interface not found! Please check script.");
+                    }
+                    return; 
+                }
+
+                // 🏢 NORMAL USERS
+                if (data.user && data.user.licenseExpiryDate) {
+                    startLicenseTimer(data.user.licenseExpiryDate);
+                }
+
+                if (data.requiresLicense) {
+                    showMessage('लाइसेंस आवश्यक', data.message, 'warning');
+                    const newLogin = document.getElementById('auth-container-new');
+                    if (newLogin) newLogin.classList.remove('hidden');
+                    document.getElementById('sidebar').classList.remove('locked');
+                    document.getElementById('menu-toggle').classList.remove('locked');
+                    document.getElementById('main-content').classList.add('locked');
+                    applyRBAC(data.user.role);
+                    if(typeof licenseModal !== 'undefined') licenseModal.show();
+                } else {
+                    unlockApplication(); 
+                }
+
+            } catch (error) {
+                console.error("Login Error:", error);
+                msgEl.innerText = error.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'लॉगिन';
             }
-        } catch (err) {
-            messageEl.innerText = '❌ ' + err.message;
-        }
-    });
+        });
+    }
+
+    // 2. Registration Form Handler
+    const regForm = document.getElementById('register-form');
+    if (regForm) {
+        regForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const shopName = document.getElementById('register-shop-name').value;
+            const name = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const mobile = document.getElementById('register-mobile').value;
+            const password = document.getElementById('register-password').value;
+            
+            const typeElement = document.getElementById('unique-biz-type');
+            const businessType = typeElement ? typeElement.value : ''; 
+
+            if (!businessType) {
+                alert("कृपया बिजनेस का प्रकार चुनें!");
+                return;
+            }
+
+            const msgEl = document.getElementById('register-message');
+            const btn = document.getElementById('register-submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> रजिस्टर हो रहा है...`;
+
+            try {
+                const res = await fetch(__backend_url + '/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        shopName, name, email, mobile, password, 
+                        business_type: businessType 
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) { throw new Error(data.message || 'रजिस्ट्रेशन विफल'); }
+
+                msgEl.innerText = 'सफलता! ऐप लोड हो रहा है...';
+                saveAuthData(data.token, data.user);
+                applyBusinessTypeUI(data.user.businessType);
+                startLicenseTimer(data.user.licenseExpiryDate);
+                showMessage('सफलता!', `आपका ${data.user.businessType} अकाउंट बन गया है!`, 'success');
+                
+                unlockApplication();
+
+            } catch (error) {
+                msgEl.innerText = error.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'अकाउंट बनाएं';
+            }
+        });
+    }
+
+    // 3. License Activation Form
+    const licForm = document.getElementById('license-form');
+    if (licForm) {
+        licForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const key = document.getElementById("license-key-input").value.trim();
+            const messageEl = document.getElementById("license-message");
+            messageEl.innerText = 'सत्यापित किया जा रहा है...';
+
+            try {
+               const res = await fetchApi('/api/activate-license', {
+                    method: 'POST',
+                    body: { licenseKey: key }
+               }, 'लाइसेंस सक्रिय किया जा रहा है...');
+                
+                if (res.success) {
+                    saveAuthData(res.token, res.user);
+                    startLicenseTimer(res.user.licenseExpiryDate);
+                    if(typeof licenseModal !== 'undefined') licenseModal.hide();
+                    showMessage('सफलता', res.message, 'success');
+                    unlockApplication(); 
+                } else {
+                    throw new Error(res.message || 'अमान्य या समाप्त लाइसेंस।');
+                }
+            } catch (err) {
+                messageEl.innerText = '❌ ' + err.message;
+            }
+        });
+    }
     
-    // --- बाकी के सभी लिस्नर ---
-    document.getElementById('logout-btn').addEventListener('click', logout);
+    // 4. Global UI Listeners
+    const logoutBtn = document.getElementById('logout-btn');
+    if(logoutBtn) logoutBtn.addEventListener('click', logout);
+
     document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -9632,103 +9646,66 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
             if (window.innerWidth < 992) document.getElementById('sidebar').classList.remove('active');
         });
     });
-    document.getElementById('menu-toggle').addEventListener('click', () => {
+
+    const menuTog = document.getElementById('menu-toggle');
+    if(menuTog) menuTog.addEventListener('click', () => {
          document.getElementById('sidebar').classList.toggle('active');
     });
+
+    // 5. Scanner & Barcode Logic
     const posSearchInput = document.getElementById('pos-item-search');
     if (posSearchInput) {
         posSearchInput.addEventListener('input', () => handleItemSearch(false)); 
         posSearchInput.addEventListener('click', () => handleItemSearch(true)); 
         document.addEventListener('click', (e) => {
             if (e.target.id !== 'pos-item-search') {
-                document.getElementById('pos-search-results').innerHTML = '';
+                const results = document.getElementById('pos-search-results');
+                if(results) results.innerHTML = '';
             }
         });
     }
-    updatePOSCartView(); 
-    const expenseDateInput = document.getElementById('expense-date');
-    if (expenseDateInput) {
-        try {
-            expenseDateInput.value = new Date().toISOString().split('T')[0];
-        } catch(e) { console.error("Expense date set error", e); }
-    }
+
     const barcodeInput = document.getElementById('barcode-scanner-input');
-    barcodeInput.addEventListener('change', () => handleBarcodeScan(null));
-    // [ यह आपका फिक्स है - उस एक लाइन की जगह इसे पेस्ट करें ]
-// [ ✅ FIXED: Global Scanner Focus Logic ]
-    // यह कोड सुनिश्चित करता है कि जब आप टाइप कर रहे हों या लाल स्क्रीन खुली हो,
-    // तो स्कैनर फोकस न छीने।
+    if(barcodeInput) {
+        barcodeInput.addEventListener('change', () => handleBarcodeScan(null));
+    }
 
+    // Scanner Auto-Focus Logic
     document.body.addEventListener('click', (e) => {
-        // 1. चेक करें कि क्या लाल स्क्रीन (या कोई भी मॉडल) खुली है?
         const isModalOpen = document.querySelector('.modal.show');
-        
-        // अगर कोई स्क्रीन खुली है, तो यह 'Auto Focus' वाला लॉजिक न चलाएं।
-        // इससे आप आराम से टाइप कर पाएंगे।
-        if (isModalOpen) {
-            return; 
-        }
-
-        // --- नीचे का कोड तभी चलेगा जब कोई स्क्रीन नहीं खुली हो ---
+        if (isModalOpen) return; 
 
         const targetElement = e.target;
         const targetTagName = targetElement.tagName.toUpperCase();
-
-        // चेक करें कि क्या आपने किसी काम की चीज़ पर क्लिक किया है
         const isClickable = (
-            targetTagName === 'INPUT' ||
-            targetTagName === 'TEXTAREA' ||
-            targetTagName === 'SELECT' ||
-            targetTagName === 'BUTTON' ||
-            targetElement.closest('a') || 
-            targetElement.closest('.nav-link') || 
-            targetElement.closest('.list-group-item-action') ||
-            targetElement.closest('.modal-content') // 🚀 Extra Safety: अगर मॉडल के अंदर क्लिक हुआ
+            targetTagName === 'INPUT' || targetTagName === 'TEXTAREA' ||
+            targetTagName === 'SELECT' || targetTagName === 'BUTTON' ||
+            targetElement.closest('a') || targetElement.closest('.nav-link') || 
+            targetElement.closest('.modal-content')
         );
 
-        // अगर खाली जगह पर क्लिक किया है, तभी स्कैनर चालू करें
-        if (!isClickable) {
+        if (!isClickable && typeof focusBarcodeScanner === 'function') {
             focusBarcodeScanner();
         }
     });
 
-    // postMessage Listener
-    window.addEventListener('message', function(event) {
-        if (event.origin !== window.location.origin) return; 
-        if (event.data) {
-            const token = localStorage.getItem('authToken');
-            const user = AppState.user || JSON.parse(localStorage.getItem('authUser'));
-            const shopId = user ? user.shopId : null;
-            const backendUrl = __backend_url;
+    // 6. Bank Reconciliation Listeners
+    const reconForm = document.getElementById('reconciliation-start-form');
+    if(reconForm) reconForm.addEventListener('submit', handleStatementUpload);
 
-            if (event.data.type === 'REQUEST_AUTH' && token) {
-                if (window.scannerWindow && !window.scannerWindow.closed) {
-                    window.scannerWindow.postMessage({
-                        type: 'AUTH_TOKEN',
-                        token: token,
-                        shopId: shopId,
-                        backendUrl: backendUrl
-                    }, window.location.origin);
-                }
-            }
-            if (event.data.type === 'SCANNED_SKU' && event.data.sku) {
-                 addSKUToCart(event.data.sku);
-            }
-        }
-    });
+    const saveReconBtn = document.getElementById('save-reconciliation-btn');
+    if(saveReconBtn) saveReconBtn.addEventListener('click', saveReconciliationReport);
 
-
-// 🚀🚀🚀 बैंक रिकॉन्सिलेशन लिस्नर यहाँ जोड़ें 🚀🚀🚀
-document.getElementById('reconciliation-start-form').addEventListener('submit', handleStatementUpload);
-        document.getElementById('save-reconciliation-btn').addEventListener('click', saveReconciliationReport);
-        document.getElementById('cancel-reconciliation-btn').addEventListener('click', () => {
+    const cancelReconBtn = document.getElementById('cancel-reconciliation-btn');
+    if(cancelReconBtn) {
+        cancelReconBtn.addEventListener('click', () => {
             if(confirm('क्या आप वाकई रिकॉन्सिलेशन रद्द करना चाहते हैं?')) {
-                renderView('bank-reconciliation'); // पेज को रीसेट करें
+                renderView('bank-reconciliation');
             }
         });
-        // 🚀🚀🚀 कोड यहाँ समाप्त होता है 🚀🚀🚀
+    }
 
-});
+
 
 
 // [ नया DOMContentLoaded फ़ंक्शन यहाँ समाप्त होता है ]
@@ -13392,9 +13369,54 @@ function removeKotItem(index) {
 
 // सेटअप
 document.addEventListener('DOMContentLoaded', () => {
-    initKotSection();
-});
+    const licenseModalEl = document.getElementById('licenseModal');  
+    const licenseModal = licenseModalEl ? new bootstrap.Modal(licenseModalEl) : null;
+    const newLoginContainer = document.getElementById('auth-container-new'); 
 
+    // 🚀 फिक्स 1: पहले sessionStorage चेक करें (ताकि अलग-अलग टैब में अलग लॉगिन चल सके)
+    const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+    const userData = sessionStorage.getItem('authUser') || localStorage.getItem('authUser');
+    const user = userData ? JSON.parse(userData) : null;
+
+    if (token && user) {
+        console.log("✅ लॉगिन मिला, स्थिति की जाँच की जा रही है...");
+        
+        // AppState को डेटा से भरें ताकि fetchApi को टोकन मिल सके
+        if (typeof saveAuthData === 'function') saveAuthData(token, user);
+
+        const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
+        const now = new Date();
+
+        if (!expiryDate || expiryDate < now) {
+            // लाइसेंस एक्सपायर है
+            console.log("⚠️ लाइसेंस समाप्त है।");
+            if (newLoginContainer) newLoginContainer.classList.remove('hidden');
+            document.getElementById('main-content').classList.add('locked');
+            if (licenseModal) licenseModal.show();
+        } else {
+            // सब सही है, अब चेक करें कि रोल क्या है
+            if (user.role === 'GUARD') {
+                console.log("👮‍♂️ गार्ड लॉगिन मिला।");
+                if (typeof renderGuardInterface === 'function') renderGuardInterface();
+            } else {
+                console.log("🏢 एडमिन/स्टाफ लॉगिन मिला।");
+                // 🚀 फिक्स 2: डेटा तभी लोड करें जब फंक्शन मौजूद हों और यूजर ऑथोराइज्ड हो
+                if (typeof initKotSection === 'function') initKotSection().catch(e => console.log("KOT Error:", e));
+                if (typeof loadWaiters === 'function') loadWaiters();
+                
+                // ऐप अनलॉक करें
+                if (typeof unlockApplication === 'function') unlockApplication();
+            }
+        }
+    } else {
+        // लॉगिन नहीं है
+        console.log("🔒 लॉगिन नहीं है। डेटा लोडिंग रुकी हुई है।");
+        if (newLoginContainer) {
+            newLoginContainer.classList.remove('hidden');
+        }
+        document.getElementById('sidebar').classList.add('locked');
+    }
+});
 
 // 1. पेज लोड होते ही टेबल लिस्ट बनाना
 // [ ✅ FIXED: Initialize Tables (Same Logic, New System) ]
@@ -13415,35 +13437,20 @@ document.addEventListener('DOMContentLoaded', initRestaurantTables);
 
 // [ ✅ LOAD WAITERS DYNAMICALLY ]
 async function loadWaiters() {
-    const select = document.getElementById('waiter_select');
-    if(!select) return;
+    // 🛡️ सुरक्षा: चेक करें कि टोकन है या नहीं
+    const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+    if (!token) {
+        console.log("⏭️ Skipping loadWaiters: User not logged in.");
+        return; 
+    }
 
     try {
-        // सर्वर से स्टाफ लिस्ट मंगाएं
-        const res = await fetchApi('/api/users', { method: 'GET' }, null);
-        
-        if (res.success && res.users) {
-            // ड्रॉपडाउन को खाली करें और डिफ़ॉल्ट ऑप्शन डालें
-            select.innerHTML = '<option value="Self">-- Select Waiter --</option>';
-            
-            // लिस्ट से नाम भरकर ड्रॉपडाउन में डालें
-            res.users.forEach(user => {
-                // सिर्फ उन्हें दिखाएं जो एक्टिव हैं
-                if(user.status === 'active') {
-                    const opt = document.createElement('option');
-                    opt.value = user.name;
-                    opt.innerText = user.name;
-                    select.appendChild(opt);
-                }
-            });
-        }
-    } catch (e) {
-        console.error("Waiters load error:", e);
+        const res = await fetchApi('/api/users', { method: 'GET' });
+        // बाकी का पुराना कोड वैसे ही रहने दें...
+    } catch (err) {
+        console.error("Waiters load error:", err);
     }
 }
-
-// पेज लोड होते ही वेटर लिस्ट अपडेट करें
-document.addEventListener('DOMContentLoaded', loadWaiters);
 
 
 // 5. मात्रा अपडेट
@@ -14534,61 +14541,6 @@ async function startSecurityCamera() {
 }
 
 
-// 3. 🕵️‍♂️ चोरी पकड़ने का फंक्शन (THEFT TRIGGER - NO CRASH)
-function triggerTheftAlarm(itemName = "Unknown Item") {
-    
-    // A. सायरन बजाओ 🔊 (अगर फाइल लोड हो गई है)
-    const siren = document.getElementById('theft-siren');
-    if (siren) {
-        siren.volume = 1.0;
-        siren.currentTime = 0; // शुरू से बजाओ
-        siren.play().catch(e => console.log("Audio error:", e));
-    }
-
-    // B. फोटो की कोशिश करो 📸 (या डिफॉल्ट इमेज लो)
-    let photoDataUrl = 'https://cdn-icons-png.flaticon.com/512/564/564619.png'; // ⚠️ Default Alert Icon
-    
-    try {
-        const video = document.getElementById('security-video');
-        const canvas = document.getElementById('security-canvas');
-        
-        // अगर कैमरा चल रहा है (ReadyState 4) तभी फोटो खींचो
-        if (video && video.readyState === 4) {
-            const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, 320, 240);
-            photoDataUrl = canvas.toDataURL('image/png'); // असली फोटो
-        }
-    } catch (e) {
-        console.log("Photo capture skipped (No Camera)");
-    }
-
-    // C. स्क्रीन पर दिखाओ (RED ALERT) 🚨
-    Swal.fire({
-        title: '🚨 THEFT DETECTED! 🚨',
-        html: `
-            <h3 style="color:red;">चोरी पकड़ी गई!</h3>
-            <p><b>Item:</b> ${itemName}</p>
-            <div style="display:flex; justify-content:center;">
-                <img src="${photoDataUrl}" style="width:200px; border: 5px solid red; border-radius: 10px;">
-            </div>
-            <br>
-            <p style="color:red; font-weight:bold;">Security Alert Active!</p>
-        `,
-        icon: 'error', // लाल क्रॉस आइकॉन
-        background: '#fff0f0',
-        confirmButtonText: '🛑 STOP ALARM',
-        confirmButtonColor: '#d33',
-        allowOutsideClick: false,
-        allowEscapeKey: false
-    }).then(() => {
-        // बटन दबाने पर सायरन बंद करें
-        if (siren) {
-            siren.pause();
-            siren.currentTime = 0;
-        }
-    });
-}
-
 
 // ==========================================
 // 📸 FORCE CAMERA START (Fix for Testing)
@@ -14667,150 +14619,68 @@ function requestLicenseKey() {
 }
 
 
-
-
-// --- 👮 SECURITY GUARD LOGIC ---
-
-// 1. Verify Bill (Gate Pass)
-// --- 👮 UPGRADED SECURITY LOGIC ---
-
-async function verifyGatePass() {
-    const billNo = document.getElementById('sec-invoice-id').value;
-    const resBox = document.getElementById('sec-result');
-    
-    if(!billNo) return alert("Enter Bill Number");
-    
-    resBox.innerHTML = '<div class="spinner-border text-light"></div> Checking...';
-
-    try {
-        const res = await fetchApi('/api/security/verify-gate-pass', {
-            method: 'POST',
-            body: { invoiceId: billNo }
-        });
-
-        if(res.success) {
-            // ✅ SUCCESS (Green)
-            new Audio('https://www.soundjay.com/buttons/sounds/button-3.mp3').play();
-            let itemList = res.items.map(i => `<div class="small text-start border-bottom">${i.item_name} (x${i.quantity})</div>`).join('');
-            
-            resBox.innerHTML = `
-                <div class="alert alert-success mt-2">
-                    <div class="display-6 fw-bold"><i class="fas fa-check-circle"></i> VERIFIED</div>
-                    <div class="badge bg-success mb-2">FRESH ENTRY</div>
-                    <div class="bg-white text-dark p-2 rounded text-start" style="max-height:100px; overflow-y:auto;">${itemList}</div>
-                </div>`;
-        } else {
-            // ❌ FAILURE CASES
-            new Audio('https://www.soundjay.com/buttons/sounds/beep-03.mp3').play();
-            
-            if (res.code === 'USED') {
-                // ⚠️ DOUBLE SCAN (Yellow/Orange)
-                resBox.innerHTML = `
-                    <div class="alert alert-warning mt-2 text-dark">
-                        <div class="display-6 fw-bold"><i class="fas fa-exclamation-triangle"></i> STOP!</div>
-                        <div class="fw-bold fs-5">ALREADY SCANNED</div>
-                        <div class="small">यह बिल पहले ही पास हो चुका है।</div>
-                    </div>`;
-            } else if (res.code === 'CANCELLED') {
-                // 🚫 CANCELLED (Red)
-                resBox.innerHTML = `
-                    <div class="alert alert-danger mt-2">
-                        <div class="display-6 fw-bold"><i class="fas fa-ban"></i> INVALID</div>
-                        <div class="fw-bold">CANCELLED BILL</div>
-                    </div>`;
-                triggerTheftAlarm();
-            } else {
-                // 🚨 FAKE (Red & Flash)
-                resBox.innerHTML = `<div class="alert alert-danger mt-2 display-6 fw-bold"><i class="fas fa-skull-crossbones"></i> FAKE BILL</div>`;
-                triggerTheftAlarm();
-            }
-        }
-    } catch(e) {
-        resBox.innerHTML = `<span class="text-white bg-danger p-1">Error: ${e.message}</span>`;
-    }
-}
-
-// 2. Trigger Alarm (Siren)
+// ==========================================
+// 🚨 2. PANIC ALARM (Dark Mode Flash)
+// ==========================================
 function triggerTheftAlarm() {
-    const siren = document.getElementById('theft-siren');
+    // पुराना कोई भी अलार्म खुला हो तो हटाएं
+    const old = document.getElementById('panic-overlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = "panic-overlay";
+    overlay.style = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(220, 53, 69, 0.98); z-index: 100000;
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; color: white; text-align: center;
+    `;
     
-    // अगर सायरन बज रहा है, तो बंद करें
-    if (!siren.paused) {
-        siren.pause();
-        siren.currentTime = 0;
-        return;
-    }
-
-    // सायरन बजाएं
-    siren.play().catch(e => alert("Please interact with document first"));
-    
-    // Log to Server
-    fetchApi('/api/security/log-theft', { 
-        method: 'POST', 
-        body: { reason: 'Guard Panic Button Pressed' } 
-    });
-
-    // Visual Flash Effect
-    document.body.style.animation = "flashRed 0.5s infinite";
-    setTimeout(() => { document.body.style.animation = ""; }, 5000);
-}
-
-// Add CSS for Flash Effect
-const style = document.createElement('style');
-style.innerHTML = `
-@keyframes flashRed {
-    0% { background-color: #fff; }
-    50% { background-color: #ffcccc; }
-    100% { background-color: #fff; }
-}`;
-document.head.appendChild(style);
-
-
-
-// ============================================
-// 📸 1. CAMERA SCANNER LOGIC
-// ============================================
-let html5QrcodeScanner;
-
-function startQRScanner() {
-    const readerDiv = document.getElementById('qr-reader');
-    readerDiv.style.display = 'block';
-    document.getElementById('btn-start-cam').style.display = 'none'; // बटन छिपा दें
-
-    html5QrcodeScanner = new Html5QrcodeScanner(
-        "qr-reader", { fps: 10, qrbox: 250 }
-    );
-
-    html5QrcodeScanner.render((decodedText) => {
-        // ✅ सफलता! QR स्कैन हो गया
-        console.log("Scanned Code:", decodedText);
+    // यहाँ बटन की ID 'panic-action-btn' है
+    overlay.innerHTML = `
+        <div style="font-size: 80px; margin-bottom: 10px;">🚨</div>
+        <h1 style="font-size: 3rem; font-weight: 900;">SECURITY ALERT</h1>
+        <p style="font-size: 1.2rem; margin-bottom: 30px;">चोरी की सूचना एडमिन को भेजें</p>
         
-        // 1. स्कैनिंग बंद करें
-        html5QrcodeScanner.clear();
-        readerDiv.style.display = 'none';
-        document.getElementById('btn-start-cam').style.display = 'inline-block';
+        <div style="display: flex; gap: 20px;">
+            <button id="panic-action-btn" class="btn btn-light btn-lg fw-bold px-5 py-3">
+                📩 SEND TO ADMIN
+            </button>
+            <button onclick="this.parentElement.parentElement.remove()" class="btn btn-outline-light btn-lg">
+                CANCEL
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
 
-        // 2. बिल नंबर को बॉक्स में डालें
-        // (अगर QR में पूरा URL है, तो सिर्फ नंबर निकालें, नहीं तो सीधा टेक्स्ट लें)
-        let billNo = decodedText;
-        if(decodedText.includes('data=')) {
-            billNo = decodedText.split('data=')[1];
-        }
+    const btn = document.getElementById('panic-action-btn');
+    if (btn) {
+        btn.onclick = async function() {
+            try {
+                btn.disabled = true;
+                btn.innerHTML = "⏳ Sending..."; // innerText की जगह innerHTML
 
-        document.getElementById('sec-invoice-id').value = billNo;
+                const res = await fetchApi('/api/security/theft-alert', {
+                    method: 'POST',
+                    body: { timestamp: new Date().toISOString() }
+                });
 
-        // 3. अपने आप Verify बटन दबा दें
-        verifyGatePass();
-
-    }, (errorMessage) => {
-        // स्कैनिंग चल रही है... कोई एरर नहीं दिखाना
-    });
+                if (res.success) {
+                    btn.innerHTML = "✅ SENT!";
+                    btn.style.background = "#28a745";
+                    setTimeout(() => overlay.remove(), 2000);
+                }
+            } catch (err) {
+                console.error("Alarm Error:", err);
+                alert("Alert Failed: " + err.message);
+                btn.disabled = false;
+                btn.innerHTML = "📩 SEND TO ADMIN";
+            }
+        };
+    }
 }
 
-
-// ============================================
-// 📊 2. ADMIN SECURITY REPORT LOGIC
-// ============================================
 // 📊 ADMIN SECURITY REPORT (Corrected: No Password Needed)
 async function showSecurityReport() {
     
@@ -14951,72 +14821,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-// 🔒 FINAL ULTIMATE GUARD INTERFACE
-function renderGuardInterface() {
-    const user = JSON.parse(localStorage.getItem('user') || localStorage.getItem('authUser') || '{}');
-    
-    if (user.role !== 'GUARD') return;
 
-    // 1. पुरानी पूरी बॉडी को खाली कर दें (DELETE EVERYTHING)
-    document.body.innerHTML = '';
-    
-    // 2. बैकग्राउंड सेट करें
-    document.body.style.backgroundColor = "#1a1a2e";
-    document.body.style.margin = "0";
-    document.body.style.fontFamily = "sans-serif";
-
-    // 3. नया गार्ड इंटरफ़ेस (HTML) डालें
-    document.body.innerHTML = `
-        <div style="display: flex; flex-direction: column; height: 100vh;">
-            
-            <div style="background: #dc3545; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">
-                <div style="font-size: 18px; font-weight: bold;">🛡️ GATE SECURITY</div>
-                <button onclick="fullLogout()" style="background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 5px 12px; border-radius: 4px; cursor: pointer;">
-                    LOGOUT
-                </button>
-            </div>
-
-            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
-                
-                <div style="background: #252540; padding: 30px; border-radius: 15px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-                    
-                    <div style="font-size: 60px; color: #dc3545; margin-bottom: 20px;">👮‍♂️</div>
-                    <h3 style="color: white; margin-bottom: 25px;">SCAN GATE PASS</h3>
-
-                    <div id="qr-reader" style="width: 100%; display:none; border: 2px solid #28a745; margin-bottom: 15px;"></div>
-
-                    <button id="btn-start-cam" onclick="startQRScanner()" style="width: 100%; background: #0d6efd; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; margin-bottom: 15px; cursor: pointer;">
-                        📷 START CAMERA
-                    </button>
-
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <input type="number" id="sec-invoice-id" placeholder="Bill No." style="flex: 1; padding: 10px; border: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 18px;">
-                        <button onclick="verifyGatePass()" style="background: #198754; color: white; border: none; padding: 0 20px; font-weight: bold; border-radius: 6px; cursor: pointer;">CHECK</button>
-                    </div>
-
-                    <div id="sec-result" style="min-height: 40px; color: white; font-weight: bold;"></div>
-
-                </div>
-
-            </div>
-
-            <div style="padding: 15px; background: #111;">
-                <button onclick="triggerTheftAlarm()" style="width: 100%; background: transparent; border: 2px solid #dc3545; color: #dc3545; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer;">
-                    🚨 EMERGENCY ALARM
-                </button>
-            </div>
-
-        </div>
-    `;
-}
-
-// 4. Logout Function for Guard
-function fullLogout() {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('authUser');
-    localStorage.removeItem('user');
-    location.reload(); 
-}
 
 // 5. Auto Check on Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -15025,6 +14830,142 @@ document.addEventListener('DOMContentLoaded', () => {
         renderGuardInterface(); 
     }
 });
+
+
+
+
+// ======================================================
+// 👮 UPDATED MASTER GUARD SYSTEM (All-In-One)
+// ======================================================
+
+// 1. गार्ड का इंटरफेस (Professional UI)
+function renderGuardInterface() {
+    const user = JSON.parse(localStorage.getItem('authUser') || localStorage.getItem('user') || '{}');
+    
+    // पूरी पुरानी स्क्रीन को डिलीट करें
+    document.body.innerHTML = '';
+    document.body.style.backgroundColor = "#0f172a"; // Deep Dark Blue
+    document.body.style.color = "white";
+    document.body.style.margin = "0";
+    document.body.style.fontFamily = "'Segoe UI', Roboto, sans-serif";
+
+    document.body.innerHTML = `
+        <div style="display: flex; flex-direction: column; height: 100vh;">
+            <div style="background: #e11d48; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                <div style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">🛡️ SECURITY GATE PASS</div>
+                <button onclick="fullLogout()" style="background: white; color: #e11d48; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s;">LOGOUT</button>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+                <div style="background: #1e293b; padding: 30px; border-radius: 20px; width: 100%; max-width: 450px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155;">
+                    
+                    <div style="font-size: 60px; margin-bottom: 10px;">👮‍♂️</div>
+                    <h2 style="margin: 0 0 20px 0; color: #f1f5f9;">Bill Verification</h2>
+
+                    <div id="qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #22c55e; display:none; margin-bottom: 20px;"></div>
+
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <button id="btn-start-cam" onclick="startQRScanner()" style="background: #3b82f6; color: white; border: none; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 10px rgba(59,130,246,0.3);">
+                            📷 START QR SCANNER
+                        </button>
+
+                        <div style="display: flex; gap: 8px;">
+                            <input type="number" id="sec-invoice-id" placeholder="Enter Bill No." style="flex: 1; padding: 14px; border-radius: 10px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 20px; text-align: center; outline: none;">
+                            <button onclick="verifyGatePass()" style="background: #22c55e; color: white; border: none; padding: 0 20px; font-weight: bold; border-radius: 10px; cursor: pointer; font-size: 16px;">CHECK</button>
+                        </div>
+                    </div>
+
+                    <div id="sec-result" style="margin-top: 25px; min-height: 100px;"></div>
+                </div>
+            </div>
+
+            <div style="padding: 20px; background: #0f172a; border-top: 1px solid #1e293b;">
+                <button onclick="triggerTheftAlarm('Emergency Alert')" style="width: 100%; background: transparent; border: 2px solid #e11d48; color: #e11d48; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 10px; cursor: pointer; transition: 0.3s;" onmouseover="this.style.background='#e11d48'; this.style.color='white'" onmouseout="this.style.background='transparent'; this.style.color='#e11d48'">
+                    🚨 EMERGENCY PANIC ALARM
+                </button>
+                <div style="text-align: center; color: #64748b; font-size: 12px; margin-top: 10px;">Security System v2.0 Active</div>
+            </div>
+        </div>
+
+        <audio id="theft-siren" loop src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3"></audio>
+        <canvas id="security-canvas" width="320" height="240" style="display:none;"></canvas>
+    `;
+}
+
+async function verifyGatePass() {
+    const billInput = document.getElementById('sec-invoice-id');
+    const resBox = document.getElementById('sec-result');
+    if (!billInput || !resBox) return;
+
+    const billNo = billInput.value.trim();
+    if (!billNo) {
+        resBox.innerHTML = '<span style="color:orange;">⚠️ नंबर डालें</span>';
+        return;
+    }
+
+    resBox.innerHTML = '<span style="color:yellow;">⏳ Checking...</span>';
+
+    try {
+        const res = await fetchApi('/api/security/verify-gate-pass', {
+            method: 'POST',
+            body: { invoiceId: billNo }
+        });
+
+        // सफलता पर
+        if (res.success) {
+            let items = res.data.items.map(i => `<li>${i.item_name} (x${i.quantity})</li>`).join('');
+            resBox.innerHTML = `
+                <div style="background:#198754; padding:15px; border-radius:10px; color:white; margin-top:10px;">
+                    <div style="font-weight:bold;">✅ VERIFIED</div>
+                    <ul style="font-size:12px; margin:5px 0; padding-left:15px;">${items}</ul>
+                    <div style="font-size:11px;">Total: ₹${res.data.total_amount}</div>
+                </div>`;
+            billInput.value = '';
+        }
+    } catch (err) {
+        // ❌ यहाँ फिक्स है: गलत बिल होने पर Checking हट जाएगा और एरर दिखेगी
+        console.error("Verify Error:", err);
+        resBox.innerHTML = `
+            <div style="background:#dc3545; padding:15px; border-radius:10px; color:white; margin-top:10px; border-left:5px solid black;">
+                <div style="font-weight:bold;">❌ अलर्ट: बिल मान्य नहीं है!</div>
+                <div style="font-size:12px;">${err.message || "बिल नंबर नहीं मिला"}</div>
+            </div>`;
+    }
+}
+
+
+// 3. ओरिजिनल फंक्शन्स (जो आपने दिए थे) - UPDATED
+function fullLogout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    localStorage.removeItem('user');
+    location.reload(); 
+}
+
+function startQRScanner() {
+    const readerDiv = document.getElementById('qr-reader');
+    readerDiv.style.display = 'block';
+    document.getElementById('btn-start-cam').style.display = 'none';
+
+    const html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render((decodedText) => {
+        html5QrcodeScanner.clear();
+        readerDiv.style.display = 'none';
+        document.getElementById('btn-start-cam').style.display = 'inline-block';
+        
+        let billNo = decodedText.includes('data=') ? decodedText.split('data=')[1] : decodedText;
+        document.getElementById('sec-invoice-id').value = billNo;
+        verifyGatePass();
+    }, (e) => {});
+}
+
+// WATCHDOG: ऑटो-लॉक (इसे हटाना मत)
+setInterval(() => {
+    const user = JSON.parse(localStorage.getItem('authUser') || localStorage.getItem('user') || '{}');
+    if (user.role === 'GUARD' && !document.body.innerText.includes("SECURITY GATE PASS")) {
+        renderGuardInterface();
+    }
+}, 1000);
 
 
 </script>
@@ -15182,5 +15123,17 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 
+<script>
+} catch (e) {
+        console.error("Verification Error:", e);
+        document.getElementById('sec-result').innerHTML = `<div style="color:red;">❌ सर्वर एरर: ${e.message}</div>`;
+    }
+}
+
+function fullLogout() {
+    localStorage.clear();
+    location.reload();
+}
+</script>
 </body>
 </html>
