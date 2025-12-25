@@ -7279,8 +7279,7 @@ app.post('/api/admin/find-shop', async (req, res) => {
 // ================================================================
 // 🛡️ SECURITY SYSTEM (FINAL FIXED VERSION)
 // ================================================================
-
-// 1. Verify Bill (Using authenticateJWT)
+// 1. Verify Bill (Updated to match Frontend Structure)
 app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => {
     const { invoiceId } = req.body;
     const shopId = req.shopId; // authenticateJWT से shopId मिलेगा
@@ -7315,18 +7314,22 @@ app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => 
             return res.status(400).json({ success: false, code: 'USED', message: '⚠️ WARNING: यह बिल पहले ही पास हो चुका है!' });
         }
 
-        // ✅ SUCCESS: सब सही है, अब इसे "Scanned" मार्क करें
+        // ✅ सब सही है, अब इसे "Scanned" मार्क करें
         await pool.query(`UPDATE invoices SET is_scanned = TRUE WHERE id = $1`, [invoiceId]);
 
         // आइटम लाएं
         const itemsRes = await pool.query(`SELECT item_name, quantity FROM invoice_items WHERE invoice_id = $1`, [invoiceId]);
 
+        // 🔥 बदलाव यहाँ है: हमने 'res.data' ऑब्जेक्ट जोड़ा है ताकि फ्रंटएंड का 'res.data.items' वाला कोड काम कर सके
         res.json({
             success: true,
             code: 'OK',
             message: '✅ Verified! (जाने दें)',
-            invoice: invoice,
-            items: itemsRes.rows
+            data: {
+                total_amount: invoice.total_amount,
+                items: itemsRes.rows,
+                invoice_id: invoice.id
+            }
         });
 
     } catch (e) {
@@ -7334,6 +7337,8 @@ app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => 
         res.status(500).json({ success: false, message: "DB Error: " + e.message });
     }
 });
+
+
 
 // 2. Log Panic Button (Using authenticateJWT)
 app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
