@@ -7280,11 +7280,14 @@ app.post('/api/admin/find-shop', async (req, res) => {
 // ================================================================
 // 🛡️ ADVANCED SECURITY SYSTEM (Double Scan + History + Returns)
 // ================================================================
+// ================================================================
+// 🛡️ ADVANCED SECURITY SYSTEM (FIXED & CORRECTED)
+// ================================================================
 
-// 1. Verify Bill (With 3-Layer Protection)
-app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => {
+// 1. Verify Bill (Fixed: authenticateToken)
+app.post('/api/security/verify-gate-pass', authenticateToken, async (req, res) => {
     const { invoiceId } = req.body;
-    const shopId = req.shopId;
+    const shopId = req.shopId; // authenticateToken shopId deta hai
 
     try {
         // बिल ढूँढें
@@ -7329,12 +7332,13 @@ app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => 
         });
 
     } catch (e) {
+        console.error("Security Verify Error:", e);
         res.status(500).json({ success: false, message: e.message });
     }
 });
 
-// 2. Log Panic Button / Theft
-app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
+// 2. Log Panic Button (Fixed: authenticateToken)
+app.post('/api/security/log-theft', authenticateToken, async (req, res) => {
     const { reason } = req.body;
     try {
         await pool.query(
@@ -7345,7 +7349,7 @@ app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-// 3. Admin: Security History Report
+// 3. Admin History (No Change Needed here)
 app.post('/api/admin/security-history', async (req, res) => {
     const { adminPassword, shop_id } = req.body;
     if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({ success: false });
@@ -7355,6 +7359,8 @@ app.post('/api/admin/security-history', async (req, res) => {
         res.json({ success: true, logs: result.rows });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
