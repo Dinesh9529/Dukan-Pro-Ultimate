@@ -230,6 +230,7 @@ async function createTables() {
        
         // 0.5. Users Table
         // 🚀 FIX: 'ACCOUNTANT' रोल को CHECK constraint में जोड़ा गया
+		await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
         await client.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY, 
@@ -237,7 +238,7 @@ async function createTables() {
                 email TEXT UNIQUE NOT NULL, 
                 password_hash TEXT NOT NULL, 
                 name TEXT NOT NULL, 
-                role TEXT DEFAULT 'CASHIER' CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT')), 
+                role TEXT DEFAULT 'CASHIER' CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD')),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
