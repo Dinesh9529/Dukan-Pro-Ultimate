@@ -1718,117 +1718,102 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 // [ server.cjs में इस पूरे /api/activate-license फ़ंक्शन को रिप्लेस करें ]
 
-// 5. License Activation Route (CORRECTED: No Deadlock)
-app.post('/api/activate-license', authenticateJWT, async (req, res) => {
+// ==========================================
+// 🚀 LICENSE ACTIVATION (FIXED & LOGGED)
+// ==========================================
+app.post('/api/activate-license', authenticateToken, async (req, res) => {
     const { licenseKey } = req.body;
-
-    // --- ROLE CHECK: Only Admin should activate ---
+    
+    // 1. Basic Validation
     if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ success: false, message: 'केवल दुकान का एडमिन ही लाइसेंस सक्रिय कर सकता है।' });
+        return res.status(403).json({ success: false, message: 'केवल Admin ही लाइसेंस डाल सकता है।' });
+    }
+    if (!licenseKey || licenseKey.includes('PASTE_KAREIN')) {
+        return res.status(400).json({ success: false, message: 'कृपया सही लाइसेंस की (Key) डालें।' });
     }
 
-    const userId = req.user.id; 
-    const shopId = req.user.shopId; 
+    console.log(`[License] Request from Shop: ${req.user.shopId}`);
 
-    if (!licenseKey) {
-        return res.status(400).json({ success: false, message: 'लाइसेंस कुंजी आवश्यक है.' });
-    }
-
-    const keyHash = hashKey(licenseKey); 
-    const client = await pool.connect();
+    const client = await pool.connect(); // क्लाइंट कनेक्ट करें
 
     try {
+        // की (Key) को हैश करें (सुरक्षा के लिए)
+        // नोट: अगर आपके पास hashKey फंक्शन नहीं है, तो इसे सीधे यूज़ करें या नीचे दिया गया फंक्शन भी कोड में डालें
+        const keyHash = crypto.createHash('sha256').update(licenseKey).digest('hex');
+
         await client.query('BEGIN'); // ट्रांजैक्शन शुरू
 
-        // 1. लाइसेंस चेक करें और लॉक करें
-        const licenseResult = await client.query(
-            'SELECT expiry_date, user_id, shop_id, plan_type FROM licenses WHERE key_hash = $1 FOR UPDATE', 
+        // 2. लाइसेंस टेबल चेक करें (FOR UPDATE लॉक के साथ)
+        const licenseRes = await client.query(
+            `SELECT * FROM licenses WHERE key_hash = $1 FOR UPDATE`, 
             [keyHash]
         );
 
-        if (licenseResult.rows.length === 0) {
+        if (licenseRes.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'अमान्य लाइसेंस कुंजी (Invalid Key)।' });
+            return res.status(400).json({ success: false, message: 'गलत लाइसेंस की (Invalid Key)!' });
         }
 
-        const license = licenseResult.rows[0];
-        const newExpiryDate = new Date(license.expiry_date);
-        const now = new Date();
+        const license = licenseRes.rows[0];
 
-        // 2. क्या की (Key) एक्सपायर है?
-        if (newExpiryDate < now) {
+        // 3. वैलिडेशन चेक
+        if (license.shop_id && license.shop_id != req.user.shopId) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'यह लाइसेंस कुंजी पहले ही समाप्त हो चुकी है।' });
+            return res.status(400).json({ success: false, message: 'यह की (Key) किसी और दुकान पर यूज़ हो चुकी है।' });
         }
 
-        // 3. क्या की (Key) किसी और दुकान ने यूज़ कर ली है?
-        if (license.shop_id && license.shop_id !== shopId) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'यह कुंजी किसी अन्य दुकान पर पहले ही इस्तेमाल हो चुकी है।' });
-        }
-        
-        // 4. दुकान अपडेट करें (Plan + Expiry)
-        const newPlanType = license.plan_type || 'TRIAL';
-        
-        console.log(`DEBUG: Updating Shop ${shopId} -> Plan: ${newPlanType}, Exp: ${newExpiryDate}`);
-
+        // 4. दुकान अपडेट करें
+        const newExpiry = new Date(license.expiry_date);
         await client.query(
-            'UPDATE shops SET license_expiry_date = $1, plan_type = $2 WHERE id = $3',
-            [newExpiryDate, newPlanType, shopId]
+            `UPDATE shops SET plan_type = $1, license_expiry_date = $2, status = 'active' WHERE id = $3`,
+            [license.plan_type, newExpiry, req.user.shopId]
         );
 
         // 5. लाइसेंस को 'Used' मार्क करें
         await client.query(
-            'UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3', 
-            [userId, shopId, keyHash] 
+            `UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3`,
+            [req.user.id, req.user.shopId, keyHash]
         );
 
-        // 6. 🚀 FIX: यहाँ 'pool' की जगह 'client' का ही इस्तेमाल करें (Deadlock से बचने के लिए)
-        // यूज़र का ताज़ा डेटा (Updated Plan/Expiry) लाएं
-        const updatedUserResult = await client.query(
-            `SELECT u.*, s.shop_name, s.shop_logo, s.license_expiry_date, s.plan_type, s.add_ons, s.business_type 
+        // 6. यूज़र का नया डेटा लाएं (ताकि टोकन रिन्यू हो सके)
+        const userRes = await client.query(
+            `SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.business_type 
              FROM users u 
              JOIN shops s ON u.shop_id = s.id 
              WHERE u.id = $1`,
-            [userId]
+            [req.user.id]
         );
 
-        const updatedUser = updatedUserResult.rows[0];
+        const updatedUser = userRes.rows[0];
 
         // 7. नया टोकन बनाएं
-        const tokenUser = {
+        const newToken = jwt.sign({
             id: updatedUser.id,
             email: updatedUser.email,
             shopId: updatedUser.shop_id,
-            name: updatedUser.name,
-            mobile: updatedUser.mobile,
             role: updatedUser.role,
-            shopName: updatedUser.shop_name,
             licenseExpiryDate: updatedUser.license_expiry_date,
-            status: updatedUser.status,
-            plan_type: updatedUser.plan_type || 'TRIAL',
-            add_ons: updatedUser.add_ons || {},
-            businessType: updatedUser.business_type || 'RETAIL'
-        };
-
-        // ग्लोबल Secret Key का उपयोग करें
-        const token = jwt.sign(tokenUser, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025', { expiresIn: '30d' });
+            plan_type: updatedUser.plan_type,
+            businessType: updatedUser.business_type
+        }, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025', { expiresIn: '30d' });
 
         await client.query('COMMIT'); // सब कुछ सेव करें
-
-        res.json({
-            success: true,
-            message: `सफल! '${newPlanType}' प्लान सक्रिय हो गया है। वैधता: ${newExpiryDate.toLocaleDateString()}`,
-            token: token, 
-            user: tokenUser 
+        
+        console.log(`[License] Success for Shop ${req.user.shopId}`);
+        
+        res.json({ 
+            success: true, 
+            message: '✅ लाइसेंस सफलतापूर्वक एक्टिवेट हो गया!',
+            token: newToken,
+            user: updatedUser
         });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // कुछ गड़बड़ हुई तो सब वापस
-        console.error("Activation Error:", err);
+        await client.query('ROLLBACK');
+        console.error("[License Error]", err);
         res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
     } finally {
-        client.release(); // कनेक्शन फ्री करें
+        client.release(); // कनेक्शन छोड़ना बहुत जरूरी है
     }
 });
 
