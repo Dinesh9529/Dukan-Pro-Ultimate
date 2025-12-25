@@ -7374,6 +7374,15 @@ app.post('/api/shop/security-history', authenticateJWT, checkRole('MANAGER'), as
     }
 });
 
+// Cron-job को खुश रखने के लिए "Health Check" रूट
+app.get('/api/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// या फिर सीधे अपनी वेबसाइट के रूट को भी इस्तेमाल कर सकते हैं
+app.get('/', (req, res) => {
+    res.status(200).send('Server is Up and Running');
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
