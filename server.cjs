@@ -7456,23 +7456,30 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
         res.status(500).json({ success: false });
     }
 });
-
-
 // ==========================================
-// 1. BILL VERIFICATION API (With Items & Double Check)
+// 1. BILL VERIFICATION API (Updated with Items)
 // ==========================================
 app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const shopId = req.shopId;
 
     try {
-        // 1. बिल ढूँढो और उसके आइटम्स भी लाओ (JOIN items table)
-        // ध्यान दें: आपकी टेबल का नाम 'sale_items' या 'invoice_items' हो सकता है।
-        // मैं यहाँ मान रहा हूँ कि आपकी टेबल 'sales' और 'sale_items' है।
-        
+        // ✅ JOIN Query: आइटम का नाम (product_name) भी लाओ
         const invoiceRes = await pool.query(
             `SELECT s.*, 
-                    (SELECT json_agg(si) FROM sale_items si WHERE si.sale_id = s.id) as items
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'product_name', p.name, 
+                            'quantity', si.quantity,
+                            'price', si.price,
+                            'total', si.total_price
+                        )
+                    )
+                    FROM sale_items si
+                    LEFT JOIN products p ON si.product_id = p.id
+                    WHERE si.sale_id = s.id
+                ) as items
              FROM sales s 
              WHERE s.id = $1 AND s.shop_id = $2`,
             [id, shopId]
@@ -7484,7 +7491,7 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
 
         const bill = invoiceRes.rows[0];
 
-        // 2. क्या यह पहले ही चेक हो चुका है?
+        // ✅ Check if already verified
         if (bill.is_checked) {
             return res.json({ 
                 success: true, 
@@ -7493,11 +7500,8 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
             });
         }
 
-        // 3. अगर नहीं, तो अब इसे 'Checked' मार्क करें
-        await pool.query(
-            `UPDATE sales SET is_checked = TRUE WHERE id = $1`,
-            [id]
-        );
+        // ✅ Mark as Checked
+        await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
 
         res.json({ success: true, alreadyChecked: false, invoice: bill });
 
@@ -7508,39 +7512,37 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 2. SECURITY ALERT API (Panic Button Fix)
+// 2. PANIC ALERT API (Updated)
 // ==========================================
 app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
     const { location, type } = req.body;
     const shopId = req.shopId;
 
     try {
-        // DB में सेव करें
-        const logRes = await pool.query(
+        // 1. DB Log
+        const result = await pool.query(
             `INSERT INTO security_logs (shop_id, status, description) 
-             VALUES ($1, 'ACTIVE', $2) RETURNING id, created_at`,
+             VALUES ($1, 'ACTIVE', $2) RETURNING id`,
             [shopId, `PANIC: ${location}`]
         );
 
-        // एडमिन को WebSocket से भेजें
+        // 2. Send WebSocket Alert
         if (global.broadcastToShop) {
             global.broadcastToShop(shopId, JSON.stringify({
-                type: 'SECURITY_ALERT', // यह Type एडमिन HTML में मैच होना चाहिए
+                type: 'SECURITY_ALERT',
                 alert: {
-                    id: logRes.rows[0].id,
+                    id: result.rows[0].id,
                     location: location,
-                    time: logRes.rows[0].created_at
+                    time: new Date()
                 }
             }));
         }
-
         res.json({ success: true });
     } catch (err) {
-        console.error("Alert Error:", err); // कंसोल में असली एरर देखें
+        console.error("Alert Error:", err);
         res.status(500).json({ success: false });
     }
 });
-
 
 
 
