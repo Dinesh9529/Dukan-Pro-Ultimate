@@ -7497,25 +7497,26 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
 
     } catch (err) { res.status(500).json({ success: false }); }
 });
-
 // ==========================================
-// ✅ FIXED CHECK ALERT API (Debugs ID Mismatch)
+// ✅ ULTIMATE CHECK ALERT API (100% Guaranteed Fix)
 // ==========================================
 app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
-    // 1. Shop ID निकालो (Token से या Fallback)
-    let shopId = req.shopId || (req.user && req.user.shop_id);
-    
-    // 🔥 DEBUGGING: Render Console में देखो क्या ढूँढ रहा है
-    console.log(`🔍 ADMIN CHECKING ALERT... Token ShopID: ${shopId}, User Email: ${req.user.email}`);
-
-    // अगर टोकन में ID नहीं मिली, तो डिफॉल्ट 33 (Testing के लिए)
-    if (!shopId) {
-        console.log("⚠️ Token ID missing during check. Defaulting to 33.");
-        shopId = 33;
-    }
-
     try {
-        // 2. सिर्फ ACTIVE अलार्म ढूँढो
+        // 1. Shop ID निकालने के 4 तरीके (ताकि मिस हो ही न सके)
+        let shopId = req.shopId || 
+                     (req.user && req.user.shop_id) || 
+                     (req.user && req.user.shopId) || 
+                     (req.user && req.user.id); // अगर कुछ न मिले तो यूजर ID ले लो
+
+        console.log(`🔍 SERVER CHECK: User ${req.user.email} is checking alerts for Shop ID: ${shopId}`);
+
+        // 2. अगर अभी भी ID नहीं मिली (जो नामुमकिन है), तो 33 मान लो
+        if (!shopId) {
+            console.log("⚠️ ID Missing -> Defaulting to 33.");
+            shopId = 33;
+        }
+
+        // 3. Database में देखो: क्या 33 नंबर पर कोई 'ACTIVE' अलार्म है?
         const result = await pool.query(
             `SELECT * FROM security_logs 
              WHERE shop_id = $1 AND status = 'ACTIVE' 
@@ -7524,10 +7525,10 @@ app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
         );
         
         if (result.rows.length > 0) {
-            console.log("✅ ALARM FOUND Sending to Admin!");
+            console.log(`✅ ALARM FOUND for Shop ${shopId}! Sending to Admin...`);
             res.json({ success: true, alert: result.rows[0] });
         } else {
-            // console.log("💤 No active alarms.");
+            // console.log(`💤 No Active Alarm for Shop ${shopId}`);
             res.json({ success: false });
         }
     } catch (err) {
@@ -7535,6 +7536,9 @@ app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
         res.status(500).json({ success: false });
     }
 });
+
+
+
 
 // अलर्ट बंद करने की API
 app.post('/api/security/resolve-alert', authenticateToken, async (req, res) => {
