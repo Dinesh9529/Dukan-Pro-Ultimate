@@ -1635,9 +1635,9 @@ const tokenUser = {
     id: user.id,
     email: user.email,
     
-    // 👇 यह दोनों लाइन जरूरी हैं (ताकि Undefined न आए)
-    shop_id: user.shop_id,  // Frontend के लिए (snake_case)
-    shopId: user.shop_id,   // Backup के लिए (camelCase)
+    // 👇 ये दोनों लाइनें सबसे जरूरी हैं (Front & Back दोनों के लिए)
+    shop_id: user.shop_id,  // Frontend के लिए (ताकि 33 की जगह सही ID दिखे)
+    shopId: user.shop_id,   // Backend के लिए
 
     name: user.name,
     mobile: user.mobile,
@@ -7526,36 +7526,34 @@ app.post('/api/security/resolve-alert', authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 // ==========================================
-// ✅ FIXED PANIC ALERT API (Ensures Shop ID)
+// ✅ PROFESSIONAL PANIC ALERT API (Dynamic for All Clients)
 // ==========================================
 app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
-    const { location, type } = req.body;
+    const { location } = req.body;
     
-    // 🛠️ FIX: Shop ID ढूंढने के 3 तरीके (ताकि NULL न जाए)
-    // 1. req.shopId (Middleware से)
-    // 2. req.user.shop_id (Token Payload से)
-    // 3. req.user.id (अगर Shop ID और User ID सेम हैं)
-    let shopId = req.shopId || (req.user && req.user.shop_id) || (req.user && req.user.id);
+    // 1. गार्ड के टोकन से ही पता करो कि वह किस दुकान का है
+    // जुगाड़ नहीं, असली पहचान (Identity)
+    const shopId = req.shopId || (req.user && req.user.shop_id);
 
-    console.log("🚨 ALERT REQUEST RECEIVED:");
-    console.log("User Data:", req.user); // कंसोल में चेक करें कि टोकन में क्या है
-    console.log("Detected Shop ID:", shopId);
+    console.log(`🚨 Alarm Request from User: ${req.user.email}`);
+    console.log(`🏢 Detected Shop ID: ${shopId}`);
 
-    // अगर अभी भी ID नहीं मिली, तो एरर मत दो, डिफ़ॉल्ट '1' मान लो (ताकि अलार्म रुके नहीं)
+    // 2. सुरक्षा जाँच: अगर दुकान का पता नहीं चला, तो अलार्म मत भेजो (Error दो)
+    // इससे किसी और का अलार्म आपको नहीं आएगा।
     if (!shopId) {
-        console.warn("⚠️ Shop ID missing! Defaulting to 1 for safety.");
-        shopId = 1; 
+        console.error("❌ Error: Guard has no Shop ID linked!");
+        return res.status(400).json({ success: false, message: "Shop ID not found in token." });
     }
 
     try {
-        // 1. DB Log
+        // 3. सही दुकान (Correct Shop ID) के खाते में अलार्म लिखो
         const result = await pool.query(
             `INSERT INTO security_logs (shop_id, status, description) 
              VALUES ($1, 'ACTIVE', $2) RETURNING id`,
             [shopId, `PANIC: ${location}`]
         );
 
-        // 2. Send WebSocket Alert (ताकि तुरंत पहुंचे)
+        // 4. उसी दुकान के मालिक को लाइव अलर्ट भेजो
         if (global.broadcastToShop) {
             global.broadcastToShop(shopId, JSON.stringify({
                 type: 'SECURITY_ALERT',
@@ -7566,14 +7564,15 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
                 }
             }));
         }
+        
+        console.log(`✅ Alarm sent to Shop #${shopId} successfully.`);
         res.json({ success: true });
+
     } catch (err) {
         console.error("Alert Error:", err);
         res.status(500).json({ success: false });
     }
 });
-
-
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
