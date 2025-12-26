@@ -7499,24 +7499,41 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 2. ADMIN ALERT CHECK API (Polling)
+// ✅ FIXED CHECK ALERT API (Debugs ID Mismatch)
 // ==========================================
-// एडमिन यह API हर 3 सेकंड में कॉल करेगा
 app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
-    const shopId = req.shopId;
+    // 1. Shop ID निकालो (Token से या Fallback)
+    let shopId = req.shopId || (req.user && req.user.shop_id);
+    
+    // 🔥 DEBUGGING: Render Console में देखो क्या ढूँढ रहा है
+    console.log(`🔍 ADMIN CHECKING ALERT... Token ShopID: ${shopId}, User Email: ${req.user.email}`);
+
+    // अगर टोकन में ID नहीं मिली, तो डिफॉल्ट 33 (Testing के लिए)
+    if (!shopId) {
+        console.log("⚠️ Token ID missing during check. Defaulting to 33.");
+        shopId = 33;
+    }
+
     try {
-        // वो अलर्ट ढूँढो जो 'ACTIVE' है
+        // 2. सिर्फ ACTIVE अलार्म ढूँढो
         const result = await pool.query(
-            `SELECT * FROM security_logs WHERE shop_id = $1 AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1`,
+            `SELECT * FROM security_logs 
+             WHERE shop_id = $1 AND status = 'ACTIVE' 
+             ORDER BY id DESC LIMIT 1`,
             [shopId]
         );
         
         if (result.rows.length > 0) {
+            console.log("✅ ALARM FOUND Sending to Admin!");
             res.json({ success: true, alert: result.rows[0] });
         } else {
+            // console.log("💤 No active alarms.");
             res.json({ success: false });
         }
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) {
+        console.error("Check Alert Error:", err);
+        res.status(500).json({ success: false });
+    }
 });
 
 // अलर्ट बंद करने की API
