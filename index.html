@@ -15118,9 +15118,89 @@ setInterval(() => {
 
 
 
+
+
+
 <script>
+// ================================================================
+// 🚨 SUPER SAFE ALERT SYSTEM (Bypassing fetchApi to stop Refresh)
+// ================================================================
 
+document.addEventListener('DOMContentLoaded', () => {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    // सिर्फ ADMIN या OWNER के लिए ही चलेगा
+    if (user.role === 'ADMIN' || user.role === 'OWNER') {
+        console.log("🛡️ Super Safe Security Started...");
+        startSuperSafePolling(); 
+    }
+});
 
+async function startSuperSafePolling() {
+    try {
+        // 1. सही सर्वर URL सेट करें (जो आपने अभी दिया)
+        const SERVER_URL = "https://dukan-pro-ultimate.onrender.com";
+        const token = localStorage.getItem('authToken');
+
+        // 2. Direct Fetch Call (यह fetchApi नहीं है, इसलिए यह रिफ्रेश नहीं कर सकता)
+        const rawRes = await fetch(`${SERVER_URL}/api/security/check-latest-alert`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        // अगर सर्वर बंद है या एरर है, तो बस कंसोल में बताकर रुक जाएगा (रिफ्रेश नहीं करेगा)
+        if (!rawRes.ok) {
+            // console.warn("Server connection issue (No Refresh)"); 
+            throw new Error("Server Error");
+        }
+
+        const res = await rawRes.json();
+
+        // 3. अगर अलार्म मिला
+        if (res.success && res.alert) {
+            console.log("🔥 Alert Found!");
+
+            // सायरन बजाएं
+            const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
+            audio.play().catch(e => console.log("Audio silent"));
+
+            // पॉप-अप दिखाएं (कोड यहाँ रुक जाएगा जब तक OK नहीं दबाते)
+            await Swal.fire({
+                title: '🚨 SECURITY ALERT!',
+                html: `<h3 style="color:red; font-weight:bold;">PANIC BUTTON PRESSED!</h3>
+                       <p>Location: ${res.alert.location}</p>
+                       <p>Time: ${new Date(res.alert.created_at).toLocaleTimeString()}</p>`,
+                icon: 'warning',
+                background: '#fff5f5',
+                confirmButtonText: '✅ I HAVE CHECKED',
+                confirmButtonColor: '#d33',
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            });
+
+            audio.pause();
+            audio.currentTime = 0;
+
+            // Resolve Alert (Direct Fetch)
+            await fetch(`${SERVER_URL}/api/security/acknowledge-alert`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ alertId: res.alert.id })
+            });
+        }
+    } catch (err) {
+        // यहाँ कुछ भी हो जाए, पेज रिफ्रेश नहीं होगा।
+        // console.log("Polling skip:", err.message);
+    }
+
+    // ⏳ 5 सेकंड का ब्रेक लें और फिर दोबारा चेक करें
+    setTimeout(startSuperSafePolling, 5000);
+}
 
 
 // ✅ Logout Function (इसको सबसे नीचे रखें)
