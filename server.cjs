@@ -7457,21 +7457,17 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 // ==========================================
-// 1. BILL VERIFICATION API (Updated with Items)
+// 1. BILL VERIFY API (Fixed Double Check)
 // ==========================================
-// ✅ SERVER FIX: JOIN PRODUCTS TABLE
 app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const shopId = req.shopId;
+
     try {
-        // यह JOIN क्वेरी प्रोडक्ट का नाम (p.name) खींच कर लाएगी
+        // बिल और आइटम लाओ
         const invoiceRes = await pool.query(
             `SELECT s.*, 
-                (SELECT json_agg(json_build_object(
-                    'product_name', p.name, 
-                    'quantity', si.quantity,
-                    'price', si.price 
-                 )) 
+                (SELECT json_agg(json_build_object('item_name', p.name, 'quantity', si.quantity)) 
                  FROM sale_items si 
                  JOIN products p ON si.product_id = p.id 
                  WHERE si.sale_id = s.id) as items
@@ -7479,11 +7475,50 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
              WHERE s.id = $1 AND s.shop_id = $2`,
             [id, shopId]
         );
-        
+
         if (invoiceRes.rows.length === 0) return res.json({ success: false });
-        res.json({ success: true, invoice: invoiceRes.rows[0] });
+
+        const bill = invoiceRes.rows[0];
+
+        // 🛑 DOUBLE CHECK LOGIC
+        if (bill.is_checked === true) {
+            return res.json({ success: true, alreadyChecked: true, invoice: bill });
+        }
+
+        // ✅ MARK AS CHECKED (Database Update)
+        await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
+
+        res.json({ success: true, alreadyChecked: false, invoice: bill });
 
     } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// ==========================================
+// 2. ADMIN ALERT CHECK API (Polling)
+// ==========================================
+// एडमिन यह API हर 3 सेकंड में कॉल करेगा
+app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
+    const shopId = req.shopId;
+    try {
+        // वो अलर्ट ढूँढो जो 'ACTIVE' है
+        const result = await pool.query(
+            `SELECT * FROM security_logs WHERE shop_id = $1 AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1`,
+            [shopId]
+        );
+        
+        if (result.rows.length > 0) {
+            res.json({ success: true, alert: result.rows[0] });
+        } else {
+            res.json({ success: false });
+        }
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// अलर्ट बंद करने की API
+app.post('/api/security/resolve-alert', authenticateToken, async (req, res) => {
+    const { id } = req.body;
+    await pool.query("UPDATE security_logs SET status = 'RESOLVED' WHERE id = $1", [id]);
+    res.json({ success: true });
 });
 
 // ==========================================
