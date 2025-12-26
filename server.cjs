@@ -1634,7 +1634,11 @@ app.post('/api/login', async (req, res) => {
 const tokenUser = {
     id: user.id,
     email: user.email,
-    shopId: user.shop_id,
+    
+    // 👇 यह दोनों लाइन जरूरी हैं (ताकि Undefined न आए)
+    shop_id: user.shop_id,  // Frontend के लिए (snake_case)
+    shopId: user.shop_id,   // Backup के लिए (camelCase)
+
     name: user.name,
     mobile: user.mobile,
     role: user.role,
@@ -1643,8 +1647,8 @@ const tokenUser = {
     status: user.status,
     plan_type: shopPlanType,
     add_ons: shopAddOns,
-   business_type: businessType, 
-   businessType: businessType
+    business_type: businessType, 
+    businessType: businessType
 };
 
 // 🔴 यहाँ पहले 'secret_key' लिखा था, उसे हटाकर JWT_SECRET करें
