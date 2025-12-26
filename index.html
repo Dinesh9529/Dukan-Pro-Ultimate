@@ -15191,12 +15191,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-} catch (e) {
-        console.error("Verification Error:", e);
-        document.getElementById('sec-result').innerHTML = `<div style="color:red;">❌ सर्वर एरर: ${e.message}</div>`;
-    }
-}
-
 function fullLogout() {
     localStorage.clear();
     location.reload();
