@@ -7409,6 +7409,55 @@ app.post('/api/security/theft-alert', authenticateJWT, async (req, res) => {
 });
 
 
+// ==========================================
+// 🚨 SECURITY POLLING ROUTES (Add to server.cjs)
+// ==========================================
+
+// 1. दुकानदार का PC हर 5 सेकंड में इसे कॉल करेगा
+app.get('/api/security/check-latest-alert', authenticateJWT, async (req, res) => {
+    try {
+        const shopId = req.shopId;
+
+        // डेटाबेस से सबसे ताज़ा 'NEW' अलर्ट निकालें
+        const result = await pool.query(
+            `SELECT * FROM security_logs 
+             WHERE shop_id = $1 AND event_type IN ('PANIC_ALARM', 'THEFT_EMERGENCY') 
+             AND description NOT LIKE '%RESOLVED%' 
+             ORDER BY created_at DESC LIMIT 1`,
+            [shopId]
+        );
+
+        if (result.rows.length > 0) {
+            // अगर कोई एक्टिव अलर्ट मिला
+            res.json({ success: true, alert: result.rows[0] });
+        } else {
+            // सब शांत है
+            res.json({ success: true, alert: null });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false });
+    }
+});
+
+// 2. जब दुकानदार "OK" बटन दबाएगा, तो अलर्ट बंद करने के लिए
+app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) => {
+    try {
+        const { alertId } = req.body;
+        // अलर्ट के विवरण में 'RESOLVED' जोड़ दें ताकि वह दोबारा न बजे
+        await pool.query(
+            `UPDATE security_logs 
+             SET description = description || ' [RESOLVED by Owner]' 
+             WHERE id = $1`,
+            [alertId]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false });
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
