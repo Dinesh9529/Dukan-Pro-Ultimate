@@ -7384,6 +7384,31 @@ app.get('/', (req, res) => {
     res.status(200).send('Server is Up and Running');
 });
 
+
+
+// 🚨 चोरी या पैनिक अलर्ट के लिए रूट
+app.post('/api/security/theft-alert', authenticateJWT, async (req, res) => {
+    const { timestamp, location, type } = req.body;
+    const shopId = req.shopId; // टोकन से मिलेगा
+
+    try {
+        // 1. डेटाबेस में लॉग दर्ज करें
+        await pool.query(
+            `INSERT INTO security_logs (shop_id, event_type, description) 
+             VALUES ($1, $2, $3)`,
+            [shopId, type || 'THEFT_ALERT', `Panic Alarm triggered at ${location} on ${timestamp}`]
+        );
+
+        // 2. यहाँ आप एडमिन को Real-time नोटिफिकेशन (Socket.io) भी भेज सकते हैं
+        
+        res.json({ success: true, message: "Admin has been notified!" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
