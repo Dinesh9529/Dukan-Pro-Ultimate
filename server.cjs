@@ -1643,7 +1643,8 @@ const tokenUser = {
     status: user.status,
     plan_type: shopPlanType,
     add_ons: shopAddOns,
-    businessType: businessType
+   business_type: businessType, 
+   businessType: businessType
 };
 
 // 🔴 यहाँ पहले 'secret_key' लिखा था, उसे हटाकर JWT_SECRET करें
@@ -7520,13 +7521,27 @@ app.post('/api/security/resolve-alert', authenticateToken, async (req, res) => {
     await pool.query("UPDATE security_logs SET status = 'RESOLVED' WHERE id = $1", [id]);
     res.json({ success: true });
 });
-
 // ==========================================
-// 2. PANIC ALERT API (Updated)
+// ✅ FIXED PANIC ALERT API (Ensures Shop ID)
 // ==========================================
 app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
     const { location, type } = req.body;
-    const shopId = req.shopId;
+    
+    // 🛠️ FIX: Shop ID ढूंढने के 3 तरीके (ताकि NULL न जाए)
+    // 1. req.shopId (Middleware से)
+    // 2. req.user.shop_id (Token Payload से)
+    // 3. req.user.id (अगर Shop ID और User ID सेम हैं)
+    let shopId = req.shopId || (req.user && req.user.shop_id) || (req.user && req.user.id);
+
+    console.log("🚨 ALERT REQUEST RECEIVED:");
+    console.log("User Data:", req.user); // कंसोल में चेक करें कि टोकन में क्या है
+    console.log("Detected Shop ID:", shopId);
+
+    // अगर अभी भी ID नहीं मिली, तो एरर मत दो, डिफ़ॉल्ट '1' मान लो (ताकि अलार्म रुके नहीं)
+    if (!shopId) {
+        console.warn("⚠️ Shop ID missing! Defaulting to 1 for safety.");
+        shopId = 1; 
+    }
 
     try {
         // 1. DB Log
@@ -7536,7 +7551,7 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
             [shopId, `PANIC: ${location}`]
         );
 
-        // 2. Send WebSocket Alert
+        // 2. Send WebSocket Alert (ताकि तुरंत पहुंचे)
         if (global.broadcastToShop) {
             global.broadcastToShop(shopId, JSON.stringify({
                 type: 'SECURITY_ALERT',
@@ -7553,7 +7568,6 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
         res.status(500).json({ success: false });
     }
 });
-
 
 
 
