@@ -7457,41 +7457,29 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 
-
-// ==========================================
-// 🚨 MISSING SECURITY CODE (इसे server.cjs में जोड़ें)
-// ==========================================
 app.post('/api/security/trigger-alert', authenticateJWT, async (req, res) => {
-    const { location, type } = req.body;
-    const shopId = req.shopId; // यह ऑटोमैटिकली टोकन से आ जाएगा
-
-    console.log(`🚨 Alert Request: Shop ${shopId}, Loc: ${location}`);
-
     try {
-        // 1. डेटाबेस में अलार्म सेव करें
-        const result = await pool.query(
+        const { location } = req.body;
+        const shopId = req.shopId;
+        
+        // 1. Log to DB
+        await pool.query(
             `INSERT INTO security_logs (shop_id, status, description, created_at) 
-             VALUES ($1, 'ACTIVE', $2, NOW()) RETURNING id`,
-            [shopId, `PANIC BUTTON: ${location || 'Gate'}`]
+             VALUES ($1, 'ACTIVE', $2, NOW())`,
+            [shopId, `PANIC: ${location}`]
         );
 
-        // 2. WebSocket से एडमिन को खबर भेजें
+        // 2. Send to Admin (WebSocket)
         if (global.broadcastToShop) {
             global.broadcastToShop(shopId, JSON.stringify({
                 type: 'SECURITY_ALERT',
-                alert: {
-                    id: result.rows[0].id,
-                    location: location,
-                    description: 'Theft Attempt Reported!',
-                    created_at: new Date()
-                }
+                alert: { location, created_at: new Date() }
             }));
         }
-
-        res.json({ success: true, message: 'Alert Sent' });
+        res.json({ success: true });
     } catch (err) {
-        console.error("❌ Alert Error:", err);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        console.error(err);
+        res.status(500).json({ success: false });
     }
 });
 
