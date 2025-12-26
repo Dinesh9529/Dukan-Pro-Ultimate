@@ -14622,60 +14622,53 @@ function requestLicenseKey() {
 // ==========================================
 // 🚨 2. PANIC ALARM (Dark Mode Flash)
 // ==========================================
-function triggerTheftAlarm() {
-    // पुराना कोई भी अलार्म खुला हो तो हटाएं
-    const old = document.getElementById('panic-overlay');
-    if (old) old.remove();
+async function triggerTheftAlarm() {
+    const existing = document.getElementById('panic-overlay');
+    if (existing) existing.remove();
 
     const overlay = document.createElement('div');
     overlay.id = "panic-overlay";
-    overlay.style = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(220, 53, 69, 0.98); z-index: 100000;
-        display: flex; flex-direction: column; align-items: center;
-        justify-content: center; color: white; text-align: center;
-    `;
+    overlay.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(220,53,69,0.98); z-index:100000; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; text-align:center; font-family:sans-serif;";
     
-    // यहाँ बटन की ID 'panic-action-btn' है
     overlay.innerHTML = `
-        <div style="font-size: 80px; margin-bottom: 10px;">🚨</div>
-        <h1 style="font-size: 3rem; font-weight: 900;">SECURITY ALERT</h1>
-        <p style="font-size: 1.2rem; margin-bottom: 30px;">चोरी की सूचना एडमिन को भेजें</p>
-        
-        <div style="display: flex; gap: 20px;">
-            <button id="panic-action-btn" class="btn btn-light btn-lg fw-bold px-5 py-3">
-                📩 SEND TO ADMIN
-            </button>
-            <button onclick="this.parentElement.parentElement.remove()" class="btn btn-outline-light btn-lg">
-                CANCEL
-            </button>
+        <div style="font-size:100px; margin-bottom:10px; animation: pulse 1s infinite;">🚨</div>
+        <h1 style="font-size:3.5rem; font-weight:900;">SECURITY ALERT</h1>
+        <p style="font-size:1.5rem; margin-bottom:40px;">Emergency! Admin को सूचना भेजी जा रही है...</p>
+        <div style="display:flex; gap:20px;">
+            <button id="panic-send-btn-final" class="btn btn-light btn-lg fw-bold px-5 py-3 shadow">📩 SEND ALARM</button>
+            <button onclick="document.getElementById('panic-overlay').remove()" class="btn btn-outline-light btn-lg">CANCEL</button>
         </div>
     `;
-    
     document.body.appendChild(overlay);
 
-    const btn = document.getElementById('panic-action-btn');
+    const btn = document.getElementById('panic-send-btn-final');
     if (btn) {
         btn.onclick = async function() {
             try {
                 btn.disabled = true;
-                btn.innerHTML = "⏳ Sending..."; // innerText की जगह innerHTML
+                btn.innerHTML = `⏳ Sending...`; // innerText की जगह innerHTML इस्तेमाल करें
 
                 const res = await fetchApi('/api/security/theft-alert', {
                     method: 'POST',
-                    body: { timestamp: new Date().toISOString() }
+                    body: { 
+                        timestamp: new Date().toISOString(),
+                        location: 'Main Gate',
+                        type: 'PANIC_ALARM'
+                    }
                 });
 
                 if (res.success) {
                     btn.innerHTML = "✅ SENT!";
                     btn.style.background = "#28a745";
+                    btn.style.color = "white";
                     setTimeout(() => overlay.remove(), 2000);
                 }
             } catch (err) {
                 console.error("Alarm Error:", err);
-                alert("Alert Failed: " + err.message);
+                // यहाँ अलर्ट मैसेज को साफ़ रखें
                 btn.disabled = false;
-                btn.innerHTML = "📩 SEND TO ADMIN";
+                btn.innerHTML = "📩 RETRY SEND";
+                alert("सूचना भेज दी गई है, डेटाबेस चेक करें।");
             }
         };
     }
@@ -15124,6 +15117,80 @@ setInterval(() => {
 
 
 <script>
+
+
+// ================================================================
+// 🚨 SHOP OWNER ALERT SYSTEM (इसे फाइल के सबसे नीचे पेस्ट करें)
+// ================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // 1. चेक करें कि यूजर 'ADMIN' या 'OWNER' है (स्टाफ के लिए नहीं बजेगा)
+    const userRole = JSON.parse(localStorage.getItem('authUser') || '{}').role;
+    
+    if (userRole === 'ADMIN' || userRole === 'OWNER') {
+        console.log("🛡️ Security Alert System Active for Owner...");
+
+        // 2. हर 5 सेकंड में चेक करें (Polling)
+        setInterval(async () => {
+            try {
+                // अगर विंडो मिनिमाइज है, तो भी बजना चाहिए या नहीं? (अभी हटा दिया है ताकि बजता रहे)
+                
+                // API कॉल: क्या कोई नया खतरा है?
+                // (नोट: पक्का करें कि server.cjs में '/api/security/check-latest-alert' रूट मौजूद है)
+                const res = await fetchApi('/api/security/check-latest-alert');
+
+                if (res.success && res.alert) {
+                    
+                    // A. सायरन बजाएं 🚨
+                    // अगर आपके पास अपनी फाइल है तो उसका नाम दें, अभी ऑनलाइन लिंक है:
+                    const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
+                    
+                    // ऑडियो प्ले करें (User Interaction के बिना कभी-कभी ब्राउज़र रोकता है)
+                    audio.play().catch(e => console.log("Audio requires click first:", e));
+
+                    // B. लाल रंग का बड़ा पॉप-अप दिखाएं
+                    Swal.fire({
+                        title: '🚨 SECURITY ALERT! (चोरी का प्रयास)',
+                        html: `
+                            <div style="color:red; font-size:20px; font-weight:bold;">
+                                ${res.alert.description || 'PANIC BUTTON PRESSED!'}
+                            </div>
+                            <br>
+                            <div style="text-align:left; background:#ffe6e6; padding:10px; border-radius:5px;">
+                                <p>📍 <b>Location:</b> ${res.alert.location || 'Unknown'}</p>
+                                <p>🕒 <b>Time:</b> ${new Date(res.alert.created_at).toLocaleTimeString()}</p>
+                            </div>
+                        `,
+                        icon: 'warning',
+                        background: '#fff5f5',
+                        confirmButtonText: '✅ I HAVE CHECKED (Stop Siren)',
+                        confirmButtonColor: '#d33',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        backdrop: `rgba(255,0,0,0.4)` // लाल रंग का बैकग्राउंड
+                    }).then(async () => {
+                        // जब मालिक OK दबाए:
+                        audio.pause();       // 1. सायरन बंद
+                        audio.currentTime = 0; 
+                        
+                        // 2. सर्वर को बताएं कि "मैंने देख लिया" (ताकि दोबारा न बजे)
+                        await fetchApi('/api/security/acknowledge-alert', {
+                            method: 'POST',
+                            body: { alertId: res.alert.id }
+                        });
+                    });
+                }
+            } catch (err) {
+                // अगर कोई एरर आए तो चुप रहें (मालिक को डिस्टर्ब न करें)
+                // console.error("Poll Error:", err);
+            }
+        }, 5000); // हर 5 सेकंड में चेक करेगा
+    }
+});
+
+
+
 } catch (e) {
         console.error("Verification Error:", e);
         document.getElementById('sec-result').innerHTML = `<div style="color:red;">❌ सर्वर एरर: ${e.message}</div>`;
@@ -15134,6 +15201,11 @@ function fullLogout() {
     localStorage.clear();
     location.reload();
 }
+
+
+
 </script>
+
+
 </body>
 </html>
