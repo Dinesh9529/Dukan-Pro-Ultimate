@@ -7457,31 +7457,92 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 
-app.post('/api/security/trigger-alert', authenticateJWT, async (req, res) => {
+
+// ==========================================
+// 1. BILL VERIFICATION API (With Items & Double Check)
+// ==========================================
+app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const shopId = req.shopId;
+
     try {
-        const { location } = req.body;
-        const shopId = req.shopId;
+        // 1. बिल ढूँढो और उसके आइटम्स भी लाओ (JOIN items table)
+        // ध्यान दें: आपकी टेबल का नाम 'sale_items' या 'invoice_items' हो सकता है।
+        // मैं यहाँ मान रहा हूँ कि आपकी टेबल 'sales' और 'sale_items' है।
         
-        // 1. Log to DB
+        const invoiceRes = await pool.query(
+            `SELECT s.*, 
+                    (SELECT json_agg(si) FROM sale_items si WHERE si.sale_id = s.id) as items
+             FROM sales s 
+             WHERE s.id = $1 AND s.shop_id = $2`,
+            [id, shopId]
+        );
+
+        if (invoiceRes.rows.length === 0) {
+            return res.json({ success: false, message: 'Bill not found' });
+        }
+
+        const bill = invoiceRes.rows[0];
+
+        // 2. क्या यह पहले ही चेक हो चुका है?
+        if (bill.is_checked) {
+            return res.json({ 
+                success: true, 
+                alreadyChecked: true, 
+                invoice: bill 
+            });
+        }
+
+        // 3. अगर नहीं, तो अब इसे 'Checked' मार्क करें
         await pool.query(
-            `INSERT INTO security_logs (shop_id, status, description, created_at) 
-             VALUES ($1, 'ACTIVE', $2, NOW())`,
+            `UPDATE sales SET is_checked = TRUE WHERE id = $1`,
+            [id]
+        );
+
+        res.json({ success: true, alreadyChecked: false, invoice: bill });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
+
+// ==========================================
+// 2. SECURITY ALERT API (Panic Button Fix)
+// ==========================================
+app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
+    const { location, type } = req.body;
+    const shopId = req.shopId;
+
+    try {
+        // DB में सेव करें
+        const logRes = await pool.query(
+            `INSERT INTO security_logs (shop_id, status, description) 
+             VALUES ($1, 'ACTIVE', $2) RETURNING id, created_at`,
             [shopId, `PANIC: ${location}`]
         );
 
-        // 2. Send to Admin (WebSocket)
+        // एडमिन को WebSocket से भेजें
         if (global.broadcastToShop) {
             global.broadcastToShop(shopId, JSON.stringify({
-                type: 'SECURITY_ALERT',
-                alert: { location, created_at: new Date() }
+                type: 'SECURITY_ALERT', // यह Type एडमिन HTML में मैच होना चाहिए
+                alert: {
+                    id: logRes.rows[0].id,
+                    location: location,
+                    time: logRes.rows[0].created_at
+                }
             }));
         }
+
         res.json({ success: true });
     } catch (err) {
-        console.error(err);
+        console.error("Alert Error:", err); // कंसोल में असली एरर देखें
         res.status(500).json({ success: false });
     }
 });
+
+
+
 
 
 // Start the server after ensuring database tables are ready
