@@ -7462,17 +7462,23 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 // ==========================================
-// 1. BILL VERIFY API (Fixed Double Check)
+// ✅ INVOICE VERIFICATION API (With Double Check Prevention)
 // ==========================================
 app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const shopId = req.shopId;
+    
+    // Shop ID टोकन से लो (ताकि दूसरी दुकान का बिल न खुले)
+    const shopId = req.shopId || (req.user && req.user.shop_id);
 
     try {
-        // बिल और आइटम लाओ
+        // 1. बिल और आइटम्स को एक साथ लाओ
         const invoiceRes = await pool.query(
             `SELECT s.*, 
-                (SELECT json_agg(json_build_object('item_name', p.name, 'quantity', si.quantity)) 
+                (SELECT json_agg(json_build_object(
+                    'item_name', p.name, 
+                    'quantity', si.quantity,
+                    'price', si.price
+                 )) 
                  FROM sale_items si 
                  JOIN products p ON si.product_id = p.id 
                  WHERE si.sale_id = s.id) as items
@@ -7480,43 +7486,55 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
              WHERE s.id = $1 AND s.shop_id = $2`,
             [id, shopId]
         );
-
-        if (invoiceRes.rows.length === 0) return res.json({ success: false });
+        
+        // अगर बिल नहीं मिला
+        if (invoiceRes.rows.length === 0) {
+            return res.json({ success: false, message: "Bill not found" });
+        }
 
         const bill = invoiceRes.rows[0];
 
-        // 🛑 DOUBLE CHECK LOGIC
+        // 🛑 DOUBLE CHECK LOGIC (सबसे जरूरी हिस्सा)
+        // अगर is_checked पहले से TRUE है, तो बता दो
         if (bill.is_checked === true) {
-            return res.json({ success: true, alreadyChecked: true, invoice: bill });
+            console.log(`⚠️ Bill #${id} is already verified!`);
+            return res.json({ 
+                success: true, 
+                alreadyChecked: true, // Frontend को बताओ कि यह पुराना है
+                invoice: bill 
+            });
         }
 
-        // ✅ MARK AS CHECKED (Database Update)
+        // ✅ FIRST TIME CHECK: अब इसे डेटाबेस में 'TRUE' मार्क करो
         await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
+        console.log(`✅ Bill #${id} verified successfully.`);
 
+        // Frontend को फ्रेश बिल भेजो
         res.json({ success: true, alreadyChecked: false, invoice: bill });
 
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Invoice Error:", err);
+        res.status(500).json({ success: false }); 
+    }
 });
+
 // ==========================================
-// ✅ ULTIMATE CHECK ALERT API (100% Guaranteed Fix)
+// ✅ PROFESSIONAL CHECK ALERT API (For All Shops)
 // ==========================================
 app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
     try {
-        // 1. Shop ID निकालने के 4 तरीके (ताकि मिस हो ही न सके)
+        // 1. Shop ID निकालो (सिर्फ टोकन या यूजर डेटा से)
         let shopId = req.shopId || 
                      (req.user && req.user.shop_id) || 
-                     (req.user && req.user.shopId) || 
-                     (req.user && req.user.id); // अगर कुछ न मिले तो यूजर ID ले लो
+                     (req.user && req.user.shopId);
 
-        console.log(`🔍 SERVER CHECK: User ${req.user.email} is checking alerts for Shop ID: ${shopId}`);
-
-        // 2. अगर अभी भी ID नहीं मिली (जो नामुमकिन है), तो 33 मान लो
+        // 🛑 STRICT SECURITY: अगर ID नहीं मिली, तो एरर दो (33 मत मानों)
         if (!shopId) {
-            console.log("⚠️ ID Missing -> Defaulting to 33.");
-            shopId = 33;
+            console.error("❌ Security Warning: Alert check failed. No Shop ID in token.");
+            return res.status(400).json({ success: false, message: "Shop ID missing." });
         }
 
-        // 3. Database में देखो: क्या 33 नंबर पर कोई 'ACTIVE' अलार्म है?
+        // 2. Database में देखो (सिर्फ उसी दुकान का अलार्म)
         const result = await pool.query(
             `SELECT * FROM security_logs 
              WHERE shop_id = $1 AND status = 'ACTIVE' 
@@ -7528,7 +7546,6 @@ app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
             console.log(`✅ ALARM FOUND for Shop ${shopId}! Sending to Admin...`);
             res.json({ success: true, alert: result.rows[0] });
         } else {
-            // console.log(`💤 No Active Alarm for Shop ${shopId}`);
             res.json({ success: false });
         }
     } catch (err) {
