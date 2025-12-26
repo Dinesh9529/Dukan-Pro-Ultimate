@@ -7459,56 +7459,31 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
 // ==========================================
 // 1. BILL VERIFICATION API (Updated with Items)
 // ==========================================
+// ✅ SERVER FIX: JOIN PRODUCTS TABLE
 app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const shopId = req.shopId;
-
     try {
-        // ✅ JOIN Query: आइटम का नाम (product_name) भी लाओ
+        // यह JOIN क्वेरी प्रोडक्ट का नाम (p.name) खींच कर लाएगी
         const invoiceRes = await pool.query(
             `SELECT s.*, 
-                (
-                    SELECT json_agg(
-                        json_build_object(
-                            'product_name', p.name, 
-                            'quantity', si.quantity,
-                            'price', si.price,
-                            'total', si.total_price
-                        )
-                    )
-                    FROM sale_items si
-                    LEFT JOIN products p ON si.product_id = p.id
-                    WHERE si.sale_id = s.id
-                ) as items
+                (SELECT json_agg(json_build_object(
+                    'product_name', p.name, 
+                    'quantity', si.quantity,
+                    'price', si.price 
+                 )) 
+                 FROM sale_items si 
+                 JOIN products p ON si.product_id = p.id 
+                 WHERE si.sale_id = s.id) as items
              FROM sales s 
              WHERE s.id = $1 AND s.shop_id = $2`,
             [id, shopId]
         );
+        
+        if (invoiceRes.rows.length === 0) return res.json({ success: false });
+        res.json({ success: true, invoice: invoiceRes.rows[0] });
 
-        if (invoiceRes.rows.length === 0) {
-            return res.json({ success: false, message: 'Bill not found' });
-        }
-
-        const bill = invoiceRes.rows[0];
-
-        // ✅ Check if already verified
-        if (bill.is_checked) {
-            return res.json({ 
-                success: true, 
-                alreadyChecked: true, 
-                invoice: bill 
-            });
-        }
-
-        // ✅ Mark as Checked
-        await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
-
-        res.json({ success: true, alreadyChecked: false, invoice: bill });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, message: 'Server Error' });
-    }
+    } catch (err) { res.status(500).json({ success: false }); }
 });
 
 // ==========================================
