@@ -15116,156 +15116,12 @@ setInterval(() => {
 </div>
 
 
+
+
 <script>
 
 
-// ================================================================
-// 🚨 SHOP OWNER ALERT SYSTEM (इसे फाइल के सबसे नीचे पेस्ट करें)
-// ================================================================
 
-document.addEventListener('DOMContentLoaded', () => {
-    
-    // 1. चेक करें कि यूजर 'ADMIN' या 'OWNER' है (स्टाफ के लिए नहीं बजेगा)
-    const userRole = JSON.parse(localStorage.getItem('authUser') || '{}').role;
-    
-    if (userRole === 'ADMIN' || userRole === 'OWNER') {
-        console.log("🛡️ Security Alert System Active for Owner...");
-
-        // 2. हर 5 सेकंड में चेक करें (Polling)
-        setInterval(async () => {
-            try {
-                // अगर विंडो मिनिमाइज है, तो भी बजना चाहिए या नहीं? (अभी हटा दिया है ताकि बजता रहे)
-                
-                // API कॉल: क्या कोई नया खतरा है?
-                // (नोट: पक्का करें कि server.cjs में '/api/security/check-latest-alert' रूट मौजूद है)
-                const res = await fetchApi('/api/security/check-latest-alert');
-
-                if (res.success && res.alert) {
-                    
-                    // A. सायरन बजाएं 🚨
-                    // अगर आपके पास अपनी फाइल है तो उसका नाम दें, अभी ऑनलाइन लिंक है:
-                    const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
-                    
-                    // ऑडियो प्ले करें (User Interaction के बिना कभी-कभी ब्राउज़र रोकता है)
-                    audio.play().catch(e => console.log("Audio requires click first:", e));
-
-                    // B. लाल रंग का बड़ा पॉप-अप दिखाएं
-                    Swal.fire({
-                        title: '🚨 SECURITY ALERT! (चोरी का प्रयास)',
-                        html: `
-                            <div style="color:red; font-size:20px; font-weight:bold;">
-                                ${res.alert.description || 'PANIC BUTTON PRESSED!'}
-                            </div>
-                            <br>
-                            <div style="text-align:left; background:#ffe6e6; padding:10px; border-radius:5px;">
-                                <p>📍 <b>Location:</b> ${res.alert.location || 'Unknown'}</p>
-                                <p>🕒 <b>Time:</b> ${new Date(res.alert.created_at).toLocaleTimeString()}</p>
-                            </div>
-                        `,
-                        icon: 'warning',
-                        background: '#fff5f5',
-                        confirmButtonText: '✅ I HAVE CHECKED (Stop Siren)',
-                        confirmButtonColor: '#d33',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        backdrop: `rgba(255,0,0,0.4)` // लाल रंग का बैकग्राउंड
-                    }).then(async () => {
-                        // जब मालिक OK दबाए:
-                        audio.pause();       // 1. सायरन बंद
-                        audio.currentTime = 0; 
-                        
-                        // 2. सर्वर को बताएं कि "मैंने देख लिया" (ताकि दोबारा न बजे)
-                        await fetchApi('/api/security/acknowledge-alert', {
-                            method: 'POST',
-                            body: { alertId: res.alert.id }
-                        });
-                    });
-                }
-            } catch (err) {
-                // अगर कोई एरर आए तो चुप रहें (मालिक को डिस्टर्ब न करें)
-                // console.error("Poll Error:", err);
-            }
-        }, 5000); // हर 5 सेकंड में चेक करेगा
-    }
-});
-
-
-
-function fullLogout() {
-    localStorage.clear();
-    location.reload();
-}
-
-
-
-// ================================================================
-// 🚨 SHOP OWNER ALERT SYSTEM (Fixed: No Looping/Refreshing)
-// ================================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    
-    // 1. चेक करें कि यूजर 'ADMIN' या 'OWNER' है
-    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
-    
-    if (user.role === 'ADMIN' || user.role === 'OWNER') {
-        console.log("🛡️ Security Alert System Active...");
-
-        // 🔒 LOCK VARIABLE (यह बार-बार रिफ्रेश होने से रोकेगा)
-        let isAlertOpen = false;
-
-        setInterval(async () => {
-            // अगर पहले से अलार्म स्क्रीन पर है, तो कोड यहीं रुक जाएगा
-            if (isAlertOpen) return;
-
-            try {
-                // API कॉल: क्या कोई नया खतरा है?
-                const res = await fetchApi('/api/security/check-latest-alert');
-
-                if (res.success && res.alert) {
-                    
-                    // 1. लॉक लगा दें (ताकि स्क्रीन रिफ्रेश न हो)
-                    isAlertOpen = true; 
-                    
-                    // सायरन बजाएं
-                    const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
-                    audio.play().catch(e => console.log("Audio requires click"));
-
-                    // 2. पॉप-अप दिखाएं (और यूजर के OK करने का इंतज़ार करें)
-                    await Swal.fire({
-                        title: '🚨 SECURITY ALERT!',
-                        html: `<h3 style="color:red; font-weight:bold;">PANIC BUTTON PRESSED!</h3>
-                               <p>Location: ${res.alert.location}</p>
-                               <p>Time: ${new Date(res.alert.created_at).toLocaleTimeString()}</p>`,
-                        icon: 'warning',
-                        background: '#fff5f5',
-                        confirmButtonText: '✅ I HAVE CHECKED',
-                        confirmButtonColor: '#d33',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        backdrop: `rgba(220, 53, 69, 0.4)`
-                    });
-
-                    // 3. जब OK दबा दिया जाएगा, तब सायरन बंद करें
-                    audio.pause();
-                    audio.currentTime = 0;
-
-                    // सर्वर को बताएं कि "Resolve" हो गया
-                    await fetchApi('/api/security/acknowledge-alert', {
-                        method: 'POST',
-                        body: { alertId: res.alert.id }
-                    });
-
-                    // 4. अंत में लॉक खोलें (ताकि भविष्य में नया अलार्म आ सके)
-                    isAlertOpen = false;
-                }
-            } catch (err) {
-                // अगर कोई एरर आए, तो भी लॉक खोलना जरूरी है
-                console.warn("Poll Error:", err);
-                isAlertOpen = false; 
-            }
-        }, 3000); // हर 3 सेकंड में चेक करेगा
-    }
-});
 
 // ✅ Logout Function (इसको सबसे नीचे रखें)
 function fullLogout() {
@@ -15276,9 +15132,3 @@ function fullLogout() {
 </body>
 </html>
 
-
-</script>
-
-
-</body>
-</html>
