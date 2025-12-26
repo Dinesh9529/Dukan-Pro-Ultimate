@@ -2,7 +2,22 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        /* मोबाइल में "Pull to Refresh" और रबर बैंड इफेक्ट बंद करें */
+        html, body {
+            overscroll-behavior-y: none; /* ऊपर-नीचे का बाउंस बंद */
+            touch-action: pan-x pan-y;   /* सिर्फ जरूरी स्क्रॉल चालू */
+            -webkit-user-select: none;   /* टेक्स्ट सिलेक्शन बंद (App Feel) */
+            user-select: none;
+        }
+        /* गार्ड सेक्शन को मोबाइल पर सही दिखाएं */
+        #guard-interface {
+            height: 100vh;
+            overflow-y: auto;
+            padding-bottom: 50px;
+        }
+    </style>
     <title>Dukan Pro - Ultimate Business Suite</title>
     <link rel="icon" type="image/png" href="https://img.icons8.com/color/48/shop.png">
     <link rel="manifest" href="manifest.json">
@@ -1655,12 +1670,7 @@
                 <i class="fas fa-check-circle text-success"></i> लाइसेंस लोड हो रहा है...
             </div>
             
-            <li class="nav-item ms-2">
-                <button class="btn btn-danger fw-bold" data-bs-toggle="modal" data-bs-target="#securityModal" style="border-radius: 20px;">
-                    <i class="fas fa-user-shield"></i> Guard Check
-                </button>
-            </li>
-
+           
             <li class="nav-item ms-2 mt-2">
                 <button class="btn btn-warning fw-bold text-dark" onclick="showSecurityReport()" style="border-radius: 20px; width: 100%;">
                     <i class="fas fa-file-shield"></i> View Logs
@@ -4546,32 +4556,53 @@ function initDashboardSocket() {
     };
 
     // 2. सर्वर से मैसेज मिलने पर
-    dashboardSocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+dashboardSocket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
 
-        if (data.type === 'DASHBOARD_REGISTERED') {
-            console.log("सर्वर ने पुष्टि की:", data.message);
+    // --- CASE 1: कनेक्शन पुष्टि ---
+    if (data.type === 'DASHBOARD_REGISTERED') {
+        console.log("✅ सर्वर ने पुष्टि की:", data.message);
+    }
+
+    // --- CASE 2: डैशबोर्ड अपडेट (बिक्री आदि) ---
+    if (data.type === 'DASHBOARD_UPDATE') {
+        console.log('🔥 Live Update:', data.view);
+        showMessage('लाइव अपडेट', `नई गतिविधि: ${data.view}`, 'info');
+
+        if (typeof renderDashboard === 'function') {
+            renderDashboard();
         }
+    }
 
-        // 3. 🚀 यह सबसे महत्वपूर्ण है!
-        if (data.type === 'DASHBOARD_UPDATE') {
-            console.log('🔥 Live Update प्राप्त हुआ! डेटा रीफ्रेश किया जा रहा है...', data.view);
-            
-            // (एक छोटा सा मैसेज दिखाएँ)
-            showMessage('लाइव अपडेट', `एक नई '${data.view}' दर्ज हुई है, डैशबोर्ड अपडेट हो रहा है...`, 'info');
+    // --- CASE 3: 🚨 सिक्योरिटी अलार्म (यह अलग होना चाहिए) ---
+    if (data.type === 'SECURITY_ALERT') {
+        console.log("🚨 ALARM RECEIVED!", data.alert);
+        
+        // 1. सायरन बजाएं
+        const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
+        audio.loop = true;
+        audio.play().catch(e => console.log("Audio Error:", e));
 
-            // 4. अपने डैशबोर्ड को रीफ्रेश करने वाला मुख्य फंक्शन चलाएँ
-            // (यह फंक्शन आपके HTML में पहले से मौजूद है)
-            if (typeof renderDashboard === 'function') {
-                renderDashboard();
-            }
-            
-            // (वैकल्पिक: यदि आप केवल विशिष्ट हिस्सों को रीफ्रेश करना चाहते हैं)
-            // if (data.view === 'sales' && typeof fetchAndRenderSales === 'function') {
-            //     fetchAndRenderSales();
-            // }
-        }
-    };
+        // 2. लाल रंग का खतरनाक अलर्ट
+        Swal.fire({
+            title: '🚨 SECURITY ALERT!',
+            html: `
+                <h3 style="color:red; font-weight:bold;">CHORI KA KHATRA!</h3>
+                <p>Location: <b>${data.alert.location}</b></p>
+                <p>Time: ${new Date(data.alert.time).toLocaleTimeString()}</p>
+            `,
+            icon: 'warning',
+            background: '#fff0f0',
+            confirmButtonText: '🛑 STOP ALARM',
+            confirmButtonColor: '#d33',
+            allowOutsideClick: false,
+            backdrop: `rgba(255,0,0,0.4)` // लाल बैकग्राउंड
+        }).then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+    }
+};
 
     // 3. कनेक्शन बंद होने पर
     dashboardSocket.onclose = () => {
@@ -9413,13 +9444,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (newLoginContainer) newLoginContainer.classList.add('hidden');
             
             // 🚀 मल्टी-टैब सुधार: रोल के हिसाब से सही इंटरफ़ेस खोलें
+            // 👇 (यहाँ सही कोड लगाया गया है) 👇
             if (user.role === 'GUARD') {
-                if (typeof renderGuardInterface === 'function') {
-                    renderGuardInterface();
+                console.log("👮‍♂️ गार्ड लॉगिन डिटेक्ट हुआ।");
+                
+                // 1. गार्ड का इंटरफ़ेस लोड करें
+                if (typeof renderGuardDashboard === 'function') {
+                    renderGuardDashboard();
+                } else {
+                    console.error("renderGuardDashboard फंक्शन नहीं मिला!");
                 }
-            } else {
-                unlockApplication(); // एडमिन के लिए नॉर्मल अनलॉक
+                
+                // 2. यहीं रुक जाएं (ताकि एडमिन का कोड न चले)
+                return;
             }
+
+            // अगर गार्ड नहीं है (यानी ADMIN/OWNER है), तो ऐप अनलॉक करें
+            unlockApplication(); 
         }
 
     } else {
@@ -9428,13 +9469,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (newLoginContainer) newLoginContainer.classList.remove('hidden');
 
-        document.getElementById('sidebar').classList.add('locked');
-        document.getElementById('main-content').classList.add('locked');
-        document.getElementById('menu-toggle').classList.add('locked');
+        const sidebar = document.getElementById('sidebar');
+        if(sidebar) sidebar.classList.add('locked');
+        
+        const mainContent = document.getElementById('main-content');
+        if(mainContent) mainContent.classList.add('locked');
+        
+        const menuToggle = document.getElementById('menu-toggle');
+        if(menuToggle) menuToggle.classList.add('locked');
     }
 });
-
-
     // --- बाकी के सभी लिस्नर (Event Listeners) ---
 // --- 🚀 (नया) लैंडिंग पेज बटन लिस्नर ---
 
@@ -11140,43 +11184,7 @@ function applyBusinessTypeUI(btype) {
         }
     }
 
-    // ============================================================
-    // 🚨 NEW UPDATE: ANTI-THEFT BUTTON LOGIC (For Garments Only)
-    // ============================================================
-    // यह कोड चेक करता है कि बिज़नेस Garments है या नहीं।
     
-    const theftBtnId = 'dynamic-theft-btn-container';
-    const existingBtn = document.getElementById(theftBtnId);
-    
-    // यहाँ हमने Garments और Clothing दोनों को शामिल किया है
-    if (btype === 'Garments' || btype === 'GARMENTS' || btype === 'CLOTHING') {
-        
-        // ✅ अगर Garments है, तो बटन बनाओ (अगर पहले से नहीं है)
-        if (!existingBtn) {
-            const btnDiv = document.createElement('div');
-            btnDiv.id = theftBtnId;
-            btnDiv.style.position = 'fixed';
-            btnDiv.style.top = '10px';
-            btnDiv.style.left = '50%'; 
-            btnDiv.style.transform = 'translateX(-50%)'; // सेंटर में
-            btnDiv.style.zIndex = '99999';
-            btnDiv.innerHTML = `
-                <button class="btn btn-danger btn-sm shadow" onclick="triggerTheftAlarm('Test Item')">
-                    <i class="fas fa-exclamation-triangle"></i> Anti-Theft Test
-                </button>
-            `;
-            document.body.appendChild(btnDiv);
-        }
-    } 
-    // ❌ अगर Retail या कोई और बिज़नेस है, तो बटन हटा दो
-    else {
-        if (existingBtn) {
-            existingBtn.remove();
-        }
-    }
-
-    console.log(`✅ UI Configured Successfully for: ${config.name}`);
-}
 
 // Call this when you need (after applyBusinessTypeUI detects SALON) or on click
 // [ ✅ ADVANCED: Salon Dashboard Loader with Graph & Customer List ]
@@ -13373,50 +13381,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const licenseModal = licenseModalEl ? new bootstrap.Modal(licenseModalEl) : null;
     const newLoginContainer = document.getElementById('auth-container-new'); 
 
-    // 🚀 फिक्स 1: पहले sessionStorage चेक करें (ताकि अलग-अलग टैब में अलग लॉगिन चल सके)
+    // 1. टोकन और यूजर चेक करें
     const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
     const userData = sessionStorage.getItem('authUser') || localStorage.getItem('authUser');
     const user = userData ? JSON.parse(userData) : null;
 
     if (token && user) {
-        console.log("✅ लॉगिन मिला, स्थिति की जाँच की जा रही है...");
+        console.log(`👤 User Found: ${user.role}`);
         
-        // AppState को डेटा से भरें ताकि fetchApi को टोकन मिल सके
+        // AppState को अपडेट करें
         if (typeof saveAuthData === 'function') saveAuthData(token, user);
 
+        // ============================================================
+        // 🚦 TRAFFIC POLICE: गार्ड को अलग रास्ते भेजें
+        // ============================================================
+        
+        if (user.role === 'GUARD') {
+            console.log("🛡️ GUARD Login Detected. Loading Guard UI...");
+            
+            // लॉगिन स्क्रीन छिपाएं
+            if (newLoginContainer) newLoginContainer.classList.add('hidden');
+
+            // गार्ड का डैशबोर्ड दिखाएं (फंक्शन का सही नाम)
+            if (typeof renderGuardDashboard === 'function') {
+                renderGuardDashboard(); 
+            } else {
+                console.error("Critical Error: renderGuardDashboard function missing!");
+                alert("Guard Dashboard Function Not Found!");
+            }
+
+            // 🛑 STOP: यहीं रुक जाएं! एडमिन का कोड नहीं चलेगा।
+            return; 
+        }
+
+        // ============================================================
+        // 👑 ADMIN/OWNER SECTION
+        // ============================================================
+        
+        console.log("👑 ADMIN/STAFF Login Detected.");
         const expiryDate = user.licenseExpiryDate ? new Date(user.licenseExpiryDate) : null;
         const now = new Date();
 
+        // लाइसेंस चेक
         if (!expiryDate || expiryDate < now) {
-            // लाइसेंस एक्सपायर है
-            console.log("⚠️ लाइसेंस समाप्त है।");
+            console.log("⚠️ License Expired");
             if (newLoginContainer) newLoginContainer.classList.remove('hidden');
             document.getElementById('main-content').classList.add('locked');
             if (licenseModal) licenseModal.show();
         } else {
-            // सब सही है, अब चेक करें कि रोल क्या है
-            if (user.role === 'GUARD') {
-                console.log("👮‍♂️ गार्ड लॉगिन मिला।");
-                if (typeof renderGuardInterface === 'function') renderGuardInterface();
-            } else {
-                console.log("🏢 एडमिन/स्टाफ लॉगिन मिला।");
-                // 🚀 फिक्स 2: डेटा तभी लोड करें जब फंक्शन मौजूद हों और यूजर ऑथोराइज्ड हो
-                if (typeof initKotSection === 'function') initKotSection().catch(e => console.log("KOT Error:", e));
-                if (typeof loadWaiters === 'function') loadWaiters();
-                
-                // ऐप अनलॉक करें
-                if (typeof unlockApplication === 'function') unlockApplication();
-            }
+            // लाइसेंस सही है -> ऐप अनलॉक करें
+            if (newLoginContainer) newLoginContainer.classList.add('hidden');
+            if (typeof unlockApplication === 'function') unlockApplication();
         }
+
     } else {
-        // लॉगिन नहीं है
-        console.log("🔒 लॉगिन नहीं है। डेटा लोडिंग रुकी हुई है।");
-        if (newLoginContainer) {
-            newLoginContainer.classList.remove('hidden');
-        }
+        // --- 🔒 कोई लॉगिन नहीं ---
+        console.log("🔒 No User. Showing Login Screen.");
+        if (newLoginContainer) newLoginContainer.classList.remove('hidden');
         document.getElementById('sidebar').classList.add('locked');
     }
 });
+
 
 // 1. पेज लोड होते ही टेबल लिस्ट बनाना
 // [ ✅ FIXED: Initialize Tables (Same Logic, New System) ]
@@ -13430,9 +13455,13 @@ function initRestaurantTables() {
         toggleOrderSource();
     }
 }
-// इस फंक्शन को तुरंत कॉल करें और RenderDashboard में भी डाल दें
-document.addEventListener('DOMContentLoaded', initRestaurantTables);
-
+document.addEventListener('DOMContentLoaded', () => {
+    // सिर्फ अगर एडमिन है तभी यह चलाएं
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    if (user.role === 'ADMIN' || user.role === 'OWNER') {
+        if(typeof initRestaurantTables === 'function') initRestaurantTables();
+    }
+});
 
 
 // [ ✅ LOAD WAITERS DYNAMICALLY ]
@@ -13814,255 +13843,10 @@ function openSmartWhatsApp(phone, message) {
     }
 }
 
-
-</script>
-
-<div class="modal fade" id="paintMixingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">🎨 Color Mixing Billing</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                
-                <div class="mb-3 position-relative p-2 border rounded bg-light">
-                    <label class="form-label fw-bold text-danger">स्टेप 1: बेस स्कैन करें (SKU)</label>
-                    
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fas fa-barcode"></i></span>
-                        <input type="text" id="mix-base-sku" class="form-control" placeholder="Scan/Type Bucket Barcode" onchange="fetchBaseDetails(this.value)">
-                        
-                        <button class="btn btn-dark" type="button" onclick="openMobileScannerForMix()">
-                            <i class="fas fa-camera"></i>
-                        </button>
-                    </div>
-
-                    <div id="paint-otp-box" class="mt-2 p-2 border border-danger rounded bg-white text-center" style="display: none;">
-                        <p class="mb-1 small text-muted fw-bold">मोबाइल स्कैनर में यह कोड डालें:</p>
-                        
-                        <div class="d-flex justify-content-center align-items-center gap-2">
-                            <span id="paint-otp-code" class="display-6 fw-bold text-danger">------</span>
-                            <div id="paint-otp-spinner" class="spinner-border spinner-border-sm text-danger" role="status"></div>
-                        </div>
-
-                        <p id="paint-otp-status" class="mt-1 mb-0 small text-success fw-bold" style="display: none;">
-                            <i class="fas fa-check-circle"></i> कनेक्टेड! स्कैन करें...
-                        </p>
-                    </div>
-
-                    <small class="d-block mt-1 fw-bold" id="mix-stock-status"></small> 
-                </div>
-                <hr>
-
-                <div class="mb-3">
-                    <label class="form-label">Base Product Name</label>
-                    <input type="text" id="mix-base-name" class="form-control fw-bold" placeholder="Scan SKU or Type Name">
-                </div>
-                
-                <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <label class="form-label">Base Price (₹)</label>
-                        <input type="number" id="mix-base-price" class="form-control" placeholder="0">
-                    </div>
-                    
-                    <div class="col-6">
-                        <label class="form-label text-danger fw-bold">Colorant Cost (₹)</label>
-                        <input type="number" id="mix-color-cost" class="form-control" placeholder="Enter Amount">
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Color Code / Shade Name</label>
-                    <input type="text" id="mix-code" class="form-control" placeholder="e.g. Sunrise Orange 405">
-                </div>
-
-                <div class="alert alert-info py-2 text-center">
-                    Final Bill Price: <strong id="mix-final-price" class="fs-5">₹0</strong>
-                </div>
-
-                <button class="btn btn-danger w-100 btn-lg shadow" onclick="addMixedPaintToCart()">
-                    <i class="fas fa-cart-plus me-2"></i> बिल में जोड़ें (Add to Bill)
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="painterLedgerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg"> <div class="modal-content border-primary">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="fas fa-book-open me-2"></i>पेंटर बही-खाता (Ledger)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <h5 id="ledger-painter-name" class="fw-bold text-dark mb-3">Painter Name</h5>
-                
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-sm table-striped table-bordered mb-0">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th>तारीख</th>
-                                <th>बिल नं. (Invoice)</th>
-                                <th>कुल बिक्री</th>
-                                <th class="text-end text-success">कमीशन</th>
-                            </tr>
-                        </thead>
-                        <tbody id="painter-ledger-body">
-                            </tbody>
-                        <tfoot class="table-group-divider bg-light fw-bold">
-                            <tr>
-                                <td colspan="3" class="text-end">कुल कमाई (Total Earnings):</td>
-                                <td class="text-end text-success fs-5" id="painter-total-earnings">₹0.00</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-between">
-                <div class="text-danger fw-bold" id="painter-current-balance-display">
-                    बकाया: ₹0.00
-                </div>
-                
-                <div>
-                    <button type="button" class="btn btn-success me-2" onclick="payPainterDue()">
-                        <i class="fas fa-money-bill-wave"></i> भुगतान करें (Pay)
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="hotelCheckoutModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-danger">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="fas fa-file-invoice-dollar"></i> Hotel Checkout & Bill</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="text-center mb-3">
-                    <h2 id="co_room_no" class="fw-bold text-danger">Room 101</h2>
-                    <p id="co_guest_name" class="text-muted mb-0">Guest: Rahul Kumar</p>
-                </div>
-                
-                <form id="checkout-form">
-                    <div class="mb-3">
-                        <label class="fw-bold small">Final Bill Amount (₹)</label>
-                        <input type="number" id="co_amount" class="form-control form-control-lg fw-bold text-success" placeholder="0.00">
-                        <small class="text-muted">*Room Rent + Food - Advance</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="fw-bold small">Payment Mode</label>
-                        <select id="co_mode" class="form-select">
-                            <option value="Cash" selected>Cash</option>
-                            <option value="UPI">UPI / PhonePe</option>
-                            <option value="Card">Card</option>
-                        </select>
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-danger btn-lg">
-                            <i class="fas fa-sign-out-alt"></i> Collect & Checkout
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<div class="modal fade" id="add-measurement-modal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">📏 New Measurement</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="measurement-form">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Customer ID / Name</label>
-                        <input type="text" id="measure-customer-id" class="form-control" placeholder="Enter Customer ID">
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label">Type</label>
-                            <select id="measure-item" class="form-select">
-                                <option>Shirt</option><option>Pant</option><option>Suit</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label">Delivery</label>
-                            <input type="date" id="measure-date" class="form-control">
-                        </div>
-                    </div>
-                    <div class="mb-3 mt-2">
-                        <label class="form-label">Details</label>
-                        <textarea id="measure-details" class="form-control" rows="3" placeholder="Measurements..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-info text-white" onclick="saveMeasurement()">Save Data</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<div id="invoice-content" style="display: none; width: 100%; max-width: 800px; background: #fff; padding: 20px; font-family: 'Poppins', sans-serif;">
     
-    <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
-        <h2 style="margin: 0; color: #333;">Dukan Pro Invoice</h2> <p style="margin: 5px 0; color: #666;">आपका पता यहाँ आएगा | मो. 9999999999</p>
-    </div>
-
-    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-        <div style="width: 48%;">
-            <h4 style="margin-bottom: 5px; color: #444;">बिल किसके नाम (Bill To):</h4>
-            <p style="margin: 0; font-size: 16px; font-weight: bold;" id="inv-customer">ग्राहक का नाम</p>
-        </div>
-        <div style="width: 48%; text-align: right;">
-            <p style="margin: 5px 0;"><strong>बिल नं (No):</strong> <span id="inv-no">---</span></p>
-            <p style="margin: 5px 0;"><strong>तारीख (Date):</strong> <span id="inv-date">---</span></p>
-        </div>
-    </div>
-
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-        <thead>
-            <tr style="background-color: #f2f2f2; border-bottom: 2px solid #ddd;">
-                <th style="padding: 8px; text-align: left;">#</th>
-                <th style="padding: 8px; text-align: left;">सामान (Item)</th>
-                <th style="padding: 8px; text-align: left;">Qty</th>
-                <th style="padding: 8px; text-align: left;">Rate</th>
-                <th style="padding: 8px; text-align: left;">Total</th>
-            </tr>
-        </thead>
-        <tbody id="inv-items-body">
-            </tbody>
-    </table>
-
-    <div style="text-align: right; border-top: 2px solid #000; padding-top: 10px;">
-        <h3 style="margin: 0;">कुल राशि (Total): <span id="inv-total" style="color: #27ae60;">₹0.00</span></h3>
-    </div>
-
-    <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #888;">
-        <p>धन्यवाद! फिर अवश्य पधारें।</p>
-        <p>यह एक कंप्यूटर जनित रसीद है।</p>
-    </div>
-</div>
-
-
-
-    </script>
    
 
-    <script>
+    
         // ✅ FINAL PDF FUNCTION (Mobile Safe - No White Screen)
         window.downloadBillFinal = function(invoiceId, customerName, items, totalAmount) {
             
@@ -14201,85 +13985,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-
-
-
-// 🕵️‍♂️ SECURITY LOG SYSTEM (Jasoos Code)
-// यह चोरी-छिपे सारी जानकारी LocalStorage में सेव करेगा
-
-// 🕵️‍♂️ SECURITY LOG SYSTEM (With Staff ID Tracking)
-const SecurityLogger = {
-    
-    // 1. लॉग सेव करने का फंक्शन (अब स्टाफ का नाम भी नोट करेगा)
-    log: function(action, details) {
-        // यहाँ हम पता करेंगे कि अभी कौन लॉगिन है
-        // अगर आपके सिस्टम में लॉगिन ईमेल 'user_email' या 'currentUser' नाम से सेव होता है
-        const staffName = localStorage.getItem('user_email') || localStorage.getItem('username') || 'Admin/Owner';
-        
-        const logs = JSON.parse(localStorage.getItem('security_logs') || '[]');
-        const newLog = {
-            time: new Date().toLocaleString(),
-            user: staffName,  // 👈 यहाँ स्टाफ का ईमेल/नाम आएगा
-            action: action,
-            details: details
-        };
-        
-        logs.unshift(newLog); 
-        if (logs.length > 50) logs.pop(); 
-        localStorage.setItem('security_logs', JSON.stringify(logs));
-        console.log(`📝 Log Recorded: ${action} by ${staffName}`);
-    },
-
-    // 2. लॉग देखने का फंक्शन (नया कॉलम: User)
-    showLogs: function() {
-        const logs = JSON.parse(localStorage.getItem('security_logs') || '[]');
-        
-        if (logs.length === 0) {
-            Swal.fire('Security Log', 'अभी तक कोई सिक्योरिटी अलर्ट नहीं है।', 'info');
-            return;
-        }
-
-        let htmlTable = `
-            <div style="max-height: 300px; overflow-y: auto; text-align: left;">
-            <table class="table table-bordered table-sm" style="font-size: 12px;">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Time</th>
-                        <th>Staff/User</th> <th>Action</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        logs.forEach(log => {
-            const color = log.action.includes('DELETE') ? 'text-danger fw-bold' : 'text-success';
-            htmlTable += `
-                <tr>
-                    <td>${log.time}</td>
-                    <td class="fw-bold text-primary">${log.user}</td> <td class="${color}">${log.action}</td>
-                    <td>${log.details}</td>
-                </tr>
-            `;
-        });
-
-        htmlTable += `</tbody></table></div>`;
-
-        Swal.fire({
-            title: '🕵️‍♂️ Security Audit Logs',
-            html: htmlTable,
-            width: '700px', // टेबल चौड़ी की ताकि ईमेल आ सके
-            confirmButtonText: 'Close'
-        });
-    },
-
-    clearLogs: function() {
-        if(confirm("Delete all logs?")) {
-            localStorage.removeItem('security_logs');
-            alert("Logs Cleared.");
-        }
-    }
-};
 
 
 
@@ -14542,45 +14247,6 @@ async function startSecurityCamera() {
 
 
 
-// ==========================================
-// 📸 FORCE CAMERA START (Fix for Testing)
-// ==========================================
-async function forceStartCamera() {
-    try {
-        console.log("📸 Requesting Camera Access...");
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        
-        // वीडियो एलिमेंट ढूंढें
-        let video = document.getElementById('security-video');
-        
-        // अगर वीडियो एलिमेंट नहीं है, तो अभी बनाओ (Auto-Fix HTML)
-        if (!video) {
-            console.log("⚠️ Video Element missing, creating now...");
-            video = document.createElement('video');
-            video.id = 'security-video';
-            video.width = 320;
-            video.height = 240;
-            video.autoplay = true;
-            video.style.display = 'none'; // छिपा हुआ
-            document.body.appendChild(video);
-            
-            const canvas = document.createElement('canvas');
-            canvas.id = 'security-canvas';
-            canvas.width = 320;
-            canvas.height = 240;
-            canvas.style.display = 'none';
-            document.body.appendChild(canvas);
-        }
-        
-        video.srcObject = stream;
-        alert("✅ कैमरा कनेक्ट हो गया! (Camera Connected)\nअब Ghost Bill टेस्ट दोबारा करें।");
-        
-    } catch (err) {
-        alert("❌ कैमरा एरर: " + err.message + "\n(Note: यह file:// पर काम नहीं करेगा, इसे Live Server पर चलाएं)");
-        console.error(err);
-    }
-}
-
 // टेस्टिंग के लिए स्क्रीन पर एक छोटा बटन दिखाएं
 const camBtn = document.createElement('button');
 camBtn.innerText = "📸 Start Camera";
@@ -14618,61 +14284,6 @@ function requestLicenseKey() {
     window.open(url, '_blank');
 }
 
-
-// ==========================================
-// 🚨 2. PANIC ALARM (Dark Mode Flash)
-// ==========================================
-async function triggerTheftAlarm() {
-    const existing = document.getElementById('panic-overlay');
-    if (existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = "panic-overlay";
-    overlay.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(220,53,69,0.98); z-index:100000; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; text-align:center; font-family:sans-serif;";
-    
-    overlay.innerHTML = `
-        <div style="font-size:100px; margin-bottom:10px; animation: pulse 1s infinite;">🚨</div>
-        <h1 style="font-size:3.5rem; font-weight:900;">SECURITY ALERT</h1>
-        <p style="font-size:1.5rem; margin-bottom:40px;">Emergency! Admin को सूचना भेजी जा रही है...</p>
-        <div style="display:flex; gap:20px;">
-            <button id="panic-send-btn-final" class="btn btn-light btn-lg fw-bold px-5 py-3 shadow">📩 SEND ALARM</button>
-            <button onclick="document.getElementById('panic-overlay').remove()" class="btn btn-outline-light btn-lg">CANCEL</button>
-        </div>
-    `;
-    document.body.appendChild(overlay);
-
-    const btn = document.getElementById('panic-send-btn-final');
-    if (btn) {
-        btn.onclick = async function() {
-            try {
-                btn.disabled = true;
-                btn.innerHTML = `⏳ Sending...`; // innerText की जगह innerHTML इस्तेमाल करें
-
-                const res = await fetchApi('/api/security/theft-alert', {
-                    method: 'POST',
-                    body: { 
-                        timestamp: new Date().toISOString(),
-                        location: 'Main Gate',
-                        type: 'PANIC_ALARM'
-                    }
-                });
-
-                if (res.success) {
-                    btn.innerHTML = "✅ SENT!";
-                    btn.style.background = "#28a745";
-                    btn.style.color = "white";
-                    setTimeout(() => overlay.remove(), 2000);
-                }
-            } catch (err) {
-                console.error("Alarm Error:", err);
-                // यहाँ अलर्ट मैसेज को साफ़ रखें
-                btn.disabled = false;
-                btn.innerHTML = "📩 RETRY SEND";
-                alert("सूचना भेज दी गई है, डेटाबेस चेक करें।");
-            }
-        };
-    }
-}
 
 // 📊 ADMIN SECURITY REPORT (Corrected: No Password Needed)
 async function showSecurityReport() {
@@ -14732,199 +14343,8 @@ async function showSecurityReport() {
     }
 }
 
-// 🔒 FINAL GUARD DASHBOARD (OVERLAY METHOD - 100% SAFE)
-function applyGuardSecurity() {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-    // चेक करें: क्या यूजर गार्ड है?
-    if (user.role && user.role.toUpperCase() === 'GUARD') {
-        
-        console.log("👮‍♂️ GUARD ACTIVE: Launching Security App...");
-
-        // 1. अगर पहले से गार्ड डैशबोर्ड बना है, तो दोबारा मत बनाओ
-        if (document.getElementById('guard-screen-overlay')) return;
-
-        // 2. एक नया 'Overlay' बनाए जो पूरी पुरानी स्क्रीन को ढक ले
-        const overlay = document.createElement('div');
-        overlay.id = 'guard-screen-overlay';
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #1a1a2e;
-            z-index: 99999;
-            overflow-y: auto;
-            font-family: sans-serif;
-            display: flex; flex-direction: column;
-        `;
-
-        // 3. इसके अंदर गार्ड का डैशबोर्ड डालें (HTML)
-        overlay.innerHTML = `
-            <div style="background-color: #dc3545; padding: 15px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-                <div style="font-size: 20px; font-weight:bold;"><i class="fas fa-shield-alt"></i> SECURITY GATE</div>
-                <button onclick="logout()" class="btn btn-outline-light btn-sm fw-bold">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </button>
-            </div>
-
-            <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
-                
-                <div class="mb-4 text-center">
-                    <i class="fas fa-user-lock text-danger fa-4x border border-4 border-danger rounded-circle p-4 bg-dark"></i>
-                </div>
-
-                <h3 class="text-white mb-3">SCAN GATE PASS</h3>
-
-                <div id="qr-reader" style="width: 100%; max-width: 350px; border: 2px solid #0f0; display:none; margin-bottom: 15px;"></div>
-
-                <div style="width: 100%; max-width: 350px;" class="d-grid gap-3">
-                    
-                    <button id="btn-start-cam" onclick="startQRScanner()" class="btn btn-primary btn-lg fw-bold shadow">
-                        <i class="fas fa-camera"></i> START CAMERA
-                    </button>
-
-                    <div class="input-group input-group-lg shadow">
-                        <input type="number" id="sec-invoice-id" class="form-control text-center fw-bold" placeholder="Bill No.">
-                        <button class="btn btn-success fw-bold" onclick="verifyGatePass()">CHECK</button>
-                    </div>
-
-                    <div id="sec-result" class="text-center text-white fw-bold mt-2"></div>
-                </div>
-            </div>
-
-            <div class="p-3 bg-dark border-top border-secondary mt-auto">
-                <button onclick="triggerTheftAlarm()" class="btn btn-outline-danger w-100 btn-lg fw-bold py-3 text-uppercase">
-                    <i class="fas fa-bell fa-shake"></i> EMERGENCY ALARM 🚨
-                </button>
-                <div class="text-center text-secondary mt-2 small">System Active • User: ${user.name}</div>
-            </div>
-        `;
-
-        // 4. इस नई स्क्रीन को बॉडी में सबसे ऊपर चिपका दें
-        document.body.appendChild(overlay);
-
-        // 5. पुरानी स्क्रीन के स्क्रॉल बार को बंद कर दें (ताकि पीछे कुछ न हिले)
-        document.body.style.overflow = 'hidden';
-    }
-}
-
-// इसे Login होने के बाद कॉल करें और Page Load पर भी
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(applyGuardSecurity, 500); // थोड़ा रुक कर चलाएं ताकि Bootstrap लोड हो जाए
-});
 
 
-
-
-
-// 5. Auto Check on Load
-document.addEventListener('DOMContentLoaded', () => {
-    const user = JSON.parse(localStorage.getItem('user') || localStorage.getItem('authUser') || '{}');
-    if (user.role === 'GUARD') {
-        renderGuardInterface(); 
-    }
-});
-
-
-
-
-// ======================================================
-// 👮 UPDATED MASTER GUARD SYSTEM (All-In-One)
-// ======================================================
-
-// 1. गार्ड का इंटरफेस (Professional UI)
-function renderGuardInterface() {
-    const user = JSON.parse(localStorage.getItem('authUser') || localStorage.getItem('user') || '{}');
-    
-    // पूरी पुरानी स्क्रीन को डिलीट करें
-    document.body.innerHTML = '';
-    document.body.style.backgroundColor = "#0f172a"; // Deep Dark Blue
-    document.body.style.color = "white";
-    document.body.style.margin = "0";
-    document.body.style.fontFamily = "'Segoe UI', Roboto, sans-serif";
-
-    document.body.innerHTML = `
-        <div style="display: flex; flex-direction: column; height: 100vh;">
-            <div style="background: #e11d48; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
-                <div style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">🛡️ SECURITY GATE PASS</div>
-                <button onclick="fullLogout()" style="background: white; color: #e11d48; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s;">LOGOUT</button>
-            </div>
-
-            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
-                <div style="background: #1e293b; padding: 30px; border-radius: 20px; width: 100%; max-width: 450px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155;">
-                    
-                    <div style="font-size: 60px; margin-bottom: 10px;">👮‍♂️</div>
-                    <h2 style="margin: 0 0 20px 0; color: #f1f5f9;">Bill Verification</h2>
-
-                    <div id="qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #22c55e; display:none; margin-bottom: 20px;"></div>
-
-                    <div style="display: flex; flex-direction: column; gap: 15px;">
-                        <button id="btn-start-cam" onclick="startQRScanner()" style="background: #3b82f6; color: white; border: none; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 10px rgba(59,130,246,0.3);">
-                            📷 START QR SCANNER
-                        </button>
-
-                        <div style="display: flex; gap: 8px;">
-                            <input type="number" id="sec-invoice-id" placeholder="Enter Bill No." style="flex: 1; padding: 14px; border-radius: 10px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 20px; text-align: center; outline: none;">
-                            <button onclick="verifyGatePass()" style="background: #22c55e; color: white; border: none; padding: 0 20px; font-weight: bold; border-radius: 10px; cursor: pointer; font-size: 16px;">CHECK</button>
-                        </div>
-                    </div>
-
-                    <div id="sec-result" style="margin-top: 25px; min-height: 100px;"></div>
-                </div>
-            </div>
-
-            <div style="padding: 20px; background: #0f172a; border-top: 1px solid #1e293b;">
-                <button onclick="triggerTheftAlarm('Emergency Alert')" style="width: 100%; background: transparent; border: 2px solid #e11d48; color: #e11d48; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 10px; cursor: pointer; transition: 0.3s;" onmouseover="this.style.background='#e11d48'; this.style.color='white'" onmouseout="this.style.background='transparent'; this.style.color='#e11d48'">
-                    🚨 EMERGENCY PANIC ALARM
-                </button>
-                <div style="text-align: center; color: #64748b; font-size: 12px; margin-top: 10px;">Security System v2.0 Active</div>
-            </div>
-        </div>
-
-        <audio id="theft-siren" loop src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3"></audio>
-        <canvas id="security-canvas" width="320" height="240" style="display:none;"></canvas>
-    `;
-}
-
-async function verifyGatePass() {
-    const billInput = document.getElementById('sec-invoice-id');
-    const resBox = document.getElementById('sec-result');
-    if (!billInput || !resBox) return;
-
-    const billNo = billInput.value.trim();
-    if (!billNo) {
-        resBox.innerHTML = '<span style="color:orange;">⚠️ नंबर डालें</span>';
-        return;
-    }
-
-    resBox.innerHTML = '<span style="color:yellow;">⏳ Checking...</span>';
-
-    try {
-        const res = await fetchApi('/api/security/verify-gate-pass', {
-            method: 'POST',
-            body: { invoiceId: billNo }
-        });
-
-        // सफलता पर
-        if (res.success) {
-            let items = res.data.items.map(i => `<li>${i.item_name} (x${i.quantity})</li>`).join('');
-            resBox.innerHTML = `
-                <div style="background:#198754; padding:15px; border-radius:10px; color:white; margin-top:10px;">
-                    <div style="font-weight:bold;">✅ VERIFIED</div>
-                    <ul style="font-size:12px; margin:5px 0; padding-left:15px;">${items}</ul>
-                    <div style="font-size:11px;">Total: ₹${res.data.total_amount}</div>
-                </div>`;
-            billInput.value = '';
-        }
-    } catch (err) {
-        // ❌ यहाँ फिक्स है: गलत बिल होने पर Checking हट जाएगा और एरर दिखेगी
-        console.error("Verify Error:", err);
-        resBox.innerHTML = `
-            <div style="background:#dc3545; padding:15px; border-radius:10px; color:white; margin-top:10px; border-left:5px solid black;">
-                <div style="font-weight:bold;">❌ अलर्ट: बिल मान्य नहीं है!</div>
-                <div style="font-size:12px;">${err.message || "बिल नंबर नहीं मिला"}</div>
-            </div>`;
-    }
-}
 
 
 // 3. ओरिजिनल फंक्शन्स (जो आपने दिए थे) - UPDATED
@@ -14959,7 +14379,7 @@ setInterval(() => {
         renderGuardInterface();
     }
 }, 1000);
-
+}
 
 </script>
 
@@ -15006,6 +14426,265 @@ setInterval(() => {
         </div>
     </div>
 </div>
+
+
+
+
+<div class="modal fade" id="paintMixingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">🎨 Color Mixing Billing</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                
+                <div class="mb-3 position-relative p-2 border rounded bg-light">
+                    <label class="form-label fw-bold text-danger">स्टेप 1: बेस स्कैन करें (SKU)</label>
+                    
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                        <input type="text" id="mix-base-sku" class="form-control" placeholder="Scan/Type Bucket Barcode" onchange="fetchBaseDetails(this.value)">
+                        
+                        <button class="btn btn-dark" type="button" onclick="openMobileScannerForMix()">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+
+                    <div id="paint-otp-box" class="mt-2 p-2 border border-danger rounded bg-white text-center" style="display: none;">
+                        <p class="mb-1 small text-muted fw-bold">मोबाइल स्कैनर में यह कोड डालें:</p>
+                        
+                        <div class="d-flex justify-content-center align-items-center gap-2">
+                            <span id="paint-otp-code" class="display-6 fw-bold text-danger">------</span>
+                            <div id="paint-otp-spinner" class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                        </div>
+
+                        <p id="paint-otp-status" class="mt-1 mb-0 small text-success fw-bold" style="display: none;">
+                            <i class="fas fa-check-circle"></i> कनेक्टेड! स्कैन करें...
+                        </p>
+                    </div>
+
+                    <small class="d-block mt-1 fw-bold" id="mix-stock-status"></small> 
+                </div>
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label">Base Product Name</label>
+                    <input type="text" id="mix-base-name" class="form-control fw-bold" placeholder="Scan SKU or Type Name">
+                </div>
+                
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Base Price (₹)</label>
+                        <input type="number" id="mix-base-price" class="form-control" placeholder="0">
+                    </div>
+                    
+                    <div class="col-6">
+                        <label class="form-label text-danger fw-bold">Colorant Cost (₹)</label>
+                        <input type="number" id="mix-color-cost" class="form-control" placeholder="Enter Amount">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Color Code / Shade Name</label>
+                    <input type="text" id="mix-code" class="form-control" placeholder="e.g. Sunrise Orange 405">
+                </div>
+
+                <div class="alert alert-info py-2 text-center">
+                    Final Bill Price: <strong id="mix-final-price" class="fs-5">₹0</strong>
+                </div>
+
+                <button class="btn btn-danger w-100 btn-lg shadow" onclick="addMixedPaintToCart()">
+                    <i class="fas fa-cart-plus me-2"></i> बिल में जोड़ें (Add to Bill)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="painterLedgerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg"> <div class="modal-content border-primary">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-book-open me-2"></i>पेंटर बही-खाता (Ledger)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h5 id="ledger-painter-name" class="fw-bold text-dark mb-3">Painter Name</h5>
+                
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-striped table-bordered mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>तारीख</th>
+                                <th>बिल नं. (Invoice)</th>
+                                <th>कुल बिक्री</th>
+                                <th class="text-end text-success">कमीशन</th>
+                            </tr>
+                        </thead>
+                        <tbody id="painter-ledger-body">
+                            </tbody>
+                        <tfoot class="table-group-divider bg-light fw-bold">
+                            <tr>
+                                <td colspan="3" class="text-end">कुल कमाई (Total Earnings):</td>
+                                <td class="text-end text-success fs-5" id="painter-total-earnings">₹0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="text-danger fw-bold" id="painter-current-balance-display">
+                    बकाया: ₹0.00
+                </div>
+                
+                <div>
+                    <button type="button" class="btn btn-success me-2" onclick="payPainterDue()">
+                        <i class="fas fa-money-bill-wave"></i> भुगतान करें (Pay)
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">बंद करें</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="hotelCheckoutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-file-invoice-dollar"></i> Hotel Checkout & Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <h2 id="co_room_no" class="fw-bold text-danger">Room 101</h2>
+                    <p id="co_guest_name" class="text-muted mb-0">Guest: Rahul Kumar</p>
+                </div>
+                
+                <form id="checkout-form">
+                    <div class="mb-3">
+                        <label class="fw-bold small">Final Bill Amount (₹)</label>
+                        <input type="number" id="co_amount" class="form-control form-control-lg fw-bold text-success" placeholder="0.00">
+                        <small class="text-muted">*Room Rent + Food - Advance</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="fw-bold small">Payment Mode</label>
+                        <select id="co_mode" class="form-select">
+                            <option value="Cash" selected>Cash</option>
+                            <option value="UPI">UPI / PhonePe</option>
+                            <option value="Card">Card</option>
+                        </select>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="fas fa-sign-out-alt"></i> Collect & Checkout
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="add-measurement-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">📏 New Measurement</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="measurement-form">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Customer ID / Name</label>
+                        <input type="text" id="measure-customer-id" class="form-control" placeholder="Enter Customer ID">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Type</label>
+                            <select id="measure-item" class="form-select">
+                                <option>Shirt</option><option>Pant</option><option>Suit</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Delivery</label>
+                            <input type="date" id="measure-date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-2">
+                        <label class="form-label">Details</label>
+                        <textarea id="measure-details" class="form-control" rows="3" placeholder="Measurements..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-info text-white" onclick="saveMeasurement()">Save Data</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="invoice-content" style="display: none; width: 100%; max-width: 800px; background: #fff; padding: 20px; font-family: 'Poppins', sans-serif;">
+    
+    <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
+        <h2 style="margin: 0; color: #333;">Dukan Pro Invoice</h2> <p style="margin: 5px 0; color: #666;">आपका पता यहाँ आएगा | मो. 9999999999</p>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <div style="width: 48%;">
+            <h4 style="margin-bottom: 5px; color: #444;">बिल किसके नाम (Bill To):</h4>
+            <p style="margin: 0; font-size: 16px; font-weight: bold;" id="inv-customer">ग्राहक का नाम</p>
+        </div>
+        <div style="width: 48%; text-align: right;">
+            <p style="margin: 5px 0;"><strong>बिल नं (No):</strong> <span id="inv-no">---</span></p>
+            <p style="margin: 5px 0;"><strong>तारीख (Date):</strong> <span id="inv-date">---</span></p>
+        </div>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <thead>
+            <tr style="background-color: #f2f2f2; border-bottom: 2px solid #ddd;">
+                <th style="padding: 8px; text-align: left;">#</th>
+                <th style="padding: 8px; text-align: left;">सामान (Item)</th>
+                <th style="padding: 8px; text-align: left;">Qty</th>
+                <th style="padding: 8px; text-align: left;">Rate</th>
+                <th style="padding: 8px; text-align: left;">Total</th>
+            </tr>
+        </thead>
+        <tbody id="inv-items-body">
+            </tbody>
+    </table>
+
+    <div style="text-align: right; border-top: 2px solid #000; padding-top: 10px;">
+        <h3 style="margin: 0;">कुल राशि (Total): <span id="inv-total" style="color: #27ae60;">₹0.00</span></h3>
+    </div>
+
+    <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #888;">
+        <p>धन्यवाद! फिर अवश्य पधारें।</p>
+        <p>यह एक कंप्यूटर जनित रसीद है।</p>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 <div id="thermal-receipt-area" style="display:none; width: 58mm; font-family: 'Courier New', monospace; font-size: 12px; background: #fff; color: #000;">
@@ -15056,41 +14735,6 @@ setInterval(() => {
 
 
 
-<div class="modal fade" id="securityModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-danger">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="fas fa-user-shield"></i> Security Guard Panel</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center">
-                
-                <div id="qr-reader" style="width: 100%; display:none;"></div>
-                <button id="btn-start-cam" class="btn btn-outline-dark mb-3" onclick="startQRScanner()">
-                    <i class="fas fa-camera"></i> Camera चालू करें
-                </button>
-
-                <div class="mb-4">
-                    <h6>Scan QR or Enter Bill No</h6>
-                    <div class="input-group mb-2">
-                        <input type="number" id="sec-invoice-id" class="form-control form-control-lg text-center fw-bold" placeholder="Bill #">
-                        <button class="btn btn-dark" onclick="verifyGatePass()">Verify</button>
-                    </div>
-                    <div id="sec-result" class="fw-bold mt-2"></div>
-                </div>
-
-                <hr>
-                <div class="d-grid">
-                    <button class="btn btn-outline-danger btn-lg py-3 fw-bold" onclick="triggerTheftAlarm()">
-                        <i class="fas fa-bell fa-shake"></i> चोर पकड़ो (Panic Alarm)
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-
 <div class="modal fade" id="securityReportModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
@@ -15119,8 +14763,6 @@ setInterval(() => {
 
 
 
-
-
 <script>
 // ================================================================
 // 🚨 SUPER SAFE ALERT SYSTEM (Bypassing fetchApi to stop Refresh)
@@ -15135,80 +14777,985 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-async function startSuperSafePolling() {
-    try {
-        // 1. सही सर्वर URL सेट करें (जो आपने अभी दिया)
-        const SERVER_URL = "https://dukan-pro-ultimate.onrender.com";
-        const token = localStorage.getItem('authToken');
 
-        // 2. Direct Fetch Call (यह fetchApi नहीं है, इसलिए यह रिफ्रेश नहीं कर सकता)
-        const rawRes = await fetch(`${SERVER_URL}/api/security/check-latest-alert`, {
-            method: 'GET',
+
+
+// 2. 🚨 अलार्म भेजें (Panic Button Fix)
+async function triggerSecurityAlert() {
+    const btn = document.getElementById('panic-btn');
+    if(btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> भेज रहा है...';
+    }
+
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+
+    try {
+        // सीधा सर्वर कॉल
+        const res = await fetch(`${__backend_url}/api/security/trigger-alert`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            }
+            },
+            body: JSON.stringify({
+                location: 'Main Gate (Guard)',
+                type: 'THEFT_ATTEMPT'
+            })
         });
 
-        // अगर सर्वर बंद है या एरर है, तो बस कंसोल में बताकर रुक जाएगा (रिफ्रेश नहीं करेगा)
-        if (!rawRes.ok) {
-            // console.warn("Server connection issue (No Refresh)"); 
-            throw new Error("Server Error");
+        const data = await res.json();
+
+        if (data.success) {
+            Swal.fire({
+                title: 'अलर्ट भेजा गया!',
+                text: 'दुकान मालिक को सूचित कर दिया गया है।',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            throw new Error(data.message || 'Failed');
         }
 
-        const res = await rawRes.json();
-
-        // 3. अगर अलार्म मिला
-        if (res.success && res.alert) {
-            console.log("🔥 Alert Found!");
-
-            // सायरन बजाएं
-            const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
-            audio.play().catch(e => console.log("Audio silent"));
-
-            // पॉप-अप दिखाएं (कोड यहाँ रुक जाएगा जब तक OK नहीं दबाते)
-            await Swal.fire({
-                title: '🚨 SECURITY ALERT!',
-                html: `<h3 style="color:red; font-weight:bold;">PANIC BUTTON PRESSED!</h3>
-                       <p>Location: ${res.alert.location}</p>
-                       <p>Time: ${new Date(res.alert.created_at).toLocaleTimeString()}</p>`,
-                icon: 'warning',
-                background: '#fff5f5',
-                confirmButtonText: '✅ I HAVE CHECKED',
-                confirmButtonColor: '#d33',
-                allowOutsideClick: false,
-                allowEscapeKey: false
-            });
-
-            audio.pause();
-            audio.currentTime = 0;
-
-            // Resolve Alert (Direct Fetch)
-            await fetch(`${SERVER_URL}/api/security/acknowledge-alert`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ alertId: res.alert.id })
-            });
+    } catch (e) {
+        console.error("Alarm Error:", e);
+        Swal.fire('Error', 'अलर्ट नहीं भेजा जा सका। इंटरनेट चेक करें।', 'error');
+    } finally {
+        if(btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🚨 PANIC BUTTON (चोरी)';
         }
-    } catch (err) {
-        // यहाँ कुछ भी हो जाए, पेज रिफ्रेश नहीं होगा।
-        // console.log("Polling skip:", err.message);
+    }
+}
+
+
+// ============================================================
+// 1. 🚦 TRAFFIC POLICE (यह तय करता है कि किसे क्या दिखाना है)
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("🚀 System Starting...");
+
+    // HTML एलिमेंट्स ढूँढें
+    const loginPage = document.getElementById('auth-container-new');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('main-content');
+
+    // यूजर डेटा चेक करें
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+    const userStr = localStorage.getItem('authUser') || sessionStorage.getItem('authUser');
+    const user = userStr ? JSON.parse(userStr) : null;
+
+    // --- CASE A: अगर यूजर लॉग इन है ---
+    if (token && user) {
+        console.log("✅ User Found:", user.role);
+
+        // 🛡️ अगर GUARD है
+        if (user.role === 'GUARD') {
+            if (loginPage) loginPage.classList.add('hidden'); // लॉगिन पेज छिपाएं
+            
+            // गार्ड स्क्रीन लोड करें (थोड़ी देर रुककर ताकि सब लोड हो जाए)
+            setTimeout(() => {
+                if (typeof renderGuardDashboard === 'function') {
+                    renderGuardDashboard();
+                } else {
+                    alert("⚠️ Security Interface not found! Please check script.");
+                }
+            }, 100);
+            return; // यहीं रुक जाएं
+        }
+
+        // 👑 अगर ADMIN/OWNER है
+        if (loginPage) loginPage.classList.add('hidden'); // लॉगिन पेज छिपाएं
+        
+        // एडमिन ऐप अनलॉक करें
+        if (typeof unlockApplication === 'function') {
+            unlockApplication();
+        } else {
+            // अगर unlock फंक्शन नहीं मिला तो मैन्युअल अनलॉक
+            if(sidebar) sidebar.classList.remove('locked');
+            if(mainContent) mainContent.classList.remove('locked');
+        }
+
+    } else {
+        // --- CASE B: अगर कोई लॉग इन नहीं है (Login Page दिखाएं) ---
+        console.log("🔒 No User. Showing Login Page.");
+        
+        if (loginPage) {
+            loginPage.classList.remove('hidden'); // लॉगिन पेज दिखाएं
+        } else {
+            console.error("❌ Login Page Container ('auth-container-new') not found in HTML!");
+        }
+
+        // बाकी सब लॉक कर दें
+        if(sidebar) sidebar.classList.add('locked');
+        if(mainContent) mainContent.classList.add('locked');
+    }
+});
+
+// ============================================================
+// 2. 🛡️ GUARD DASHBOARD (फ़ोटो और पैनिक बटन के साथ)
+// ============================================================
+window.renderGuardDashboard = function() {
+    // पुरानी स्क्रीन साफ़ करें
+    document.body.innerHTML = '';
+    document.body.style.backgroundColor = "#eef2f5";
+    
+    // गार्ड का यूजर डेटा
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+
+    // नई स्क्रीन बनाएं
+    document.body.innerHTML = `
+        <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:15px; font-family:sans-serif;">
+            <div class="card shadow-lg border-0" style="width:100%; max-width:400px; border-radius:15px; overflow:hidden; background:white;">
+                
+                <div class="bg-primary text-white text-center py-4" style="border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;">
+                    <img src="https://cdn-icons-png.flaticon.com/512/924/924915.png" alt="Guard" style="width:80px; height:80px; background:white; border-radius:50%; padding:5px; margin-bottom:10px;">
+                    <h4 class="mb-0 fw-bold">SECURITY CHECK</h4>
+                    <p class="mb-0 small opacity-75">Shop ID: ${user.shop_id || 'Unknown'}</p>
+                </div>
+
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label class="fw-bold text-secondary small text-uppercase">Enter Bill No</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-receipt"></i></span>
+                            <input type="number" id="sec-bill-input" class="form-control form-control-lg fw-bold border-start-0 bg-light" placeholder="Ex: 147" style="font-size:1.5rem;">
+                        </div>
+                    </div>
+
+                    <button onclick="verifyGatePass()" class="btn btn-primary w-100 btn-lg mb-3 shadow-sm fw-bold" style="border-radius:10px;">
+                        <i class="fas fa-search me-2"></i> VERIFY NOW
+                    </button>
+
+                    <div id="sec-result" class="text-center mb-3"></div>
+
+                    <hr class="opacity-25">
+
+                    <button onclick="triggerSecurityAlert()" class="btn btn-danger w-100 py-3 fw-bold shadow-sm" style="border-radius:10px;">
+                        <i class="fas fa-bell fa-shake me-2"></i> PANIC ALARM
+                    </button>
+                    
+                    <button onclick="fullLogout()" class="btn btn-link text-muted w-100 mt-3 text-decoration-none small">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+
+
+// ==========================================
+// 🚨 FINAL PANIC BUTTON FIX (VIP Version)
+// ==========================================
+window.triggerSecurityAlert = async function() {
+    console.log("🚨 Panic Button Pressed!");
+
+    // 1. सही बटन को पकड़ें (ID से)
+    const btn = document.getElementById('panic-btn');
+    
+    // 2. बटन का रूप बदलें (ताकि पता चले क्लिक हुआ)
+    if(btn) {
+        btn.innerHTML = '⏳ SENDING...';
+        btn.style.background = 'black'; // क्लिक होते ही काला हो जाएगा
+        btn.disabled = true;
     }
 
-    // ⏳ 5 सेकंड का ब्रेक लें और फिर दोबारा चेक करें
-    setTimeout(startSuperSafePolling, 5000);
+    try {
+        const token = localStorage.getItem('authToken');
+        
+        // 3. API कॉल
+        const res = await fetch('https://dukan-pro-ultimate.onrender.com/api/security/trigger-alert', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify({ location: 'Main Gate (Guard)', type: 'THEFT' })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            // ✅ सफलता (हरे रंग में)
+            new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg').play().catch(e=>{});
+            
+            if (btn) {
+                btn.innerHTML = '✅ ALERT SENT!';
+                btn.style.background = '#28a745'; // Green
+                btn.style.borderColor = '#28a745';
+            }
+
+            // 3 सेकंड बाद वापस लाल हो जाएगा
+            setTimeout(() => {
+                if(btn) {
+                    btn.innerHTML = '🚨 PANIC ALERT';
+                    btn.style.background = '#dc3545'; // Red
+                    btn.disabled = false;
+                }
+            }, 3000);
+
+        } else {
+            throw new Error(data.message || "Server Error");
+        }
+
+    } catch(e) { 
+        console.error(e);
+        // ❌ फेल (वापस लाल)
+        alert("⚠️ Alert Failed: Check Internet!");
+        if (btn) {
+            btn.innerHTML = '🚨 PANIC ALERT';
+            btn.style.background = '#dc3545';
+            btn.disabled = false;
+        }
+    }
+};
+
+
+// 2. असली फंक्शन (जो आपने मुझे दिखाया)
+window.renderGuardDashboard = function() {
+    console.log("🛡️ Rendering Guard Dashboard...");
+    document.body.innerHTML = '';
+    document.body.style.backgroundColor = "#eef2f5";
+
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+
+    document.body.innerHTML = `
+        <div class="container-fluid bg-light min-vh-100 d-flex flex-column align-items-center justify-content-center p-3">
+            <div class="card shadow w-100 mb-3" style="max-width: 500px;">
+                <div class="card-body text-center bg-dark text-white rounded">
+                    <h3>🛡️ SECURITY GUARD</h3>
+                    <p class="mb-0 small">Location: Main Gate</p>
+                    <small>ID: ${user.shop_id || 'Unknown'}</small>
+                </div>
+            </div>
+
+            <div class="card shadow-sm w-100 mb-3 p-3 bg-white rounded" style="max-width: 500px;">
+                <label class="fw-bold mb-2">बिल नंबर जाँचें (Check Bill)</label>
+                <div class="input-group mb-2">
+                    <input type="number" id="sec-bill-input" class="form-control form-control-lg fw-bold" placeholder="Bill No. (Ex: 147)">
+                    <button class="btn btn-primary btn-lg" onclick="verifyGatePass()">
+                        <i class="fas fa-search"></i> Check
+                    </button>
+                </div>
+                <div id="sec-result" class="text-center mt-2"></div>
+            </div>
+
+            <div class="w-100" style="max-width: 500px;">
+                <button id="panic-btn" class="btn btn-danger btn-lg w-100 py-4 fw-bold shadow-lg" onclick="triggerSecurityAlert()">
+                    🚨 PANIC BUTTON (चोरी)
+                </button>
+            </div>
+
+            <button onclick="fullLogout()" class="btn btn-outline-secondary mt-4 btn-sm">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    `;
+};
+
+// 3. 🛑 जादुई फिक्स (Magic Fix for ReferenceError)
+// अगर पुराना कोड 'renderGuardInterface' मांगे, तो उसे नया वाला फंक्शन दे दो।
+window.renderGuardInterface = function() {
+    console.warn("⚠️ Old code called 'renderGuardInterface'. Redirecting to 'renderGuardDashboard'...");
+    renderGuardDashboard();
+};
+
+// 4. ऑटो-स्टार्ट (ताकि स्क्रीन खाली न रहे)
+document.addEventListener('DOMContentLoaded', () => {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    if (user.role === 'GUARD') {
+        renderGuardDashboard();
+    }
+});
+
+// 5. अगर पेज पहले ही लोड हो चुका है तो अभी चलाओ
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    if (user.role === 'GUARD') {
+        renderGuardDashboard();
+    }
 }
 
 
-// ✅ Logout Function (इसको सबसे नीचे रखें)
+
+// ✅ UNIVERSAL LOGOUT FUNCTION (इसे सबसे नीचे रखें)
+window.fullLogout = function() {
+    console.log("🔒 Logging Out...");
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // लॉगिन पेज दिखाएं
+    const loginPage = document.getElementById('auth-container-new');
+    if (loginPage) loginPage.classList.remove('hidden');
+    
+    // पेज रिफ्रेश करें
+    setTimeout(() => {
+        window.location.reload();
+    }, 500);
+};
+
+
+
+// 1. सबसे पहले पुराने एरर लूप को बंद करें
+for(let i=0; i<1000; i++) window.clearInterval(i);
+
+// 2. यह जादुई लाइन एरर को रोकेगी (Redirects old calls to new dashboard)
+window.renderGuardInterface = function() {
+    console.warn("⚠️ Redirecting old call to renderGuardDashboard...");
+    if(typeof renderGuardDashboard === 'function') {
+        renderGuardDashboard();
+    }
+};
+
+// 3. गार्ड डैशबोर्ड (ताकि स्क्रीन खाली न रहे)
+window.renderGuardDashboard = function() {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    document.body.innerHTML = ''; 
+    document.body.style.backgroundColor = "#eef2f5";
+    
+    document.body.innerHTML = `
+        <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:15px; font-family:sans-serif;">
+            <div class="card shadow-lg border-0" style="width:100%; max-width:400px; border-radius:15px; background:white;">
+                <div class="bg-primary text-white text-center py-4" style="border-radius: 15px 15px 0 0;">
+                    <h4 class="mb-0 fw-bold">🛡️ SECURITY CHECK</h4>
+                    <p class="mb-0 small opacity-75">Shop ID: ${user.shop_id || 'Unknown'}</p>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label class="fw-bold text-secondary small">BILL NO</label>
+                        <input type="number" id="sec-bill-input" class="form-control form-control-lg fw-bold text-center" placeholder="Ex: 147" style="font-size:1.5rem;">
+                    </div>
+                    <button onclick="verifyGatePass()" class="btn btn-primary w-100 btn-lg mb-3 shadow-sm fw-bold">VERIFY BILL</button>
+                    <div id="sec-result" class="text-center mb-3"></div>
+                    <hr>
+                    <button onclick="triggerSecurityAlert()" class="btn btn-danger w-100 py-3 fw-bold shadow-sm">🚨 PANIC ALARM</button>
+                    <button onclick="fullLogout()" class="btn btn-link w-100 mt-3 text-muted text-decoration-none small">Logout</button>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+
+// 6. Logout Helper (Safe)
+window.fullLogout = function() {
+    localStorage.clear();
+    sessionStorage.clear();
+    location.reload();
+};
+
+// 7. ऑटो स्टार्ट लॉजिक
+document.addEventListener('DOMContentLoaded', () => {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    if (user.role === 'GUARD') {
+        renderGuardDashboard();
+    }
+});
+
+// ==========================================
+// 🕵️‍♂️ BILL VERIFICATION LOGIC (Prevents Duplicate)
+// ==========================================
+window.verifyGatePass = async function() {
+    const input = document.getElementById('sec-bill-input');
+    const resultDiv = document.getElementById('sec-result');
+    const billId = input.value;
+
+    if (!billId) {
+        alert("Please enter or scan a Bill ID");
+        return;
+    }
+
+    // लोडिंग दिखाएं
+    if(resultDiv) resultDiv.innerHTML = '<span class="text-warning fw-bold">⏳ Checking...</span>';
+
+    try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`https://dukan-pro-ultimate.onrender.com/api/invoices/${billId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            // 🛑 CASE 1: बिल पहले से इस्तेमाल हो चुका है (DUPLICATE)
+            if (data.alreadyChecked) {
+                // जोर से सायरन बजाओ (गलत बिल है!)
+                new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg').play().catch(e=>{});
+
+                if (resultDiv) {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger shadow-lg p-3">
+                            <h2 class="fw-bold text-danger m-0">❌ ALREADY USED!</h2>
+                            <p class="small m-0 text-dark">This bill was already verified.</p>
+                            <div class="mt-2 bg-white p-2 rounded text-danger border border-danger fw-bold">
+                                🚫 ENTRY DENIED
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // SweetAlert (अगर है)
+                if(typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: '⚠️ STOP!',
+                        text: 'This bill has ALREADY been used!',
+                        icon: 'error',
+                        background: '#ffe6e6',
+                        confirmButtonColor: '#d33'
+                    });
+                }
+                return; // आगे मत बढ़ो
+            }
+
+            // ✅ CASE 2: बिल एकदम नया है (FRESH)
+            // सही वाली टोन बजाओ
+            new Audio('https://actions.google.com/sounds/v1/science_fiction/scifi_laser_1.ogg').play().catch(e=>{});
+
+            let itemsHtml = (data.invoice.items || []).map(i => 
+                `<li>${i.item_name} (x${i.quantity})</li>`
+            ).join('');
+
+            if (resultDiv) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success shadow p-3">
+                        <h2 class="fw-bold text-success m-0">✅ VERIFIED</h2>
+                        <div class="text-start mt-2 bg-white p-2 rounded border">
+                            <strong>Customer:</strong> ${data.invoice.customer_name || 'Guest'}<br>
+                            <strong>Amount:</strong> ₹${data.invoice.final_amount}<br>
+                            <hr class="my-1">
+                            <ul class="mb-0 small ps-3 text-muted">
+                                ${itemsHtml}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+        } else {
+            // ❌ CASE 3: बिल मिला ही नहीं (FAKE BILL)
+            new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(e=>{});
+            if (resultDiv) {
+                resultDiv.innerHTML = `<div class="alert alert-dark fw-bold text-white bg-secondary">🚫 INVALID BILL ID</div>`;
+            }
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Server Error");
+    }
+};
+
+
+
+// ==========================================
+// 🚑 CRASH FIX & ADMIN ALERT (Paste inside Script)
+// ==========================================
+
+// 1. FIX: जो Camera फंक्शन गायब था, उसे वापस लाओ (Dummy Version)
+// इससे वेबसाइट क्रैश होना बंद हो जाएगी
+window.forceStartCamera = function() {
+    console.log("✅ Camera function skipped to prevent crash.");
+};
+
+// 2. FIX: Admin Alert System (Polling)
+// यह एडमिन को हर 3 सेकंड में बताएगा कि चोरी हुई है या नहीं
+window.startSuperSafePolling = function() {
+    console.log("🛡️ Admin Security Polling Started...");
+    
+    // पुराना कोई पोलिंग चल रहा हो तो उसे साफ़ करें (ताकि डबल न हो)
+    if(window.adminPollInterval) clearInterval(window.adminPollInterval);
+
+    window.adminPollInterval = setInterval(async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if(!token) return; // अगर लॉगआउट है तो चेक मत करो
+
+            // सर्वर से पूछो: "क्या कोई अलार्म है?"
+            const res = await fetch('https://dukan-pro-ultimate.onrender.com/api/security/check-alert', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+
+            // अगर अलार्म मिला
+            if (data.success && data.alert) {
+                // सायरन बजाओ
+                const audio = new Audio('https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3');
+                audio.play().catch(e => {});
+
+                // एडमिन को लाल पॉप-अप दिखाओ
+                if(typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: '🚨 SECURITY ALERT!',
+                        html: `<h3 style="color:red; font-weight:bold;">CHORI KA ALARM!</h3>
+                               <p>Location: <b>${data.alert.description}</b></p>
+                               <p>Time: ${new Date(data.alert.created_at).toLocaleTimeString()}</p>`,
+                        icon: 'warning',
+                        background: '#fff5f5',
+                        confirmButtonText: '✅ I HAVE CHECKED',
+                        confirmButtonColor: '#d33',
+                        allowOutsideClick: false
+                    }).then(async () => {
+                        audio.pause();
+                        audio.currentTime = 0;
+                        // अलार्म बंद (Resolve) करो ताकि दोबारा न बजे
+                        await fetch('https://dukan-pro-ultimate.onrender.com/api/security/resolve-alert', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ id: data.alert.id })
+                        });
+                    });
+                }
+            }
+        } catch (e) { 
+            // चुपचाप रहो, रिफ्रेश मत करो
+        }
+    }, 3000); // हर 3 सेकंड में
+};
+
+// Logout Helper
 function fullLogout() {
     localStorage.clear();
+    sessionStorage.clear();
     location.reload();
 }
+
 </script> 
+
+<script>
+// 1. पुराने लूप और एरर साफ़ करें
+let cleanupId = window.setInterval(";");
+for (let i = 0; i < cleanupId; i++) window.clearInterval(i);
+
+// ==========================================
+// 🕵️‍♂️ SECURITY LOGGER (जासूस कोड) - FIXED
+// ==========================================
+const SecurityLogger = {
+    // 1. लॉग सेव करें
+    log: function(action, details) {
+        const staffName = localStorage.getItem('user_email') || 'Staff';
+        const logs = JSON.parse(localStorage.getItem('security_logs') || '[]');
+        
+        logs.unshift({
+            time: new Date().toLocaleString(),
+            user: staffName,
+            action: action,
+            details: details
+        });
+
+        if (logs.length > 50) logs.pop(); // सिर्फ 50 लॉग रखें
+        localStorage.setItem('security_logs', JSON.stringify(logs));
+        console.log(`📝 Logged: ${action}`);
+    },
+
+    // 2. लॉग देखें
+    showLogs: function() {
+        const logs = JSON.parse(localStorage.getItem('security_logs') || '[]');
+        if (logs.length === 0) return alert("No Logs Found");
+
+        let html = `<div style="max-height:300px; overflow:auto;"><table class="table table-sm table-bordered">`;
+        html += `<thead class="table-dark"><tr><th>Time</th><th>User</th><th>Action</th></tr></thead><tbody>`;
+        
+        logs.forEach(l => {
+            html += `<tr><td>${l.time}</td><td>${l.user}</td><td>${l.action}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+
+        if(typeof Swal !== 'undefined') {
+            Swal.fire({ title: 'Security Logs', html: html, width: '600px' });
+        } else {
+            console.table(logs);
+            alert("Logs are in Console");
+        }
+    },
+
+    // 3. लॉग डिलीट करें
+    clearLogs: function() {
+        if(confirm("Delete All Logs?")) {
+            localStorage.removeItem('security_logs');
+            alert("Cleared!");
+        }
+    }
+};
+
+// ==========================================
+// 🛡️ GUARD DASHBOARD (Error Free)
+// ==========================================
+window.renderGuardDashboard = function() {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    document.body.innerHTML = '';
+    document.body.style.backgroundColor = "#eef2f5";
+    
+    document.body.innerHTML = `
+        <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:15px;">
+            <div class="card shadow-lg border-0" style="width:100%; max-width:400px; border-radius:15px; background:white;">
+                <div class="bg-primary text-white text-center py-4" style="border-radius: 15px 15px 0 0;">
+                    <h4 class="mb-0 fw-bold">🛡️ SECURITY CHECK</h4>
+                    <p class="mb-0 small">ID: ${user.shop_id || 'Unknown'}</p>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label class="fw-bold text-secondary small">BILL NO</label>
+                        <input type="number" id="sec-bill-input" class="form-control form-control-lg fw-bold text-center" placeholder="Ex: 147">
+                    </div>
+                    <button onclick="verifyGatePass()" class="btn btn-primary w-100 btn-lg mb-3 fw-bold">VERIFY BILL</button>
+                    <div id="sec-result" class="text-center mb-3"></div>
+                    <hr>
+                    <button id="panic-btn" onclick="triggerSecurityAlert()" class="btn btn-danger w-100 py-3 fw-bold">🚨 PANIC ALARM</button>
+                    <button onclick="fullLogout()" class="btn btn-link w-100 mt-3 text-muted text-decoration-none small">Logout</button>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+// ==========================================
+// 🚦 STARTUP LOGIC
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Guard Check
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    if (user.role === 'GUARD') {
+        renderGuardDashboard();
+    }
+});
+
+// Fix for 'Unexpected end of input' - सभी ब्रैकेट्स बंद हैं
+
+// ==========================================
+// 🏷️ SMART SIDEBAR INFO (Shows Correct Business Type)
+// ==========================================
+function updateSidebarInfo() {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    
+    // 1. साइडबार ढूँढें
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar') || document.querySelector('nav');
+
+    if (sidebar) {
+        let infoBox = document.getElementById('shop-info-display');
+        
+        if (!infoBox) {
+            infoBox = document.createElement('div');
+            infoBox.id = 'shop-info-display';
+            // Styling
+            infoBox.style.padding = '20px 10px';
+            infoBox.style.textAlign = 'center';
+            infoBox.style.background = 'rgba(0,0,0,0.2)';
+            infoBox.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            infoBox.style.marginBottom = '10px';
+            infoBox.style.color = 'white';
+            sidebar.insertBefore(infoBox, sidebar.firstChild);
+        }
+
+        // 2. 🔍 BUSINESS TYPE DETECTION (जासूसी कोड)
+        // हम हर संभावित नाम चेक करेंगे
+        let typeName = user.business_type || user.businessType || user.shop_category || user.category || user.type;
+
+        // अगर फिर भी खाली है, तो शायद यह 'config' के अंदर हो
+        if (!typeName && user.config) {
+            typeName = user.config.business_type;
+        }
+
+        // अगर बिल्कुल नहीं मिला तो 'UNKNOWN' दिखाओ (General नहीं)
+        // ताकि हमें पता चले कि डाटा आ ही नहीं रहा
+        typeName = typeName ? typeName.toUpperCase() : 'LOADING...';
+
+        // 3. HTML Update
+        infoBox.innerHTML = `
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7;">SHOP ID: ${user.shop_id || user.id || '--'}</div>
+            
+            <div style="margin-top: 5px;">
+                <span style="background: #ffc107; color: #000; font-size: 14px; padding: 5px 15px; border-radius: 20px; font-weight: bold; text-transform: uppercase; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                    ${typeName}
+                </span>
+            </div>
+        `;
+    }
+}
+
+// ऑटो अपडेट (ताकि लॉगिन होते ही दिख जाए)
+setInterval(updateSidebarInfo, 1000);
+
+
+// ==========================================
+// 🛡️ GUARD SCREEN INFO DISPLAY (Name, ID, Type)
+// ==========================================
+function updateGuardDisplayInfo() {
+    // 1. गार्ड का डेटा निकालें
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    
+    // 2. गार्ड इंटरफेस (Screen) को ढूँढें
+    const guardScreen = document.getElementById('guard-interface');
+
+    // 3. अगर गार्ड स्क्रीन खुली है, तो जानकारी दिखाएं
+    if (guardScreen && guardScreen.style.display !== 'none') {
+        
+        let infoBox = document.getElementById('guard-shop-details');
+
+        // अगर बॉक्स नहीं है, तो नया बनाओ
+        if (!infoBox) {
+            infoBox = document.createElement('div');
+            infoBox.id = 'guard-shop-details';
+            
+            // CSS Styling (Professional Look)
+            infoBox.style.background = 'linear-gradient(90deg, #1e3c72 0%, #2a5298 100%)'; // Blue Gradient
+            infoBox.style.color = 'white';
+            infoBox.style.padding = '15px';
+            infoBox.style.textAlign = 'center';
+            infoBox.style.borderBottom = '3px solid #ffc107';
+            infoBox.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            infoBox.style.marginBottom = '15px';
+            
+            // इसे गार्ड स्क्रीन के सबसे ऊपर (Top) में डालें
+            guardScreen.insertBefore(infoBox, guardScreen.firstChild);
+        }
+
+        // 4. डेटा तैयार करें
+        const shopName = user.shopName || user.shop_name || 'MY SHOP';
+        const shopId = user.shop_id || user.id || '??';
+        let bizType = user.business_type || user.businessType || 'RETAIL';
+        bizType = bizType.toUpperCase();
+
+        // 5. HTML अपडेट करें
+        infoBox.innerHTML = `
+            <div style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">${shopName}</div>
+            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 5px; align-items: center;">
+                <span style="background: rgba(255,255,255,0.2); font-size: 12px; padding: 2px 8px; border-radius: 4px;">
+                    ID: <b>${shopId}</b>
+                </span>
+                <span style="background: #ffc107; color: #000; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold;">
+                    ${bizType}
+                </span>
+            </div>
+        `;
+    }
+}
+
+// इसे हर 1 सेकंड में चेक करने दें (ताकि पेज लोड होते ही दिख जाए)
+setInterval(updateGuardDisplayInfo, 1000);
+
+// ==========================================
+// 📷 GUARD QR SCANNER LOGIC (Auto Verify)
+// ==========================================
+let html5QrcodeScanner;
+
+function startGuardScanner() {
+    const readerDiv = document.getElementById('guard-reader');
+    
+    // 1. अगर कैमरा पहले से खुला है, तो उसे बंद करो (Toggle)
+    if (readerDiv.style.display === 'block') {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear();
+        }
+        readerDiv.style.display = 'none';
+        return;
+    }
+
+    // 2. कैमरा दिखाओ
+    readerDiv.style.display = 'block';
+
+    // 3. स्कैनर चालू करो
+    // (ध्यान दें: यह कोड html5-qrcode लाइब्रेरी यूज करता है)
+    html5QrcodeScanner = new Html5QrcodeScanner(
+        "guard-reader", 
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        /* verbose= */ false
+    );
+
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+
+    // ✅ सफलता पर क्या करें?
+    function onScanSuccess(decodedText, decodedResult) {
+        // 1. बीप बजाओ
+        new Audio('https://actions.google.com/sounds/v1/science_fiction/scifi_laser_1.ogg').play().catch(e=>{});
+
+        // 2. बिल नंबर इनपुट में भरो
+        const inputField = document.getElementById('sec-bill-input');
+        if (inputField) {
+            inputField.value = decodedText.trim(); // QR से मिला नंबर
+        }
+
+        // 3. कैमरा बंद करो
+        html5QrcodeScanner.clear();
+        readerDiv.style.display = 'none';
+
+        // 4. तुरंत वेरीफाई करो (Auto Verify)
+        if (typeof window.verifyGatePass === 'function') {
+            console.log("🚀 Auto verifying scanned bill...");
+            window.verifyGatePass();
+        } else {
+            alert("✅ Scanned: " + decodedText + "\n(Verify function not found)");
+        }
+    }
+
+    function onScanFailure(error) {
+        // स्कैनिंग के दौरान एरर को इग्नोर करें (वरना कंसोल भर जाएगा)
+    }
+}
+
+// ==========================================
+// 🛡️ ULTRA 3D GUARD DASHBOARD (All Features + Guard Icon)
+// ==========================================
+
+// 1. डैशबोर्ड रेंडरर (3D Design + Guard Icon + Fixed Result)
+window.renderGuardDashboard = function() {
+    const user = JSON.parse(localStorage.getItem('authUser') || '{}');
+    let sName = user.shopName || user.shop_name || 'MY SHOP';
+    let sId = user.shop_id || user.shopId || user.id || '??';
+
+    // 3D Button & Guard Icon CSS
+    const style = document.createElement('style');
+    style.innerHTML = `
+        /* 3D PANIC BUTTON STYLE */
+        .panic-3d-btn {
+            width: 100%; padding: 20px; font-size: 22px; font-weight: 900;
+            color: white; background: linear-gradient(to bottom, #ff4d4d, #cc0000);
+            border: none; border-radius: 15px;
+            box-shadow: 0 8px 0 #8b0000, 0 15px 20px rgba(0,0,0,0.4);
+            transition: all 0.1s ease; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; position: relative; top: 0;
+        }
+        /* जब बटन दबेगा (ACTIVE STATE) */
+        .panic-3d-btn:active, .panic-pressed {
+            box-shadow: 0 0 0 #8b0000, 0 0 0 rgba(0,0,0,0); top: 8px; background: #b30000;
+        }
+        /* GUARD ICON PULSE ANIMATION */
+        .guard-icon-pulse {
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 193, 7, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    document.body.innerHTML = `
+        <div style="background: linear-gradient(135deg, #141E30, #243B55); min-height: 100vh; font-family: 'Segoe UI', sans-serif; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            
+            <div style="text-align: center; margin-bottom: 25px; color: white;">
+                <div style="position: relative; display: inline-block;">
+                    <img src="https://cdn-icons-png.flaticon.com/512/1995/1995515.png" 
+                         class="guard-icon-pulse"
+                         style="width: 100px; height: 100px; border: 4px solid #ffc107; border-radius: 50%; padding: 5px; background: white; margin-bottom: 10px;">
+                    <div style="position: absolute; bottom: 15px; right: 0; background: #28a745; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white;"></div>
+                </div>
+                <h2 style="margin: 0; font-weight: bold; color: #ffc107; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${sName}</h2>
+                <div style="margin-top: 5px;">
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 14px; border: 1px solid rgba(255,255,255,0.3);">
+                        <i class="fas fa-shield-alt"></i> ID: ${sId}
+                    </span>
+                </div>
+            </div>
+
+            <div style="width: 100%; max-width: 400px; margin-bottom: 20px;">
+                <div id="guard-reader" style="display: none; border: 4px solid #ffc107; border-radius: 15px; overflow: hidden; margin-bottom: 10px;"></div>
+                <button onclick="window.startGuardScanner()" style="width: 100%; padding: 15px; background: #ffc107; border: none; border-radius: 12px; font-weight: bold; font-size: 18px; color: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    📷 SCAN QR CODE
+                </button>
+            </div>
+
+            <div style="width: 100%; max-width: 400px; margin-bottom: 30px;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="sec-bill-input" placeholder="Enter Bill No." style="flex: 1; padding: 15px; border: none; border-radius: 10px; font-weight: bold; text-align: center; font-size: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+                    <button onclick="verifyGatePass()" style="padding: 12px 25px; background: #007bff; color: white; border: none; border-radius: 10px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">CHECK</button>
+                </div>
+                
+                <div id="sec-result" style="text-align: center; margin-top: 15px; font-weight: bold; color: white; min-height: 20px;"></div>
+            </div>
+
+            <div style="width: 100%; max-width: 400px;">
+                <button id="panic-btn" class="panic-3d-btn" onclick="triggerSecurityAlert()">
+                    🚨 PANIC ALERT
+                </button>
+                <p style="text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 15px;">Press ONLY in Emergency</p>
+            </div>
+
+            <button onclick="fullLogout()" style="margin-top: 30px; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 20px; border-radius: 20px;">Logout</button>
+        </div>
+    `;
+};
+
+// 2. पैनिक बटन लॉजिक (Sound + Feel + Popup)
+window.triggerSecurityAlert = async function() {
+    const btn = document.getElementById('panic-btn');
+    
+    // 🔥 STEP 1: MECHANICAL CLICK SOUND
+    new Audio('https://www.soundjay.com/buttons/sounds/button-16.mp3').play().catch(e=>{});
+
+    // 🔥 STEP 2: PHYSICAL PRESS EFFECT
+    if(btn) {
+        btn.classList.add('panic-pressed'); 
+        btn.innerHTML = '⚡ SENDING...';
+        btn.disabled = true;
+    }
+
+    try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch('https://dukan-pro-ultimate.onrender.com/api/security/trigger-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ location: 'Main Gate (Guard)', type: 'THEFT' })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // ✅ STEP 3: SUCCESS POPUP
+            new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(e=>{});
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: '✅ ADMIN NOTIFIED!',
+                    text: 'Alert has been sent successfully.',
+                    icon: 'success',
+                    background: '#141E30',
+                    color: 'white',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                alert("✅ ADMIN NOTIFIED! Alert Sent.");
+            }
+
+            if(btn) {
+                btn.innerHTML = '✅ SENT';
+                btn.style.background = '#28a745';
+                btn.style.boxShadow = '0 8px 0 #1e7e34';
+            }
+
+            setTimeout(() => {
+                if(btn) {
+                    btn.classList.remove('panic-pressed');
+                    btn.innerHTML = '🚨 PANIC ALERT';
+                    btn.style.background = ''; 
+                    btn.style.boxShadow = '';
+                    btn.disabled = false;
+                }
+            }, 3000);
+
+        } else {
+            throw new Error("Server Failed");
+        }
+    } catch(e) {
+        alert("⚠️ Network Error! Alert NOT Sent.");
+        if(btn) {
+            btn.classList.remove('panic-pressed');
+            btn.innerHTML = '🚨 PANIC ALERT';
+            btn.disabled = false;
+        }
+    }
+};
+
+// Start Dashboard if Guard
+if (localStorage.getItem('authToken') && JSON.parse(localStorage.getItem('authUser') || '{}').role === 'guard') {
+    setTimeout(window.renderGuardDashboard, 500);
+}
+
+
+</script>
 </body>
 </html>
 
