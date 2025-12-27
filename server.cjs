@@ -3,7 +3,6 @@
 // यह कोड JWT, Bcrypt और PostgreSQL के साथ एक सुरक्षित और मल्टी-टेनेंट सर्वर लागू करता है।
 // सभी डेटा एक्सेस 'shop_id' द्वारा सीमित (scoped) है।
 // -----------------------------------------------------------------------------
-
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -21,13 +20,11 @@ const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर क�
 const app = express();
 
 app.use(cors({
-    origin: true, // '*' ki jagah 'true' likhein (Ye magic fix hai)
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.options('*', cors());
-
 
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
