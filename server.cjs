@@ -3986,13 +3986,17 @@ app.get('/', (req, res) => {
 // 🚀 FIX: टाइमआउट को 120 सेकंड (2 मिनट) तक बढ़ाएँ
 server.timeout = 120000; 
 server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा अधिक रखें
+ // --- 🚀 WEBSOCKET FIX (Sirf itna rakho) ---
+wss = new WebSocketServer({ noServer: true }); 
 
-// 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
-const express = require('express');
-// ... बाकी require ...
-const { WebSocketServer } = require('ws');
-let wss; // 👈 इसे 'let' रखें ताकि नीचे बदल सकें
-
+server.on('upgrade', (request, socket, head) => {
+    const { pathname } = new URL(request.url, `http://${request.headers.host}`);
+    if (!pathname.startsWith('/socket.io/')) {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    }
+});
 // [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
 
 // 3. पेयरिंग के लिए कनेक्शन स्टोर करें
