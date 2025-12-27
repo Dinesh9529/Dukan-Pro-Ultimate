@@ -7462,22 +7462,21 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 // ==========================================
-// ✅ INVOICE VERIFICATION API (With Double Check Prevention)
+// ✅ FINAL INVOICE API (Fixed Price & Double Check)
 // ==========================================
 app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    
-    // Shop ID टोकन से लो (ताकि दूसरी दुकान का बिल न खुले)
     const shopId = req.shopId || (req.user && req.user.shop_id);
 
     try {
-        // 1. बिल और आइटम्स को एक साथ लाओ
+        // 1. बिल और आइटम्स लाओ
+        // ध्यान दें: यहाँ हम 'sale_price' को 'price' नाम दे रहे हैं ताकि frontend समझ सके
         const invoiceRes = await pool.query(
             `SELECT s.*, 
                 (SELECT json_agg(json_build_object(
                     'item_name', p.name, 
                     'quantity', si.quantity,
-                    'price', si.price
+                    'price', si.sale_price   -- 👈 यह line आपके डेटा (630) को उठाएगी
                  )) 
                  FROM sale_items si 
                  JOIN products p ON si.product_id = p.id 
@@ -7487,34 +7486,29 @@ app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
             [id, shopId]
         );
         
-        // अगर बिल नहीं मिला
         if (invoiceRes.rows.length === 0) {
             return res.json({ success: false, message: "Bill not found" });
         }
 
         const bill = invoiceRes.rows[0];
 
-        // 🛑 DOUBLE CHECK LOGIC (सबसे जरूरी हिस्सा)
-        // अगर is_checked पहले से TRUE है, तो बता दो
+        // 🛑 2. DOUBLE CHECK LOGIC (यह कोड पहले गायब था)
         if (bill.is_checked === true) {
-            console.log(`⚠️ Bill #${id} is already verified!`);
-            return res.json({ 
-                success: true, 
-                alreadyChecked: true, // Frontend को बताओ कि यह पुराना है
-                invoice: bill 
-            });
+            console.log(`⚠️ Bill #${id} is OLD/USED.`);
+            // यहाँ हम frontend को बता रहे हैं कि "alreadyChecked: true" है
+            return res.json({ success: true, alreadyChecked: true, invoice: bill });
         }
 
-        // ✅ FIRST TIME CHECK: अब इसे डेटाबेस में 'TRUE' मार्क करो
+        // ✅ 3. FIRST TIME (FRESH)
+        // बिल को "USED" मार्क करें
         await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
-        console.log(`✅ Bill #${id} verified successfully.`);
-
-        // Frontend को फ्रेश बिल भेजो
+        
+        // frontend को बता रहे हैं कि "alreadyChecked: false" है
         res.json({ success: true, alreadyChecked: false, invoice: bill });
 
-    } catch (err) { 
+    } catch (err) {
         console.error("Invoice Error:", err);
-        res.status(500).json({ success: false }); 
+        res.status(500).json({ success: false });
     }
 });
 
