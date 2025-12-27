@@ -1699,42 +1699,28 @@ app.post('/api/login', async (req, res) => {
 
         // [✅ FIXED LOGIN CODE]
 // --- Step 5: Token Payload ---
-// [🛠️ FIX START] - Shop Data और Business Type सही से निकालें
-        const shopResult = await pool.query('SELECT * FROM shops WHERE id = $1', [user.shop_id]);
-        const shop = shopResult.rows[0];
-        
-        // अगर शॉप नहीं मिली, तो डिफॉल्ट वैल्यूज
-        const businessType = shop ? shop.business_type : 'GENERAL';
-        const shopPlanType = shop ? shop.plan_type : 'FREE';
-        const shopExpiryDate = shop ? shop.license_expiry_date : null;
-        const shopAddOns = shop ? shop.add_ons : {};
-        // [🛠️ FIX END]
+const tokenUser = {
+    id: user.id,
+    email: user.email,
+    
+    // 👇 ये दोनों लाइनें सबसे जरूरी हैं (Front & Back दोनों के लिए)
+    shop_id: user.shop_id,  // Frontend के लिए (ताकि 33 की जगह सही ID दिखे)
+    shopId: user.shop_id,   // Backend के लिए
 
-        // [✅ YOUR FIXED TOKEN PAYLOAD]
-        const tokenUser = {
-            id: user.id,
-            email: user.email,
-            mobile: user.mobile,
-            
-            // IDs
-            shopId: user.shop_id,   
-            shop_id: user.shop_id, 
+    name: user.name,
+    mobile: user.mobile,
+    role: user.role,
+    shopName: user.shop_name,
+    licenseExpiryDate: shopExpiryDate,
+    status: user.status,
+    plan_type: shopPlanType,
+    add_ons: shopAddOns,
+    business_type: businessType, 
+    businessType: businessType
+};
 
-            // Names
-            name: user.name,
-            shopName: shop ? shop.shop_name : user.shop_name,  // Shop Table से नाम लें
-            shop_name: shop ? shop.shop_name : user.shop_name, 
-            
-            role: user.role,
-            licenseExpiryDate: shopExpiryDate,
-            status: user.status,
-            plan_type: shopPlanType,
-            add_ons: shopAddOns,
-            businessType: businessType, // अब यह खाली नहीं होगा
-            business_type: businessType
-        };
-
-        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
+// 🔴 यहाँ पहले 'secret_key' लिखा था, उसे हटाकर JWT_SECRET करें
+const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
         // --- Step 6: Check SHOP's License Expiry ---
         const expiryDate = shopExpiryDate ? new Date(shopExpiryDate) : null;
         const currentDate = new Date();
