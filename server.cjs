@@ -32,15 +32,16 @@ const io = require('socket.io')(server, {
 // --- 🚀 OLD WEBSOCKET (Scanner) SETUP ---
 // 2. FIXED: यहाँ से 'const' हटा दिया है क्योंकि 'wss' ऊपर डिक्लेअर हो चुका है
 wss = new WebSocketServer({ noServer: true }); 
-
 // 🛡️ Traffic Police: Socket.io और WS के बीच रास्ता साफ करना
 server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url, `http://${request.headers.host}`).pathname;
+    // ✅ इसे इस तरह लिखें (पहले वाले में .pathname दो बार हो गया था)
+    const parsedUrl = new URL(request.url, `http://${request.headers.host}`);
+    const pathname = parsedUrl.pathname;
 
-    if (pathname.startsWith('/socket.io/')) {
+    if (pathname && pathname.startsWith('/socket.io/')) {
         // Socket.io इसे खुद संभाल लेगा
-    } else {
-        // पुराना WS इसे संभालेगा
+    } else if (wss) {
+        // पुराना WS (Scanner) इसे संभालेगा
         wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request);
         });
