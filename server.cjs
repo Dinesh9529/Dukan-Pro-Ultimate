@@ -3984,7 +3984,7 @@ server.timeout = 120000;
 server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा अधिक रखें
 
 // 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
-const wss = new WebSocketServer({ server: server });
+wss = new WebSocketServer({ noServer: true });
 
 // [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
 
