@@ -7710,9 +7710,8 @@ app.post('/api/security/theft-detection', async (req, res) => {
 
 
 
-
 createTables().then(() => {
-    // हम सीधे 'server' का उपयोग करेंगे जिसे हमने ऊपर डिक्लेअर किया है
+    // 🚀 यहाँ बदलाव करें
     server.listen(PORT, () => {
         console.log(`\n🎉 Server is running securely on port ${PORT}`);
         console.log(`🌐 Live URL: https://dukan-pro-ultimate.onrender.com`); 
@@ -7721,8 +7720,13 @@ createTables().then(() => {
         console.log('🔒 Security: JWT & Multi-tenancy Enabled');
         console.log('📢 Alert System: Real-time Broadcasting Ready\n');
     });
+
+    // ✅ ये 3 लाइनें यहाँ चिपका दें (server.listen के ठीक बाद)
+    server.timeout = 240000;              
+    server.keepAliveTimeout = 245000;     
+    server.headersTimeout = 250000;       
+
 }).catch(error => {
     console.error('❌ CRITICAL ERROR: Database or Server failed to start:', error.message);
-    // 5 सेकंड का समय दें ताकि आप Render के Logs में एरर पढ़ सकें
     setTimeout(() => { process.exit(1); }, 5000); 
 });
