@@ -12,19 +12,28 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
-// [ यह नया कोड यहाँ जोड़ें ]
-// --- 🚀 WEBSOCKET सेटअप START ---
-const http = require('http'); // 1. HTTP सर्वर की आवश्यकता
-const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर की आवश्यकता
-// --- 🚀 WEBSOCKET सेटअप END ---
+
 const app = express();
 
+// --- 🚀 REAL-TIME SETUP (Socket.io) ---
+// हमने 'http' को सिर्फ एक बार बनाया है और उसे 'app' से जोड़ा है
+const server = require('http').createServer(app); 
+const io = require('socket.io')(server, {
+    cors: {
+        origin: "*", 
+        methods: ["GET", "POST"]
+    }
+});
+// --- 🚀 REAL-TIME SETUP END ---
+
+// CORS Middleware
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.options('*', cors());
+app.use(express.json()); // ये लाइन पक्का रखें ताकि JSON डेटा पढ़ सकें
 
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
@@ -7621,18 +7630,75 @@ app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
     }
 });
 
-// Start the server after ensuring database tables are ready
+// 🚨 चोरी पकड़ने वाली API
+app.post('/api/security/theft-detection', async (req, res) => {
+    const { gate_id, tag_id, photo_url } = req.body;
+
+    try {
+        // 1. डेटाबेस में रिकॉर्ड सेव करें
+        const result = await pool.query(
+            `INSERT INTO theft_alerts (gate_id, tag_id, photo_url) VALUES ($1, $2, $3) RETURNING *`,
+            [gate_id, tag_id, photo_url]
+        );
+
+        console.log(`🚨 ALERT: Theft detected at Gate ${gate_id}!`);
+
+        // 2. यहाँ से हम Socket.io का इस्तेमाल करके गार्ड की स्क्रीन पर तुरंत फोटो भेज सकते हैं
+        // अभी के लिए हम डेटाबेस में सेव कर रहे हैं।
+        res.json({ success: true, message: "Alert Logged", data: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false });
+    }
+});
+
+
+// 🚨 चोरी पकड़ने वाली API (RFID Gate इसे कॉल करेगा)
+app.post('/api/security/theft-detection', async (req, res) => {
+    const { gate_id, tag_id, photo_url } = req.body;
+
+    try {
+        // DB में सेव करें
+        await pool.query(
+            `INSERT INTO theft_alerts (gate_id, tag_id, photo_url) VALUES ($1, $2, $3)`,
+            [gate_id, tag_id, photo_url]
+        );
+
+        // 🔥 BROADCAST: सब कनेक्टेड डिवाइस को अलर्ट भेजें
+        io.emit('NEW_THEFT_ALERT', {
+            photo_url: photo_url,
+            tag_id: tag_id,
+            gate_id: gate_id,
+            time: new Date().toLocaleTimeString()
+        });
+
+        res.json({ success: true, message: "Broadcasted to all devices" });
+    } catch (err) {
+        console.error("Theft API Error:", err);
+        res.status(500).json({ success: false });
+    }
+});
+
+
+
+
+
+
+
+const PORT = process.env.PORT || 3000;
+
 createTables().then(() => {
-    // 4. app.listen की जगह server.listen का उपयोग करें
+    // हम सीधे 'server' का उपयोग करेंगे जिसे हमने ऊपर डिक्लेअर किया है
     server.listen(PORT, () => {
         console.log(`\n🎉 Server is running securely on port ${PORT}`);
-        console.log(`🌐 API Endpoint: https://dukan-pro-ultimate.onrender.com:${PORT}`); 
-        console.log('🚀 WebSocket Server is running on the same port.');
+        console.log(`🌐 Live URL: https://dukan-pro-ultimate.onrender.com`); 
+        console.log('🚀 WebSocket Server (Socket.io) is ACTIVE');
         console.log('--------------------------------------------------');
-        console.log('🔒 Authentication: JWT is required for all data routes.');
-        console.log('🔑 Multi-tenancy: All data is scoped by shop_id.\n');
+        console.log('🔒 Security: JWT & Multi-tenancy Enabled');
+        console.log('📢 Alert System: Real-time Broadcasting Ready\n');
     });
 }).catch(error => {
-    console.error('Failed to initialize database and start server:', error.message);
-    process.exit(1);
+    console.error('❌ CRITICAL ERROR: Database or Server failed to start:', error.message);
+    // 5 सेकंड का समय दें ताकि आप Render के Logs में एरर पढ़ सकें
+    setTimeout(() => { process.exit(1); }, 5000); 
 });
