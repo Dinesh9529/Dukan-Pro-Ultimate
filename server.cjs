@@ -17,15 +17,32 @@ const app = express();
 const { WebSocketServer } = require('ws');
 
 // --- 🚀 REAL-TIME SETUP (Socket.io) ---
-// हमने 'http' को सिर्फ एक बार बनाया है और उसे 'app' से जोड़ा है
 const server = require('http').createServer(app); 
 const io = require('socket.io')(server, {
     cors: {
         origin: "*", 
         methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling'] // बेहतर कनेक्टिविटी के लिए
+});
+
+// --- 🚀 OLD WEBSOCKET (Scanner) SETUP ---
+// यहाँ 'server' पास नहीं करना है ताकि Socket.io से टकराव न हो
+const wss = new WebSocketServer({ noServer: true }); 
+
+// 🛡️ FIXED: Socket.io और WS दोनों को एक साथ चलाने का सही तरीका
+server.on('upgrade', (request, socket, head) => {
+    const { pathname } = new URL(request.url, `http://${request.headers.host}`);
+
+    if (pathname.startsWith('/socket.io/')) {
+        // इसे Socket.io हैंडल करेगा (अपने आप)
+    } else {
+        // इसे पुराना WS (Scanner) हैंडल करेगा
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
     }
 });
-// --- 🚀 REAL-TIME SETUP END ---
 
 // CORS Middleware
 app.use(cors({
@@ -34,8 +51,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.options('*', cors());
-app.use(express.json()); // ये लाइन पक्का रखें ताकि JSON डेटा पढ़ सकें
-
+app.use(express.json());
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
 // ==========================================
