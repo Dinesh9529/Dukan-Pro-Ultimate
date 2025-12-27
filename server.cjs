@@ -7683,10 +7683,6 @@ app.post('/api/security/theft-detection', async (req, res) => {
 
 
 
-// सिर्फ 'const' हटा दो, क्योंकि PORT ऊपर पहले ही बन चुका है
-if (typeof PORT === 'undefined') {
-    var PORT = process.env.PORT || 3000;
-}
 createTables().then(() => {
     // हम सीधे 'server' का उपयोग करेंगे जिसे हमने ऊपर डिक्लेअर किया है
     server.listen(PORT, () => {
