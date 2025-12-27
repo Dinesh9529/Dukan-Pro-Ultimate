@@ -7468,59 +7468,7 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 
-app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
-    const { id } = req.params;
-    const shopId = req.user.shopId;
-
-    try {
-        // 1. बिल का डेटा निकालें
-        const invoiceRes = await pool.query(
-            `SELECT * FROM invoices WHERE id = $1 AND shop_id = $2`, 
-            [id, shopId]
-        );
-
-        if (invoiceRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "Bill not found" });
-        }
-
-        const invoice = invoiceRes.rows[0];
-
-        // 2. आइटम्स निकालें
-        const itemsRes = await pool.query(
-            `SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`,
-            [id]
-        );
-
-        // 3. 🚩 लूप रोकने वाला लॉजिक (Check if already scanned)
-        if (invoice.is_scanned === true) {
-            return res.json({
-                success: true,
-                alreadyChecked: true, // Frontend को बताएगा कि बिल इस्तेमाल हो चुका है
-                invoice: invoice,
-                items: itemsRes.rows,
-                total_amount: invoice.total_amount
-            });
-        }
-
-        // 4. 📝 बिल को 'TRUE' मार्क करें (Database Update)
-        // यह लाइन सबसे जरूरी है, इसे ध्यान से लिखें
-        await pool.query(`UPDATE invoices SET is_scanned = true WHERE id = $1`, [id]);
-
-        // 5. पहली बार वेरिफिकेशन का रिस्पॉन्स
-        res.json({
-            success: true,
-            alreadyChecked: false,
-            invoice: { ...invoice, is_scanned: true },
-            items: itemsRes.rows,
-            total_amount: invoice.total_amount
-        });
-
-    } catch (err) {
-        console.error("Database Error:", err);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-
+app.get('/api/invoices/:id'
 // ==========================================
 // ✅ PROFESSIONAL CHECK ALERT API (For All Shops)
 // ==========================================
