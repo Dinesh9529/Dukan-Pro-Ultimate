@@ -21,12 +21,11 @@ const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर क�
 const app = express();
 
 app.use(cors({
-    origin: '*',
+    origin: true, // '*' ki jagah 'true' likhein (Ye magic fix hai)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
-
 app.options('*', cors());
 
 
