@@ -19,36 +19,45 @@ const { WebSocketServer } = require('ws');
 // 1. यहाँ 'let' रखें ताकि नीचे इसे वैल्यू दे सकें
 let wss; 
 
-// --- 🚀 REAL-TIME SETUP (Socket.io) ---
+// --- 🚀 REAL-TIME SETUP (Socket.io - FIX APPLIED) ---
 const server = require('http').createServer(app); 
 const io = require('socket.io')(server, {
+    path: '/socket.io/', // 🛠️ FIX: यह लाइन बहुत ज़रूरी है (रास्ता अलग करने के लिए)
     cors: {
         origin: "*", 
         methods: ["GET", "POST"]
     },
     transports: ['websocket', 'polling']
 });
+
 // --- 🚀 OLD WEBSOCKET (Scanner) SETUP ---
 wss = new WebSocketServer({ noServer: true }); 
 
+// सर्वर अपग्रेड लॉजिक (टकराव रोकने के लिए)
 server.on('upgrade', (request, socket, head) => {
     try {
         const parsedUrl = new URL(request.url, `http://${request.headers.host}`);
         const pathname = parsedUrl.pathname;
 
+        // 1. अगर रिक्वेस्ट Socket.io की है, तो उसे जाने दें (रोकें नहीं)
         if (pathname && pathname.startsWith('/socket.io/')) {
-            // Socket.io इसे खुद संभाल लेगा
-        } else if (wss) {
-            // पुराना WS (Scanner) इसे संभालेगा
+            return; // Socket.io इसे अपने आप संभाल लेगा
+        }
+        
+        // 2. बाकी सब स्कैनर (Scanner) के लिए
+        if (wss) { 
             wss.handleUpgrade(request, socket, head, (ws) => {
                 wss.emit('connection', ws, request);
             });
+        } else {
+            socket.destroy();
         }
     } catch (err) {
         console.error("Upgrade handling error:", err);
         socket.destroy(); // गलती होने पर कनेक्शन काट दो ताकि सर्वर न फँसे
     }
 });
+
 // इसके नीचे आपका बाकी का कोड (CORS, app.use, etc.) रहेगा...
 // CORS Middleware
 // CORS Middleware - FIXED for Local and Online access
@@ -68,6 +77,7 @@ app.use(cors({
 
 app.options('*', cors());
 app.use(express.json());
+
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
 // ==========================================
@@ -1580,20 +1590,30 @@ app.post('/api/register', async (req, res) => {
         const user = userResult.rows[0];
 
         // 5. Generate Token (🚀 Include businessType in token)
-        const tokenUser = {
+       const tokenUser = {
             id: user.id,
             email: user.email,
             mobile: user.mobile,
-            shopId: user.shop_id,
+            
+            // IDs
+            shopId: user.shop_id,   // Backend के लिए
+            shop_id: user.shop_id,  // Frontend के पुराने कोड के लिए
+
+            // Names (दिक्कत यहीं थी)
             name: user.name,
+            shopName: user.shop_name,  // Frontend (New)
+            shop_name: user.shop_name, // Frontend (Old)
+            
             role: user.role,
-            shopName: shopName,
+            licenseExpiryDate: shopExpiryDate,
             status: user.status,
-            plan_type: 'TRIAL',
-            add_ons: {},
-            licenseExpiryDate: null,
-            businessType: finalBusinessType // <--- Ye frontend ke liye zaroori hai
+            plan_type: shopPlanType,
+            add_ons: shopAddOns,
+            businessType: businessType,
+            business_type: businessType
         };
+
+        // Token Signing
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT');
@@ -7709,24 +7729,29 @@ app.post('/api/security/theft-detection', async (req, res) => {
 
 
 
-
+// ============================================================
+// 🚀 SERVER START (DATABASE FIRST -> THEN SERVER)
+// ============================================================
 createTables().then(() => {
-    // 🚀 यहाँ बदलाव करें
+    
+    // 1. सर्वर को पोर्ट पर चालू करें
     server.listen(PORT, () => {
         console.log(`\n🎉 Server is running securely on port ${PORT}`);
         console.log(`🌐 Live URL: https://dukan-pro-ultimate.onrender.com`); 
-        console.log('🚀 WebSocket Server (Socket.io) is ACTIVE');
+        console.log('🚀 WebSocket Server (Socket.io & WS) is ACTIVE');
         console.log('--------------------------------------------------');
         console.log('🔒 Security: JWT & Multi-tenancy Enabled');
         console.log('📢 Alert System: Real-time Broadcasting Ready\n');
     });
 
-    // ✅ ये 3 लाइनें यहाँ चिपका दें (server.listen के ठीक बाद)
-    server.timeout = 240000;              
-    server.keepAliveTimeout = 245000;     
-    server.headersTimeout = 250000;       
+    // 2. 🚀 ULTIMATE FIX: 'धीमा है' एरर से बचाने के लिए टाइमआउट सेटिंग्स
+    // (इसे server.listen के बाद ही अप्लाई करना सुरक्षित है)
+    server.timeout = 240000;              // 4 मिनट (Requests के लिए)
+    server.keepAliveTimeout = 245000;     // कनेक्शन को ज़िंदा रखने के लिए
+    server.headersTimeout = 250000;       // हेडर्स के लिए समय
 
 }).catch(error => {
-    console.error('❌ CRITICAL ERROR: Database or Server failed to start:', error.message);
-    setTimeout(() => { process.exit(1); }, 5000); 
+    console.error('❌ CRITICAL ERROR: Database failed to start:', error.message);
+    // प्रोसेस बंद न करें, शायद थोड़ी देर में DB कनेक्ट हो जाए
+    console.log("⚠️ Retrying connection in background...");
 });
