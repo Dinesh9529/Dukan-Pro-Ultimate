@@ -16,6 +16,9 @@ require('dotenv').config();
 const app = express();
 const { WebSocketServer } = require('ws');
 
+// 1. यहाँ 'let' रखें ताकि नीचे इसे वैल्यू दे सकें
+let wss; 
+
 // --- 🚀 REAL-TIME SETUP (Socket.io) ---
 const server = require('http').createServer(app); 
 const io = require('socket.io')(server, {
@@ -23,27 +26,28 @@ const io = require('socket.io')(server, {
         origin: "*", 
         methods: ["GET", "POST"]
     },
-    transports: ['websocket', 'polling'] // बेहतर कनेक्टिविटी के लिए
+    transports: ['websocket', 'polling']
 });
 
 // --- 🚀 OLD WEBSOCKET (Scanner) SETUP ---
-// यहाँ 'server' पास नहीं करना है ताकि Socket.io से टकराव न हो
-const wss = new WebSocketServer({ noServer: true }); 
+// 2. FIXED: यहाँ से 'const' हटा दिया है क्योंकि 'wss' ऊपर डिक्लेअर हो चुका है
+wss = new WebSocketServer({ noServer: true }); 
 
-// 🛡️ FIXED: Socket.io और WS दोनों को एक साथ चलाने का सही तरीका
+// 🛡️ Traffic Police: Socket.io और WS के बीच रास्ता साफ करना
 server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url, `http://${request.headers.host}`);
+    const { pathname } = new URL(request.url, `http://${request.headers.host}`).pathname;
 
     if (pathname.startsWith('/socket.io/')) {
-        // इसे Socket.io हैंडल करेगा (अपने आप)
+        // Socket.io इसे खुद संभाल लेगा
     } else {
-        // इसे पुराना WS (Scanner) हैंडल करेगा
+        // पुराना WS इसे संभालेगा
         wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request);
         });
     }
 });
 
+// इसके नीचे आपका बाकी का कोड (CORS, app.use, etc.) रहेगा...
 // CORS Middleware
 app.use(cors({
     origin: '*',
@@ -3984,7 +3988,10 @@ server.timeout = 120000;
 server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा अधिक रखें
 
 // 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
-wss = new WebSocketServer({ noServer: true });
+const express = require('express');
+// ... बाकी require ...
+const { WebSocketServer } = require('ws');
+let wss; // 👈 इसे 'let' रखें ताकि नीचे बदल सकें
 
 // [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
 
