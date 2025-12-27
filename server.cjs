@@ -28,26 +28,27 @@ const io = require('socket.io')(server, {
     },
     transports: ['websocket', 'polling']
 });
-
 // --- 🚀 OLD WEBSOCKET (Scanner) SETUP ---
-// 2. FIXED: यहाँ से 'const' हटा दिया है क्योंकि 'wss' ऊपर डिक्लेअर हो चुका है
 wss = new WebSocketServer({ noServer: true }); 
-// 🛡️ Traffic Police: Socket.io और WS के बीच रास्ता साफ करना
-server.on('upgrade', (request, socket, head) => {
-    // ✅ इसे इस तरह लिखें (पहले वाले में .pathname दो बार हो गया था)
-    const parsedUrl = new URL(request.url, `http://${request.headers.host}`);
-    const pathname = parsedUrl.pathname;
 
-    if (pathname && pathname.startsWith('/socket.io/')) {
-        // Socket.io इसे खुद संभाल लेगा
-    } else if (wss) {
-        // पुराना WS (Scanner) इसे संभालेगा
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-        });
+server.on('upgrade', (request, socket, head) => {
+    try {
+        const parsedUrl = new URL(request.url, `http://${request.headers.host}`);
+        const pathname = parsedUrl.pathname;
+
+        if (pathname && pathname.startsWith('/socket.io/')) {
+            // Socket.io इसे खुद संभाल लेगा
+        } else if (wss) {
+            // पुराना WS (Scanner) इसे संभालेगा
+            wss.handleUpgrade(request, socket, head, (ws) => {
+                wss.emit('connection', ws, request);
+            });
+        }
+    } catch (err) {
+        console.error("Upgrade handling error:", err);
+        socket.destroy(); // गलती होने पर कनेक्शन काट दो ताकि सर्वर न फँसे
     }
 });
-
 // इसके नीचे आपका बाकी का कोड (CORS, app.use, etc.) रहेगा...
 // CORS Middleware
 // CORS Middleware - FIXED for Local and Online access
@@ -3993,22 +3994,10 @@ app.get('/', (req, res) => {
 
 // --- 🚀 WEBSOCKET सर्वर लॉजिक START ---
 
-
-// 🚀 FIX: टाइमआउट को 120 सेकंड (2 मिनट) तक बढ़ाएँ
+// 🚀 FIX: टाइमआउट सेटअप
 server.timeout = 120000; 
-server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा अधिक रखें
- // --- 🚀 WEBSOCKET FIX (Sirf itna rakho) ---
-wss = new WebSocketServer({ noServer: true }); 
+server.keepAliveTimeout = 125000; 
 
-server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url, `http://${request.headers.host}`);
-    if (!pathname.startsWith('/socket.io/')) {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-        });
-    }
-});
-// [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
 
 // 3. पेयरिंग के लिए कनेक्शन स्टोर करें
 const pairingMap = new Map(); // pairCode -> posSocket
