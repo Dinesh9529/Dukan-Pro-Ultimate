@@ -7462,53 +7462,62 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
     }
 });
 // ==========================================
-// ✅ FINAL INVOICE API (Fixed Price & Double Check)
+// ✅ FINAL INVOICE API (CORRECTED - Uses 'invoices' table)
 // ==========================================
-app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
+app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
-    const shopId = req.shopId || (req.user && req.user.shop_id);
+    const shopId = req.shopId; // JWT middleware se shopId lein
 
     try {
-        // 1. बिल और आइटम्स लाओ
-        // ध्यान दें: यहाँ हम 'sale_price' को 'price' नाम दे रहे हैं ताकि frontend समझ सके
+        // 1. Bill (Invoice) Data layein
+        // 'total_amount' database mein hai [cite: 61]
         const invoiceRes = await pool.query(
-            `SELECT s.*, 
-                (SELECT json_agg(json_build_object(
-                    'item_name', p.name, 
-                    'quantity', si.quantity,
-                    'price', si.sale_price   -- 👈 यह line आपके डेटा (630) को उठाएगी
-                 )) 
-                 FROM sale_items si 
-                 JOIN products p ON si.product_id = p.id 
-                 WHERE si.sale_id = s.id) as items
-             FROM sales s 
-             WHERE s.id = $1 AND s.shop_id = $2`,
+            `SELECT * FROM invoices WHERE id = $1 AND shop_id = $2`,
             [id, shopId]
         );
-        
+
         if (invoiceRes.rows.length === 0) {
             return res.json({ success: false, message: "Bill not found" });
         }
 
         const bill = invoiceRes.rows[0];
 
-        // 🛑 2. DOUBLE CHECK LOGIC (यह कोड पहले गायब था)
-        if (bill.is_checked === true) {
-            console.log(`⚠️ Bill #${id} is OLD/USED.`);
-            // यहाँ हम frontend को बता रहे हैं कि "alreadyChecked: true" है
-            return res.json({ success: true, alreadyChecked: true, invoice: bill });
+        // 2. Items Data layein
+        // 'invoice_items' table use karein [cite: 63]
+        const itemsRes = await pool.query(
+            `SELECT item_name, quantity, sale_price as price, total_amount as item_total 
+             FROM invoice_items 
+             WHERE invoice_id = $1`,
+            [id]
+        );
+
+        // 🛑 3. DOUBLE CHECK LOGIC (Loop Rokne ke liye)
+        // Hum 'is_scanned' flag check karenge [cite: 1334]
+        if (bill.is_scanned === true) {
+            console.log(`⚠️ Bill #${id} is already verified.`);
+            return res.json({ 
+                success: true, 
+                alreadyChecked: true, // Frontend is flag ko dekh kar loop rok dega
+                invoice: bill,
+                items: itemsRes.rows,
+                total_amount: bill.total_amount // Explicitly bhejein
+            });
         }
 
-        // ✅ 3. FIRST TIME (FRESH)
-        // बिल को "USED" मार्क करें
-        await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
-        
-        // frontend को बता रहे हैं कि "alreadyChecked: false" है
-        res.json({ success: true, alreadyChecked: false, invoice: bill });
+        // ✅ 4. FIRST TIME (FRESH)
+        // Agar verify nahi hua hai, to abhi mark na karein (Verification API karega)
+        // Ya agar ye sirf view ke liye hai, to data bhejein
+        res.json({ 
+            success: true, 
+            alreadyChecked: false, 
+            invoice: bill,
+            items: itemsRes.rows, 
+            total_amount: bill.total_amount // Yeh 'undefined' fix karega
+        });
 
     } catch (err) {
-        console.error("Invoice Error:", err);
-        res.status(500).json({ success: false });
+        console.error("Invoice Error:", err.message);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
