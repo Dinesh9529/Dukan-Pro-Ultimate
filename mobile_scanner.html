@@ -73,7 +73,21 @@
         </div>
 
         <p class="text-center text-slate-500 text-xs mt-4">कैमरा बारकोड की ओर रखें</p>
-    </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-700">
+            <p class="text-slate-400 text-xs mb-2 text-center font-bold">मैनुअल बिल चेक करें</p>
+            <div class="flex gap-2">
+                <input type="text" id="sec-bill-input" placeholder="Bill ID डालें" 
+                    class="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-3 py-3 focus:outline-none focus:border-blue-500 text-center font-mono">
+                
+                <button id="checkBtn" onclick="manualVerify()" 
+                    class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-bold transition-colors whitespace-nowrap">
+                    Check
+                </button>
+            </div>
+            <div id="sec-result" class="mt-4 text-center min-h-[40px]"></div>
+        </div>
+        </div>
 
 <script>
     // --- CONFIGURATION ---
@@ -200,7 +214,7 @@
                 els.scanFeedback.innerText = decodedText;
                 els.scanFeedback.classList.add('text-green-400');
                 
-                // Send to Server
+                // Send to Server (For POS)
                 if (scannerSocket && scannerSocket.readyState === WebSocket.OPEN) {
                     scannerSocket.send(JSON.stringify({ type: 'SCAN_SKU', sku: decodedText }));
                 }
@@ -257,6 +271,76 @@
 
     // Auto Focus input on load
     window.onload = () => els.input.focus();
+
+    // ==========================================
+    // ✅ ADDED: Manual Verify & Fetch Logic
+    // ==========================================
+
+    // 1. Function to handle Verification (Called by Button)
+    async function onScanSuccess(decodedText, decodedResult) {
+        console.log("Checking Bill:", decodedText);
+        
+        const resultDiv = document.getElementById('sec-result');
+        if(resultDiv) resultDiv.innerHTML = '<div class="text-yellow-400 animate-pulse">Checking...</div>';
+
+        try {
+            // Updated Backend API Call Structure
+            const response = await fetch(`${BACKEND_URL}/api/invoices/${decodedText}`);
+            const data = await response.json();
+
+            if (data.success) {
+                // Price Display Logic
+                const totalAmount = data.total_amount || (data.invoice && data.invoice.total_amount) || 0;
+                
+                if (data.alreadyChecked) {
+                    // ❌ DUPLICATE
+                    if(resultDiv) resultDiv.innerHTML = `
+                        <div class="bg-red-500/20 border border-red-500 p-3 rounded-lg">
+                            <h2 class="text-red-500 font-bold text-xl">❌ ALREADY USED</h2>
+                            <p class="text-xs text-red-300">Bill #${decodedText}</p>
+                        </div>
+                    `;
+                    navigator.vibrate([200, 100, 200]); // Vibrate Alert
+                } else {
+                    // ✅ VERIFIED
+                    if(resultDiv) resultDiv.innerHTML = `
+                        <div class="bg-green-500/20 border border-green-500 p-3 rounded-lg">
+                            <h2 class="text-green-400 font-bold text-xl">✅ VERIFIED</h2>
+                            <div class="text-white text-lg mt-1">Amount: ₹${parseFloat(totalAmount).toFixed(2)}</div>
+                        </div>
+                    `;
+                }
+            } else {
+                // 🚫 NOT FOUND
+                if(resultDiv) resultDiv.innerHTML = `
+                    <div class="text-red-400 font-bold">❌ Bill Not Found</div>
+                `;
+            }
+        } catch (error) {
+            console.error(error);
+            if(resultDiv) resultDiv.innerHTML = '<div class="text-red-400">Server Error</div>';
+        }
+    }
+
+    // 2. Button Click Handler
+    function manualVerify() {
+        const inputField = document.getElementById('sec-bill-input'); 
+        
+        if (!inputField) {
+            alert("Error: Input box nahi mila");
+            return;
+        }
+
+        const billNo = inputField.value.trim();
+
+        if (!billNo) {
+            alert("Kripya Bill Number bharein!");
+            return;
+        }
+
+        // Logic call
+        onScanSuccess(billNo, null);
+    }
 
 </script>
 </body>
