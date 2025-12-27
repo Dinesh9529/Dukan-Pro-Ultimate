@@ -50,11 +50,21 @@ server.on('upgrade', (request, socket, head) => {
 
 // इसके नीचे आपका बाकी का कोड (CORS, app.use, etc.) रहेगा...
 // CORS Middleware
+// CORS Middleware - FIXED for Local and Online access
 app.use(cors({
-    origin: '*',
+    origin: function (origin, callback) {
+        // अगर origin null है (local file) या undefined है, तो इजाजत दें
+        if (!origin || origin === 'null' || origin === '*') {
+            callback(null, true);
+        } else {
+            callback(null, true);
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
+
 app.options('*', cors());
 app.use(express.json());
 // ==========================================
