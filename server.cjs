@@ -7569,11 +7569,10 @@ app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
     const shopId = req.user.shopId;
 
     try {
-        // 1. बिल का डेटा निकालें (सिर्फ वही कॉलम जो आपके पास मौजूद हैं)
+        // 🚀 STEP 1: Pehle row ko LOCK karo (FOR UPDATE)
+        // Isse dusri request tab tak ruki rahegi jab tak ye transaction khatam na ho
         const invoiceRes = await pool.query(
-            `SELECT id, total_amount, is_scanned, status, created_at, payment_mode 
-             FROM invoices 
-             WHERE id = $1 AND shop_id = $2`,
+            `SELECT * FROM invoices WHERE id = $1 AND shop_id = $2 FOR UPDATE`,
             [id, shopId]
         );
 
@@ -7583,34 +7582,35 @@ app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
 
         const invoice = invoiceRes.rows[0];
 
-        // 2. आइटम्स निकालें
-        const itemsRes = await pool.query(
-            `SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`,
-            [id]
-        );
-
-        // 3. 🚩 DOUBLE VERIFICATION CHECK (Isse 2 baar verify nahi hoga)
+        // 🚀 STEP 2: Ab status check karo
         if (invoice.is_scanned === true || String(invoice.is_scanned) === 'true') {
+            const itemsRes = await pool.query(`SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`, [id]);
             return res.json({
                 success: true,
-                alreadyChecked: true, // Frontend ko batao ki ye scanned hai
+                alreadyChecked: true,
                 invoice: invoice,
                 items: itemsRes.rows,
                 total_amount: invoice.total_amount
             });
         }
 
-        // 4. 📝 UPDATE DATABASE (Mark as Scanned)
-        const updateRes = await pool.query(
-            `UPDATE invoices SET is_scanned = true WHERE id = $1 AND shop_id = $2 RETURNING *`,
+        // 🚀 STEP 3: STATUS UPDATE (Response se PEHLE update karo)
+        await pool.query(
+            `UPDATE invoices SET is_scanned = true WHERE id = $1 AND shop_id = $2`,
             [id, shopId]
         );
 
-        // 5. SUCCESS RESPONSE
+        // 🚀 STEP 4: Items fetch karo
+        const itemsRes = await pool.query(
+            `SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`,
+            [id]
+        );
+
+        // SUCCESS RESPONSE
         res.json({
             success: true,
             alreadyChecked: false,
-            invoice: updateRes.rows[0],
+            invoice: { ...invoice, is_scanned: true },
             items: itemsRes.rows,
             total_amount: invoice.total_amount
         });
@@ -7620,7 +7620,6 @@ app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 });
-
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
