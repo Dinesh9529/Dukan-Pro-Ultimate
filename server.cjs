@@ -7564,15 +7564,16 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
 });
 
 
-// --- [FINAL] BILL VERIFICATION ROUTE ---
 app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
-    const shopId = req.user.shopId; // JWT Token से निकाला गया Shop ID
+    const shopId = req.user.shopId;
 
     try {
-        // 1. डेटाबेस से बिल की ताज़ा जानकारी निकालें
+        // 1. बिल का डेटा निकालें (सिर्फ वही कॉलम जो आपके पास मौजूद हैं)
         const invoiceRes = await pool.query(
-            `SELECT * FROM invoices WHERE id = $1 AND shop_id = $2`,
+            `SELECT id, total_amount, is_scanned, status, created_at, payment_mode 
+             FROM invoices 
+             WHERE id = $1 AND shop_id = $2`,
             [id, shopId]
         );
 
@@ -7582,47 +7583,43 @@ app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
 
         const invoice = invoiceRes.rows[0];
 
-        // 2. बिल से जुड़े आइटम्स निकालें (Database Columns: item_name, quantity, sale_price)
+        // 2. आइटम्स निकालें
         const itemsRes = await pool.query(
             `SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`,
             [id]
         );
 
-        // 3. 🚩 DOUBLE VERIFY CHECK (is_scanned को पक्का चेक करें)
-        // यह लाइन दोबारा बिल स्कैन होने से रोकेगी
+        // 3. 🚩 DOUBLE VERIFICATION CHECK (Isse 2 baar verify nahi hoga)
         if (invoice.is_scanned === true || String(invoice.is_scanned) === 'true') {
             return res.json({
                 success: true,
-                alreadyChecked: true, // Frontend इसी से 'Already Used' दिखाता है
+                alreadyChecked: true, // Frontend ko batao ki ye scanned hai
                 invoice: invoice,
                 items: itemsRes.rows,
                 total_amount: invoice.total_amount
             });
         }
 
-        // 4. 📝 UPDATE DATABASE (is_scanned = true)
-        // 'RETURNING *' का उपयोग ताज़ा डेटा के लिए किया गया है
+        // 4. 📝 UPDATE DATABASE (Mark as Scanned)
         const updateRes = await pool.query(
             `UPDATE invoices SET is_scanned = true WHERE id = $1 AND shop_id = $2 RETURNING *`,
             [id, shopId]
         );
 
-        console.log(`✅ Bill #${id} Verified and Marked as Scanned.`);
-
-        // 5. SUCCESS RESPONSE (पहली बार स्कैन होने पर)
+        // 5. SUCCESS RESPONSE
         res.json({
             success: true,
             alreadyChecked: false,
-            invoice: updateRes.rows[0], // ताज़ा अपडेटेड बिल भेजें
+            invoice: updateRes.rows[0],
             items: itemsRes.rows,
             total_amount: invoice.total_amount
         });
 
     } catch (err) {
-        console.error("❌ Database Error:", err);
+        console.error("Database Error:", err);
         res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-}); // <--- ब्रैकेट और सेमीकोलन बिल्कुल सही हैं
+});
 
 
 // Start the server after ensuring database tables are ready
