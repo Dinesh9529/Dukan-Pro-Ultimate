@@ -14,6 +14,7 @@ const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
+const { WebSocketServer } = require('ws');
 
 // --- 🚀 REAL-TIME SETUP (Socket.io) ---
 // हमने 'http' को सिर्फ एक बार बनाया है और उसे 'app' से जोड़ा है
