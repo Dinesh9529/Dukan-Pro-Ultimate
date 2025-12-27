@@ -20,6 +20,16 @@ const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर क�
 // --- 🚀 WEBSOCKET सेटअप END ---
 const app = express();
 
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
+app.options('*', cors());
+
+
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
 // ==========================================
