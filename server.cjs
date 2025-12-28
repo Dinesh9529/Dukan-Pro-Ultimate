@@ -7707,8 +7707,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
 
 
-// सर्वर स्टार्ट होते ही इसे चलाएं
-createMissingBillsTable();
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
