@@ -7701,7 +7701,47 @@ app.get('/api/dashboard/stats', async (req, res) => {
 });
 
 
+// ============================================================
+// 🛠️ EMERGENCY DATABASE FIX (Table बनाने के लिए)
+// ============================================================
+app.get('/api/fix-database', async (req, res) => {
+    try {
+        console.log("🛠️ Creating missing tables...");
 
+        // 1. BILLS Table बनाएँ
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bills (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER DEFAULT 1,
+                bill_no VARCHAR(50),
+                customer_name VARCHAR(100),
+                customer_mobile VARCHAR(20),
+                total_amount NUMERIC(10,2) DEFAULT 0,
+                discount NUMERIC(10,2) DEFAULT 0,
+                final_amount NUMERIC(10,2) DEFAULT 0,
+                payment_mode VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 2. BILL ITEMS Table बनाएँ
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bill_items (
+                id SERIAL PRIMARY KEY,
+                bill_id INTEGER REFERENCES bills(id),
+                item_name VARCHAR(255),
+                quantity INTEGER,
+                price NUMERIC(10,2),
+                total NUMERIC(10,2)
+            );
+        `);
+
+        res.send("✅ SUCCESS: 'bills' और 'bill_items' टेबल बन गई हैं! अब Dashboard चेक करें।");
+    } catch (e) {
+        console.error(e);
+        res.status(500).send("❌ ERROR: " + e.message);
+    }
+});
 
 
 // Start the server after ensuring database tables are ready
