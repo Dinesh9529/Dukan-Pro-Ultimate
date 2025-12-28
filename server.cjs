@@ -7666,10 +7666,12 @@ app.post('/api/rfid/trigger', (req, res) => {
 // 📊 DASHBOARD STATS API (Missing Link Fix)
 // इसे createTables() के ठीक ऊपर पेस्ट करें
 // ============================================================
+// ============================================================
+// 📊 DASHBOARD STATS API (Connected to OLD 'invoices' Table)
+// ============================================================
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
-        // 1. Token Check (Optional: अगर टोकन है तो shop_id निकालें)
-        let shop_id = 1; // Default
+        let shop_id = 1; 
         const authHeader = req.headers['authorization'];
         if (authHeader) {
             const token = authHeader.split(' ')[1];
@@ -7679,15 +7681,15 @@ app.get('/api/dashboard/stats', async (req, res) => {
             } catch(e) {}
         }
 
-        // 2. आज की बिक्री (Today's Sales) निकालें
+        // ✅ CHANGE: 'bills' को हटाकर 'invoices' कर दिया है
+        // अब यह आपके पुराने रजिस्टर से डेटा उठाएगा
         const todayRes = await pool.query(
-            `SELECT COALESCE(SUM(final_amount), 0) as total_sales, COUNT(*) as total_orders 
-             FROM bills 
+            `SELECT COALESCE(SUM(total_amount), 0) as total_sales, COUNT(*) as total_orders 
+             FROM invoices 
              WHERE shop_id = $1 AND created_at::date = CURRENT_DATE`,
             [shop_id]
         );
 
-        // 3. रिजल्ट भेजें
         res.json({
             total_sales: parseFloat(todayRes.rows[0].total_sales),
             total_orders: parseInt(todayRes.rows[0].total_orders),
@@ -7699,7 +7701,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
         res.status(500).json({ error: "Server Error" });
     }
 });
-
 
 // ============================================================
 // 🛠️ EMERGENCY DATABASE FIX (Table बनाने के लिए)
