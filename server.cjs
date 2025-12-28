@@ -7612,6 +7612,56 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
     }
 });
 
+// ============================================================
+// 🚨 1. RFID MACHINE API (सायरन बजाने के लिए)
+// ============================================================
+app.post('/api/rfid/alert', async (req, res) => {
+    try {
+        const { tag_id, gate_id } = req.body;
+        console.log("🚨 RFID THEFT DETECTED:", tag_id);
+
+        // 1. डेटाबेस में सेव करें
+        await pool.query(
+            `INSERT INTO security_logs (shop_id, event_type, description, created_at) 
+             VALUES ($1, $2, $3, NOW())`,
+            [1, 'THEFT_ALERT', `Unpaid Item Detected: ${tag_id} at ${gate_id}`, ] 
+            // नोट: shop_id 1 डमी है, अगर आपके पास मल्टी-शॉप है तो इसे डायनामिक करना होगा
+            // लेकिन RFID मशीन अक्सर शॉप ID नहीं भेजती, इसलिए अभी के लिए 1 ठीक है।
+        );
+
+        // 2. फ्रंटेंड को सायरन का आदेश भेजें
+        io.emit('SECURITY_ALERT', {
+            alert: {
+                location: gate_id || 'Main Gate',
+                tag: tag_id,
+                time: new Date()
+            }
+        });
+
+        res.json({ success: true, message: "Siren Triggered" });
+    } catch (e) {
+        console.error("RFID Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================
+// 📜 2. VIEW LOGS API (पुराने चोरों की लिस्ट देखने के लिए)
+// ============================================================
+app.post('/api/shop/security-history', async (req, res) => {
+    try {
+        // पिछले 50 रिकार्ड्स निकालो
+        const result = await pool.query(
+            `SELECT * FROM security_logs ORDER BY created_at DESC LIMIT 50`
+        );
+        res.json({ success: true, logs: result.rows });
+    } catch (e) {
+        console.error("Log Error:", e);
+        res.json({ success: false, message: "Error fetching logs" });
+    }
+});
+	
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
@@ -7626,4 +7676,5 @@ createTables().then(() => {
 }).catch(error => {
     console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
+
 });
