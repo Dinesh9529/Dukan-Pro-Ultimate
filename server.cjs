@@ -7662,6 +7662,47 @@ app.post('/api/rfid/trigger', (req, res) => {
 });
 
 
+// ============================================================
+// 📊 DASHBOARD STATS API (Missing Link Fix)
+// इसे createTables() के ठीक ऊपर पेस्ट करें
+// ============================================================
+app.get('/api/dashboard/stats', async (req, res) => {
+    try {
+        // 1. Token Check (Optional: अगर टोकन है तो shop_id निकालें)
+        let shop_id = 1; // Default
+        const authHeader = req.headers['authorization'];
+        if (authHeader) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025');
+                shop_id = decoded.shopId || 1;
+            } catch(e) {}
+        }
+
+        // 2. आज की बिक्री (Today's Sales) निकालें
+        const todayRes = await pool.query(
+            `SELECT COALESCE(SUM(final_amount), 0) as total_sales, COUNT(*) as total_orders 
+             FROM bills 
+             WHERE shop_id = $1 AND created_at::date = CURRENT_DATE`,
+            [shop_id]
+        );
+
+        // 3. रिजल्ट भेजें
+        res.json({
+            total_sales: parseFloat(todayRes.rows[0].total_sales),
+            total_orders: parseInt(todayRes.rows[0].total_orders),
+            success: true
+        });
+
+    } catch (e) {
+        console.error("Dashboard Stats Error:", e);
+        res.status(500).json({ error: "Server Error" });
+    }
+});
+
+
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
