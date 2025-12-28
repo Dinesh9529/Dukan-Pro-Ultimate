@@ -4114,6 +4114,7 @@ wss.on('connection', (ws) => {
     });
 });
 
+
 // --- 🚀 WEBSOCKET सर्वर लॉजिक END ---
 
 
@@ -7620,6 +7621,47 @@ app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 });
+
+
+// ============================================================
+// 🚨 RFID ANTI-THEFT API (Webstock के जरिए सायरन बजाएगा)
+// (इसे फाइल के बीच में कहीं भी पेस्ट कर दें, कुछ हटाने की जरूरत नहीं)
+// ============================================================
+app.post('/api/rfid/trigger', (req, res) => {
+    try {
+        const { tag_id, gate_id } = req.body;
+        console.log(`🚨 SECURITY ALERT: Tag ${tag_id} detected at ${gate_id}`);
+
+        // 1. हम पुराने Webstock (wss) का ही इस्तेमाल करेंगे (Safe Method)
+        // यह सभी कनेक्टेड स्क्रीन्स को 'ALERT' मैसेज भेजेगा
+        if (typeof wss !== 'undefined') {
+            const alertMessage = JSON.stringify({
+                type: 'SECURITY_ALERT', // यह कोड फ्रंटेंड पर सायरन ट्रिगर करेगा
+                tag: tag_id,
+                gate: gate_id,
+                timestamp: new Date()
+            });
+
+            wss.clients.forEach((client) => {
+                if (client.readyState === 1) { // 1 = OPEN state
+                    client.send(alertMessage);
+                }
+            });
+        }
+
+        // 2. लॉग सेव करें (ताकि बाद में देख सकें)
+        // (अगर आपके पास pool है तो यह लाइन अनकमेंट कर दें)
+        // pool.query("INSERT INTO security_logs ...") 
+
+        res.json({ success: true, message: "Siren Command Sent via Webstock" });
+
+    } catch (error) {
+        console.error("RFID Error:", error);
+        res.status(500).json({ error: "Failed to trigger siren" });
+    }
+});
+
+
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
