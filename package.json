@@ -16,8 +16,6 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.5",
-    "socket.io": "^4.7.2",
-    "socket.io-client": "^4.7.2",
     "ws": "^8.17.0"
   }
 }
