@@ -4161,12 +4161,6 @@ app.get('/', (req, res) => {
 
 // --- 🚀 WEBSOCKET सर्वर लॉजिक START ---
 
-// [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
-
-// 3. पेयरिंग के लिए कनेक्शन स्टोर करें
-const pairingMap = new Map(); // pairCode -> posSocket
-const scannerToPosMap = new Map(); // scannerSocket -> posSocket
-const posToScannerMap = new Map(); // posSocket -> posSocket
 
 // 🚀 NAYA: Live Dashboard के लिए क्लाइंट स्टोर करें
 // Map<shopId, Set<ws>>
