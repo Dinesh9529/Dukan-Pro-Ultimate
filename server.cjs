@@ -7662,10 +7662,11 @@ app.post('/api/rfid/trigger', (req, res) => {
 });
 
 // ============================================================
-// 📊 DASHBOARD STATS API (LIFETIME DATA from 'invoices')
+// 📊 DASHBOARD STATS (SECURE & SHOP-SPECIFIC)
 // ============================================================
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
+        // 1. टोکن से Shop ID निकालें (ताकि डेटा मिक्स न हो)
         let shop_id = 1; 
         const authHeader = req.headers['authorization'];
         if (authHeader) {
@@ -7676,150 +7677,34 @@ app.get('/api/dashboard/stats', async (req, res) => {
             } catch(e) {}
         }
 
-        console.log(`📊 Fetching Total Data for Shop ID: ${shop_id}...`);
+        console.log(`📊 Fetching Lifetime Data for Shop ID: ${shop_id}...`);
 
-        // ✅ CHANGE 1: टेबल 'invoices' कर दी गई है (Old Data Source)
-        // ✅ CHANGE 2: तारीख (Date) का फिल्टर हटा दिया है (Show Lifetime Data)
-        const totalRes = await pool.query(
-            `SELECT COALESCE(SUM(total_amount), 0) as total_sales, COUNT(*) as total_orders 
-             FROM invoices 
-             WHERE shop_id = $1`, 
-            [shop_id]
-        );
+        // 2. सिर्फ इस Shop ID का टोटल निकालें (Invoices टेबल से)
+        const result = await pool.query(`
+            SELECT 
+                COALESCE(SUM(total_amount), 0) as total_sales, 
+                COUNT(*) as total_orders 
+            FROM invoices 
+            WHERE shop_id = $1
+        `, [shop_id]);
 
-        console.log("✅ Data Found:", totalRes.rows[0]);
-
+        // 3. डेटा भेजें
         res.json({
-            total_sales: parseFloat(totalRes.rows[0].total_sales),
-            total_orders: parseInt(totalRes.rows[0].total_orders),
-            success: true
+            success: true,
+            total_sales: parseFloat(result.rows[0].total_sales),
+            total_orders: parseInt(result.rows[0].total_orders)
         });
 
     } catch (e) {
-        console.error("Dashboard Stats Error:", e);
+        console.error("Dashboard Error:", e);
         res.status(500).json({ error: "Server Error" });
     }
 });
 
-// ============================================================
-// 🛠️ EMERGENCY DATABASE FIX (Table बनाने के लिए)
-// ============================================================
-app.get('/api/fix-database', async (req, res) => {
-    try {
-        console.log("🛠️ Creating missing tables...");
-
-        // 1. BILLS Table बनाएँ
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS bills (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER DEFAULT 1,
-                bill_no VARCHAR(50),
-                customer_name VARCHAR(100),
-                customer_mobile VARCHAR(20),
-                total_amount NUMERIC(10,2) DEFAULT 0,
-                discount NUMERIC(10,2) DEFAULT 0,
-                final_amount NUMERIC(10,2) DEFAULT 0,
-                payment_mode VARCHAR(50),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // 2. BILL ITEMS Table बनाएँ
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS bill_items (
-                id SERIAL PRIMARY KEY,
-                bill_id INTEGER REFERENCES bills(id),
-                item_name VARCHAR(255),
-                quantity INTEGER,
-                price NUMERIC(10,2),
-                total NUMERIC(10,2)
-            );
-        `);
-
-        res.send("✅ SUCCESS: 'bills' और 'bill_items' टेबल बन गई हैं! अब Dashboard चेक करें।");
-    } catch (e) {
-        console.error(e);
-        res.status(500).send("❌ ERROR: " + e.message);
-    }
-});
 
 
 
-// ============================================================
-// 🚀 MISSING TABLE FIX: BILLS & BILL ITEMS
-// (इसे server.cjs के सबसे नीचे पेस्ट करें, कुछ हटाना नहीं है)
-// ============================================================
-const createMissingBillsTable = async () => {
-    try {
-        console.log("🛠️ Checking for missing 'bills' table...");
 
-        // 1. BILLS Table बनाएँ (अगर नहीं है)
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS bills (
-                id SERIAL PRIMARY KEY,
-                shop_id INTEGER DEFAULT 1,
-                bill_no VARCHAR(50),
-                customer_name VARCHAR(100),
-                customer_mobile VARCHAR(20),
-                total_amount NUMERIC(10,2) DEFAULT 0,
-                discount NUMERIC(10,2) DEFAULT 0,
-                final_amount NUMERIC(10,2) DEFAULT 0,
-                payment_mode VARCHAR(50),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-
-        // 2. BILL ITEMS Table बनाएँ (अगर नहीं है)
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS bill_items (
-                id SERIAL PRIMARY KEY,
-                bill_id INTEGER REFERENCES bills(id),
-                item_name VARCHAR(255),
-                quantity INTEGER,
-                price NUMERIC(10,2),
-                total NUMERIC(10,2)
-            );
-        `);
-
-        console.log("✅ 'bills' Table Created Successfully!");
-    } catch (e) {
-        console.error("❌ Fix Failed:", e.message);
-    }
-};
-
-
-// ============================================================
-// 🕵️‍♂️ REAL DATA FINDER (SQL COMMAND EXECUTER)
-// (इसे server.cjs के सबसे नीचे पेस्ट करें)
-// ============================================================
-app.get('/api/dashboard/real-data', async (req, res) => {
-    try {
-        console.log("🕵️‍♂️ Searching for LOST DATA in Database...");
-
-        // 1. पुराने रजिस्टर (Invoices) का टोटल
-        const oldData = await pool.query(`SELECT COALESCE(SUM(total_amount), 0) as total, COUNT(*) as count FROM invoices`);
-        
-        // 2. नए रजिस्टर (Bills) का टोटल
-        const newData = await pool.query(`SELECT COALESCE(SUM(final_amount), 0) as total, COUNT(*) as count FROM bills`);
-
-        // 3. दोनों को जोड़ो (Grand Total)
-        const grandTotal = parseFloat(oldData.rows[0].total) + parseFloat(newData.rows[0].total);
-        const grandCount = parseInt(oldData.rows[0].count) + parseInt(newData.rows[0].count);
-
-        console.log(`💰 FOUND IT! Old: ${oldData.rows[0].total}, New: ${newData.rows[0].total}, Total: ${grandTotal}`);
-
-        res.json({
-            success: true,
-            total_sales: grandTotal,
-            total_orders: grandCount,
-            source: `Old: ₹${oldData.rows[0].total} + New: ₹${newData.rows[0].total}`
-        });
-
-    } catch (e) {
-        console.error("SQL Error:", e);
-        res.status(500).json({ error: e.message });
-    }
-});
 
 
 // सर्वर स्टार्ट होते ही इसे चलाएं
