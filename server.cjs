@@ -7787,6 +7787,41 @@ const createMissingBillsTable = async () => {
     }
 };
 
+
+// ============================================================
+// 🕵️‍♂️ REAL DATA FINDER (SQL COMMAND EXECUTER)
+// (इसे server.cjs के सबसे नीचे पेस्ट करें)
+// ============================================================
+app.get('/api/dashboard/real-data', async (req, res) => {
+    try {
+        console.log("🕵️‍♂️ Searching for LOST DATA in Database...");
+
+        // 1. पुराने रजिस्टर (Invoices) का टोटल
+        const oldData = await pool.query(`SELECT COALESCE(SUM(total_amount), 0) as total, COUNT(*) as count FROM invoices`);
+        
+        // 2. नए रजिस्टर (Bills) का टोटल
+        const newData = await pool.query(`SELECT COALESCE(SUM(final_amount), 0) as total, COUNT(*) as count FROM bills`);
+
+        // 3. दोनों को जोड़ो (Grand Total)
+        const grandTotal = parseFloat(oldData.rows[0].total) + parseFloat(newData.rows[0].total);
+        const grandCount = parseInt(oldData.rows[0].count) + parseInt(newData.rows[0].count);
+
+        console.log(`💰 FOUND IT! Old: ${oldData.rows[0].total}, New: ${newData.rows[0].total}, Total: ${grandTotal}`);
+
+        res.json({
+            success: true,
+            total_sales: grandTotal,
+            total_orders: grandCount,
+            source: `Old: ₹${oldData.rows[0].total} + New: ₹${newData.rows[0].total}`
+        });
+
+    } catch (e) {
+        console.error("SQL Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+
 // सर्वर स्टार्ट होते ही इसे चलाएं
 createMissingBillsTable();
 
