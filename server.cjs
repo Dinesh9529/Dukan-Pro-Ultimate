@@ -7661,13 +7661,8 @@ app.post('/api/rfid/trigger', (req, res) => {
     }
 });
 
-
 // ============================================================
-// 📊 DASHBOARD STATS API (Missing Link Fix)
-// इसे createTables() के ठीक ऊपर पेस्ट करें
-// ============================================================
-// ============================================================
-// 📊 DASHBOARD STATS API (Connected to OLD 'invoices' Table)
+// 📊 DASHBOARD STATS API (LIFETIME DATA from 'invoices')
 // ============================================================
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
@@ -7681,18 +7676,22 @@ app.get('/api/dashboard/stats', async (req, res) => {
             } catch(e) {}
         }
 
-        // ✅ CHANGE: 'bills' को हटाकर 'invoices' कर दिया है
-        // अब यह आपके पुराने रजिस्टर से डेटा उठाएगा
-        const todayRes = await pool.query(
+        console.log(`📊 Fetching Total Data for Shop ID: ${shop_id}...`);
+
+        // ✅ CHANGE 1: टेबल 'invoices' कर दी गई है (Old Data Source)
+        // ✅ CHANGE 2: तारीख (Date) का फिल्टर हटा दिया है (Show Lifetime Data)
+        const totalRes = await pool.query(
             `SELECT COALESCE(SUM(total_amount), 0) as total_sales, COUNT(*) as total_orders 
              FROM invoices 
-             WHERE shop_id = $1 AND created_at::date = CURRENT_DATE`,
+             WHERE shop_id = $1`, 
             [shop_id]
         );
 
+        console.log("✅ Data Found:", totalRes.rows[0]);
+
         res.json({
-            total_sales: parseFloat(todayRes.rows[0].total_sales),
-            total_orders: parseInt(todayRes.rows[0].total_orders),
+            total_sales: parseFloat(totalRes.rows[0].total_sales),
+            total_orders: parseInt(totalRes.rows[0].total_orders),
             success: true
         });
 
