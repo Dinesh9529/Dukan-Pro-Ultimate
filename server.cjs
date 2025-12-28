@@ -3,22 +3,50 @@
 // यह कोड JWT, Bcrypt और PostgreSQL के साथ एक सुरक्षित और मल्टी-टेनेंट सर्वर लागू करता है।
 // सभी डेटा एक्सेस 'shop_id' द्वारा सीमित (scoped) है।
 // -----------------------------------------------------------------------------
-
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-const crypto = require('crypto');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
-// [ यह नया कोड यहाँ जोड़ें ]
-// --- 🚀 WEBSOCKET सेटअप START ---
-const http = require('http'); // 1. HTTP सर्वर की आवश्यकता
-const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर की आवश्यकता
-// --- 🚀 WEBSOCKET सेटअप END ---
+
+// --- 🚀 FINAL HYBRID SETUP (Top Section) ---
+const http = require('http');
 const app = express();
+const server = http.createServer(app); // ✅ Server create kiya (Jo aap chahte the)
+
+// 1. Live Dashboard ke liye (Old WebSocket)
+const { WebSocketServer } = require('ws');
+const wss = new WebSocketServer({ noServer: true });
+
+// 2. Printer & RFID ke liye (Socket.io)
+const io = require('socket.io')(server, {
+    path: '/socket.io/', // 🛣️ Rasta alag kiya taki takraye nahi
+    cors: { origin: "*", methods: ["GET", "POST"] },
+    transports: ['websocket', 'polling']
+});
+
+// 🚦 TRAFFIC POLICE (Upgrade Handler)
+// Ye check karega ki request Dashboard ki hai ya Printer ki
+server.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
+
+    // A. Agar Socket.io (Printer/RFID) ki request hai -> To jane do (IO khud dekh lega)
+    if (pathname.startsWith('/socket.io/')) {
+        return; 
+    }
+
+    // B. Agar Dashboard ki request hai -> To wss (WebSocket) ko pakda do
+    wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+    });
+});
+
+// Connection Logs (Taki pata chale kaun juda hai)
+wss.on('connection', (ws) => console.log('📊 Dashboard Connected (WS)'));
+io.on('connection', (socket) => console.log('🔌 Printer/RFID Connected (IO)'));
 
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
@@ -71,6 +99,98 @@ const pool = new Pool({
         rejectUnauthorized: false
     }
 });
+
+
+// ============================================================
+// 🛠️ MISSING FEATURES FIX (Printer, Delete, Logs, RFID)
+// इसे createTables().then(...) वाली लाइन के ठीक ऊपर पेस्ट करें
+// ============================================================
+
+// ✅ 1. BILL SAVE & PRINT API (प्रिंटर और सेविंग ठीक करने के लिए)
+// (अगर पुराना /api/bills/create है, तो उसे हटाकर यह वाला लगाएं)
+app.post('/api/bills/create', async (req, res) => {
+    try {
+        const { customer_name, customer_mobile, items, total_amount, discount, payment_mode, shop_id } = req.body;
+
+        // A. डेटाबेस में बिल सेव करें
+        const billRes = await pool.query(
+            `INSERT INTO bills (shop_id, customer_name, customer_mobile, total_amount, final_amount, discount, payment_mode, created_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id, bill_no`,
+            [shop_id || 1, customer_name, customer_mobile, total_amount, total_amount - discount, discount, payment_mode]
+        );
+        const newBill = billRes.rows[0];
+
+        // B. आइटम्स सेव करें
+        for (const item of items) {
+            await pool.query(
+                `INSERT INTO bill_items (bill_id, item_name, quantity, price, total) VALUES ($1, $2, $3, $4, $5)`,
+                [newBill.id, item.name, item.qty, item.price, item.qty * item.price]
+            );
+        }
+
+        // C. 🔥 FIRE PRINTER: यह लाइन आपके थर्मल प्रिंटर को खोलेगी
+        io.emit('PRINT_RECEIPT', {
+            bill_no: newBill.bill_no,
+            customer: customer_name,
+            total: total_amount - discount,
+            items: items,
+            date: new Date().toLocaleDateString()
+        });
+
+        res.json({ success: true, message: "Saved & Printing...", bill_id: newBill.id });
+
+    } catch (err) {
+        console.error("Bill Save Error:", err);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+
+// ✅ 2. DELETE BILL API (डिलीट बटन और Popup ठीक करने के लिए)
+app.delete('/api/bills/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // पहले बिल के आइटम्स डिलीट करें
+        await pool.query('DELETE FROM bill_items WHERE bill_id = $1', [id]);
+        
+        // फिर असली बिल डिलीट करें
+        await pool.query('DELETE FROM bills WHERE id = $1', [id]);
+
+        // डैशबोर्ड को अपडेट करें (ताकि वह बिल लिस्ट से गायब हो जाए)
+        io.emit('REFRESH_DASHBOARD'); 
+
+        res.json({ success: true, message: "Bill Deleted Successfully" });
+    } catch (err) {
+        console.error("Delete Error:", err);
+        res.status(500).json({ success: false, message: "Could not delete bill" });
+    }
+});
+
+// ✅ 3. LOGS & RFID API (सायरन और लॉग्स ठीक करने के लिए)
+app.post('/api/rfid/alert', async (req, res) => {
+    try {
+        const { tag_id, gate_id } = req.body;
+        
+        // सायरन बजाओ
+        io.emit('SECURITY_ALERT', { alert: { location: gate_id, tag: tag_id } });
+        
+        // लॉग सेव करो
+        await pool.query(`INSERT INTO security_logs (shop_id, event_type, description, created_at) VALUES ($1, 'THEFT', $2, NOW())`, [1, `Tag: ${tag_id}`]);
+        
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ✅ 4. VIEW LOGS API (एडमिन के लॉग्स बटन के लिए)
+app.post('/api/shop/security-history', async (req, res) => {
+    try {
+        const r = await pool.query(`SELECT * FROM security_logs ORDER BY created_at DESC LIMIT 50`);
+        res.json({ success: true, logs: r.rows });
+    } catch (e) { res.json({ success: false, logs: [] }); }
+});
+
+
+
 
 // =================================================
 // 🚀 AUTO-CREATE TABLE: Paint Formulas
@@ -7611,39 +7731,66 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
         res.status(500).json({ success: false });
     }
 });
+// ==========================================
+// 🚨 HARDWARE CONNECTIVITY (Middle Section)
+// ==========================================
 
-// ============================================================
-// 🚨 1. RFID MACHINE API (सायरन बजाने के लिए)
-// ============================================================
+// 1. RFID ANTI-THEFT API (Beep & Photo)
 app.post('/api/rfid/alert', async (req, res) => {
     try {
         const { tag_id, gate_id } = req.body;
-        console.log("🚨 RFID THEFT DETECTED:", tag_id);
+        console.log("🚨 CHORI ALERT:", tag_id);
 
-        // 1. डेटाबेस में सेव करें
+        // A. Database mein log daalo
         await pool.query(
             `INSERT INTO security_logs (shop_id, event_type, description, created_at) 
-             VALUES ($1, $2, $3, NOW())`,
-            [1, 'THEFT_ALERT', `Unpaid Item Detected: ${tag_id} at ${gate_id}`, ] 
-            // नोट: shop_id 1 डमी है, अगर आपके पास मल्टी-शॉप है तो इसे डायनामिक करना होगा
-            // लेकिन RFID मशीन अक्सर शॉप ID नहीं भेजती, इसलिए अभी के लिए 1 ठीक है।
+             VALUES ($1, 'THEFT_ALERT', $2, NOW())`,
+            [1, `Tag: ${tag_id} at ${gate_id}`]
         );
 
-        // 2. फ्रंटेंड को सायरन का आदेश भेजें
+        // B. 🔥 BROADCAST: Sabhi screens par 'Beep' aur 'Photo' bhejo
         io.emit('SECURITY_ALERT', {
-            alert: {
-                location: gate_id || 'Main Gate',
+            alert: { 
+                location: gate_id || 'Main Gate', 
                 tag: tag_id,
                 time: new Date()
             }
         });
 
         res.json({ success: true, message: "Siren Triggered" });
-    } catch (e) {
-        console.error("RFID Error:", e);
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// 2. BILL PRINT API (Save & Print)
+// (Apne purane /api/bills/create ko hata kar ise lagayein)
+app.post('/api/bills/create', async (req, res) => {
+    try {
+        const { customer_name, customer_mobile, items, total_amount, discount, payment_mode, shop_id } = req.body;
+
+        // DB Save Logic
+        const billRes = await pool.query(
+            `INSERT INTO bills (shop_id, customer_name, customer_mobile, total_amount, final_amount, discount, payment_mode, created_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id, bill_no`,
+            [shop_id || 1, customer_name, customer_mobile, total_amount, total_amount - discount, discount, payment_mode]
+        );
+        
+        // Items Save Logic... (Aapka loop yahan ayega)
+        for (const item of items) {
+             await pool.query(`INSERT INTO bill_items (bill_id, item_name, quantity, price, total) VALUES ($1, $2, $3, $4, $5)`, 
+             [billRes.rows[0].id, item.name, item.qty, item.price, item.qty * item.price]);
+        }
+
+        // 🖨️ Printer ko signal bhejo
+        io.emit('PRINT_RECEIPT', {
+            bill_no: billRes.rows[0].bill_no,
+            total: total_amount - discount,
+            items: items
+        });
+
+        res.json({ success: true, message: "Saved & Printed" });
+    } catch (e) { res.status(500).json({ error: "Error" }); }
+});
+
 
 // ============================================================
 // 📜 2. VIEW LOGS API (पुराने चोरों की लिस्ट देखने के लिए)
