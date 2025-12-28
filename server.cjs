@@ -7,46 +7,24 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const crypto = require('crypto');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
-
-// --- 🚀 FINAL HYBRID SETUP (Top Section) ---
-const http = require('http');
+// [ यह नया कोड यहाँ जोड़ें ]
+// --- 🚀 WEBSOCKET सेटअप START ---
+const http = require('http'); // 1. HTTP सर्वर की आवश्यकता
+const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर की आवश्यकता
+// --- 🚀 WEBSOCKET सेटअप END ---
 const app = express();
-const server = http.createServer(app); // ✅ Server create kiya (Jo aap chahte the)
 
-// 1. Live Dashboard ke liye (Old WebSocket)
-const { WebSocketServer } = require('ws');
-const wss = new WebSocketServer({ noServer: true });
-
-// 2. Printer & RFID ke liye (Socket.io)
-const io = require('socket.io')(server, {
-    path: '/socket.io/', // 🛣️ Rasta alag kiya taki takraye nahi
-    cors: { origin: "*", methods: ["GET", "POST"] },
-    transports: ['websocket', 'polling']
-});
-
-// 🚦 TRAFFIC POLICE (Upgrade Handler)
-// Ye check karega ki request Dashboard ki hai ya Printer ki
-server.on('upgrade', (request, socket, head) => {
-    const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
-
-    // A. Agar Socket.io (Printer/RFID) ki request hai -> To jane do (IO khud dekh lega)
-    if (pathname.startsWith('/socket.io/')) {
-        return; 
-    }
-
-    // B. Agar Dashboard ki request hai -> To wss (WebSocket) ko pakda do
-    wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-    });
-});
-
-// Connection Logs (Taki pata chale kaun juda hai)
-wss.on('connection', (ws) => console.log('📊 Dashboard Connected (WS)'));
-io.on('connection', (socket) => console.log('🔌 Printer/RFID Connected (IO)'));
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.options('*', cors());
 
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
@@ -99,193 +77,6 @@ const pool = new Pool({
         rejectUnauthorized: false
     }
 });
-
-
-// ============================================================
-// 📊 DASHBOARD & SCANNER LOGIC (Paste after DB Setup)
-// ============================================================
-
-// 1. मेमोरी मैप्स (कौन किससे जुड़ा है)
-const pairingMap = new Map(); 
-const scannerToPosMap = new Map(); 
-const posToScannerMap = new Map(); 
-const dashboardClients = new Map(); // 🚀 Live Dashboard Clients
-
-// Helper: 6 अंकों का कोड
-function generatePairCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-// 2. WebSocket Logic (पुराने console.log वाले wss.on को हटाकर यह मानेगा)
-// ध्यान दें: ऊपर जो wss.on('connection'...) लिखा है, वो सिर्फ लॉग के लिए था, असली काम ये करेगा:
-wss.on('connection', (ws) => {
-    console.log('📊 WebSocket Client Logic Active');
-
-    ws.on('message', (message) => {
-        let data;
-        try { data = JSON.parse(message); } catch (e) { return; }
-
-        switch (data.type) {
-            // --- 🚀 Live Dashboard Register ---
-            case 'REGISTER_DASHBOARD':
-                try {
-                    // टोकन वेरिफाई करें
-                    const decoded = jwt.verify(data.token, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025');
-                    const shopId = decoded.shopId;
-                    
-                    if (!shopId) return;
-
-                    ws.shopId = shopId; 
-
-                    // ShopID के हिसाब से ग्रुप बनाएं
-                    if (!dashboardClients.has(shopId)) {
-                        dashboardClients.set(shopId, new Set());
-                    }
-                    dashboardClients.get(shopId).add(ws);
-                    
-                    console.log(`✅ Dashboard Online: Shop ${shopId}`);
-                    ws.send(JSON.stringify({ type: 'DASHBOARD_REGISTERED', message: 'Connected' }));
-
-                } catch (err) {
-                    console.error('Dashboard Auth Failed');
-                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Auth Failed' }));
-                }
-                break;
-
-            // --- Mobile Scanner Register ---
-            case 'REGISTER_POS':
-                const pairCode = generatePairCode();
-                pairingMap.set(pairCode, ws); 
-                posToScannerMap.set(ws, null); 
-                ws.send(JSON.stringify({ type: 'PAIR_CODE_GENERATED', pairCode }));
-                break;
-
-            // --- Scanner Pairing ---
-            case 'REGISTER_SCANNER':
-                const posSocket = pairingMap.get(data.pairCode);
-                if (posSocket) {
-                    scannerToPosMap.set(ws, posSocket); 
-                    posToScannerMap.set(posSocket, ws); 
-                    pairingMap.delete(data.pairCode); 
-
-                    posSocket.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
-                    ws.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
-                } else {
-                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Code' }));
-                }
-                break;
-
-            // --- Barcode Scanned ---
-            case 'SCAN_SKU':
-                const pairedPosSocket = scannerToPosMap.get(ws);
-                if (pairedPosSocket) {
-                    pairedPosSocket.send(JSON.stringify({ type: 'SKU_SCANNED', sku: data.sku }));
-                }
-                break;
-        }
-    });
-
-    // Cleanup on Disconnect
-    ws.on('close', () => {
-        if (ws.shopId && dashboardClients.has(ws.shopId)) {
-            dashboardClients.get(ws.shopId).delete(ws);
-            if (dashboardClients.get(ws.shopId).size === 0) dashboardClients.delete(ws.shopId);
-        }
-        // Scanner cleanup logic...
-        if (posToScannerMap.has(ws)) posToScannerMap.delete(ws);
-    });
-});
-
-// ============================================================
-// 🛠️ MISSING FEATURES FIX (Printer, Delete, Logs, RFID)
-// इसे createTables().then(...) वाली लाइन के ठीक ऊपर पेस्ट करें
-// ============================================================
-
-// ✅ 1. BILL SAVE & PRINT API (प्रिंटर और सेविंग ठीक करने के लिए)
-// (अगर पुराना /api/bills/create है, तो उसे हटाकर यह वाला लगाएं)
-app.post('/api/bills/create', async (req, res) => {
-    try {
-        const { customer_name, customer_mobile, items, total_amount, discount, payment_mode, shop_id } = req.body;
-
-        // A. डेटाबेस में बिल सेव करें
-        const billRes = await pool.query(
-            `INSERT INTO bills (shop_id, customer_name, customer_mobile, total_amount, final_amount, discount, payment_mode, created_at) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id, bill_no`,
-            [shop_id || 1, customer_name, customer_mobile, total_amount, total_amount - discount, discount, payment_mode]
-        );
-        const newBill = billRes.rows[0];
-
-        // B. आइटम्स सेव करें
-        for (const item of items) {
-            await pool.query(
-                `INSERT INTO bill_items (bill_id, item_name, quantity, price, total) VALUES ($1, $2, $3, $4, $5)`,
-                [newBill.id, item.name, item.qty, item.price, item.qty * item.price]
-            );
-        }
-
-        // C. 🔥 FIRE PRINTER: यह लाइन आपके थर्मल प्रिंटर को खोलेगी
-        io.emit('PRINT_RECEIPT', {
-            bill_no: newBill.bill_no,
-            customer: customer_name,
-            total: total_amount - discount,
-            items: items,
-            date: new Date().toLocaleDateString()
-        });
-
-        res.json({ success: true, message: "Saved & Printing...", bill_id: newBill.id });
-
-    } catch (err) {
-        console.error("Bill Save Error:", err);
-        res.status(500).json({ success: false, message: "Server Error" });
-    }
-});
-
-// ✅ 2. DELETE BILL API (डिलीट बटन और Popup ठीक करने के लिए)
-app.delete('/api/bills/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        // पहले बिल के आइटम्स डिलीट करें
-        await pool.query('DELETE FROM bill_items WHERE bill_id = $1', [id]);
-        
-        // फिर असली बिल डिलीट करें
-        await pool.query('DELETE FROM bills WHERE id = $1', [id]);
-
-        // डैशबोर्ड को अपडेट करें (ताकि वह बिल लिस्ट से गायब हो जाए)
-        io.emit('REFRESH_DASHBOARD'); 
-
-        res.json({ success: true, message: "Bill Deleted Successfully" });
-    } catch (err) {
-        console.error("Delete Error:", err);
-        res.status(500).json({ success: false, message: "Could not delete bill" });
-    }
-});
-
-// ✅ 3. LOGS & RFID API (सायरन और लॉग्स ठीक करने के लिए)
-app.post('/api/rfid/alert', async (req, res) => {
-    try {
-        const { tag_id, gate_id } = req.body;
-        
-        // सायरन बजाओ
-        io.emit('SECURITY_ALERT', { alert: { location: gate_id, tag: tag_id } });
-        
-        // लॉग सेव करो
-        await pool.query(`INSERT INTO security_logs (shop_id, event_type, description, created_at) VALUES ($1, 'THEFT', $2, NOW())`, [1, `Tag: ${tag_id}`]);
-        
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ✅ 4. VIEW LOGS API (एडमिन के लॉग्स बटन के लिए)
-app.post('/api/shop/security-history', async (req, res) => {
-    try {
-        const r = await pool.query(`SELECT * FROM security_logs ORDER BY created_at DESC LIMIT 50`);
-        res.json({ success: true, logs: r.rows });
-    } catch (e) { res.json({ success: false, logs: [] }); }
-});
-
-
-
 
 // =================================================
 // 🚀 AUTO-CREATE TABLE: Paint Formulas
@@ -4161,6 +3952,22 @@ app.get('/', (req, res) => {
 
 // --- 🚀 WEBSOCKET सर्वर लॉजिक START ---
 
+// 1. HTTP सर्वर बनाएँ और Express ऐप को उससे जोड़ें
+const server = http.createServer(app);
+
+// 🚀 FIX: टाइमआउट को 120 सेकंड (2 मिनट) तक बढ़ाएँ
+server.timeout = 120000; 
+server.keepAliveTimeout = 125000; // इसे timeout से थोड़ा अधिक रखें
+
+// 2. WebSocket सर्वर को HTTP सर्वर से जोड़ें
+const wss = new WebSocketServer({ server });
+
+// [ यह कोड server.cjs में लाइन 1405 के पास जोड़ें ]
+
+// 3. पेयरिंग के लिए कनेक्शन स्टोर करें
+const pairingMap = new Map(); // pairCode -> posSocket
+const scannerToPosMap = new Map(); // scannerSocket -> posSocket
+const posToScannerMap = new Map(); // posSocket -> posSocket
 
 // 🚀 NAYA: Live Dashboard के लिए क्लाइंट स्टोर करें
 // Map<shopId, Set<ws>>
@@ -7660,62 +7467,7 @@ app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) =>
         res.status(500).json({ success: false });
     }
 });
-// ==========================================
-// ✅ INVOICE VERIFICATION API (With Double Check Prevention)
-// ==========================================
-app.get('/api/invoices/:id', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    
-    // Shop ID टोकन से लो (ताकि दूसरी दुकान का बिल न खुले)
-    const shopId = req.shopId || (req.user && req.user.shop_id);
 
-    try {
-        // 1. बिल और आइटम्स को एक साथ लाओ
-        const invoiceRes = await pool.query(
-            `SELECT s.*, 
-                (SELECT json_agg(json_build_object(
-                    'item_name', p.name, 
-                    'quantity', si.quantity,
-                    'price', si.price
-                 )) 
-                 FROM sale_items si 
-                 JOIN products p ON si.product_id = p.id 
-                 WHERE si.sale_id = s.id) as items
-             FROM sales s 
-             WHERE s.id = $1 AND s.shop_id = $2`,
-            [id, shopId]
-        );
-        
-        // अगर बिल नहीं मिला
-        if (invoiceRes.rows.length === 0) {
-            return res.json({ success: false, message: "Bill not found" });
-        }
-
-        const bill = invoiceRes.rows[0];
-
-        // 🛑 DOUBLE CHECK LOGIC (सबसे जरूरी हिस्सा)
-        // अगर is_checked पहले से TRUE है, तो बता दो
-        if (bill.is_checked === true) {
-            console.log(`⚠️ Bill #${id} is already verified!`);
-            return res.json({ 
-                success: true, 
-                alreadyChecked: true, // Frontend को बताओ कि यह पुराना है
-                invoice: bill 
-            });
-        }
-
-        // ✅ FIRST TIME CHECK: अब इसे डेटाबेस में 'TRUE' मार्क करो
-        await pool.query('UPDATE sales SET is_checked = TRUE WHERE id = $1', [id]);
-        console.log(`✅ Bill #${id} verified successfully.`);
-
-        // Frontend को फ्रेश बिल भेजो
-        res.json({ success: true, alreadyChecked: false, invoice: bill });
-
-    } catch (err) { 
-        console.error("Invoice Error:", err);
-        res.status(500).json({ success: false }); 
-    }
-});
 
 // ==========================================
 // ✅ PROFESSIONAL CHECK ALERT API (For All Shops)
@@ -7810,130 +7562,77 @@ app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
         res.status(500).json({ success: false });
     }
 });
-// ==========================================
-// 🚨 HARDWARE CONNECTIVITY (Middle Section)
-// ==========================================
 
-// 1. RFID ANTI-THEFT API (Beep & Photo)
-app.post('/api/rfid/alert', async (req, res) => {
+
+app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
+    const { id } = req.params;
+    const shopId = req.user.shopId;
+
     try {
-        const { tag_id, gate_id } = req.body;
-        console.log("🚨 CHORI ALERT:", tag_id);
-
-        // A. Database mein log daalo
-        await pool.query(
-            `INSERT INTO security_logs (shop_id, event_type, description, created_at) 
-             VALUES ($1, 'THEFT_ALERT', $2, NOW())`,
-            [1, `Tag: ${tag_id} at ${gate_id}`]
+        // 🚀 STEP 1: Pehle row ko LOCK karo (FOR UPDATE)
+        // Isse dusri request tab tak ruki rahegi jab tak ye transaction khatam na ho
+        const invoiceRes = await pool.query(
+            `SELECT * FROM invoices WHERE id = $1 AND shop_id = $2 FOR UPDATE`,
+            [id, shopId]
         );
 
-        // B. 🔥 BROADCAST: Sabhi screens par 'Beep' aur 'Photo' bhejo
-        io.emit('SECURITY_ALERT', {
-            alert: { 
-                location: gate_id || 'Main Gate', 
-                tag: tag_id,
-                time: new Date()
-            }
-        });
-
-        res.json({ success: true, message: "Siren Triggered" });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// 2. BILL PRINT API (Save & Print)
-// (Apne purane /api/bills/create ko hata kar ise lagayein)
-app.post('/api/bills/create', async (req, res) => {
-    try {
-        const { customer_name, customer_mobile, items, total_amount, discount, payment_mode, shop_id } = req.body;
-
-        // DB Save Logic
-        const billRes = await pool.query(
-            `INSERT INTO bills (shop_id, customer_name, customer_mobile, total_amount, final_amount, discount, payment_mode, created_at) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id, bill_no`,
-            [shop_id || 1, customer_name, customer_mobile, total_amount, total_amount - discount, discount, payment_mode]
-        );
-        
-        // Items Save Logic... (Aapka loop yahan ayega)
-        for (const item of items) {
-             await pool.query(`INSERT INTO bill_items (bill_id, item_name, quantity, price, total) VALUES ($1, $2, $3, $4, $5)`, 
-             [billRes.rows[0].id, item.name, item.qty, item.price, item.qty * item.price]);
+        if (invoiceRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Bill not found" });
         }
 
-        // 🖨️ Printer ko signal bhejo
-        io.emit('PRINT_RECEIPT', {
-            bill_no: billRes.rows[0].bill_no,
-            total: total_amount - discount,
-            items: items
-        });
+        const invoice = invoiceRes.rows[0];
 
-        res.json({ success: true, message: "Saved & Printed" });
-    } catch (e) { res.status(500).json({ error: "Error" }); }
-});
-
-
-// ============================================================
-// 📜 2. VIEW LOGS API (पुराने चोरों की लिस्ट देखने के लिए)
-// ============================================================
-app.post('/api/shop/security-history', async (req, res) => {
-    try {
-        // पिछले 50 रिकार्ड्स निकालो
-        const result = await pool.query(
-            `SELECT * FROM security_logs ORDER BY created_at DESC LIMIT 50`
-        );
-        res.json({ success: true, logs: result.rows });
-    } catch (e) {
-        console.error("Log Error:", e);
-        res.json({ success: false, message: "Error fetching logs" });
-    }
-});
-	
-	
-	
-// ============================================================
-// 🚀 FINAL START (User की डिमांड पर: app.listen का उपयोग)
-// ============================================================
-createTables().then(() => {
-
-    // 1. हम आपकी पसंद 'app.listen' का ही उपयोग कर रहे हैं
-    // (इससे वेबसाइट तुरंत चालू हो जाएगी और कोई Reference Error नहीं आएगा)
-    const runningServer = app.listen(PORT, () => {
-        console.log(`\n🎉 Server Running on Port ${PORT} (via app.listen)`);
-        console.log(`🌐 Live URL: https://dukan-pro-ultimate.onrender.com`); 
-        console.log('✅ Website is LIVE');
-    });
-
-    // =======================================================
-    // 🛠️ अब जादुई हिस्सा: प्रिंटर और डैशबोर्ड को इससे जोड़ना
-    // =======================================================
-
-    // 2. Socket.io (Printer/Siren) को चलते हुए सर्वर से जोड़ो
-    if (typeof io !== 'undefined') {
-        console.log('🔌 Attaching Printer & Siren System...');
-        io.attach(runningServer); // यह लाइन प्रिंटर को जिंदा करती है
-    }
-
-    // 3. Live Dashboard (WebSocket) को चलते हुए सर्वर से जोड़ो
-    runningServer.on('upgrade', (request, socket, head) => {
-        const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
-
-        // अगर प्रिंटर की रिक्वेस्ट है -> तो io को संभालने दो
-        if (pathname.startsWith('/socket.io/')) {
-             return; 
-        }
-
-        // अगर डैशबोर्ड की रिक्वेस्ट है -> तो wss को दे दो
-        if (typeof wss !== 'undefined') {
-            wss.handleUpgrade(request, socket, head, (ws) => {
-                wss.emit('connection', ws, request);
+        // 🚀 STEP 2: Ab status check karo
+        if (invoice.is_scanned === true || String(invoice.is_scanned) === 'true') {
+            const itemsRes = await pool.query(`SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`, [id]);
+            return res.json({
+                success: true,
+                alreadyChecked: true,
+                invoice: invoice,
+                items: itemsRes.rows,
+                total_amount: invoice.total_amount
             });
         }
+
+        // 🚀 STEP 3: STATUS UPDATE (Response se PEHLE update karo)
+        await pool.query(
+            `UPDATE invoices SET is_scanned = true WHERE id = $1 AND shop_id = $2`,
+            [id, shopId]
+        );
+
+        // 🚀 STEP 4: Items fetch karo
+        const itemsRes = await pool.query(
+            `SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`,
+            [id]
+        );
+
+        // SUCCESS RESPONSE
+        res.json({
+            success: true,
+            alreadyChecked: false,
+            invoice: { ...invoice, is_scanned: true },
+            items: itemsRes.rows,
+            total_amount: invoice.total_amount
+        });
+
+    } catch (err) {
+        console.error("Database Error:", err);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+});
+
+// Start the server after ensuring database tables are ready
+createTables().then(() => {
+    // 4. app.listen की जगह server.listen का उपयोग करें
+    server.listen(PORT, () => {
+        console.log(`\n🎉 Server is running securely on port ${PORT}`);
+        console.log(`🌐 API Endpoint: https://dukan-pro-ultimate.onrender.com:${PORT}`); 
+        console.log('🚀 WebSocket Server is running on the same port.');
+        console.log('--------------------------------------------------');
+        console.log('🔒 Authentication: JWT is required for all data routes.');
+        console.log('🔑 Multi-tenancy: All data is scoped by shop_id.\n');
     });
-
-    // 4. Timeout Settings (Slow Internet के लिए)
-    runningServer.timeout = 240000;
-    runningServer.keepAliveTimeout = 245000;
-
 }).catch(error => {
-    console.error('❌ Server Start Failed:', error.message);
+    console.error('Failed to initialize database and start server:', error.message);
     process.exit(1);
 });
