@@ -2329,6 +2329,12 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         );
         
         await client.query('COMMIT'); // Transaction End
+		
+		if (typeof wss !== 'undefined') {
+            wss.clients.forEach(ws => {
+                if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
+            });
+        }
 
         // 🚀 Update Dashboard via WebSocket
         if (typeof broadcastToShop === 'function') {
