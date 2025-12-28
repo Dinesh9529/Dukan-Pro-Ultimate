@@ -102,6 +102,101 @@ const pool = new Pool({
 
 
 // ============================================================
+// 📊 DASHBOARD & SCANNER LOGIC (Paste after DB Setup)
+// ============================================================
+
+// 1. मेमोरी मैप्स (कौन किससे जुड़ा है)
+const pairingMap = new Map(); 
+const scannerToPosMap = new Map(); 
+const posToScannerMap = new Map(); 
+const dashboardClients = new Map(); // 🚀 Live Dashboard Clients
+
+// Helper: 6 अंकों का कोड
+function generatePairCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// 2. WebSocket Logic (पुराने console.log वाले wss.on को हटाकर यह मानेगा)
+// ध्यान दें: ऊपर जो wss.on('connection'...) लिखा है, वो सिर्फ लॉग के लिए था, असली काम ये करेगा:
+wss.on('connection', (ws) => {
+    console.log('📊 WebSocket Client Logic Active');
+
+    ws.on('message', (message) => {
+        let data;
+        try { data = JSON.parse(message); } catch (e) { return; }
+
+        switch (data.type) {
+            // --- 🚀 Live Dashboard Register ---
+            case 'REGISTER_DASHBOARD':
+                try {
+                    // टोकन वेरिफाई करें
+                    const decoded = jwt.verify(data.token, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025');
+                    const shopId = decoded.shopId;
+                    
+                    if (!shopId) return;
+
+                    ws.shopId = shopId; 
+
+                    // ShopID के हिसाब से ग्रुप बनाएं
+                    if (!dashboardClients.has(shopId)) {
+                        dashboardClients.set(shopId, new Set());
+                    }
+                    dashboardClients.get(shopId).add(ws);
+                    
+                    console.log(`✅ Dashboard Online: Shop ${shopId}`);
+                    ws.send(JSON.stringify({ type: 'DASHBOARD_REGISTERED', message: 'Connected' }));
+
+                } catch (err) {
+                    console.error('Dashboard Auth Failed');
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Auth Failed' }));
+                }
+                break;
+
+            // --- Mobile Scanner Register ---
+            case 'REGISTER_POS':
+                const pairCode = generatePairCode();
+                pairingMap.set(pairCode, ws); 
+                posToScannerMap.set(ws, null); 
+                ws.send(JSON.stringify({ type: 'PAIR_CODE_GENERATED', pairCode }));
+                break;
+
+            // --- Scanner Pairing ---
+            case 'REGISTER_SCANNER':
+                const posSocket = pairingMap.get(data.pairCode);
+                if (posSocket) {
+                    scannerToPosMap.set(ws, posSocket); 
+                    posToScannerMap.set(posSocket, ws); 
+                    pairingMap.delete(data.pairCode); 
+
+                    posSocket.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
+                    ws.send(JSON.stringify({ type: 'SCANNER_PAIRED' }));
+                } else {
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Code' }));
+                }
+                break;
+
+            // --- Barcode Scanned ---
+            case 'SCAN_SKU':
+                const pairedPosSocket = scannerToPosMap.get(ws);
+                if (pairedPosSocket) {
+                    pairedPosSocket.send(JSON.stringify({ type: 'SKU_SCANNED', sku: data.sku }));
+                }
+                break;
+        }
+    });
+
+    // Cleanup on Disconnect
+    ws.on('close', () => {
+        if (ws.shopId && dashboardClients.has(ws.shopId)) {
+            dashboardClients.get(ws.shopId).delete(ws);
+            if (dashboardClients.get(ws.shopId).size === 0) dashboardClients.delete(ws.shopId);
+        }
+        // Scanner cleanup logic...
+        if (posToScannerMap.has(ws)) posToScannerMap.delete(ws);
+    });
+});
+
+// ============================================================
 // 🛠️ MISSING FEATURES FIX (Printer, Delete, Logs, RFID)
 // इसे createTables().then(...) वाली लाइन के ठीक ऊपर पेस्ट करें
 // ============================================================
@@ -7808,20 +7903,53 @@ app.post('/api/shop/security-history', async (req, res) => {
     }
 });
 	
-
-// Start the server after ensuring database tables are ready
+	
+	
+// ============================================================
+// 🚀 FINAL START (User की डिमांड पर: app.listen का उपयोग)
+// ============================================================
 createTables().then(() => {
-    // 4. app.listen की जगह server.listen का उपयोग करें
-    server.listen(PORT, () => {
-        console.log(`\n🎉 Server is running securely on port ${PORT}`);
-        console.log(`🌐 API Endpoint: https://dukan-pro-ultimate.onrender.com:${PORT}`); 
-        console.log('🚀 WebSocket Server is running on the same port.');
-        console.log('--------------------------------------------------');
-        console.log('🔒 Authentication: JWT is required for all data routes.');
-        console.log('🔑 Multi-tenancy: All data is scoped by shop_id.\n');
-    });
-}).catch(error => {
-    console.error('Failed to initialize database and start server:', error.message);
-    process.exit(1);
 
+    // 1. हम आपकी पसंद 'app.listen' का ही उपयोग कर रहे हैं
+    // (इससे वेबसाइट तुरंत चालू हो जाएगी और कोई Reference Error नहीं आएगा)
+    const runningServer = app.listen(PORT, () => {
+        console.log(`\n🎉 Server Running on Port ${PORT} (via app.listen)`);
+        console.log(`🌐 Live URL: https://dukan-pro-ultimate.onrender.com`); 
+        console.log('✅ Website is LIVE');
+    });
+
+    // =======================================================
+    // 🛠️ अब जादुई हिस्सा: प्रिंटर और डैशबोर्ड को इससे जोड़ना
+    // =======================================================
+
+    // 2. Socket.io (Printer/Siren) को चलते हुए सर्वर से जोड़ो
+    if (typeof io !== 'undefined') {
+        console.log('🔌 Attaching Printer & Siren System...');
+        io.attach(runningServer); // यह लाइन प्रिंटर को जिंदा करती है
+    }
+
+    // 3. Live Dashboard (WebSocket) को चलते हुए सर्वर से जोड़ो
+    runningServer.on('upgrade', (request, socket, head) => {
+        const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
+
+        // अगर प्रिंटर की रिक्वेस्ट है -> तो io को संभालने दो
+        if (pathname.startsWith('/socket.io/')) {
+             return; 
+        }
+
+        // अगर डैशबोर्ड की रिक्वेस्ट है -> तो wss को दे दो
+        if (typeof wss !== 'undefined') {
+            wss.handleUpgrade(request, socket, head, (ws) => {
+                wss.emit('connection', ws, request);
+            });
+        }
+    });
+
+    // 4. Timeout Settings (Slow Internet के लिए)
+    runningServer.timeout = 240000;
+    runningServer.keepAliveTimeout = 245000;
+
+}).catch(error => {
+    console.error('❌ Server Start Failed:', error.message);
+    process.exit(1);
 });
