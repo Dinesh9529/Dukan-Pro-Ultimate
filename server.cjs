@@ -7744,6 +7744,52 @@ app.get('/api/fix-database', async (req, res) => {
 });
 
 
+
+// ============================================================
+// 🚀 MISSING TABLE FIX: BILLS & BILL ITEMS
+// (इसे server.cjs के सबसे नीचे पेस्ट करें, कुछ हटाना नहीं है)
+// ============================================================
+const createMissingBillsTable = async () => {
+    try {
+        console.log("🛠️ Checking for missing 'bills' table...");
+
+        // 1. BILLS Table बनाएँ (अगर नहीं है)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bills (
+                id SERIAL PRIMARY KEY,
+                shop_id INTEGER DEFAULT 1,
+                bill_no VARCHAR(50),
+                customer_name VARCHAR(100),
+                customer_mobile VARCHAR(20),
+                total_amount NUMERIC(10,2) DEFAULT 0,
+                discount NUMERIC(10,2) DEFAULT 0,
+                final_amount NUMERIC(10,2) DEFAULT 0,
+                payment_mode VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 2. BILL ITEMS Table बनाएँ (अगर नहीं है)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bill_items (
+                id SERIAL PRIMARY KEY,
+                bill_id INTEGER REFERENCES bills(id),
+                item_name VARCHAR(255),
+                quantity INTEGER,
+                price NUMERIC(10,2),
+                total NUMERIC(10,2)
+            );
+        `);
+
+        console.log("✅ 'bills' Table Created Successfully!");
+    } catch (e) {
+        console.error("❌ Fix Failed:", e.message);
+    }
+};
+
+// सर्वर स्टार्ट होते ही इसे चलाएं
+createMissingBillsTable();
+
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
     // 4. app.listen की जगह server.listen का उपयोग करें
