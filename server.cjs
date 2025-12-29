@@ -1175,26 +1175,28 @@ const authenticateJWT = async (req, res, next) => {
         res.status(401).json({ success: false, message: 'अनधिकृत पहुँच।' });
     }
 };
-
-/**
- * Middleware for Role-Based Access Control (RBAC).
- * Role hierarchy: ADMIN (3) > MANAGER (2) > CASHIER (1)
- */
-/* [Line 86] - यह आपका मौजूदा checkRole फ़ंक्शन है */
+/* [Line 86] - checkRole फंक्शन (सुधारा गया) */
 const checkRole = (requiredRole) => (req, res, next) => {
-    // GUARD को सबसे कम पावर (Level 0) दें
+    // 1. रोल्स की पावर डिफाइन करें
     const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1, 'GUARD': 0 };
     
-    const userRoleValue = roles[req.userRole] || 0;
-    const requiredRoleValue = roles[requiredRole.toUpperCase()];
+    // 🚀 FIX: यूजर के रोल को बड़े अक्षरों (UPPERCASE) में बदलें
+    // इससे 'admin', 'Admin', और 'ADMIN' सब बराबर हो जाएंगे
+    const userRoleRaw = req.userRole || ''; 
+    const userRole = userRoleRaw.toUpperCase();
 
+    // 2. पावर निकालें
+    const userRoleValue = roles[userRole] || 0;
+    const requiredRoleValue = roles[requiredRole.toUpperCase()] || 0;
+
+    // 3. तुलना करें
     if (userRoleValue >= requiredRoleValue) {
-        next();
+        next(); // ✅ जाने दो
     } else {
-        res.status(403).json({ success: false, message: 'Permission Denied' });
+        console.log(`⛔ Access Denied: User '${userRole}' tried to access '${requiredRole}' area.`);
+        res.status(403).json({ success: false, message: 'Permission Denied (Role Mismatch)' });
     }
 };
-
 /* [Line 94] - checkRole फ़ंक्शन यहाँ समाप्त होता है */
 
 
