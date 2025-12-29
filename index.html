@@ -1415,9 +1415,18 @@
                         </div>
                         <div id="license-message" class="text-danger small mt-2 mb-3">&nbsp;</div>
                     
-                        <div class="alert alert-success text-center">
-                            <h5 class="alert-heading mb-0">नया लाइसेंस लेने के लिए संपर्क करें</h5>
-                            <p class="mb-0 fs-4 fw-bold"><i class="fab fa-whatsapp"></i> 7303410987</p>
+                        <div class="alert alert-success text-center p-3">
+                            <h6 class="alert-heading fw-bold mb-2">
+                                <i class="fas fa-headset"></i> नया लाइसेंस प्राप्त करें
+                            </h6>
+                            
+                            <button type="button" class="btn btn-success w-100 fw-bold py-2 shadow-sm" onclick="requestLicenseKey()">
+                                <i class="fab fa-whatsapp fa-lg me-2"></i> लाइसेंस के लिए मैसेज भेजें
+                            </button>
+                            
+                            <small class="text-muted mt-2 d-block">
+                                (आपकी Shop ID अपने आप एडमिन को भेज दी जाएगी)
+                            </small>
                         </div>
                     
                         <hr>
@@ -14521,7 +14530,84 @@ function triggerTheftAlarm(itemName = "Unknown Item") {
 }
 
 
-        </script>
+// ==========================================
+// 📸 FORCE CAMERA START (Fix for Testing)
+// ==========================================
+async function forceStartCamera() {
+    try {
+        console.log("📸 Requesting Camera Access...");
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        
+        // वीडियो एलिमेंट ढूंढें
+        let video = document.getElementById('security-video');
+        
+        // अगर वीडियो एलिमेंट नहीं है, तो अभी बनाओ (Auto-Fix HTML)
+        if (!video) {
+            console.log("⚠️ Video Element missing, creating now...");
+            video = document.createElement('video');
+            video.id = 'security-video';
+            video.width = 320;
+            video.height = 240;
+            video.autoplay = true;
+            video.style.display = 'none'; // छिपा हुआ
+            document.body.appendChild(video);
+            
+            const canvas = document.createElement('canvas');
+            canvas.id = 'security-canvas';
+            canvas.width = 320;
+            canvas.height = 240;
+            canvas.style.display = 'none';
+            document.body.appendChild(canvas);
+        }
+        
+        video.srcObject = stream;
+        alert("✅ कैमरा कनेक्ट हो गया! (Camera Connected)\nअब Ghost Bill टेस्ट दोबारा करें।");
+        
+    } catch (err) {
+        alert("❌ कैमरा एरर: " + err.message + "\n(Note: यह file:// पर काम नहीं करेगा, इसे Live Server पर चलाएं)");
+        console.error(err);
+    }
+}
+
+// टेस्टिंग के लिए स्क्रीन पर एक छोटा बटन दिखाएं
+const camBtn = document.createElement('button');
+camBtn.innerText = "📸 Start Camera";
+camBtn.style.position = "fixed";
+camBtn.style.bottom = "10px";
+camBtn.style.left = "10px";
+camBtn.style.zIndex = "999999";
+camBtn.className = "btn btn-primary btn-sm";
+camBtn.onclick = forceStartCamera;
+document.body.appendChild(camBtn);
+
+
+
+
+// ==========================================
+// 🚀 LICENSE REQUEST VIA WHATSAPP (New)
+// ==========================================
+function requestLicenseKey() {
+    // 1. लोकल स्टोरेज या AppState से यूजर डेटा निकालें
+    const user = AppState.user || JSON.parse(localStorage.getItem('authUser') || '{}');
+    
+    // 2. Shop ID और नाम सुरक्षित तरीके से प्राप्त करें
+    const shopId = user.shopId || user.id || 'N/A';
+    const shopName = user.shopName || 'My Shop';
+    const mobile = user.mobile || 'N/A';
+
+    // 3. मैसेज तैयार करें
+    const message = `नमस्ते Admin,\n\n🆘 मुझे नया लाइसेंस चाहिए।\n\n🆔 Shop ID: *${shopId}*\n🏪 Shop Name: ${shopName}\n📱 Mobile: ${mobile}\n\nकृपया रिन्यू करें। धन्यवाद!`;
+
+    // 4. WhatsApp लिंक खोलें (अपना नंबर 7303410987 इस्तेमाल करें)
+    // अगर नंबर में 91 नहीं है तो लगा दें
+    const adminNumber = "917303410987"; 
+    
+    const url = `https://wa.me/${adminNumber}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+}
+
+
+</script>
 
         
 <div style="position: fixed; bottom: 80px; right: 20px; z-index: 1000;">

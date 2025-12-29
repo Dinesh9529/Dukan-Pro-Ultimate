@@ -3,6 +3,7 @@
 // यह कोड JWT, Bcrypt और PostgreSQL के साथ एक सुरक्षित और मल्टी-टेनेंट सर्वर लागू करता है।
 // सभी डेटा एक्सेस 'shop_id' द्वारा सीमित (scoped) है।
 // -----------------------------------------------------------------------------
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -18,13 +19,6 @@ const http = require('http'); // 1. HTTP सर्वर की आवश्य�
 const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर की आवश्यकता
 // --- 🚀 WEBSOCKET सेटअप END ---
 const app = express();
-
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.options('*', cors());
 
 // ==========================================
 // 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
@@ -236,7 +230,6 @@ async function createTables() {
        
         // 0.5. Users Table
         // 🚀 FIX: 'ACCOUNTANT' रोल को CHECK constraint में जोड़ा गया
-		await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
         await client.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY, 
@@ -244,26 +237,20 @@ async function createTables() {
                 email TEXT UNIQUE NOT NULL, 
                 password_hash TEXT NOT NULL, 
                 name TEXT NOT NULL, 
-                role TEXT DEFAULT 'CASHIER',
+                role TEXT DEFAULT 'CASHIER' CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT')), 
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
         
-      // 🚀 FIX: 'GUARD' रोल को लिस्ट में शामिल किया गया
-await client.query(`
-    DO $$ BEGIN
-        -- 1. पुराना कंस्ट्रेंट हटाएं
-        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-        
-        -- 2. नया कंस्ट्रेंट लगाएं जिसमें 'GUARD' भी शामिल हो
-        ALTER TABLE users ADD CONSTRAINT users_role_check 
-        CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD'));
-        
-    EXCEPTION WHEN others THEN
-        -- अगर कोई एरर आए (जैसे 'GUARD' डेटा पहले से मौजूद हो), तो लॉग करें पर क्रैश न करें
-        RAISE NOTICE 'Constraint update skipped: %', SQLERRM;
-    END $$;
-`);
+        // (यह सुनिश्चित करता है कि पुराने यूज़र्स के लिए भी यह काम करे)
+        await client.query(`
+            DO $$ BEGIN
+                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+                ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT'));
+            EXCEPTION WHEN duplicate_object THEN
+                -- कंस्ट्रेंट पहले से ही मौजूद है या दूसरी टेबल द्वारा उपयोग में है, कोई बात नहीं
+            END $$;
+        `);
         
         // ===================================================================
         // [ ✅ NAYA CODE FIX YAHAN SE SHURU HOTA HAI ]
@@ -1186,19 +1173,16 @@ const authenticateJWT = async (req, res, next) => {
  */
 /* [Line 86] - यह आपका मौजूदा checkRole फ़ंक्शन है */
 const checkRole = (requiredRole) => (req, res, next) => {
-    // GUARD को सबसे कम पावर (Level 0) दें
-    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1, 'GUARD': 0 };
-    
-    const userRoleValue = roles[req.userRole] || 0;
+    const roles = { 'ADMIN': 3, 'MANAGER': 2, 'ACCOUNTANT': 2, 'CASHIER': 1 };
+    const userRoleValue = roles[req.userRole];
     const requiredRoleValue = roles[requiredRole.toUpperCase()];
 
     if (userRoleValue >= requiredRoleValue) {
-        next();
+        next(); // Authorized
     } else {
-        res.status(403).json({ success: false, message: 'Permission Denied' });
+        res.status(403).json({ success: false, message: 'इस कार्य को करने के लिए पर्याप्त अनुमतियाँ नहीं हैं। (आवश्यक: ' + requiredRole + ')' });
     }
 };
-
 /* [Line 94] - checkRole फ़ंक्शन यहाँ समाप्त होता है */
 
 
@@ -1330,7 +1314,53 @@ app.post('/api/admin/grant-addon', async (req, res) => {
 });
 
 
-//
+// ================================================================
+// 🚀 MISSING ADMIN ROUTES (Add this to server.cjs)
+// ================================================================
+
+// 1. Find Shop (Search by ID, Name, or Mobile)
+app.post('/api/admin/find-shop', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        let sqlQuery;
+        let params;
+
+        // अगर query नंबर है, तो ID या मोबाइल से खोजें
+        if (!isNaN(query)) {
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
+                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                WHERE s.id = $1 OR u.mobile LIKE $2
+            `;
+            params = [query, `%${query}%`];
+        } else {
+            // नाम से खोजें
+            sqlQuery = `
+                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
+                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
+                FROM shops s
+                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+                WHERE s.shop_name ILIKE $1
+            `;
+            params = [`%${query}%`];
+        }
+
+        const result = await pool.query(sqlQuery, params);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        console.error("Find Shop Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // 2. Update Shop Status (Block/Unblock)
 app.post('/api/admin/update-shop-status', async (req, res) => {
     const { adminPassword, shop_id, status } = req.body; // status: 'active' or 'blocked'
@@ -1640,11 +1670,7 @@ app.post('/api/login', async (req, res) => {
 const tokenUser = {
     id: user.id,
     email: user.email,
-    
-    // 👇 ये दोनों लाइनें सबसे जरूरी हैं (Front & Back दोनों के लिए)
-    shop_id: user.shop_id,  // Frontend के लिए (ताकि 33 की जगह सही ID दिखे)
-    shopId: user.shop_id,   // Backend के लिए
-
+    shopId: user.shop_id,
     name: user.name,
     mobile: user.mobile,
     role: user.role,
@@ -1653,7 +1679,6 @@ const tokenUser = {
     status: user.status,
     plan_type: shopPlanType,
     add_ons: shopAddOns,
-    business_type: businessType, 
     businessType: businessType
 };
 
@@ -1801,9 +1826,9 @@ app.post('/api/users', authenticateJWT, checkRole('ADMIN'), checkPlan(['MEDIUM',
     // 🌟 FIX: Added 'status' field
     const { name, email, password, role = 'CASHIER', status = 'pending' } = req.body;
     const shopId = req.shopId;
-	
-    if (!name || !email || !password || !['ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD'].includes(role.toUpperCase())) {
-        return res.status(400).json({ success: false, message: 'Invalid Role or Missing Fields' });
+
+    if (!name || !email || !password || !['ADMIN', 'MANAGER', 'CASHIER','ACCOUNTANT'].includes(role.toUpperCase())) {
+        return res.status(400).json({ success: false, message: 'मान्य नाम, ईमेल, पासवर्ड और रोल आवश्यक है।' });
     }
 
    try {
@@ -2329,12 +2354,6 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         );
         
         await client.query('COMMIT'); // Transaction End
-		
-		if (typeof wss !== 'undefined') {
-            wss.clients.forEach(ws => {
-                if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
-            });
-        }
 
         // 🚀 Update Dashboard via WebSocket
         if (typeof broadcastToShop === 'function') {
@@ -4119,7 +4138,6 @@ wss.on('connection', (ws) => {
         });
     });
 });
-
 
 // --- 🚀 WEBSOCKET सर्वर लॉजिक END ---
 
@@ -6335,6 +6353,58 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
     }
 });
 
+// [PASTE THIS IN server.cjs (ADMIN SECTION)]
+// 12.7 Find Shop Details (SECURE ENV VERSION)
+app.post('/api/admin/find-shop', async (req, res) => {
+    const { adminPassword, query } = req.body;
+
+    // 1. Environment Variable से पासवर्ड निकालें
+    const securePass = process.env.GLOBAL_ADMIN_PASSWORD;
+
+    // 🛑 SAFETY CHECK: अगर Render में पासवर्ड सेट करना भूल गए हैं
+    if (!securePass) {
+        console.error("🚨 CRITICAL ERROR: GLOBAL_ADMIN_PASSWORD is not set in Render Environment Variables!");
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Server Error: Admin Password config is missing on Server.' 
+        });
+    }
+
+    // 2. पासवर्ड मैच करें (Strict Check)
+    // .trim() लगाया है ताकि अगर स्पेस गलती से आ गया हो तो वो हट जाए
+    if (String(adminPassword).trim() !== String(securePass).trim()) {
+        console.warn(`⚠️ Failed Admin Login Attempt. Input: ${adminPassword}`);
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    try {
+        let sql = `
+            SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
+                   s.status, 
+                   s.license_expiry_date as expiry_date, 
+                   u.name as owner_name, u.mobile as owner_mobile, u.email
+            FROM shops s
+            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+        `;
+        
+        let params = [];
+        
+        if (query) {
+            sql += ` WHERE s.id::text ILIKE $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
+            params.push(`%${query}%`);
+        }
+        
+        sql += ` ORDER BY s.id DESC LIMIT 50`;
+
+        const result = await pool.query(sql, params);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        console.error("Find Shop Error:", err);
+        res.status(500).json({ success: false, message: "DB Error: " + err.message });
+    }
+});
+
 // --- ADMIN: BLOCK/UNBLOCK SHOP (CORRECTED) ---
 app.post('/api/admin/update-shop-status', async (req, res) => {
     const { adminPassword, shop_id, status } = req.body;
@@ -7086,630 +7156,6 @@ app.post('/api/hotel/checkout', authenticateJWT, async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
-
-
-
-// ================================================================
-// 🛑 SUPER ADMIN DANGEROUS TOOLS (Add to server.cjs)
-// ================================================================
-
-// 1. Direct Validity Extension (Without License Key)
-app.post('/api/admin/force-extend', async (req, res) => {
-    const { adminPassword, shop_id, duration_type } = req.body; // type: '3M', '6M', '1Y', '5Y', '10Y'
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत पासवर्ड!' });
-    }
-
-    try {
-        let interval;
-        switch(duration_type) {
-            case '3M': interval = '3 months'; break;
-            case '6M': interval = '6 months'; break;
-            case '12M': interval = '1 year'; break;
-            case '5Y': interval = '5 years'; break;
-            case '10Y': interval = '10 years'; break;
-            default: return res.json({success: false, message: "Invalid Duration"});
-        }
-
-        // SQL Injection Safe Query using Interval
-        await pool.query(
-            `UPDATE shops SET license_expiry_date = (CURRENT_DATE + INTERVAL '${interval}'), status = 'active' WHERE id = $1`,
-            [shop_id]
-        );
-
-        res.json({ success: true, message: `✅ Shop ${shop_id} की वैलिडिटी ${interval} बढ़ा दी गई है!` });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// 2. SQL Console (Run Direct Queries) - ⚠️ VERY DANGEROUS
-app.post('/api/admin/run-sql', async (req, res) => {
-    const { adminPassword, query } = req.body;
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत पासवर्ड!' });
-    }
-
-    // सुरक्षा: केवल SELECT या UPDATE/DELETE को अनुमति दें (optional)
-    try {
-        const result = await pool.query(query);
-        res.json({ success: true, data: result.rows, rowCount: result.rowCount });
-    } catch (err) {
-        res.status(400).json({ success: false, message: err.message });
-    }
-});
-
-// 3. Super Master List (All Details)
-app.post('/api/admin/get-all-details', async (req, res) => {
-    const { adminPassword } = req.body;
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({ success: false });
-
-    try {
-        const sql = `
-            SELECT 
-                s.id as shop_id, 
-                s.shop_name, 
-                s.plan_type, 
-                s.business_type,
-                TO_CHAR(s.license_expiry_date, 'DD-MM-YYYY') as expiry,
-                s.status,
-                u.name as owner_name, 
-                u.mobile, 
-                u.email,
-                TO_CHAR(u.created_at, 'DD-MM-YYYY') as reg_date
-            FROM shops s
-            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-            ORDER BY s.id ASC
-        `;
-        const result = await pool.query(sql);
-        res.json({ success: true, shops: result.rows });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// 2. 🚀 Emergency Force Extend (Direct Database Update without Key)
-app.post('/api/admin/force-extend', async (req, res) => {
-    const { adminPassword, shop_id, duration_type } = req.body;
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'Access Denied' });
-    }
-
-    try {
-        let interval;
-        // Interval mapping for PostgreSQL
-        switch(duration_type) {
-            case '3M': interval = '3 months'; break;
-            case '6M': interval = '6 months'; break;
-            case '12M': interval = '1 year'; break;
-            case '5Y': interval = '5 years'; break;
-            case '10Y': interval = '10 years'; break;
-            default: return res.json({success: false, message: "Invalid Duration Type"});
-        }
-
-        // Update expiry date directly
-        await pool.query(
-            `UPDATE shops SET license_expiry_date = (CURRENT_DATE + INTERVAL '${interval}'), status = 'active' WHERE id = $1`,
-            [shop_id]
-        );
-
-        res.json({ success: true, message: `✅ Shop #${shop_id} की वैलिडिटी ${interval} बढ़ा दी गई है!` });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// 3. 👨‍💻 SQL Console (Run Direct Queries)
-app.post('/api/admin/run-sql', async (req, res) => {
-    const { adminPassword, query } = req.body;
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'Access Denied' });
-    }
-
-    // Safety Check: Prevent DROP TABLE commands if you want safety
-    if (query.trim().toUpperCase().startsWith('DROP')) {
-        return res.status(400).json({ success: false, message: 'DROP commands are restricted for safety.' });
-    }
-
-    try {
-        const result = await pool.query(query);
-        res.json({ success: true, data: result.rows, rowCount: result.rowCount });
-    } catch (err) {
-        res.status(400).json({ success: false, message: err.message });
-    }
-});
-
-// 4. Update Business Type & Addons (Existing routes preserved)
-app.post('/api/admin/set-business-type', async (req, res) => {
-    const { adminPassword, shop_id, business_type } = req.body;
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({success:false});
-    
-    try {
-        await pool.query('UPDATE shops SET business_type = $1 WHERE id = $2', [business_type, shop_id]);
-        res.json({ success: true, message: "Business Type Updated" });
-    } catch(e) { res.status(500).json({message: e.message}); }
-});
-
-app.post('/api/admin/grant-addon', async (req, res) => {
-    const { adminPassword, shop_id, add_ons } = req.body;
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) return res.status(401).json({success:false});
-
-    try {
-        await pool.query('UPDATE shops SET add_ons = $1 WHERE id = $2', [add_ons, shop_id]);
-        res.json({ success: true, message: "Add-ons Saved" });
-    } catch(e) { res.status(500).json({message: e.message}); }
-});
-
-// ================================================================
-// 🚀 SUPER ADMIN POWER TOOLS (FINAL & SINGLE VERSION)
-// ================================================================
-
-// 1. Find Shop / Master List (Corrected)
-app.post('/api/admin/find-shop', async (req, res) => {
-    const { adminPassword, query } = req.body;
-
-    // Password Check
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत पासवर्ड!' });
-    }
-
-    try {
-        let sqlQuery;
-        let params = [];
-
-        // 🛡️ Base Query: यह वो सारी जानकारी है जो Master List मांग रही है
-        // COALESCE का मतलब: अगर डेटा न हो, तो Default वैल्यू दिखाओ (ताकि क्रैश न हो)
-        const baseQuery = `
-            SELECT 
-                s.id, 
-                s.shop_name, 
-                COALESCE(s.plan_type, 'TRIAL') as plan_type,
-                COALESCE(s.business_type, 'RETAIL') as business_type,
-                s.license_expiry_date as expiry_date, 
-                s.status, 
-                s.created_at,
-                u.mobile as owner_mobile, 
-                u.email as owner_email
-            FROM shops s
-            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-        `;
-
-        // Case 1: अगर सर्च खाली है -> सब दिखाओ (Master List)
-        if (!query || query.toString().trim() === '') {
-            sqlQuery = baseQuery + ` ORDER BY s.id DESC`;
-        } 
-        // Case 2: अगर नंबर है -> ID या मोबाइल से खोजो
-        else if (!isNaN(query)) {
-            sqlQuery = baseQuery + ` WHERE s.id = $1 OR u.mobile LIKE $2 ORDER BY s.id DESC`;
-            params = [query, `%${query}%`];
-        } 
-        // Case 3: अगर नाम है -> नाम या ईमेल से खोजो
-        else {
-            sqlQuery = baseQuery + ` WHERE s.shop_name ILIKE $1 OR u.email ILIKE $1 ORDER BY s.id DESC`;
-            params = [`%${query}%`];
-        }
-
-        const result = await pool.query(sqlQuery, params);
-        res.json({ success: true, shops: result.rows });
-
-    } catch (err) {
-        console.error("Find Shop Error:", err);
-        res.status(500).json({ success: false, message: "Server Error: " + err.message });
-    }
-});
-// ================================================================
-// 🛡️ SECURITY SYSTEM (FINAL FIXED VERSION)
-// ================================================================
-// 1. Verify Bill (Updated to match Frontend Structure)
-app.post('/api/security/verify-gate-pass', authenticateJWT, async (req, res) => {
-    const { invoiceId } = req.body;
-    const shopId = req.shopId; // authenticateJWT से shopId मिलेगा
-
-    if (!invoiceId) return res.status(400).json({ success: false, message: "Bill Number Required" });
-
-    try {
-        // बिल ढूँढें
-        const invRes = await pool.query(
-            `SELECT id, total_amount, created_at, customer_id, status, is_scanned 
-             FROM invoices WHERE id = $1 AND shop_id = $2`,
-            [invoiceId, shopId]
-        );
-
-        // CASE 1: बिल नहीं मिला (Fake Bill)
-        if (invRes.rows.length === 0) {
-            await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'FAKE_BILL', $2)`, [shopId, `Fake Bill #${invoiceId} scanned`]);
-            return res.status(404).json({ success: false, code: 'FAKE', message: '❌ FAKE BILL! डेटाबेस में नहीं है।' });
-        }
-
-        const invoice = invRes.rows[0];
-
-        // CASE 2: बिल कैंसिल हो चुका है
-        if (invoice.status === 'CANCELLED' || invoice.status === 'RETURNED') {
-            await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'CANCELLED_TRY', $2)`, [shopId, `Cancelled Bill #${invoiceId} tried`]);
-            return res.status(400).json({ success: false, code: 'CANCELLED', message: '⚠️ यह बिल कैंसिल हो चुका है!' });
-        }
-
-        // CASE 3: बिल पहले ही स्कैन हो चुका है (Double Scan)
-        if (invoice.is_scanned) {
-            await pool.query(`INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'DOUBLE_SCAN', $2)`, [shopId, `Duplicate Scan Attempt #${invoiceId}`]);
-            return res.status(400).json({ success: false, code: 'USED', message: '⚠️ WARNING: यह बिल पहले ही पास हो चुका है!' });
-        }
-
-        // ✅ सब सही है, अब इसे "Scanned" मार्क करें
-        await pool.query(`UPDATE invoices SET is_scanned = TRUE WHERE id = $1`, [invoiceId]);
-
-        // आइटम लाएं
-        const itemsRes = await pool.query(`SELECT item_name, quantity FROM invoice_items WHERE invoice_id = $1`, [invoiceId]);
-
-        // 🔥 बदलाव यहाँ है: हमने 'res.data' ऑब्जेक्ट जोड़ा है ताकि फ्रंटएंड का 'res.data.items' वाला कोड काम कर सके
-        res.json({
-            success: true,
-            code: 'OK',
-            message: '✅ Verified! (जाने दें)',
-            data: {
-                total_amount: invoice.total_amount,
-                items: itemsRes.rows,
-                invoice_id: invoice.id
-            }
-        });
-
-    } catch (e) {
-        console.error("Security Verify Error:", e);
-        res.status(500).json({ success: false, message: "DB Error: " + e.message });
-    }
-});
-
-
-
-// 2. Log Panic Button (Using authenticateJWT)
-app.post('/api/security/log-theft', authenticateJWT, async (req, res) => {
-    const { reason } = req.body;
-    try {
-        await pool.query(
-            `INSERT INTO security_logs (shop_id, event_type, description) VALUES ($1, 'PANIC_ALARM', $2)`,
-            [req.shopId, reason || 'Guard pressed Panic Button']
-        );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
-// 3. Security History Report (दुकानदार के लिए) - NO PASSWORD REQUIRED
-app.post('/api/shop/security-history', authenticateJWT, checkRole('MANAGER'), async (req, res) => {
-    // यहाँ हम user का shopId टोकन से ले रहे हैं (पासवर्ड की जरूरत नहीं)
-    const shopId = req.shopId;
-
-    try {
-        const result = await pool.query(
-            `SELECT * FROM security_logs WHERE shop_id = $1 ORDER BY id DESC LIMIT 50`, 
-            [shopId]
-        );
-        res.json({ success: true, logs: result.rows });
-    } catch (e) { 
-        res.status(500).json({ message: e.message }); 
-    }
-});
-
-// Cron-job को खुश रखने के लिए "Health Check" रूट
-app.get('/api/health', (req, res) => {
-    res.status(200).send('OK');
-});
-
-// या फिर सीधे अपनी वेबसाइट के रूट को भी इस्तेमाल कर सकते हैं
-app.get('/', (req, res) => {
-    res.status(200).send('Server is Up and Running');
-});
-
-
-
-// 🚨 चोरी या पैनिक अलर्ट के लिए रूट
-app.post('/api/security/theft-alert', authenticateJWT, async (req, res) => {
-    const { timestamp, location, type } = req.body;
-    const shopId = req.shopId; // टोकन से मिलेगा
-
-    try {
-        // 1. डेटाबेस में लॉग दर्ज करें
-        await pool.query(
-            `INSERT INTO security_logs (shop_id, event_type, description) 
-             VALUES ($1, $2, $3)`,
-            [shopId, type || 'THEFT_ALERT', `Panic Alarm triggered at ${location} on ${timestamp}`]
-        );
-
-        // 2. यहाँ आप एडमिन को Real-time नोटिफिकेशन (Socket.io) भी भेज सकते हैं
-        
-        res.json({ success: true, message: "Admin has been notified!" });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, message: "Server Error" });
-    }
-});
-
-
-// ==========================================
-// 🚨 SECURITY POLLING ROUTES (Add to server.cjs)
-// ==========================================
-
-// 1. दुकानदार का PC हर 5 सेकंड में इसे कॉल करेगा
-app.get('/api/security/check-latest-alert', authenticateJWT, async (req, res) => {
-    try {
-        const shopId = req.shopId;
-
-        // डेटाबेस से सबसे ताज़ा 'NEW' अलर्ट निकालें
-        const result = await pool.query(
-            `SELECT * FROM security_logs 
-             WHERE shop_id = $1 AND event_type IN ('PANIC_ALARM', 'THEFT_EMERGENCY') 
-             AND description NOT LIKE '%RESOLVED%' 
-             ORDER BY created_at DESC LIMIT 1`,
-            [shopId]
-        );
-
-        if (result.rows.length > 0) {
-            // अगर कोई एक्टिव अलर्ट मिला
-            res.json({ success: true, alert: result.rows[0] });
-        } else {
-            // सब शांत है
-            res.json({ success: true, alert: null });
-        }
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false });
-    }
-});
-
-// 2. जब दुकानदार "OK" बटन दबाएगा, तो अलर्ट बंद करने के लिए
-app.post('/api/security/acknowledge-alert', authenticateJWT, async (req, res) => {
-    try {
-        const { alertId } = req.body;
-        // अलर्ट के विवरण में 'RESOLVED' जोड़ दें ताकि वह दोबारा न बजे
-        await pool.query(
-            `UPDATE security_logs 
-             SET description = description || ' [RESOLVED by Owner]' 
-             WHERE id = $1`,
-            [alertId]
-        );
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false });
-    }
-});
-
-
-// ==========================================
-// ✅ PROFESSIONAL CHECK ALERT API (For All Shops)
-// ==========================================
-app.get('/api/security/check-alert', authenticateToken, async (req, res) => {
-    try {
-        // 1. Shop ID निकालो (सिर्फ टोकन या यूजर डेटा से)
-        let shopId = req.shopId || 
-                     (req.user && req.user.shop_id) || 
-                     (req.user && req.user.shopId);
-
-        // 🛑 STRICT SECURITY: अगर ID नहीं मिली, तो एरर दो (33 मत मानों)
-        if (!shopId) {
-            console.error("❌ Security Warning: Alert check failed. No Shop ID in token.");
-            return res.status(400).json({ success: false, message: "Shop ID missing." });
-        }
-
-        // 2. Database में देखो (सिर्फ उसी दुकान का अलार्म)
-        const result = await pool.query(
-            `SELECT * FROM security_logs 
-             WHERE shop_id = $1 AND status = 'ACTIVE' 
-             ORDER BY id DESC LIMIT 1`,
-            [shopId]
-        );
-        
-        if (result.rows.length > 0) {
-            console.log(`✅ ALARM FOUND for Shop ${shopId}! Sending to Admin...`);
-            res.json({ success: true, alert: result.rows[0] });
-        } else {
-            res.json({ success: false });
-        }
-    } catch (err) {
-        console.error("Check Alert Error:", err);
-        res.status(500).json({ success: false });
-    }
-});
-
-
-
-
-// अलर्ट बंद करने की API
-app.post('/api/security/resolve-alert', authenticateToken, async (req, res) => {
-    const { id } = req.body;
-    await pool.query("UPDATE security_logs SET status = 'RESOLVED' WHERE id = $1", [id]);
-    res.json({ success: true });
-});
-// ==========================================
-// ✅ PROFESSIONAL PANIC ALERT API (Dynamic for All Clients)
-// ==========================================
-app.post('/api/security/trigger-alert', authenticateToken, async (req, res) => {
-    const { location } = req.body;
-    
-    // 1. गार्ड के टोकन से ही पता करो कि वह किस दुकान का है
-    // जुगाड़ नहीं, असली पहचान (Identity)
-    const shopId = req.shopId || (req.user && req.user.shop_id);
-
-    console.log(`🚨 Alarm Request from User: ${req.user.email}`);
-    console.log(`🏢 Detected Shop ID: ${shopId}`);
-
-    // 2. सुरक्षा जाँच: अगर दुकान का पता नहीं चला, तो अलार्म मत भेजो (Error दो)
-    // इससे किसी और का अलार्म आपको नहीं आएगा।
-    if (!shopId) {
-        console.error("❌ Error: Guard has no Shop ID linked!");
-        return res.status(400).json({ success: false, message: "Shop ID not found in token." });
-    }
-
-    try {
-        // 3. सही दुकान (Correct Shop ID) के खाते में अलार्म लिखो
-        const result = await pool.query(
-            `INSERT INTO security_logs (shop_id, status, description) 
-             VALUES ($1, 'ACTIVE', $2) RETURNING id`,
-            [shopId, `PANIC: ${location}`]
-        );
-
-        // 4. उसी दुकान के मालिक को लाइव अलर्ट भेजो
-        if (global.broadcastToShop) {
-            global.broadcastToShop(shopId, JSON.stringify({
-                type: 'SECURITY_ALERT',
-                alert: {
-                    id: result.rows[0].id,
-                    location: location,
-                    time: new Date()
-                }
-            }));
-        }
-        
-        console.log(`✅ Alarm sent to Shop #${shopId} successfully.`);
-        res.json({ success: true });
-
-    } catch (err) {
-        console.error("Alert Error:", err);
-        res.status(500).json({ success: false });
-    }
-});
-
-
-app.get('/api/invoices/:id', authenticateJWT, async (req, res) => {
-    const { id } = req.params;
-    const shopId = req.user.shopId;
-
-    try {
-        // 🚀 STEP 1: Pehle row ko LOCK karo (FOR UPDATE)
-        // Isse dusri request tab tak ruki rahegi jab tak ye transaction khatam na ho
-        const invoiceRes = await pool.query(
-            `SELECT * FROM invoices WHERE id = $1 AND shop_id = $2 FOR UPDATE`,
-            [id, shopId]
-        );
-
-        if (invoiceRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "Bill not found" });
-        }
-
-        const invoice = invoiceRes.rows[0];
-
-        // 🚀 STEP 2: Ab status check karo
-        if (invoice.is_scanned === true || String(invoice.is_scanned) === 'true') {
-            const itemsRes = await pool.query(`SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`, [id]);
-            return res.json({
-                success: true,
-                alreadyChecked: true,
-                invoice: invoice,
-                items: itemsRes.rows,
-                total_amount: invoice.total_amount
-            });
-        }
-
-        // 🚀 STEP 3: STATUS UPDATE (Response se PEHLE update karo)
-        await pool.query(
-            `UPDATE invoices SET is_scanned = true WHERE id = $1 AND shop_id = $2`,
-            [id, shopId]
-        );
-
-        // 🚀 STEP 4: Items fetch karo
-        const itemsRes = await pool.query(
-            `SELECT item_name, quantity, sale_price FROM invoice_items WHERE invoice_id = $1`,
-            [id]
-        );
-
-        // SUCCESS RESPONSE
-        res.json({
-            success: true,
-            alreadyChecked: false,
-            invoice: { ...invoice, is_scanned: true },
-            items: itemsRes.rows,
-            total_amount: invoice.total_amount
-        });
-
-    } catch (err) {
-        console.error("Database Error:", err);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-
-
-// ============================================================
-// 🚨 RFID ANTI-THEFT API (Webstock के जरिए सायरन बजाएगा)
-// (इसे फाइल के बीच में कहीं भी पेस्ट कर दें, कुछ हटाने की जरूरत नहीं)
-// ============================================================
-app.post('/api/rfid/trigger', (req, res) => {
-    try {
-        const { tag_id, gate_id } = req.body;
-        console.log(`🚨 SECURITY ALERT: Tag ${tag_id} detected at ${gate_id}`);
-
-        // 1. हम पुराने Webstock (wss) का ही इस्तेमाल करेंगे (Safe Method)
-        // यह सभी कनेक्टेड स्क्रीन्स को 'ALERT' मैसेज भेजेगा
-        if (typeof wss !== 'undefined') {
-            const alertMessage = JSON.stringify({
-                type: 'SECURITY_ALERT', // यह कोड फ्रंटेंड पर सायरन ट्रिगर करेगा
-                tag: tag_id,
-                gate: gate_id,
-                timestamp: new Date()
-            });
-
-            wss.clients.forEach((client) => {
-                if (client.readyState === 1) { // 1 = OPEN state
-                    client.send(alertMessage);
-                }
-            });
-        }
-
-        // 2. लॉग सेव करें (ताकि बाद में देख सकें)
-        // (अगर आपके पास pool है तो यह लाइन अनकमेंट कर दें)
-        // pool.query("INSERT INTO security_logs ...") 
-
-        res.json({ success: true, message: "Siren Command Sent via Webstock" });
-
-    } catch (error) {
-        console.error("RFID Error:", error);
-        res.status(500).json({ error: "Failed to trigger siren" });
-    }
-});
-
-// ============================================================
-// 📊 DASHBOARD STATS (SECURE & SHOP-SPECIFIC)
-// ============================================================
-app.get('/api/dashboard/stats', async (req, res) => {
-    try {
-        // 1. टोکن से Shop ID निकालें (ताकि डेटा मिक्स न हो)
-        let shop_id = 1; 
-        const authHeader = req.headers['authorization'];
-        if (authHeader) {
-            const token = authHeader.split(' ')[1];
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025');
-                shop_id = decoded.shopId || 1;
-            } catch(e) {}
-        }
-
-        console.log(`📊 Fetching Lifetime Data for Shop ID: ${shop_id}...`);
-
-        // 2. सिर्फ इस Shop ID का टोटल निकालें (Invoices टेबल से)
-        const result = await pool.query(`
-            SELECT 
-                COALESCE(SUM(total_amount), 0) as total_sales, 
-                COUNT(*) as total_orders 
-            FROM invoices 
-            WHERE shop_id = $1
-        `, [shop_id]);
-
-        // 3. डेटा भेजें
-        res.json({
-            success: true,
-            total_sales: parseFloat(result.rows[0].total_sales),
-            total_orders: parseInt(result.rows[0].total_orders)
-        });
-
-    } catch (e) {
-        console.error("Dashboard Error:", e);
-        res.status(500).json({ error: "Server Error" });
-    }
-});
-
-
-
-
 
 
 
