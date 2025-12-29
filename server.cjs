@@ -7759,7 +7759,61 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
 
 
+// ==========================================
+// 🔄 5. FETCH USER PROFILE (REAL-TIME DB CHECK)
+// ==========================================
+// यह API पेज रिफ्रेश होने पर कॉल होगा और DB से ताज़ा स्टेटस लाएगा
+app.get('/api/me', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
 
+        // डेटाबेस से ताज़ा जानकारी निकालें
+        const result = await pool.query(
+            `SELECT u.id, u.name, u.email, u.mobile, u.role, u.shop_id, 
+                    s.shop_name, s.business_type, s.plan_type, s.license_expiry_date, s.status
+             FROM users u
+             JOIN shops s ON u.shop_id = s.id
+             WHERE u.id = $1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const user = result.rows[0];
+        const bizType = (user.business_type || 'retail').toLowerCase();
+
+        // फ्रंटएंड के लिए यूजर ऑब्जेक्ट तैयार करें
+        const freshUser = {
+            id: user.id,
+            email: user.email,
+            shopId: user.shop_id,
+            shop_id: user.shop_id,
+            name: user.name,
+            role: (user.role || 'admin').toLowerCase(),
+            shopName: user.shop_name,
+            licenseExpiryDate: user.license_expiry_date, // 👈 यह सबसे जरूरी है
+            status: user.status,
+            plan_type: user.plan_type,
+            businessType: bizType,
+            business_type: bizType
+        };
+
+        // रिफ्रेश के लिए नया टोकन भी दे सकते हैं (Optional but Good)
+        const newToken = jwt.sign(freshUser, process.env.JWT_SECRET || 'secret', { expiresIn: '30d' });
+
+        res.json({
+            success: true,
+            user: freshUser,
+            token: newToken // ताज़ा टोकन
+        });
+
+    } catch (err) {
+        console.error("Profile Fetch Error:", err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
 
 
 
