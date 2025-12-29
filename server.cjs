@@ -7816,7 +7816,155 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 
+// ============================================================
+// 👑 SUPER GOD MODE APIs (Add this to server.cjs)
+// ============================================================
 
+const SUPER_ADMIN_PASS = 'admin123'; // ⚠️ अपना सीक्रेट पासवर्ड यहाँ सेट करें
+
+// --- Middleware: Admin Password Check ---
+const requireSuperAdmin = (req, res, next) => {
+    const { adminPassword } = req.body;
+    if (adminPassword !== SUPER_ADMIN_PASS) {
+        return res.status(403).json({ success: false, message: '⛔ WRONG PASSWORD! Access Denied.' });
+    }
+    next();
+};
+
+// 1. 🔍 Find Shop / Master List
+app.post('/api/admin/find-shop', requireSuperAdmin, async (req, res) => {
+    try {
+        const { query } = req.body;
+        let sql = `
+            SELECT s.id, s.shop_name, s.business_type, s.plan_type, s.status, 
+                   s.license_expiry_date as expiry_date, s.created_at,
+                   u.email as owner_email, u.mobile as owner_mobile 
+            FROM shops s 
+            LEFT JOIN users u ON s.id = u.shop_id AND u.role IN ('admin', 'ADMIN')
+        `;
+
+        // अगर कोई ID या नाम सर्च किया है
+        if (query) {
+            sql += ` WHERE CAST(s.id AS TEXT) = $1 OR s.shop_name ILIKE $2 OR u.mobile ILIKE $2`;
+            const result = await pool.query(sql, [query, `%${query}%`]);
+            return res.json({ success: true, shops: result.rows });
+        }
+        
+        // अगर सब कुछ चाहिए (Master List)
+        sql += ` ORDER BY s.id DESC LIMIT 100`; // सुरक्षा के लिए 100 limit
+        const result = await pool.query(sql);
+        res.json({ success: true, shops: result.rows });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. 🔑 Generate License Key
+app.post('/api/admin/generate-key', requireSuperAdmin, async (req, res) => {
+    try {
+        const { days, plan_type, customerName, customerMobile } = req.body;
+
+        // रैंडम की (Key) बनाएं: DKN-XXXX-XXXX-XXXX
+        const randomPart = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+        const licenseKey = `DKN-${randomPart}`;
+
+        // हैश बनाएं (ताकि Activation के समय मैच हो सके)
+        const keyHash = crypto.createHash('sha256').update(licenseKey).digest('hex');
+
+        // डेटाबेस में सेव करें
+        await pool.query(
+            `INSERT INTO licenses (key_string, key_hash, duration_days, plan_type, customer_name, customer_mobile) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [licenseKey, keyHash, days, plan_type, customerName, customerMobile]
+        );
+
+        res.json({ success: true, key: licenseKey, message: 'Key Generated Successfully' });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. ⚡ Emergency Force Extend (Direct DB Update)
+app.post('/api/admin/force-extend', requireSuperAdmin, async (req, res) => {
+    try {
+        const { shop_id, duration_type } = req.body;
+        let days = 0;
+        
+        if (duration_type === '3M') days = 90;
+        else if (duration_type === '6M') days = 180;
+        else if (duration_type === '12M') days = 365;
+        else if (duration_type === '5Y') days = 1825;
+        else if (duration_type === '10Y') days = 3650;
+
+        await pool.query(
+            `UPDATE shops 
+             SET license_expiry_date = NOW() + INTERVAL '${days} days', status = 'active' 
+             WHERE id = $1`,
+            [shop_id]
+        );
+
+        res.json({ success: true, message: `Shop #${shop_id} Extended for ${days} days!` });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. 🛠️ Run Any SQL (DANGEROUS ZONE)
+app.post('/api/admin/run-sql', requireSuperAdmin, async (req, res) => {
+    try {
+        const { query } = req.body;
+        
+        // सुरक्षा: DROP TABLE जैसे खतरनाक कमांड रोकें (हटाना चाहें तो हटा दें)
+        if (query.toUpperCase().includes('DROP TABLE')) {
+            return res.json({ success: false, message: '⚠️ DROP TABLE is disabled for safety.' });
+        }
+
+        const result = await pool.query(query);
+        res.json({ success: true, rowCount: result.rowCount, data: result.rows });
+
+    } catch (err) {
+        res.json({ success: false, message: err.message });
+    }
+});
+
+// 5. 🧩 Grant Add-ons
+app.post('/api/admin/grant-addon', requireSuperAdmin, async (req, res) => {
+    try {
+        const { shop_id, add_ons } = req.body;
+        
+        // JSONB कॉलम अपडेट करें (shop_settings टेबल या shops टेबल में)
+        // मान रहे हैं कि shops टेबल में 'features' नाम का JSON कॉलम है, 
+        // अगर नहीं है तो पहले SQL चलाएं: ALTER TABLE shops ADD COLUMN features JSONB DEFAULT '{}';
+        
+        await pool.query(
+            `UPDATE shops SET features = COALESCE(features, '{}'::jsonb) || $1 WHERE id = $2`,
+            [JSON.stringify(add_ons), shop_id]
+        );
+
+        res.json({ success: true, message: 'Features Updated Successfully!' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 6. 🔄 Set Business Type
+app.post('/api/admin/set-business-type', requireSuperAdmin, async (req, res) => {
+    try {
+        const { shop_id, business_type } = req.body;
+        
+        await pool.query(
+            `UPDATE shops SET business_type = $1 WHERE id = $2`,
+            [business_type.toLowerCase(), shop_id]
+        );
+
+        res.json({ success: true, message: `Shop #${shop_id} changed to ${business_type}` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
