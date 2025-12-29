@@ -248,19 +248,15 @@ async function createTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        
-      // 🚀 FIX: 'GUARD' रोल को लिस्ट में शामिल किया गया
-await client.query(`
+ await client.query(`
     DO $$ BEGIN
-        -- 1. पुराना कंस्ट्रेंट हटाएं
         ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
         
-        -- 2. नया कंस्ट्रेंट लगाएं जिसमें 'GUARD' भी शामिल हो
+        -- ✅ सुधार: सबको छोटे अक्षरों (lowercase) में रखें, क्योंकि JS से डेटा छोटे अक्षरों में आता है
         ALTER TABLE users ADD CONSTRAINT users_role_check 
-        CHECK (role IN ('ADMIN', 'MANAGER', 'CASHIER', 'ACCOUNTANT', 'GUARD'));
+        CHECK (role IN ('admin', 'manager', 'cashier', 'accountant', 'guard'));
         
     EXCEPTION WHEN others THEN
-        -- अगर कोई एरर आए (जैसे 'GUARD' डेटा पहले से मौजूद हो), तो लॉग करें पर क्रैश न करें
         RAISE NOTICE 'Constraint update skipped: %', SQLERRM;
     END $$;
 `);
@@ -1494,97 +1490,121 @@ app.get('/api/verify-license', async (req, res) => {
     }
 });
 
-
-// 3. User Registration (Updated for ALL Business Types)
+// ============================================================
+// 📝 3. USER REGISTRATION (UPDATED FOR CORRECT BUSINESS TYPE)
+// ============================================================
 app.post('/api/register', async (req, res) => {
-    // 🚀 FIX: 'business_type' ko req.body se nikaalein
+    // 🚀 'business_type' अब फॉर्म से ईमेल और पासवर्ड के साथ आएगा
     const { shopName, name, email, mobile, password, business_type } = req.body;
 
-    if (!shopName || !name || !email || !mobile || !password) {
-        return res.status(400).json({ success: false, message: 'सभी फ़ील्ड आवश्यक हैं.' });
+    // बेसिक चेक: कोई फील्ड खाली न रहे
+    if (!shopName || !name || !email || !password || !business_type) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'कृपया सभी जानकारी भरें (ईमेल, पासवर्ड और बिज़नेस टाइप आवश्यक हैं).' 
+        });
     }
     
-    // Default value 'RETAIL' agar user ne select nahi kiya
-    const finalBusinessType = business_type || 'RETAIL';
+    // 💡 सुधार: बिज़नेस टाइप को छोटे अक्षरों में रखें ताकि डैशबोर्ड सही लोड हो
+    const finalBusinessType = business_type.toLowerCase();
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // 1. Email Check
+        // 1. ईमेल की जांच (Duplicate Check)
         const existingUser = await client.query('SELECT id FROM users WHERE email = $1', [email]);
         if (existingUser.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(409).json({ success: false, message: 'यह ईमेल पहले से पंजीकृत है।' });
         }
 
-        // 2. Create Shop (🚀 CRITICAL: Save business_type here)
+        // 2. दुकान बनाएं (Business Type यहाँ सेव होगा)
         const shopResult = await client.query(
-            'INSERT INTO shops (shop_name, business_type) VALUES ($1, $2) RETURNING id, business_type',
-            [shopName, finalBusinessType]
+            'INSERT INTO shops (shop_name, business_type, status) VALUES ($1, $2, $3) RETURNING id',
+            [shopName, finalBusinessType, 'active']
         );
         const shopId = shopResult.rows[0].id;
 
-        // 3. Hash Password
+        // 3. पासवर्ड सुरक्षित करें (Hash)
+        const SALT_ROUNDS = 10;
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // 4. Create User (Admin)
+        // 4. मालिक (Admin) अकाउंट बनाएं
+        // 💡 सुधार: 'admin' रोल छोटे अक्षरों में डालें ताकि Constraint Violation न हो
         const userInsertQuery = `
             INSERT INTO users (shop_id, email, password_hash, name, mobile, role, status)
-            VALUES ($1, $2, $3, $4, $5, $6, 'active')
+            VALUES ($1, $2, $3, $4, $5, 'admin', 'active')
             RETURNING id, shop_id, email, name, mobile, role, status
         `;
-        const userResult = await client.query(userInsertQuery, [shopId, email, hashedPassword, name, mobile, 'ADMIN']);
+        const userResult = await client.query(userInsertQuery, [
+            shopId, 
+            email, 
+            hashedPassword, 
+            name, 
+            mobile || ''
+        ]);
         const user = userResult.rows[0];
 
-        // 5. Generate Token (🚀 Include businessType in token)
+        // 5. टोकन बनाएं (Token Payload)
+        // 🚀 इसमें 'businessType' डालना सबसे ज़रूरी है ताकि रजिस्ट्रेशन के बाद सीधा सही Dashboard खुले
         const tokenUser = {
             id: user.id,
             email: user.email,
             mobile: user.mobile,
-            shopId: user.shop_id,
+            shop_id: user.shop_id, // Frontend के लिए
+            shopId: user.shop_id,  // Backend के लिए
             name: user.name,
-            role: user.role,
+            role: 'admin',
             shopName: shopName,
             status: user.status,
             plan_type: 'TRIAL',
             add_ons: {},
             licenseExpiryDate: null,
-            businessType: finalBusinessType // <--- Ye frontend ke liye zaroori hai
+            businessType: finalBusinessType, // 👈 यही 'सैलून' या 'हार्डवेयर' तय करेगा
+            business_type: finalBusinessType
         };
+        
+        // JWT टोकन साइन करें (JWT_SECRET फाइल के टॉप पर होना चाहिए)
         const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
         await client.query('COMMIT');
+        
+        console.log(`✅ New Registration: ${email} registered for ${finalBusinessType}`);
+
+        // सफलता का संदेश भेजें
         res.json({
             success: true,
             message: 'अकाउंट सफलतापूर्वक बनाया गया।',
             token: token,
             user: tokenUser
         });
+
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("Error registering:", err.message);
+        console.error("❌ Registration Error:", err.message);
         res.status(500).json({ success: false, message: 'रजिस्ट्रेशन विफल: ' + err.message });
     } finally {
         client.release();
     }
 });
 
-
 // [ server.cjs फ़ाइल में यह कोड बदलें ]
 
-
-/// 4. User Login (UPDATED FOR BLOCKING, PLAN TYPE, ADDONS)
+// ==========================================
+// 🔐 4. USER LOGIN (FINAL COMPLETE CODE)
+// ==========================================
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
+    // --- Step 1: बेसिक वैलिडेशन (Basic Validation) ---
     if (!email || !password) {
         return res.status(400).json({ success: false, message: 'ईमेल और पासवर्ड आवश्यक हैं.' });
     }
 
     try {
-        // --- 🚀 FIX 1: Query में 's.status' भी मंगवाया गया है ---
-        // ध्यान दें: हमने 's.status' को 'shop_status' नाम दिया है ताकि user के status से कंफ्यूजन न हो
+        // --- 🚀 FIX 1: यूजर और दुकान का डेटा एक साथ मंगवाना ---
+        // नोट: हम 's.status' को 'shop_status' नाम दे रहे हैं ताकि कंफ्यूजन न हो
         const result = await pool.query(
             `SELECT u.*, 
                     s.shop_name, 
@@ -1606,66 +1626,63 @@ app.post('/api/login', async (req, res) => {
 
         let user = result.rows[0]; 
 
-        // --- 🔴 NEW BLOCK CHECK (यह वह नया कोड है जो आप ढूंढ रहे थे) ---
-        // पासवर्ड चेक करने से पहले ही देखें कि दुकान ब्लॉक तो नहीं है
+        // --- 🔴 NEW BLOCK CHECK: दुकान ब्लॉक तो नहीं है? ---
         if (user.shop_status === 'blocked') {
             return res.status(403).json({ 
                 success: false, 
                 message: '⛔ आपकी दुकान को एडमिन द्वारा अस्थाई रूप से बंद (Blocked) कर दिया गया है। कृपया भुगतान या जानकारी के लिए संपर्क करें।' 
             });
         }
-        // -------------------------------------------------------------
 
-        // --- Step 2: Check Password ---
+        // --- Step 2: पासवर्ड चेक (Check Password) ---
+        // नोट: आपकी डेटाबेस में पासवर्ड वाला कॉलम 'password_hash' होना चाहिए
         const isMatch = await bcrypt.compare(password, user.password_hash);
         
         if (!isMatch) {
             return res.status(401).json({ success: false, message: 'अमान्य ईमेल या पासवर्ड.' });
         }
 
-        // --- Step 3: Check/Update User Status ---
+        // --- Step 3: यूजर स्टेटस अपडेट (Update User Status) ---
         if (user.status !== 'active') {
              await pool.query('UPDATE users SET status = $1 WHERE id = $2', ['active', user.id]);
              user.status = 'active'; 
         }
 
-        // --- Step 4: Shop Details Extract ---
+        // --- Step 4: डेटा नॉर्मलाइजेशन (Data Normalization) ---
+        // बिज़नेस टाइप और रोल को छोटे अक्षरों (lowercase) में बदलना जरूरी है
         const shopExpiryDate = user.license_expiry_date; 
-        const shopPlanType = user.plan_type || 'TRIAL'; 
+        const shopPlanType = (user.plan_type || 'TRIAL').toLowerCase(); 
         const shopAddOns = user.add_ons || {}; 
-        const businessType = user.business_type || 'RETAIL'; 
+        const businessType = (user.business_type || 'retail').toLowerCase(); // 👈 सबसे जरूरी फिक्स
 
-        // [✅ FIXED LOGIN CODE]
-// --- Step 5: Token Payload ---
-const tokenUser = {
-    id: user.id,
-    email: user.email,
-    
-    // 👇 ये दोनों लाइनें सबसे जरूरी हैं (Front & Back दोनों के लिए)
-    shop_id: user.shop_id,  // Frontend के लिए (ताकि 33 की जगह सही ID दिखे)
-    shopId: user.shop_id,   // Backend के लिए
+        // --- Step 5: टोकन पेलोड (Token Payload - The Heart of System) ---
+        const tokenUser = {
+            id: user.id,
+            email: user.email,
+            shop_id: user.shop_id,  // Frontend (LocalStorage) के लिए
+            shopId: user.shop_id,   // Backend (Middleware) के लिए
+            name: user.name,
+            mobile: user.mobile,
+            role: user.role.toLowerCase(), // 👈 Role Fix (Lowercase for DB consistency)
+            shopName: user.shop_name,
+            licenseExpiryDate: shopExpiryDate,
+            status: user.status,
+            plan_type: shopPlanType,
+            add_ons: shopAddOns,
+            business_type: businessType, // 👈 यही तय करेगा कि 'Salon' खुलेगा या 'Retail'
+            businessType: businessType
+        };
 
-    name: user.name,
-    mobile: user.mobile,
-    role: user.role,
-    shopName: user.shop_name,
-    licenseExpiryDate: shopExpiryDate,
-    status: user.status,
-    plan_type: shopPlanType,
-    add_ons: shopAddOns,
-    business_type: businessType, 
-    businessType: businessType
-};
+        // 🎫 JWT टोकन बनाना (फ़ाइल के सबसे ऊपर JWT_SECRET होना चाहिए)
+        const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 
-// 🔴 यहाँ पहले 'secret_key' लिखा था, उसे हटाकर JWT_SECRET करें
-const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
-
-        // --- Step 6: Check SHOP's License Expiry ---
+        // --- Step 6: लाइसेंस एक्सपायरी चेक (License Check) ---
         const expiryDate = shopExpiryDate ? new Date(shopExpiryDate) : null;
         const currentDate = new Date();
         currentDate.setHours(0, 0, 0, 0);
 
-        if (!expiryDate || expiryDate < currentDate) {
+        // अगर लाइसेंस खत्म हो गया है, तो 'requiresLicense: true' भेजें
+        if (expiryDate && expiryDate < currentDate) {
             return res.json({
                 success: true, 
                 message: 'लाइसेंस समाप्त हो गया है।', 
@@ -1675,7 +1692,9 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
             });
         }
 
-        // --- Step 7: Successful Login ---
+        // --- Step 7: लॉगिन सफल (Login Successful) ---
+        console.log(`✅ Login Successful: ${user.email} -> Business: ${businessType}`);
+        
         res.json({
             success: true,
             message: 'लॉगिन सफल।',
@@ -1685,7 +1704,7 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
        });
 
     } catch (err) {
-        console.error("Error logging in:", err.message);
+        console.error("❌ Error logging in:", err.message);
         res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
     }
 });
