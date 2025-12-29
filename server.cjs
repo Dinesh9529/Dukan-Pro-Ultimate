@@ -1718,10 +1718,14 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/activate-license', authenticateToken, async (req, res) => {
     const { licenseKey } = req.body;
     
-    // 1. Basic Validation
-    if (!req.user || req.user.role !== 'ADMIN') {
+    // 1. Basic Validation (✅ FIXED: Case Insensitive Check)
+    // अब यह 'ADMIN', 'admin', या 'Admin' तीनों को स्वीकार करेगा
+    const userRole = (req.user.role || '').toLowerCase();
+
+    if (!req.user || userRole !== 'admin') {
         return res.status(403).json({ success: false, message: 'केवल Admin ही लाइसेंस डाल सकता है।' });
     }
+    
     if (!licenseKey || licenseKey.includes('PASTE_KAREIN')) {
         return res.status(400).json({ success: false, message: 'कृपया सही लाइसेंस की (Key) डालें।' });
     }
@@ -1731,43 +1735,60 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
     const client = await pool.connect(); // क्लाइंट कनेक्ट करें
 
     try {
-        // की (Key) को हैश करें (सुरक्षा के लिए)
-        // नोट: अगर आपके पास hashKey फंक्शन नहीं है, तो इसे सीधे यूज़ करें या नीचे दिया गया फंक्शन भी कोड में डालें
-        const keyHash = crypto.createHash('sha256').update(licenseKey).digest('hex');
-
         await client.query('BEGIN'); // ट्रांजैक्शन शुरू
 
-        // 2. लाइसेंस टेबल चेक करें (FOR UPDATE लॉक के साथ)
-        const licenseRes = await client.query(
-            `SELECT * FROM licenses WHERE key_hash = $1 FOR UPDATE`, 
-            [keyHash]
-        );
+        // --- 🛠️ SPECIAL: HARDCODED KEYS SUPPORT (ताकि Database Table के बिना भी काम करे) ---
+        let manualPlan = null;
+        let manualDays = 0;
 
-        if (licenseRes.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'गलत लाइसेंस की (Invalid Key)!' });
+        if (licenseKey === 'DUKAN-PRO-1YEAR') { manualPlan = 'PREMIUM'; manualDays = 365; }
+        else if (licenseKey === 'DUKAN-TRIAL-30') { manualPlan = 'TRIAL'; manualDays = 30; }
+        else if (licenseKey === 'DUKAN-LIFETIME') { manualPlan = 'LIFETIME'; manualDays = 36500; }
+
+        if (manualPlan) {
+            // अगर हार्डकोडेड की (Key) है, तो सीधा अपडेट करें
+            await client.query(
+                `UPDATE shops SET plan_type = $1, license_expiry_date = NOW() + INTERVAL '${manualDays} days', status = 'active' WHERE id = $2`,
+                [manualPlan, req.user.shopId]
+            );
+        } else {
+            // --- DATABASE TABLE LOGIC (जो आपका असली कोड था) ---
+            
+            // की (Key) को हैश करें (सुरक्षा के लिए)
+            const keyHash = crypto.createHash('sha256').update(licenseKey).digest('hex');
+
+            // 2. लाइसेंस टेबल चेक करें (FOR UPDATE लॉक के साथ)
+            const licenseRes = await client.query(
+                `SELECT * FROM licenses WHERE key_hash = $1 FOR UPDATE`, 
+                [keyHash]
+            );
+
+            if (licenseRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ success: false, message: 'गलत लाइसेंस की (Invalid Key)!' });
+            }
+
+            const license = licenseRes.rows[0];
+
+            // 3. वैलिडेशन चेक
+            if (license.shop_id && license.shop_id != req.user.shopId) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ success: false, message: 'यह की (Key) किसी और दुकान पर यूज़ हो चुकी है।' });
+            }
+
+            // 4. दुकान अपडेट करें
+            const newExpiry = new Date(license.expiry_date);
+            await client.query(
+                `UPDATE shops SET plan_type = $1, license_expiry_date = $2, status = 'active' WHERE id = $3`,
+                [license.plan_type, newExpiry, req.user.shopId]
+            );
+
+            // 5. लाइसेंस को 'Used' मार्क करें
+            await client.query(
+                `UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3`,
+                [req.user.id, req.user.shopId, keyHash]
+            );
         }
-
-        const license = licenseRes.rows[0];
-
-        // 3. वैलिडेशन चेक
-        if (license.shop_id && license.shop_id != req.user.shopId) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'यह की (Key) किसी और दुकान पर यूज़ हो चुकी है।' });
-        }
-
-        // 4. दुकान अपडेट करें
-        const newExpiry = new Date(license.expiry_date);
-        await client.query(
-            `UPDATE shops SET plan_type = $1, license_expiry_date = $2, status = 'active' WHERE id = $3`,
-            [license.plan_type, newExpiry, req.user.shopId]
-        );
-
-        // 5. लाइसेंस को 'Used' मार्क करें
-        await client.query(
-            `UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3`,
-            [req.user.id, req.user.shopId, keyHash]
-        );
 
         // 6. यूज़र का नया डेटा लाएं (ताकि टोकन रिन्यू हो सके)
         const userRes = await client.query(
@@ -1779,16 +1800,20 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
         );
 
         const updatedUser = userRes.rows[0];
+        // ✅ FIX: बिज़नेस टाइप हमेशा छोटा रखें
+        const finalBizType = (updatedUser.business_type || 'retail').toLowerCase(); 
 
         // 7. नया टोकन बनाएं
         const newToken = jwt.sign({
             id: updatedUser.id,
             email: updatedUser.email,
             shopId: updatedUser.shop_id,
-            role: updatedUser.role,
+            shop_id: updatedUser.shop_id, // Frontend Compatible
+            role: (updatedUser.role || 'admin').toLowerCase(),
             licenseExpiryDate: updatedUser.license_expiry_date,
             plan_type: updatedUser.plan_type,
-            businessType: updatedUser.business_type
+            businessType: finalBizType, // ✅ यह डैशबोर्ड सही खोलेगा
+            business_type: finalBizType
         }, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025', { expiresIn: '30d' });
 
         await client.query('COMMIT'); // सब कुछ सेव करें
@@ -1799,7 +1824,11 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
             success: true, 
             message: '✅ लाइसेंस सफलतापूर्वक एक्टिवेट हो गया!',
             token: newToken,
-            user: updatedUser
+            user: {
+                ...updatedUser,
+                businessType: finalBizType, // Frontend के लिए सही वैल्यू भेजें
+                role: (updatedUser.role || 'admin').toLowerCase()
+            }
         });
 
     } catch (err) {
