@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dukan Architect - AI Powered Design Studio</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. CORE THEME (Cyberpunk/CAD Style) --- */
+        :root {
+            --bg-dark: #0f0f12;
+            --panel-bg: #1a1a1f;
+            --accent: #00f2ff; /* Cyan Neon */
+            --accent-sec: #ff0055; /* Pink Neon */
+            --grid-color: rgba(255, 255, 255, 0.03);
+            --text-main: #e0e0e0;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Roboto', sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+            user-select: none;
+        }
+
+        /* --- 2. SIDEBAR TOOLBOX --- */
+        .sidebar {
+            width: 260px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            z-index: 100;
+            box-shadow: 5px 0 20px rgba(0,0,0,0.5);
+        }
+        
+        .brand {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--accent);
+            font-size: 22px;
+            text-align: center;
+            margin-bottom: 25px;
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+            letter-spacing: 1px;
+        }
+
+        .tool-category {
+            font-size: 11px;
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        .draggable-item {
+            background: #25252b;
+            padding: 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            cursor: grab;
+            border-left: 3px solid #444;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s ease;
+        }
+        .draggable-item:hover { 
+            background: #2f2f36; 
+            border-left-color: var(--accent);
+            transform: translateX(5px);
+        }
+        .draggable-item i { color: #888; width: 20px; text-align: center; }
+        .draggable-item:hover i { color: var(--accent); }
+
+        /* --- 3. WORKSPACE (INFINITE CANVAS) --- */
+        .workspace {
+            flex-grow: 1;
+            position: relative;
+            background-color: #121215;
+            /* Precise Grid System */
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px; 
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        /* Placed Objects */
+        .placed-element {
+            position: absolute;
+            background: rgba(26, 26, 31, 0.9);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 10px;
+            min-width: 90px;
+            min-height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 4px;
+            cursor: move;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.1);
+            backdrop-filter: blur(2px);
+            transition: box-shadow 0.2s;
+        }
+        .placed-element:hover {
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+            z-index: 1000;
+        }
+        
+        /* Resize/Delete Controls */
+        .controls {
+            position: absolute;
+            top: -25px; right: 0;
+            display: none;
+            gap: 5px;
+        }
+        .placed-element:hover .controls { display: flex; }
+        
+        .ctrl-btn {
+            width: 20px; height: 20px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            cursor: pointer;
+            color: white;
+        }
+        .btn-del { background: var(--accent-sec); }
+        .btn-rot { background: #ffaa00; }
+
+        /* --- 4. FLOATING AI BUTTON --- */
+        .ai-fab {
+            position: fixed;
+            bottom: 30px; right: 30px;
+            background: linear-gradient(135deg, var(--accent-sec), #9900ff);
+            width: 65px; height: 65px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 0 25px rgba(255, 0, 85, 0.4);
+            animation: pulse-ai 3s infinite;
+            z-index: 200;
+            transition: transform 0.2s;
+        }
+        .ai-fab:hover { transform: scale(1.1) rotate(15deg); }
+        .ai-fab i { color: white; font-size: 24px; }
+
+        @keyframes pulse-ai { 
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.4); } 
+            70% { box-shadow: 0 0 0 20px rgba(255, 0, 85, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0); } 
+        }
+
+        /* --- 5. AI PANEL UI --- */
+        .ai-panel {
+            position: fixed;
+            bottom: 110px; right: 30px;
+            width: 320px;
+            background: rgba(20, 20, 25, 0.95);
+            border: 1px solid var(--accent-sec);
+            border-radius: 12px;
+            padding: 20px;
+            display: none;
+            z-index: 190;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .ai-header { color: var(--accent-sec); font-family: 'Orbitron'; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .ai-status { font-size: 12px; color: #aaa; margin-bottom: 15px; min-height: 18px; }
+        
+        .voice-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(90deg, #ff0055, #ff00cc);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .voice-btn:active { transform: scale(0.98); }
+        .voice-waves { display: none; gap: 3px; height: 15px; align-items: center; }
+        .wave { width: 3px; background: white; animation: wave 0.5s infinite; }
+        @keyframes wave { 0%, 100% { height: 5px; } 50% { height: 15px; } }
+
+        /* --- 6. TOP BAR --- */
+        .top-bar {
+            position: absolute;
+            top: 20px; right: 20px;
+            display: flex;
+            gap: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+            border-radius: 8px;
+        }
+        .action-btn {
+            padding: 8px 16px;
+            border: 1px solid #444;
+            background: #222;
+            color: #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .action-btn:hover { background: #333; color: white; border-color: #666; }
+        .btn-save-main { border-color: var(--accent); color: var(--accent); }
+        .btn-save-main:hover { background: var(--accent); color: black; }
+        .btn-exit { border-color: #ff4444; color: #ff4444; }
+        .btn-exit:hover { background: #ff4444; color: white; }
+
+        /* --- 7. NOTIFICATION --- */
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: black; padding: 10px 20px;
+            border-radius: 20px; font-weight: bold; font-size: 13px;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
+            box-shadow: 0 0 20px var(--accent);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="toast">Action Successful</div>
+
+    <div class="sidebar">
+        <div class="brand"><i class="fas fa-layer-group"></i> ARCHITECT</div>
+        
+        <div class="tool-category">Structure</div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Wall" data-w="120" data-h="10">
+            <i class="fas fa-square"></i> Wall
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Pillar" data-w="40" data-h="40">
+            <i class="fas fa-cube"></i> Pillar
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Door" data-w="60" data-h="10">
+            <i class="fas fa-door-open"></i> Door / Entry
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Window" data-w="60" data-h="5">
+            <i class="fas fa-border-all"></i> Window
+        </div>
+
+        <div class="tool-category">Furniture</div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Counter" data-w="100" data-h="40">
+            <i class="fas fa-cash-register"></i> Counter
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Rack" data-w="120" data-h="30">
+            <i class="fas fa-server"></i> Storage Rack
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Table" data-w="80" data-h="80">
+            <i class="fas fa-table"></i> Table
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="Chair" data-w="40" data-h="40">
+            <i class="fas fa-chair"></i> Chair
+        </div>
+
+        <div class="tool-category">Electronics</div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="CCTV" data-w="30" data-h="30">
+            <i class="fas fa-video"></i> Camera
+        </div>
+        <div class="draggable-item" draggable="true" ondragstart="drag(event)" data-type="AC" data-w="60" data-h="20">
+            <i class="fas fa-snowflake"></i> AC Unit
+        </div>
+        
+        <div style="margin-top: auto; font-size: 10px; color: #444; text-align: center;">
+            DUKAN PRO ULTIMATE v2.0
+        </div>
+    </div>
+
+    <div class="workspace" id="canvas" ondrop="drop(event)" ondragover="allowDrop(event)">
+        
+        <div class="top-bar">
+            <button class="action-btn" onclick="clearCanvas()"><i class="fas fa-trash"></i> Clear</button>
+            <button class="action-btn btn-save-main" onclick="saveDesign()"><i class="fas fa-save"></i> Save Project</button>
+            <button class="action-btn btn-exit" onclick="exitToMain()"><i class="fas fa-sign-out-alt"></i> Exit</button>
+        </div>
+
+        <div style="position: absolute; bottom: 10px; left: 10px; color: #555; font-size: 10px; font-family: monospace;" id="coords">
+            X: 0 | Y: 0
+        </div>
+
+    </div>
+
+    <div class="ai-fab" onclick="toggleAIPanel()">
+        <i class="fas fa-robot"></i>
+    </div>
+
+    <div class="ai-panel" id="aiPanel">
+        <div class="ai-header">
+            <span>GENERATIVE AI</span>
+            <i class="fas fa-times" style="cursor: pointer; color: #666;" onclick="toggleAIPanel()"></i>
+        </div>
+        
+        <div class="ai-status" id="aiStatus">Ready to design...</div>
+        
+        <input type="text" id="textPrompt" placeholder="Type (e.g., 'Small Medical Shop')" 
+            style="width: 100%; background: #111; border: 1px solid #444; color: white; padding: 8px; margin-bottom: 10px; border-radius: 4px; box-sizing: border-box;">
+
+        <button class="voice-btn" onclick="startAI()">
+            <div class="voice-waves" id="voiceWaves">
+                <div class="wave" style="animation-delay: 0s"></div>
+                <div class="wave" style="animation-delay: 0.1s"></div>
+                <div class="wave" style="animation-delay: 0.2s"></div>
+            </div>
+            <span id="btnText"><i class="fas fa-microphone"></i> SPEAK COMMAND</span>
+        </button>
+        <button onclick="processTextPrompt()" style="width: 100%; margin-top: 5px; background: #333; color: #ccc; border: none; padding: 8px; border-radius: 4px; cursor: pointer;">Generate from Text</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. GLOBAL VARIABLES & INIT
+        // ==========================================
+        const canvas = document.getElementById('canvas');
+        const gridSize = 40;
+        let isSaved = true;
+
+        // Check if user is logged in (Connection to Dukan Pro)
+        const user = localStorage.getItem('user');
+        if(!user) {
+            // Uncomment this in production to force login
+            // window.location.href = 'index.html'; 
+        }
+
+        // ==========================================
+        // 2. DRAG & DROP SYSTEM (TOOLBAR TO CANVAS)
+        // ==========================================
+        function allowDrop(ev) { ev.preventDefault(); }
+
+        function drag(ev) {
+            ev.dataTransfer.setData("type", ev.target.getAttribute('data-type'));
+            ev.dataTransfer.setData("w", ev.target.getAttribute('data-w'));
+            ev.dataTransfer.setData("h", ev.target.getAttribute('data-h'));
+            ev.dataTransfer.setData("mode", "create");
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            const mode = ev.dataTransfer.getData("mode");
+            
+            const rect = canvas.getBoundingClientRect();
+            let x = ev.clientX - rect.left;
+            let y = ev.clientY - rect.top;
+
+            // Snap to grid immediately on drop
+            x = Math.round(x / gridSize) * gridSize;
+            y = Math.round(y / gridSize) * gridSize;
+
+            if (mode === 'create') {
+                const type = ev.dataTransfer.getData("type");
+                const w = ev.dataTransfer.getData("w");
+                const h = ev.dataTransfer.getData("h");
+                createItem(type, x, y, w, h);
+            }
+        }
+
+        // ==========================================
+        // 3. ELEMENT CREATION LOGIC
+        // ==========================================
+        function createItem(name, x, y, w, h, rotation = 0) {
+            const el = document.createElement('div');
+            el.className = 'placed-element';
+            el.innerHTML = `
+                <span>${getIcon(name)} ${name}</span>
+                <div class="controls">
+                    <div class="ctrl-btn btn-rot" onclick="rotateItem(this.parentNode.parentNode)"><i class="fas fa-sync"></i></div>
+                    <div class="ctrl-btn btn-del" onclick="deleteItem(this.parentNode.parentNode)"><i class="fas fa-times"></i></div>
+                </div>
+            `;
+            
+            // Apply Styles
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            el.style.width = w + 'px';
+            el.style.height = h + 'px';
+            el.style.transform = `rotate(${rotation}deg)`;
+            
+            // Set Data Attributes for saving
+            el.dataset.type = name;
+            el.dataset.rotation = rotation;
+
+            // Make it moveable
+            makeDraggable(el);
+            
+            canvas.appendChild(el);
+            showToast(`Added: ${name}`);
+            isSaved = false;
+        }
+
+        function getIcon(name) {
+            const icons = {
+                'Wall': '<i class="fas fa-square"></i>',
+                'Door': '<i class="fas fa-door-open"></i>',
+                'Counter': '<i class="fas fa-cash-register"></i>',
+                'Rack': '<i class="fas fa-server"></i>',
+                'CCTV': '<i class="fas fa-video"></i>',
+                'Chair': '<i class="fas fa-chair"></i>',
+                'Table': '<i class="fas fa-table"></i>',
+                'Window': '<i class="fas fa-border-all"></i>'
+            };
+            return icons[name] || '<i class="fas fa-cube"></i>';
+        }
+
+        function deleteItem(el) {
+            el.remove();
+            isSaved = false;
+        }
+
+        function rotateItem(el) {
+            let currentRot = parseInt(el.dataset.rotation || 0);
+            currentRot += 90;
+            el.style.transform = `rotate(${currentRot}deg)`;
+            el.dataset.rotation = currentRot;
+            isSaved = false;
+        }
+
+        // ==========================================
+        // 4. MOVE LOGIC (SNAP TO GRID)
+        // ==========================================
+        function makeDraggable(elmnt) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            elmnt.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                // Ignore if clicked on controls
+                if(e.target.closest('.controls')) return;
+                
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+                
+                // Bring to front
+                document.querySelectorAll('.placed-element').forEach(el => el.style.zIndex = 1);
+                elmnt.style.zIndex = 100;
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                
+                let newTop = (elmnt.offsetTop - pos2);
+                let newLeft = (elmnt.offsetLeft - pos1);
+
+                // Snap Logic (Smooth)
+                // We update position visually freely but snap on release? 
+                // No, let's snap visually for CAD feel.
+                // But to make it smooth, we update raw, then snap.
+                
+                elmnt.style.top = newTop + "px";
+                elmnt.style.left = newLeft + "px";
+            }
+
+            function closeDragElement() {
+                // Final Snap on Release
+                let finalTop = Math.round(elmnt.offsetTop / gridSize) * gridSize;
+                let finalLeft = Math.round(elmnt.offsetLeft / gridSize) * gridSize;
+                
+                elmnt.style.top = finalTop + "px";
+                elmnt.style.left = finalLeft + "px";
+
+                document.onmouseup = null;
+                document.onmousemove = null;
+                isSaved = false;
+            }
+        }
+
+        // Coordinates Update
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+            document.getElementById('coords').innerText = `X: ${x} | Y: ${y}`;
+        });
+
+        // ==========================================
+        // 5. GENERATIVE AI LOGIC (The Brain)
+        // ==========================================
+        function toggleAIPanel() {
+            const p = document.getElementById('aiPanel');
+            p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+        }
+
+        function startAI() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert("Please use Google Chrome for Voice AI.");
+                return;
+            }
+            
+            const recognition = new webkitSpeechRecognition();
+            recognition.lang = 'en-US'; // Or 'hi-IN'
+            
+            const btnText = document.getElementById('btnText');
+            const waves = document.getElementById('voiceWaves');
+            const status = document.getElementById('aiStatus');
+
+            btnText.style.display = 'none';
+            waves.style.display = 'flex';
+            status.innerText = "Listening... Speak now...";
+            status.style.color = "#00f2ff";
+
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const text = event.results[0][0].transcript;
+                status.innerText = `Processing: "${text}"`;
+                generateLayout(text);
+                resetAIUI();
+            };
+
+            recognition.onerror = function() {
+                status.innerText = "Error. Try again.";
+                status.style.color = "red";
+                resetAIUI();
+            };
+            
+            recognition.onend = resetAIUI;
+        }
+
+        function processTextPrompt() {
+            const text = document.getElementById('textPrompt').value;
+            if(text) generateLayout(text);
+        }
+
+        function resetAIUI() {
+            document.getElementById('btnText').style.display = 'inline';
+            document.getElementById('voiceWaves').style.display = 'none';
+        }
+
+        // --- AI GENERATION ENGINE ---
+        function generateLayout(prompt) {
+            prompt = prompt.toLowerCase();
+            clearCanvas(false); // Clear without confirmation for AI
+
+            showToast("AI Generating Design...");
+            
+            const centerX = canvas.clientWidth / 2;
+            const centerY = canvas.clientHeight / 2;
+
+            // Scenario 1: Medical Shop
+            if (prompt.includes('medical') || prompt.includes('pharmacy') || prompt.includes('dawai')) {
+                createItem('Counter', centerX, centerY + 200, 200, 60);
+                createItem('Rack', centerX - 300, 100, 120, 40, 90);
+                createItem('Rack', centerX - 150, 100, 120, 40, 90);
+                createItem('Rack', centerX, 100, 120, 40, 90);
+                createItem('Rack', centerX + 150, 100, 120, 40, 90);
+                createItem('Fridge', centerX + 300, 100, 80, 80);
+                createItem('CCTV', 50, 50, 30, 30);
+            }
+            // Scenario 2: Salon
+            else if (prompt.includes('salon') || prompt.includes('hair') || prompt.includes('barber')) {
+                createItem('Wall', 50, 50, 10, 500); // Left Wall
+                createItem('Chair', 150, 100, 50, 50);
+                createItem('Chair', 150, 250, 50, 50);
+                createItem('Chair', 150, 400, 50, 50);
+                createItem('Window', 100, 20, 100, 10); // Mirror illusion
+                createItem('Sofa', centerX + 200, 400, 150, 60);
+                createItem('Counter', centerX + 200, 100, 100, 60);
+            }
+            // Scenario 3: Grocery / Kirana
+            else if (prompt.includes('grocery') || prompt.includes('kirana') || prompt.includes('store')) {
+                createItem('Rack', 100, 100, 400, 40); // Long rack
+                createItem('Rack', 100, 250, 400, 40);
+                createItem('Rack', 100, 400, 400, 40);
+                createItem('Counter', centerX + 300, centerY + 100, 150, 80);
+                createItem('Fridge', 600, 100, 80, 120);
+            }
+            else {
+                showToast("AI didn't understand. Try 'Medical', 'Salon', or 'Grocery'.");
+                return;
+            }
+
+            toggleAIPanel();
+        }
+
+        // ==========================================
+        // 6. SAVE & LOAD SYSTEM (LocalStorage)
+        // ==========================================
+        function saveDesign() {
+            const items = [];
+            document.querySelectorAll('.placed-element').forEach(el => {
+                items.push({
+                    type: el.dataset.type,
+                    left: el.style.left,
+                    top: el.style.top,
+                    width: el.style.width,
+                    height: el.style.height,
+                    rotation: el.dataset.rotation || 0
+                });
+            });
+
+            localStorage.setItem('architect_design_v1', JSON.stringify(items));
+            showToast("Project Saved Successfully! 💾");
+            isSaved = true;
+        }
+
+        function loadDesign() {
+            const data = localStorage.getItem('architect_design_v1');
+            if(data) {
+                const items = JSON.parse(data);
+                items.forEach(item => {
+                    createItem(
+                        item.type, 
+                        parseInt(item.left), 
+                        parseInt(item.top), 
+                        parseInt(item.width), 
+                        parseInt(item.height),
+                        parseInt(item.rotation)
+                    );
+                });
+                showToast("Design Loaded");
+            }
+        }
+
+        function clearCanvas(confirmReq = true) {
+            if(confirmReq && !confirm("Clear entire design?")) return;
+            canvas.innerHTML = `
+                <div class="top-bar">
+                    <button class="action-btn" onclick="clearCanvas()"><i class="fas fa-trash"></i> Clear</button>
+                    <button class="action-btn btn-save-main" onclick="saveDesign()"><i class="fas fa-save"></i> Save Project</button>
+                    <button class="action-btn btn-exit" onclick="exitToMain()"><i class="fas fa-sign-out-alt"></i> Exit</button>
+                </div>
+                <div style="position: absolute; bottom: 10px; left: 10px; color: #555; font-size: 10px; font-family: monospace;" id="coords">X: 0 | Y: 0</div>
+            `;
+        }
+
+        function exitToMain() {
+            if(!isSaved) {
+                if(!confirm("You have unsaved changes. Exit anyway?")) return;
+            }
+            window.location.href = 'index.html';
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.opacity = 1;
+            setTimeout(() => t.style.opacity = 0, 2000);
+        }
+
+        // Init Load
+        window.onload = loadDesign;
+
+    </script>
+</body>
+</html>
