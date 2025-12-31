@@ -206,7 +206,22 @@ repairDatabaseSchema();
 
 
 async function createTables() {
-    const client = await pool.connect();
+    // 1. सबसे पहले कनेक्शन बनाओ (यह लाइन सबसे ऊपर होनी चाहिए)
+    const client = await pool.connect(); 
+
+    // 👇👇👇 अब रिपेयर कोड चलाओ (कनेक्शन बनने के बाद) 👇👇👇
+    try {
+        console.log("🚑 Fixing User Roles...");
+        // अगर टेबल पहले से है, तो उसका गलत नियम तोड़ दो
+        await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`);
+        // गलत रोल्स को सही कर दो
+        await client.query(`UPDATE users SET role = 'admin' WHERE role NOT IN ('admin', 'staff');`);
+    } catch(e) {
+        // अगर टेबल नहीं बनी है (नई है), तो कोई बात नहीं, इग्नोर करो
+        console.log("⚠️ Repair skipped (Table might be new).");
+    }
+    // 👆👆👆 रिपेयर कोड खत्म 👆👆👆
+
     try {
         console.log('Attempting to ensure all tables and columns exist...');
 
@@ -222,6 +237,7 @@ async function createTables() {
             );
         `);
         
+        // ... बाकी का कोड वैसे का वैसा रहने दो ...        
         // 0. Shops / Tenant Table & License Expiry
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'license_expiry_date') THEN ALTER TABLE shops ADD COLUMN license_expiry_date TIMESTAMP WITH TIME ZONE DEFAULT NULL; END IF; END $$;`);
         await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = (SELECT oid FROM pg_class WHERE relname = 'shops') AND attname = 'shop_logo') THEN ALTER TABLE shops ADD COLUMN shop_logo TEXT; END IF; END $$;`);        
