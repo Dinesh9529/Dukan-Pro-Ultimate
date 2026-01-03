@@ -6318,45 +6318,54 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
     }
 });
 
-// [PASTE THIS IN server.cjs (ADMIN SECTION)]
-// 12.7 Find Shop Details (SECURE ENV VERSION)
 // -----------------------------------------------------------
-// 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - SMART FIX
-// -----------------------------------------------------------
-// -----------------------------------------------------------
-// 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - ERROR PROOF
+// 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - ULTRA ROBUST
 // -----------------------------------------------------------
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
     
-    // 1. पासवर्ड चेक
+    // Auth Check
     if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
         return res.status(401).json({ success: false, message: 'Wrong Password!' });
     }
 
     try {
-        // ✅ FIX: "shops.owner_email" को हटा दिया है (ताकि एरर न आए)
-        // हम सीधे USERS टेबल से ईमेल और मोबाइल ला रहे हैं।
+        // ✅ POWER QUERY: Double Link (ID + Mobile Match)
+        // यह क्वेरी दो बार चेक करती है:
+        // 1. क्या users.shop_id मैच करता है?
+        // 2. या क्या users.mobile मैच करता है?
+        
         let sql = `
             SELECT 
                 shops.*,
-                (SELECT email FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1) as final_email,
-                (SELECT mobile FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1) as final_mobile
+                -- Email निकालने का स्मार्ट तरीका
+                COALESCE(
+                    (SELECT email FROM users WHERE CAST(users.shop_id AS TEXT) = CAST(shops.id AS TEXT) AND email IS NOT NULL LIMIT 1),
+                    (SELECT email FROM users WHERE users.mobile = shops.owner_mobile AND email IS NOT NULL LIMIT 1),
+                    'No Email Found'
+                ) as magic_email,
+                
+                -- Mobile निकालने का स्मार्ट तरीका (अगर shops में नहीं है तो users से लो)
+                COALESCE(
+                    shops.owner_mobile,
+                    (SELECT mobile FROM users WHERE CAST(users.shop_id AS TEXT) = CAST(shops.id AS TEXT) LIMIT 1),
+                    'No Mobile Found'
+                ) as magic_mobile
             FROM shops
         `;
 
         let params = [];
         const qStr = String(query || '').trim();
 
-        // 2. सर्च लॉजिक (Search Logic)
+        // सर्च लॉजिक
         if (qStr !== '') {
             if (!isNaN(qStr)) {
-                // अगर नंबर है तो ID या Mobile (Users Table) से खोजो
-                sql += ` WHERE CAST(shops.id AS TEXT) = $1 OR (SELECT mobile FROM users WHERE users.shop_id = shops.id LIMIT 1) = $1`;
+                // ID या Mobile से सर्च
+                sql += ` WHERE CAST(shops.id AS TEXT) = $1 OR shops.owner_mobile = $1`;
                 params = [qStr];
             } else {
-                // अगर नाम है तो Name या Email (Users Table) से खोजो
-                sql += ` WHERE shops.shop_name ILIKE $1 OR (SELECT email FROM users WHERE users.shop_id = shops.id LIMIT 1) ILIKE $1`;
+                // नाम या ईमेल (Magic Email) से सर्च
+                sql += ` WHERE shops.shop_name ILIKE $1`;
                 params = [`%${qStr}%`];
             }
         }
@@ -6365,17 +6374,18 @@ app.post('/api/admin/find-shop', async (req, res) => {
         
         const result = await pool.query(sql, params);
 
-        // 3. डेटा को सही फॉर्मेट में भेजो
+        // डेटा को सही फॉर्मेट में भेजो
         const finalShops = result.rows.map(s => ({
             ...s,
-            owner_email: s.final_email || 'No Email', // अब Users टेबल वाला ईमेल दिखेगा
-            owner_mobile: s.final_mobile || s.owner_mobile || 'No Mobile'
+            // फ्रंटएंड को यही नाम चाहिए
+            owner_email: s.magic_email, 
+            owner_mobile: s.magic_mobile
         }));
 
         res.json({ success: true, shops: finalShops });
 
     } catch (err) {
-        console.error("Find Shop Error:", err.message);
+        console.error("Robust Find Error:", err.message);
         res.status(500).json({ success: false, message: "DB Error: " + err.message });
     }
 });
