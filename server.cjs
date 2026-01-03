@@ -1753,7 +1753,13 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
         );
 
         // 6. यूजर का नया टोकन भेजें
-        const userRes = await client.query(`SELECT * FROM users WHERE id = $1`, [req.user.id]);
+        // यूजर के साथ दुकान का नाम भी लाओ (JOIN Query)
+const userRes = await client.query(`
+    SELECT users.*, shops.shop_name 
+    FROM users 
+    LEFT JOIN shops ON users.shop_id = shops.id 
+    WHERE users.id = $1
+`, [req.user.id || userId]); // (Variable name check karlena context ke hisab se)
         const updatedUser = userRes.rows[0];
         
         const newToken = jwt.sign({
