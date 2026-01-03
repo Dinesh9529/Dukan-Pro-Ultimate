@@ -6320,53 +6320,63 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 
 // [PASTE THIS IN server.cjs (ADMIN SECTION)]
 // 12.7 Find Shop Details (SECURE ENV VERSION)
+// -----------------------------------------------------------
+// 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - SMART FIX
+// -----------------------------------------------------------
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
-
-    // 1. Environment Variable से पासवर्ड निकालें
-    const securePass = process.env.GLOBAL_ADMIN_PASSWORD;
-
-    // 🛑 SAFETY CHECK: अगर Render में पासवर्ड सेट करना भूल गए हैं
-    if (!securePass) {
-        console.error("🚨 CRITICAL ERROR: GLOBAL_ADMIN_PASSWORD is not set in Render Environment Variables!");
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Server Error: Admin Password config is missing on Server.' 
-        });
-    }
-
-    // 2. पासवर्ड मैच करें (Strict Check)
-    // .trim() लगाया है ताकि अगर स्पेस गलती से आ गया हो तो वो हट जाए
-    if (String(adminPassword).trim() !== String(securePass).trim()) {
-        console.warn(`⚠️ Failed Admin Login Attempt. Input: ${adminPassword}`);
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    
+    // Auth Check
+    if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Wrong Password!' });
     }
 
     try {
-        let sql = `
-            SELECT s.id, s.shop_name, s.business_type, s.plan_type, 
-                   s.status, 
-                   s.license_expiry_date as expiry_date, 
-                   u.name as owner_name, u.mobile as owner_mobile, u.email
-            FROM shops s
-            LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
+        // ✅ SMART QUERY: यह Shops और Users दोनों से डेटा निकालेगा
+        let baseQuery = `
+            SELECT 
+                shops.*,
+                -- अगर shops टेबल में ईमेल नहीं है, तो users टेबल से लाओ
+                COALESCE(shops.owner_email, (SELECT email FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1)) as final_email,
+                -- अगर shops टेबल में मोबाइल नहीं है, तो users टेबल से लाओ
+                COALESCE(shops.owner_mobile, (SELECT mobile FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1)) as final_mobile
+            FROM shops
         `;
-        
-        let params = [];
-        
-        if (query) {
-            sql += ` WHERE s.id::text ILIKE $1 OR s.shop_name ILIKE $1 OR u.name ILIKE $1 OR u.mobile ILIKE $1 OR u.email ILIKE $1`;
-            params.push(`%${query}%`);
-        }
-        
-        sql += ` ORDER BY s.id DESC LIMIT 50`;
 
-        const result = await pool.query(sql, params);
-        res.json({ success: true, shops: result.rows });
+        let whereClause = "";
+        let params = [];
+
+        // सर्च लॉजिक (Search Logic)
+        const qStr = String(query || '').trim();
+
+        if (qStr !== '') {
+            if (!isNaN(qStr)) {
+                // ID या Mobile से सर्च
+                whereClause = ` WHERE CAST(shops.id AS TEXT) = $1 OR shops.owner_mobile = $1`;
+                params = [qStr];
+            } else {
+                // नाम या ईमेल से सर्च
+                whereClause = ` WHERE shops.shop_name ILIKE $1 OR shops.owner_email ILIKE $1`;
+                params = [`%${qStr}%`];
+            }
+        }
+
+        const fullQuery = baseQuery + whereClause + " ORDER BY shops.id DESC";
+        
+        const result = await pool.query(fullQuery, params);
+
+        // ✅ Frontend को सही नाम (Keys) के साथ डेटा भेजो
+        const finalShops = result.rows.map(s => ({
+            ...s,
+            owner_email: s.final_email || '',   // अब ईमेल जरूर आएगा
+            owner_mobile: s.final_mobile || ''  // अब मोबाइल जरूर आएगा
+        }));
+
+        res.json({ success: true, shops: finalShops });
 
     } catch (err) {
-        console.error("Find Shop Error:", err);
-        res.status(500).json({ success: false, message: "DB Error: " + err.message });
+        console.error("Smart Find Error:", err.message);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
