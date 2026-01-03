@@ -1399,18 +1399,23 @@ app.post('/api/admin/set-business-type', async (req, res) => {
 
 // 🌟 FIX: This route is now /api/admin/generate-key and uses GLOBAL_ADMIN_PASSWORD
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
-
-// 1. License Key Generation (UPDATED FOR 'plan_type')
+// =========================================================
+// 🔑 GENERATE KEY (FIXED & ROBUST)
+// =========================================================
 app.post('/api/admin/generate-key', async (req, res) => {
     const { adminPassword, days, plan_type, customerName } = req.body;
-    if (!checkAdminAuth(adminPassword, res)) return;
+    
+    // 1. पासवर्ड चेक
+    if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Wrong Admin Password!' });
+    }
 
     try {
-        // 1. एक यूनिक की (Key) बनाओ
-        const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
-        const key = `DUKAN-${plan_type.substring(0,3)}-${days}D-${randomPart}`;
+        // 2. रैंडम की (Key) जनरेट करो
+        const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase(); // e.g., A1B2C3D4
+        const key = `DUKAN-${plan_type ? plan_type.substring(0,3).toUpperCase() : 'PRE'}-${days}D-${randomPart}`;
 
-        // 2. सुनिश्चित करो कि 'licenses' टेबल मौजूद है
+        // 3. टेबल सुनिश्चित करो (अगर डिलीट हो गई हो तो)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS licenses (
                 id SERIAL PRIMARY KEY,
@@ -1424,19 +1429,23 @@ app.post('/api/admin/generate-key', async (req, res) => {
             )
         `);
 
-        // 3. की (Key) को डेटाबेस में सेव करो
+        // 4. डेटाबेस में डालो
         await pool.query(
             `INSERT INTO licenses (license_key, duration_days, plan_type, created_by) VALUES ($1, $2, $3, $4)`,
-            [key, days, plan_type, customerName || 'Admin']
+            [key, days, plan_type || 'PREMIUM', customerName || 'Admin']
         );
 
-        res.json({ success: true, key: key, message: 'License Key Generated & Saved!' });
+        console.log(`✅ New Key Generated: ${key}`);
+        
+        // 5. सफलता का संदेश भेजो
+        res.json({ success: true, key: key, message: 'License Key Generated Successfully!' });
 
     } catch (err) {
         console.error("Key Gen Error:", err.message);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "Server Error: " + err.message });
     }
 });
+
 
 // 2. Verify License Key (Used before login/registration, still public)
 app.get('/api/verify-license', async (req, res) => {
@@ -7158,6 +7167,28 @@ app.post('/api/admin/force-extend', async (req, res) => {
         );
 
         res.json({ success: true, message: `Shop #${shop_id} की वैलिडिटी ${daysToAdd} दिनों के लिए बढ़ा दी गई है!` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
+// =========================================================
+// 8. TOGGLE SHOP STATUS (Block / Unblock Shop)
+// =========================================================
+app.post('/api/admin/toggle-status', async (req, res) => {
+    const { adminPassword, shop_id, status } = req.body;
+    
+    // Auth Check
+    if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Wrong Password!' });
+    }
+
+    try {
+        // Status Update करो ('active' या 'blocked')
+        await pool.query("UPDATE shops SET status = $1 WHERE id = $2", [status, shop_id]);
+        
+        res.json({ success: true, message: `Shop #${shop_id} status changed to ${status.toUpperCase()}!` });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
