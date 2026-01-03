@@ -2980,35 +2980,48 @@ app.get('/api/dashboard/sales-by-day', authenticateJWT, checkRole('CASHIER'), as
 // --- 12. Advanced DB/Admin Console ---
 
 // 12.1 SQL Console (Admin/Owner only - extremely dangerous route)
-app.post('/api/admin/sql-console', authenticateJWT, checkRole('ADMIN'), async (req, res) => {
-    const { query } = req.body;
+// ==============================================================
+// 12.1 SQL Console (FIXED: Now accepts Password instead of Token)
+// ==============================================================
+app.post('/api/admin/sql-console', async (req, res) => {
+    // 1. डेटा निकालो
+    const { adminPassword, query } = req.body;
 
-    if (!query) {
-        return res.status(400).json({ success: false, message: 'SQL क्वेरी आवश्यक है.' });
+    // 2. एडमिन पासवर्ड चेक करो (Token की जगह Password)
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(500).json({ success: false, message: 'Server Config Error: Password not set.' });
+    }
+    
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        // अगर पासवर्ड गलत है तो यह एरर जाएगा
+        return res.status(401).json({ success: false, message: 'Galat Password! Access Denied.' });
     }
 
-    // 🛑 SAFETY CHECK: Prevent dropping critical tables
+    // 3. क्वेरी चेक करो
+    if (!query) {
+        return res.status(400).json({ success: false, message: 'Query missing.' });
+    }
+
+    // 🛑 सुरक्षा: खतरनाक कमांड्स को रोको (Safety Check)
     const lowerQuery = query.toLowerCase().trim();
     if (lowerQuery.includes('drop table') || lowerQuery.includes('truncate table')) {
-      const forbiddenTables = ['users', 'shops', 'licenses'];
-        if (forbiddenTables.some(table => lowerQuery.includes(table))) {
-            return res.status(403).json({ success: false, message: 'इस टेबल पर DROP/TRUNCATE की अनुमति नहीं है.' });
-        }
+        return res.status(403).json({ success: false, message: 'Safety Alert: You cannot delete tables!' });
     }
 
     try {
-        // Execute the user-provided query
+        // 4. क्वेरी चलाओ
         const result = await pool.query(query);
+        
         res.json({
             success: true,
-            message: 'क्वेरी सफलतापूर्वक निष्पादित (Executed).',
+            message: 'Query Ran Successfully!',
             rowCount: result.rowCount,
-            command: result.command,
-            rows: result.rows
+            data: result.rows // Data wapas bhej rahe hain
         });
+
     } catch (err) {
-        console.error("SQL Console Error:", err.message);
-        res.status(500).json({ success: false, message: 'क्वेरी निष्पादन विफल: ' + err.message });
+        console.error("SQL Error:", err.message);
+        res.status(500).json({ success: false, message: 'SQL Error: ' + err.message });
     }
 });
 // -----------------------------------------------------------------------------
