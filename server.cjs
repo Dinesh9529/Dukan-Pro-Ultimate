@@ -1685,15 +1685,14 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 });
 
 // ==========================================
-// 🚀 LICENSE ACTIVATION (FIX: 1970 DATE ERROR)
+// 🚀 LICENSE ACTIVATION (FINAL & PERFECT)
 // ==========================================
 app.post('/api/activate-license', authenticateToken, async (req, res) => {
     const { licenseKey } = req.body;
-    
-    // Shop ID सुरक्षित तरीके से निकालें
+    // Shop ID को सुरक्षित तरीके से निकालें
     const shopId = req.user.shopId || req.user.shop_id || req.user.id; 
 
-    if (!licenseKey) return res.status(400).json({ success: false, message: 'लाइसेंस की (Key) आवश्यक है।' });
+    if (!licenseKey) return res.status(400).json({ success: false, message: 'License Key is required.' });
 
     const client = await pool.connect();
     
@@ -1702,7 +1701,7 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
         const keyHash = crypto.createHash('sha256').update(licenseKey).digest('hex');
         await client.query('BEGIN');
 
-        // 1. लाइसेंस चेक करें
+        // 1. लाइसेंस चेक करें (Hash से)
         const licenseRes = await client.query(`SELECT * FROM licenses WHERE key_hash = $1 FOR UPDATE`, [keyHash]);
         
         if (licenseRes.rows.length === 0) {
@@ -1726,24 +1725,20 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Shop ID डेटाबेस में नहीं मिली!' });
         }
 
-        // --- 🧠 DATE FIX (यहाँ गलती थी, अब ठीक है) ---
-        // पहले हम expiry_date ढूँढ रहे थे जो NULL थी -> 1970 बन रही थी।
-        // अब हम 'duration_days' (जैसे 365) का इस्तेमाल करेंगे।
-        
+        // --- 🧠 DATE FIX (1970 & Loop Prevention) ---
         let currentExpiry = shopRes.rows[0].license_expiry_date ? new Date(shopRes.rows[0].license_expiry_date) : new Date();
         const now = new Date();
 
-        // अगर दुकान पहले से एक्सपायर है, तो 'आज' से गिनती शुरू करो
+        // अगर एक्सपायर है या 1970 है, तो आज से शुरू करो
         if (currentExpiry < now || currentExpiry.getFullYear() === 1970) {
-            currentExpiry = new Date(); // Reset to Today
+            currentExpiry = new Date();
         }
 
         // दिन जोड़ो (Duration)
         const daysToAdd = license.duration_days || 365;
         currentExpiry.setDate(currentExpiry.getDate() + parseInt(daysToAdd));
-        // ------------------------------------------------
 
-        console.log(`🔋 Extending Shop #${shopId} by ${daysToAdd} days. New Valid Date: ${currentExpiry}`);
+        console.log(`🔋 Shop #${shopId} Recharged: +${daysToAdd} Days. New Expiry: ${currentExpiry}`);
 
         // 4. दुकान अपडेट करें
         await client.query(
@@ -1757,7 +1752,7 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
             [shopId, req.user.id, license.id]
         );
 
-        // 6. यूजर का नया टोकन (ताकि लॉगिन हो जाए)
+        // 6. यूजर का नया टोकन भेजें
         const userRes = await client.query(`SELECT * FROM users WHERE id = $1`, [req.user.id]);
         const updatedUser = userRes.rows[0];
         
@@ -1767,7 +1762,7 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
             shopId: updatedUser.shop_id,
             role: updatedUser.role,
             status: 'active',
-            licenseExpiryDate: currentExpiry, // ✅ अब यह 2025/2026 होगी
+            licenseExpiryDate: currentExpiry, 
             plan_type: license.plan_type || 'PREMIUM'
         }, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025', { expiresIn: '30d' });
 
@@ -1775,7 +1770,7 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
 
         res.json({ 
             success: true, 
-            message: `✅ लाइसेंस सफल! वैधता ${daysToAdd} दिनों के लिए बढ़ा दी गई है।`,
+            message: `✅ एक्टिवेशन सफल! वैधता ${daysToAdd} दिन बढ़ा दी गई है।`,
             token: newToken,
             user: { ...updatedUser, licenseExpiryDate: currentExpiry }
         });
