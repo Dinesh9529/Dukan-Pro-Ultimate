@@ -1429,24 +1429,17 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 // 4. Set Business Type (Switcher)
 app.post('/api/admin/set-business-type', async (req, res) => {
     const { adminPassword, shop_id, business_type } = req.body;
-
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'Wrong Admin Password!' });
-    }
+    if (!checkAdminAuth(adminPassword, res)) return;
 
     try {
-        // Business Type अपडेट करो
         await pool.query('UPDATE shops SET business_type = $1 WHERE id = $2', [business_type, shop_id]);
-        
-        // उस दुकान के सभी यूजर्स को भी सिंक करो (Optional, पर अच्छा रहता है)
         await pool.query('UPDATE users SET business_type = $1 WHERE shop_id = $2', [business_type, shop_id]);
-
-        res.json({ success: true, message: `Shop #${shop_id} is now converted to ${business_type}!` });
-
+        res.json({ success: true, message: `Shop #${shop_id} changed to ${business_type}` });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+
 /* ============================================== */
 /* === 🚀 Naya API yahaan samapt hota hai === */
 /* ============================================== */
@@ -1459,54 +1452,39 @@ app.post('/api/admin/set-business-type', async (req, res) => {
 
 // 1. License Key Generation (UPDATED FOR 'plan_type')
 app.post('/api/admin/generate-key', async (req, res) => {
-    
-    // 🚀 FIX: 'plan_type' को req.body से जोड़ा गया
-    const { adminPassword, days, plan_type = 'TRIAL', customerName, customerMobile, customerAddress } = req.body;
-
-    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(500).json({ success: false, message: 'सर्वर पर GLOBAL_ADMIN_PASSWORD सेट नहीं है।' });
-    }
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
-    }
-
-    if (typeof days !== 'number' || days < 1) {
-        return res.status(400).json({ success: false, message: 'दिनों की संख्या मान्य होनी चाहिए।' });
-    }
-
-    // ग्राहक विवरण को एक JSON ऑब्जेक्ट में सहेजें (यह सही है)
-    const customer_details = {
-        name: customerName,
-        mobile: customerMobile,
-        address: customerAddress || 'N/A'
-    };
-
-    const rawKey = `DUKANPRO-${crypto.randomBytes(16).toString('hex').toUpperCase()}`;
-    const keyHash = hashKey(rawKey);
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + days);
+    const { adminPassword, days, plan_type, customerName } = req.body;
+    if (!checkAdminAuth(adminPassword, res)) return;
 
     try {
-        // 🚀 FIX: 'plan_type' को INSERT क्वेरी में जोड़ा गया
+        // 1. एक यूनिक की (Key) बनाओ
+        const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
+        const key = `DUKAN-${plan_type.substring(0,3)}-${days}D-${randomPart}`;
+
+        // 2. सुनिश्चित करो कि 'licenses' टेबल मौजूद है
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS licenses (
+                id SERIAL PRIMARY KEY,
+                license_key TEXT UNIQUE NOT NULL,
+                duration_days INTEGER NOT NULL,
+                plan_type TEXT DEFAULT 'PREMIUM',
+                status TEXT DEFAULT 'UNUSED',
+                created_by TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                used_by_shop_id INTEGER
+            )
+        `);
+
+        // 3. की (Key) को डेटाबेस में सेव करो
         await pool.query(
-            'INSERT INTO licenses (key_hash, expiry_date, is_trial, customer_details, plan_type) VALUES ($1, $2, $3, $4, $5)',
-            [keyHash, expiryDate, (plan_type === 'TRIAL'), customer_details, plan_type]
+            `INSERT INTO licenses (license_key, duration_days, plan_type, created_by) VALUES ($1, $2, $3, $4)`,
+            [key, days, plan_type, customerName || 'Admin']
         );
-        
-        res.json({
-            success: true,
-            key: rawKey,
-            message: `लाइसेंस कुंजी (${plan_type}) सफलतापूर्वक बनाई गई।`,
-            duration_days: days,
-            valid_until: expiryDate.toISOString(),
-            customer: customerName || 'N/A'
-         });
+
+        res.json({ success: true, key: key, message: 'License Key Generated & Saved!' });
+
     } catch (err) {
-        console.error("Error generating key:", err.message);
-        if (err.constraint === 'licenses_pkey') {
-            return res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डुप्लिकेट कुंजी। कृपया पुनः प्रयास करें।' });
-        }
-        res.status(500).json({ success: false, message: 'कुंजी बनाने में विफल: डेटाबेस त्रुटि।' });
+        console.error("Key Gen Error:", err.message);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
