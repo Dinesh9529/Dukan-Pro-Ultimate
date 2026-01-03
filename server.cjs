@@ -6323,63 +6323,62 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
 // -----------------------------------------------------------
 // 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - SMART FIX
 // -----------------------------------------------------------
+// -----------------------------------------------------------
+// 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - ERROR PROOF
+// -----------------------------------------------------------
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
     
-    // Auth Check
+    // 1. पासवर्ड चेक
     if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
         return res.status(401).json({ success: false, message: 'Wrong Password!' });
     }
 
     try {
-        // ✅ SMART QUERY: यह Shops और Users दोनों से डेटा निकालेगा
-        let baseQuery = `
+        // ✅ FIX: "shops.owner_email" को हटा दिया है (ताकि एरर न आए)
+        // हम सीधे USERS टेबल से ईमेल और मोबाइल ला रहे हैं।
+        let sql = `
             SELECT 
                 shops.*,
-                -- अगर shops टेबल में ईमेल नहीं है, तो users टेबल से लाओ
-                COALESCE(shops.owner_email, (SELECT email FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1)) as final_email,
-                -- अगर shops टेबल में मोबाइल नहीं है, तो users टेबल से लाओ
-                COALESCE(shops.owner_mobile, (SELECT mobile FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1)) as final_mobile
+                (SELECT email FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1) as final_email,
+                (SELECT mobile FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1) as final_mobile
             FROM shops
         `;
 
-        let whereClause = "";
         let params = [];
-
-        // सर्च लॉजिक (Search Logic)
         const qStr = String(query || '').trim();
 
+        // 2. सर्च लॉजिक (Search Logic)
         if (qStr !== '') {
             if (!isNaN(qStr)) {
-                // ID या Mobile से सर्च
-                whereClause = ` WHERE CAST(shops.id AS TEXT) = $1 OR shops.owner_mobile = $1`;
+                // अगर नंबर है तो ID या Mobile (Users Table) से खोजो
+                sql += ` WHERE CAST(shops.id AS TEXT) = $1 OR (SELECT mobile FROM users WHERE users.shop_id = shops.id LIMIT 1) = $1`;
                 params = [qStr];
             } else {
-                // नाम या ईमेल से सर्च
-                whereClause = ` WHERE shops.shop_name ILIKE $1 OR shops.owner_email ILIKE $1`;
+                // अगर नाम है तो Name या Email (Users Table) से खोजो
+                sql += ` WHERE shops.shop_name ILIKE $1 OR (SELECT email FROM users WHERE users.shop_id = shops.id LIMIT 1) ILIKE $1`;
                 params = [`%${qStr}%`];
             }
         }
 
-        const fullQuery = baseQuery + whereClause + " ORDER BY shops.id DESC";
+        sql += " ORDER BY shops.id DESC";
         
-        const result = await pool.query(fullQuery, params);
+        const result = await pool.query(sql, params);
 
-        // ✅ Frontend को सही नाम (Keys) के साथ डेटा भेजो
+        // 3. डेटा को सही फॉर्मेट में भेजो
         const finalShops = result.rows.map(s => ({
             ...s,
-            owner_email: s.final_email || '',   // अब ईमेल जरूर आएगा
-            owner_mobile: s.final_mobile || ''  // अब मोबाइल जरूर आएगा
+            owner_email: s.final_email || 'No Email', // अब Users टेबल वाला ईमेल दिखेगा
+            owner_mobile: s.final_mobile || s.owner_mobile || 'No Mobile'
         }));
 
         res.json({ success: true, shops: finalShops });
 
     } catch (err) {
-        console.error("Smart Find Error:", err.message);
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Find Shop Error:", err.message);
+        res.status(500).json({ success: false, message: "DB Error: " + err.message });
     }
 });
-
 // --- ADMIN: BLOCK/UNBLOCK SHOP (CORRECTED) ---
 app.post('/api/admin/update-shop-status', async (req, res) => {
     const { adminPassword, shop_id, status } = req.body;
