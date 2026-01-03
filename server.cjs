@@ -1333,44 +1333,48 @@ app.post('/api/admin/grant-addon', async (req, res) => {
 // ================================================================
 
 // 1. Find Shop (Search by ID, Name, or Mobile)
+// ==============================================================
+// 13. SUPER ADMIN: GET ALL SHOPS / FIND SHOP (Database List Fix)
+// ==============================================================
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
 
+    // 1. पासवर्ड चेक (Admin Password)
+    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(500).json({ success: false, message: 'Server Config Error.' });
+    }
+    
     if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+        return res.status(401).json({ success: false, message: 'Wrong Admin Password!' });
     }
 
     try {
-        let sqlQuery;
-        let params;
+        let sql = "SELECT * FROM shops ORDER BY id DESC";
+        let params = [];
 
-        // अगर query नंबर है, तो ID या मोबाइल से खोजें
-        if (!isNaN(query)) {
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
-                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                WHERE s.id = $1 OR u.mobile LIKE $2
-            `;
-            params = [query, `%${query}%`];
-        } else {
-            // नाम से खोजें
-            sqlQuery = `
-                SELECT s.id, s.shop_name, s.plan_type, s.license_expiry_date as expiry_date, 
-                       s.status, s.business_type, u.mobile as owner_mobile, u.email as owner_email
-                FROM shops s
-                LEFT JOIN users u ON s.id = u.shop_id AND u.role = 'ADMIN'
-                WHERE s.shop_name ILIKE $1
-            `;
-            params = [`%${query}%`];
+        // 2. अगर सर्च क्वेरी आई है (जैसे ID या Mobile)
+        if (query && query.trim() !== '') {
+            // चेक करें कि क्वेरी नंबर है या टेक्स्ट
+            const isNum = !isNaN(query);
+            
+            if (isNum) {
+                sql = `SELECT * FROM shops WHERE CAST(id AS TEXT) = $1 OR owner_mobile = $1`;
+                params = [query];
+            } else {
+                sql = `SELECT * FROM shops WHERE shop_name ILIKE $1 OR owner_email ILIKE $1`;
+                params = [`%${query}%`];
+            }
         }
 
-        const result = await pool.query(sqlQuery, params);
-        res.json({ success: true, shops: result.rows });
+        const result = await pool.query(sql, params);
+
+        res.json({ 
+            success: true, 
+            shops: result.rows // HTML को 'shops' चाहिए
+        });
 
     } catch (err) {
-        console.error("Find Shop Error:", err);
+        console.error("Find Shop Error:", err.message);
         res.status(500).json({ success: false, message: err.message });
     }
 });
