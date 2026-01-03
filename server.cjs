@@ -20,20 +20,24 @@ const { WebSocketServer } = require('ws'); // 2. WebSocket सर्वर क�
 // --- 🚀 WEBSOCKET सेटअप END ---
 const app = express();
 
-// ==========================================
-// 🔐 AUTHENTICATION MIDDLEWARE (MISSING)
-// ==========================================
 
+// ==========================================
+// 🔐 AUTHENTICATION MIDDLEWARE (FIXED)
+// ==========================================
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (token == null) return res.status(401).json({ success: false, message: 'Token missing' });
 
-    // 'your_jwt_secret' को अपने असली Secret Key से बदलें अगर .env फाइल है
-    jwt.verify(token, process.env.JWT_SECRET || 'your_super_secret_key', (err, user) => {
-        if (err) return res.status(403).json({ success: false, message: 'Token invalid' });
-        req.user = user;
+    // Secret Key वही होनी चाहिए जो Login/KeyGen में है
+    const SECRET = process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025';
+
+    jwt.verify(token, SECRET, (err, user) => {
+        if (err) return res.status(403).json({ success: false, message: 'Token invalid or expired' });
+        
+        // ✅ यह लाइन सबसे जरुरी है
+        req.user = user; 
         next();
     });
 }
@@ -1681,11 +1685,17 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 });
 
 // ==========================================
-// 🚀 LICENSE ACTIVATION (CRASH PROOF & SMART)
+// 🚀 LICENSE ACTIVATION (UNDEFINED ID FIX)
 // ==========================================
 app.post('/api/activate-license', authenticateToken, async (req, res) => {
     const { licenseKey } = req.body;
-    const shopId = req.shopId; // Token से Shop ID
+    
+    // ✅ FIX: Shop ID को सही जगह से उठाओ (Old Token vs New Token support)
+    const shopId = req.user.shopId || req.user.shop_id; 
+
+    if (!shopId) {
+        return res.status(400).json({ success: false, message: '❌ Error: Token में Shop ID नहीं मिली! कृपया Logout करके Login करें।' });
+    }
 
     if (!licenseKey) return res.status(400).json({ success: false, message: 'License Key is required.' });
 
@@ -1710,30 +1720,29 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
             return res.status(400).json({ success: false, message: '❌ यह लाइसेंस की पहले ही इस्तेमाल हो चुकी है!' });
         }
 
-        // 2. दुकान का डेटा लाओ (CRASH FIX HERE)
+        // 2. दुकान का डेटा लाओ
         const shopRes = await client.query('SELECT license_expiry_date FROM shops WHERE id = $1', [shopId]);
         
-        // 🛑 सुरक्षा कवच: अगर दुकान नहीं मिली तो क्रैश मत होने दो
         if (shopRes.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ success: false, message: `❌ Shop ID #${shopId} डेटाबेस में नहीं मिली! (Database Error)` });
+            return res.status(404).json({ success: false, message: `❌ Shop ID #${shopId} डेटाबेस में नहीं मिली!` });
         }
 
         let currentExpiry = shopRes.rows[0].license_expiry_date ? new Date(shopRes.rows[0].license_expiry_date) : new Date();
         const now = new Date();
 
-        // अगर लाइसेंस एक्सपायर है, तो आज से शुरू करो
+        // 🧠 अगर पहले ही एक्सपायर है, तो आज से शुरू करो
         if (currentExpiry < now) {
             currentExpiry = new Date();
         }
 
-        // 3. दिन जोड़ो
+        // 3. दिन जोड़ो (Duration)
         const daysToAdd = license.duration_days || 365;
         currentExpiry.setDate(currentExpiry.getDate() + parseInt(daysToAdd));
 
-        console.log(`🔋 Extending Shop #${shopId} by ${daysToAdd} days. New Date: ${currentExpiry}`);
+        console.log(`🔋 Activating Shop #${shopId} for ${daysToAdd} days. New Date: ${currentExpiry}`);
 
-        // 4. अपडेट करो
+        // 4. दुकान और लाइसेंस अपडेट करो
         await client.query(
             `UPDATE shops SET plan_type = $1, license_expiry_date = $2, status = 'active' WHERE id = $3`,
             [license.plan_type || 'PREMIUM', currentExpiry, shopId]
@@ -1744,26 +1753,25 @@ app.post('/api/activate-license', authenticateToken, async (req, res) => {
             [shopId, req.user.id, license.id]
         );
 
-        // 5. नया टोकन जनरेट करो (ताकि लूप न हो)
+        // 5. नया टोकन बनाओ (ताकि यूजर तुरंत लॉगिन हो जाए)
         const userRes = await client.query(`SELECT * FROM users WHERE id = $1`, [req.user.id]);
         const updatedUser = userRes.rows[0];
         
         const newToken = jwt.sign({
             id: updatedUser.id,
             email: updatedUser.email,
-            shopId: updatedUser.shop_id,
+            shopId: updatedUser.shop_id, // ✅ Standard Key
             role: updatedUser.role,
             status: 'active',
-            licenseExpiryDate: currentExpiry, // नई तारीख
+            licenseExpiryDate: currentExpiry,
             plan_type: license.plan_type || 'PREMIUM'
         }, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025', { expiresIn: '30d' });
 
         await client.query('COMMIT');
 
-        // Frontend को नया टोकन भेजो
         res.json({ 
             success: true, 
-            message: `✅ लाइसेंस सफल! वैधता ${daysToAdd} दिनों के लिए बढ़ा दी गई है।`,
+            message: `✅ लाइसेंस एक्टिवेट! दुकान अब ${currentExpiry.toLocaleDateString()} तक चलेगी।`,
             token: newToken,
             user: { ...updatedUser, licenseExpiryDate: currentExpiry }
         });
