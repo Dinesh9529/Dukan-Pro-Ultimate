@@ -1279,41 +1279,55 @@ const checkPlan = (requiredPlans, requiredAddOn = null) => (req, res, next) => {
 /* === 🚀 🚀 🚀 Naya Add-on Grant API 🚀 🚀 🚀 === */
 /* ============================================== */
 app.post('/api/admin/grant-addon', async (req, res) => {
-    const { adminPassword, shop_id, add_ons } = req.body; // add_ons = { "has_backup": true, "has_closing": false }
+    const { adminPassword, shop_id, add_ons } = req.body;
 
-    // 1. एडमिन पासवर्ड चेक करें
-    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(500).json({ success: false, message: 'सर्वर पर GLOBAL_ADMIN_PASSWORD सेट नहीं है।' });
-    }
+    // 1. पासवर्ड चेक
     if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-         return res.status(401).json({ success: false, message: 'अमान्य एडमिन पासवर्ड।' });
-    }
-    
-    // 2. इनपुट चेक करें
-    if (!shop_id || !add_ons) {
-        return res.status(400).json({ success: false, message: 'Shop ID और add_ons ऑब्जेक्ट आवश्यक हैं।' });
+        return res.status(401).json({ success: false, message: 'Wrong Admin Password!' });
     }
 
     try {
-        // 3. डेटाबेस अपडेट करें
-        const result = await pool.query(
-            "UPDATE shops SET add_ons = $1 WHERE id = $2 RETURNING id, shop_name, add_ons",
-            [add_ons, shop_id]
-        );
+        // 2. फीचर्स अपडेट करो
+        // हम JSONB कॉलम 'subscription_data' या अलग कॉलम्स का उपयोग कर सकते हैं।
+        // यहाँ हम मान रहे हैं कि shops टेबल में ये बूलियन कॉलम्स हैं।
+        // अगर कॉलम्स नहीं हैं, तो पहले उन्हें SQL Console से बना लो।
+        
+        // सुरक्षित तरीका: पहले चेक करो कॉलम हैं या नहीं, फिर अपडेट करो।
+        // लेकिन अभी के लिए हम डायरेक्ट अपडेट क्वेरी चला रहे हैं।
+        
+        /* NOTE: अगर database में ये column नहीं हैं, तो SQL Console में जाकर ये चला लेना:
+           ALTER TABLE shops ADD COLUMN IF NOT EXISTS has_closing BOOLEAN DEFAULT false;
+           ALTER TABLE shops ADD COLUMN IF NOT EXISTS has_backup BOOLEAN DEFAULT false;
+           ALTER TABLE shops ADD COLUMN IF NOT EXISTS has_security BOOLEAN DEFAULT false;
+           ALTER TABLE shops ADD COLUMN IF NOT EXISTS has_ai_insights BOOLEAN DEFAULT false;
+        */
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ success: false, message: `Shop ID ${shop_id} नहीं मिली।` });
-        }
+        const sql = `
+            UPDATE shops 
+            SET has_closing = $1, has_backup = $2, has_security = $3, has_ai_insights = $4 
+            WHERE id = $5
+        `;
+        
+        await pool.query(sql, [
+            add_ons.has_closing, 
+            add_ons.has_backup, 
+            add_ons.has_security, 
+            add_ons.has_ai_insights, 
+            shop_id
+        ]);
 
-        res.json({ success: true, message: `Shop ID ${result.rows[0].id} (${result.rows[0].shop_name}) के लिए ऐड-ऑन सफलतापूर्वक अपडेट किए गए।`, data: result.rows[0] });
+        res.json({ success: true, message: `Shop #${shop_id} Features Updated!` });
 
     } catch (err) {
-        console.error("Error granting add-on:", err.message);
-        res.status(500).json({ success: false, message: 'ऐड-ऑन देने में विफल: ' + err.message });
+        console.error("Addon Error:", err.message);
+        // अगर कॉलम नहीं मिले तो यूजर को बताओ
+        if(err.message.includes('column') && err.message.includes('does not exist')) {
+            res.status(500).json({ success: false, message: 'Error: Database columns missing. Run ALTER TABLE commands first.' });
+        } else {
+            res.status(500).json({ success: false, message: err.message });
+        }
     }
 });
-
-
 // ================================================================
 // 🚀 MISSING ADMIN ROUTES (Add this to server.cjs)
 // ================================================================
@@ -1413,12 +1427,18 @@ app.post('/api/admin/set-business-type', async (req, res) => {
     const { adminPassword, shop_id, business_type } = req.body;
 
     if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+        return res.status(401).json({ success: false, message: 'Wrong Admin Password!' });
     }
 
     try {
+        // Business Type अपडेट करो
         await pool.query('UPDATE shops SET business_type = $1 WHERE id = $2', [business_type, shop_id]);
-        res.json({ success: true, message: `Shop #${shop_id} का बिज़नेस टाइप '${business_type}' सेट हो गया है।` });
+        
+        // उस दुकान के सभी यूजर्स को भी सिंक करो (Optional, पर अच्छा रहता है)
+        await pool.query('UPDATE users SET business_type = $1 WHERE shop_id = $2', [business_type, shop_id]);
+
+        res.json({ success: true, message: `Shop #${shop_id} is now converted to ${business_type}!` });
+
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
