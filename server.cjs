@@ -1683,102 +1683,107 @@ const token = jwt.sign(tokenUser, JWT_SECRET, { expiresIn: '30d' });
 // [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 // [ server.cjs में इस पूरे /api/activate-license फ़ंक्शन को रिप्लेस करें ]
 
+
 // ==========================================
-// 🚀 LICENSE ACTIVATION (FIXED & LOGGED)
+// 🚀 LICENSE ACTIVATION (SMART DURATION ADDER)
 // ==========================================
 app.post('/api/activate-license', authenticateToken, async (req, res) => {
     const { licenseKey } = req.body;
+    const shopId = req.shopId; // Token से Shop ID लो
+
+    // 1. Validation
+    if (!licenseKey) return res.status(400).json({ success: false, message: 'License Key is required.' });
+
+    const client = await pool.connect();
     
-    // 1. Basic Validation
-    if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ success: false, message: 'केवल Admin ही लाइसेंस डाल सकता है।' });
-    }
-    if (!licenseKey || licenseKey.includes('PASTE_KAREIN')) {
-        return res.status(400).json({ success: false, message: 'कृपया सही लाइसेंस की (Key) डालें।' });
-    }
-
-    console.log(`[License] Request from Shop: ${req.user.shopId}`);
-
-    const client = await pool.connect(); // क्लाइंट कनेक्ट करें
-
     try {
-        // की (Key) को हैश करें (सुरक्षा के लिए)
-        // नोट: अगर आपके पास hashKey फंक्शन नहीं है, तो इसे सीधे यूज़ करें या नीचे दिया गया फंक्शन भी कोड में डालें
         const keyHash = crypto.createHash('sha256').update(licenseKey).digest('hex');
+        await client.query('BEGIN');
 
-        await client.query('BEGIN'); // ट्रांजैक्शन शुरू
-
-        // 2. लाइसेंस टेबल चेक करें (FOR UPDATE लॉक के साथ)
-        const licenseRes = await client.query(
-            `SELECT * FROM licenses WHERE key_hash = $1 FOR UPDATE`, 
-            [keyHash]
-        );
-
+        // 2. लाइसेंस चेक करो
+        const licenseRes = await client.query(`SELECT * FROM licenses WHERE key_hash = $1 FOR UPDATE`, [keyHash]);
+        
         if (licenseRes.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'गलत लाइसेंस की (Invalid Key)!' });
+            return res.status(400).json({ success: false, message: '❌ अमान्य लाइसेंस की (Invalid Key)!' });
         }
 
         const license = licenseRes.rows[0];
 
-        // 3. वैलिडेशन चेक
-        if (license.shop_id && license.shop_id != req.user.shopId) {
+        // 3. क्या यह की (Key) पहले से इस्तेमाल हो चुकी है?
+        if (license.status === 'USED') {
             await client.query('ROLLBACK');
-            return res.status(400).json({ success: false, message: 'यह की (Key) किसी और दुकान पर यूज़ हो चुकी है।' });
+            return res.status(400).json({ success: false, message: '❌ यह लाइसेंस की पहले ही इस्तेमाल हो चुकी है!' });
         }
 
-        // 4. दुकान अपडेट करें
-        const newExpiry = new Date(license.expiry_date);
+        // 4. दुकान की मौजूदा एक्सपायरी डेट लाओ
+        const shopRes = await client.query('SELECT license_expiry_date FROM shops WHERE id = $1', [shopId]);
+        let currentExpiry = shopRes.rows[0].license_expiry_date ? new Date(shopRes.rows[0].license_expiry_date) : new Date();
+        const now = new Date();
+
+        // 🧠 SMART LOGIC:
+        // अगर लाइसेंस पहले ही खत्म हो चुका है, तो 'आज' से शुरू करो।
+        // अगर लाइसेंस अभी बाकी है, तो 'पुरानी तारीख' में दिन जोड़ो।
+        if (currentExpiry < now) {
+            currentExpiry = new Date(); // आज
+        }
+
+        // 5. दिन जोड़ो (Duration Days)
+        const daysToAdd = license.duration_days || 365; // डिफॉल्ट 365 दिन
+        currentExpiry.setDate(currentExpiry.getDate() + parseInt(daysToAdd));
+
+        console.log(`🔋 Extending License for Shop #${shopId} by ${daysToAdd} days. New Expiry: ${currentExpiry}`);
+
+        // 6. दुकान अपडेट करो (Shop Update)
         await client.query(
-            `UPDATE shops SET plan_type = $1, license_expiry_date = $2, status = 'active' WHERE id = $3`,
-            [license.plan_type, newExpiry, req.user.shopId]
+            `UPDATE shops SET 
+                plan_type = $1, 
+                license_expiry_date = $2, 
+                status = 'active' 
+             WHERE id = $3`,
+            [license.plan_type || 'PREMIUM', currentExpiry, shopId]
         );
 
-        // 5. लाइसेंस को 'Used' मार्क करें
+        // 7. लाइसेंस को 'USED' मार्क करो
         await client.query(
-            `UPDATE licenses SET user_id = $1, shop_id = $2 WHERE key_hash = $3`,
-            [req.user.id, req.user.shopId, keyHash]
+            `UPDATE licenses SET 
+                status = 'USED', 
+                used_by_shop_id = $1, 
+                user_id = $2 
+             WHERE id = $3`,
+            [shopId, req.user.id, license.id]
         );
 
-        // 6. यूज़र का नया डेटा लाएं (ताकि टोकन रिन्यू हो सके)
-        const userRes = await client.query(
-            `SELECT u.*, s.shop_name, s.license_expiry_date, s.plan_type, s.business_type 
-             FROM users u 
-             JOIN shops s ON u.shop_id = s.id 
-             WHERE u.id = $1`,
-            [req.user.id]
-        );
-
+        // 8. यूजर का डेटा रिफ्रेश करके नया टोकन भेजो
+        const userRes = await client.query(`SELECT * FROM users WHERE id = $1`, [req.user.id]);
         const updatedUser = userRes.rows[0];
-
-        // 7. नया टोकन बनाएं
+        
+        // नया टोकन जिसमें नई तारीख हो
         const newToken = jwt.sign({
             id: updatedUser.id,
             email: updatedUser.email,
             shopId: updatedUser.shop_id,
             role: updatedUser.role,
-            licenseExpiryDate: updatedUser.license_expiry_date,
-            plan_type: updatedUser.plan_type,
-            businessType: updatedUser.business_type
+            status: 'active',
+            licenseExpiryDate: currentExpiry, // ✅ नई तारीख
+            plan_type: license.plan_type || 'PREMIUM'
         }, process.env.JWT_SECRET || 'dukan_pro_super_secret_key_2025', { expiresIn: '30d' });
 
-        await client.query('COMMIT'); // सब कुछ सेव करें
-        
-        console.log(`[License] Success for Shop ${req.user.shopId}`);
-        
+        await client.query('COMMIT');
+
         res.json({ 
             success: true, 
-            message: '✅ लाइसेंस सफलतापूर्वक एक्टिवेट हो गया!',
+            message: `✅ लाइसेंस सफल! वैधता ${daysToAdd} दिनों के लिए बढ़ा दी गई है।`,
             token: newToken,
-            user: updatedUser
+            user: { ...updatedUser, licenseExpiryDate: currentExpiry }
         });
 
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("[License Error]", err);
+        console.error("License Error:", err);
         res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
     } finally {
-        client.release(); // कनेक्शन छोड़ना बहुत जरूरी है
+        client.release();
     }
 });
 
