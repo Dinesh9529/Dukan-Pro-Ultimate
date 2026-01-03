@@ -6318,75 +6318,58 @@ app.post('/api/admin/upgrade-shop-plan', async (req, res) => {
     }
 });
 
-// -----------------------------------------------------------
-// 🔍 2. FIND SHOPS (Master List & Key Gen Fetch) - ULTRA ROBUST
-// -----------------------------------------------------------
+// =========================================================
+// 🔍 FIND SHOP FIX (Sirf Mobile/Email Data lane ke liye)
+// =========================================================
 app.post('/api/admin/find-shop', async (req, res) => {
     const { adminPassword, query } = req.body;
-    
-    // Auth Check
-    if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, message: 'Wrong Password!' });
+
+    // 1. पासवर्ड चेक
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Wrong Password' });
     }
 
     try {
-        // ✅ POWER QUERY: Double Link (ID + Mobile Match)
-        // यह क्वेरी दो बार चेक करती है:
-        // 1. क्या users.shop_id मैच करता है?
-        // 2. या क्या users.mobile मैच करता है?
-        
+        // ✅ SMART QUERY: Shops का डेटा लो + Users से Mobile/Email लो
         let sql = `
             SELECT 
-                shops.*,
-                -- Email निकालने का स्मार्ट तरीका
-                COALESCE(
-                    (SELECT email FROM users WHERE CAST(users.shop_id AS TEXT) = CAST(shops.id AS TEXT) AND email IS NOT NULL LIMIT 1),
-                    (SELECT email FROM users WHERE users.mobile = shops.owner_mobile AND email IS NOT NULL LIMIT 1),
-                    'No Email Found'
-                ) as magic_email,
-                
-                -- Mobile निकालने का स्मार्ट तरीका (अगर shops में नहीं है तो users से लो)
-                COALESCE(
-                    shops.owner_mobile,
-                    (SELECT mobile FROM users WHERE CAST(users.shop_id AS TEXT) = CAST(shops.id AS TEXT) LIMIT 1),
-                    'No Mobile Found'
-                ) as magic_mobile
+                shops.id, 
+                shops.shop_name, 
+                shops.plan_type, 
+                shops.status, 
+                shops.license_expiry_date,
+                shops.created_at,
+                shops.business_type,
+                -- Mobile aur Email yahan users table se aa raha hai
+                (SELECT mobile FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1) as owner_mobile,
+                (SELECT email FROM users WHERE users.shop_id = shops.id ORDER BY id ASC LIMIT 1) as owner_email
             FROM shops
         `;
 
         let params = [];
         const qStr = String(query || '').trim();
 
-        // सर्च लॉजिक
+        // 2. सर्च लॉजिक
         if (qStr !== '') {
             if (!isNaN(qStr)) {
-                // ID या Mobile से सर्च
-                sql += ` WHERE CAST(shops.id AS TEXT) = $1 OR shops.owner_mobile = $1`;
+                // अगर नंबर डाला है (ID या Mobile)
+                sql += ` WHERE CAST(shops.id AS TEXT) = $1 OR (SELECT mobile FROM users WHERE users.shop_id = shops.id LIMIT 1) = $1`;
                 params = [qStr];
             } else {
-                // नाम या ईमेल (Magic Email) से सर्च
+                // अगर नाम डाला है
                 sql += ` WHERE shops.shop_name ILIKE $1`;
                 params = [`%${qStr}%`];
             }
         }
 
         sql += " ORDER BY shops.id DESC";
-        
+
         const result = await pool.query(sql, params);
-
-        // डेटा को सही फॉर्मेट में भेजो
-        const finalShops = result.rows.map(s => ({
-            ...s,
-            // फ्रंटएंड को यही नाम चाहिए
-            owner_email: s.magic_email, 
-            owner_mobile: s.magic_mobile
-        }));
-
-        res.json({ success: true, shops: finalShops });
+        res.json({ success: true, shops: result.rows });
 
     } catch (err) {
-        console.error("Robust Find Error:", err.message);
-        res.status(500).json({ success: false, message: "DB Error: " + err.message });
+        console.error("Find Shop Error:", err.message);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 // --- ADMIN: BLOCK/UNBLOCK SHOP (CORRECTED) ---
