@@ -1396,11 +1396,8 @@ app.post('/api/admin/set-business-type', async (req, res) => {
 // -----------------------------------------------------------------------------
 // III. AUTHENTICATION AND LICENSE ROUTES (PUBLIC/SETUP)
 // -----------------------------------------------------------------------------
-
-// 🌟 FIX: This route is now /api/admin/generate-key and uses GLOBAL_ADMIN_PASSWORD
-// [ server.cjs में इस पूरे फ़ंक्शन को बदलें ]
 // =========================================================
-// 🔑 GENERATE KEY (FIXED & ROBUST)
+// 🔑 GENERATE KEY (AUTO-FIX DATABASE VERSION)
 // =========================================================
 app.post('/api/admin/generate-key', async (req, res) => {
     const { adminPassword, days, plan_type, customerName } = req.body;
@@ -1411,11 +1408,10 @@ app.post('/api/admin/generate-key', async (req, res) => {
     }
 
     try {
-        // 2. रैंडम की (Key) जनरेट करो
-        const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase(); // e.g., A1B2C3D4
+        const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
         const key = `DUKAN-${plan_type ? plan_type.substring(0,3).toUpperCase() : 'PRE'}-${days}D-${randomPart}`;
 
-        // 3. टेबल सुनिश्चित करो (अगर डिलीट हो गई हो तो)
+        // 2. टेबल सुनिश्चित करें (Basic Create)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS licenses (
                 id SERIAL PRIMARY KEY,
@@ -1429,23 +1425,30 @@ app.post('/api/admin/generate-key', async (req, res) => {
             )
         `);
 
-        // 4. डेटाबेस में डालो
+        // 🛑 3. SELF-HEALING: अगर टेबल पुरानी है, तो छूटे हुए कॉलम जोड़ो (Fix for "column does not exist")
+        await pool.query(`
+            ALTER TABLE licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
+            ALTER TABLE licenses ADD COLUMN IF NOT EXISTS duration_days INTEGER;
+            ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan_type TEXT DEFAULT 'PREMIUM';
+            ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'UNUSED';
+            ALTER TABLE licenses ADD COLUMN IF NOT EXISTS created_by TEXT;
+            ALTER TABLE licenses ADD COLUMN IF NOT EXISTS used_by_shop_id INTEGER;
+        `);
+
+        // 4. अब डेटा सेव करें (अब एरर नहीं आएगा)
         await pool.query(
             `INSERT INTO licenses (license_key, duration_days, plan_type, created_by) VALUES ($1, $2, $3, $4)`,
             [key, days, plan_type || 'PREMIUM', customerName || 'Admin']
         );
 
-        console.log(`✅ New Key Generated: ${key}`);
-        
-        // 5. सफलता का संदेश भेजो
+        console.log(`✅ Key Generated: ${key}`);
         res.json({ success: true, key: key, message: 'License Key Generated Successfully!' });
 
     } catch (err) {
         console.error("Key Gen Error:", err.message);
-        res.status(500).json({ success: false, message: "Server Error: " + err.message });
+        res.status(500).json({ success: false, message: "DB Error: " + err.message });
     }
 });
-
 
 // 2. Verify License Key (Used before login/registration, still public)
 app.get('/api/verify-license', async (req, res) => {
