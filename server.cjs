@@ -7158,7 +7158,43 @@ app.post('/api/hotel/checkout', authenticateJWT, async (req, res) => {
 });
 
 
+// --- 🚀 NEW: Emergency Validity Extension Route ---
+app.post('/api/admin/force-extend', async (req, res) => {
+    const { adminPassword, shop_id, duration_type } = req.body;
 
+    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
+    }
+
+    let daysToAdd = 0;
+    if (duration_type === '3M') daysToAdd = 90;
+    else if (duration_type === '6M') daysToAdd = 180;
+    else if (duration_type === '12M') daysToAdd = 365;
+    else if (duration_type === '5Y') daysToAdd = 1825;
+    else if (duration_type === '10Y') daysToAdd = 3650;
+
+    try {
+        // 1. मौजूदा Expiry Date लाएं
+        const shopRes = await pool.query('SELECT license_expiry_date FROM shops WHERE id = $1', [shop_id]);
+        if (shopRes.rows.length === 0) return res.json({ success: false, message: 'Shop not found' });
+
+        let currentExpiry = new Date(shopRes.rows[0].license_expiry_date || new Date());
+        if (currentExpiry < new Date()) currentExpiry = new Date(); // अगर एक्सपायर है तो आज से शुरू करें
+        
+        // 2. दिन जोड़ें
+        currentExpiry.setDate(currentExpiry.getDate() + daysToAdd);
+
+        // 3. अपडेट करें
+        await pool.query(
+            "UPDATE shops SET license_expiry_date = $1, status = 'active', plan_type = 'PREMIUM' WHERE id = $2",
+            [currentExpiry, shop_id]
+        );
+
+        res.json({ success: true, message: `Shop #${shop_id} की वैलिडिटी ${daysToAdd} दिनों के लिए बढ़ा दी गई है!` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 // Start the server after ensuring database tables are ready
 createTables().then(() => {
