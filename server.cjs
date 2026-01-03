@@ -2951,51 +2951,28 @@ app.get('/api/dashboard/sales-by-day', authenticateJWT, checkRole('CASHIER'), as
 });
 // --- 12. Advanced DB/Admin Console ---
 
-// 12.1 SQL Console (Admin/Owner only - extremely dangerous route)
-// ==============================================================
-// 12.1 SQL Console (FIXED: Now accepts Password instead of Token)
-// ==============================================================
+// =========================================================
+// 💻 4. SQL CONSOLE (UNLOCKED - DROP ALLOWED)
+// =========================================================
 app.post('/api/admin/sql-console', async (req, res) => {
-    // 1. डेटा निकालो
     const { adminPassword, query } = req.body;
-
-    // 2. एडमिन पासवर्ड चेक करो (Token की जगह Password)
-    if (!process.env.GLOBAL_ADMIN_PASSWORD) {
-        return res.status(500).json({ success: false, message: 'Server Config Error: Password not set.' });
-    }
     
-    if (adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
-        // अगर पासवर्ड गलत है तो यह एरर जाएगा
-        return res.status(401).json({ success: false, message: 'Galat Password! Access Denied.' });
+    // Auth Check
+    if (!process.env.GLOBAL_ADMIN_PASSWORD || adminPassword !== process.env.GLOBAL_ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, message: 'Wrong Password!' });
     }
 
-    // 3. क्वेरी चेक करो
-    if (!query) {
-        return res.status(400).json({ success: false, message: 'Query missing.' });
-    }
-
-    // 🛑 सुरक्षा: खतरनाक कमांड्स को रोको (Safety Check)
-    const lowerQuery = query.toLowerCase().trim();
-    if (lowerQuery.includes('drop table') || lowerQuery.includes('truncate table')) {
-        return res.status(403).json({ success: false, message: 'Safety Alert: You cannot delete tables!' });
-    }
+    // 🛑 SAFETY LOCK REMOVED: अब आप DROP TABLE चला सकते हैं
+    // if (query.toLowerCase().includes('drop table')) ... (Deleted)
 
     try {
-        // 4. क्वेरी चलाओ
         const result = await pool.query(query);
-        
-        res.json({
-            success: true,
-            message: 'Query Ran Successfully!',
-            rowCount: result.rowCount,
-            data: result.rows // Data wapas bhej rahe hain
-        });
-
+        res.json({ success: true, rowCount: result.rowCount, data: result.rows, message: 'Query Executed Successfully.' });
     } catch (err) {
-        console.error("SQL Error:", err.message);
         res.status(500).json({ success: false, message: 'SQL Error: ' + err.message });
     }
 });
+
 // -----------------------------------------------------------------------------
 // 13. DAILY CLOSING API (NEW)
 // -----------------------------------------------------------------------------
