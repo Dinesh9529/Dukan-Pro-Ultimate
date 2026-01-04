@@ -2225,24 +2225,36 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         }
         // ============================================================
 
-        // 2. Create Invoice
-        // [🚀 UPDATED QUERY: Added loan_account_no, painter_id AND painter_commission_amount]
+        // 🚀 START: बिल नंबर (1, 2, 3...) बनाने का लॉजिक
+        const lastInvoiceRes = await client.query(
+            `SELECT MAX(invoice_no) as max_no FROM invoices WHERE shop_id = $1`,
+            [shopId]
+        );
+        
+        let nextInvoiceNo = 1; // पहला बिल = 1
+        if (lastInvoiceRes.rows.length > 0 && lastInvoiceRes.rows[0].max_no) {
+            nextInvoiceNo = parseInt(lastInvoiceRes.rows[0].max_no) + 1; // पिछला + 1
+        }
+        // 🚀 END
+
+        // 2. Create Invoice (अब इसमें invoice_no भी जाएगा)
         const invoiceResult = await client.query(
             `INSERT INTO invoices (
-                shop_id, customer_id, total_amount, customer_gstin, place_of_supply, 
+                shop_id, invoice_no, customer_id, total_amount, customer_gstin, place_of_supply, 
                 latitude, longitude, loan_account_no, painter_id, painter_commission_amount
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
             [
                 shopId, 
+                nextInvoiceNo,        // ✅ यहाँ गया नया नंबर
                 customerId, 
                 parseFloat(total_amount), 
                 customerGstin, 
                 (place_of_supply || ''), 
                 latitude || null, 
                 longitude || null,
-                loanAccountNo || null, // Save Loan Account Number here
-                painterId || null,     // Save Painter ID here
-                commissionAmount       // 🚀 Save Commission Amount here
+                loanAccountNo || null, 
+                painterId || null, 
+                commissionAmount      
             ]
         );
         const invoiceId = invoiceResult.rows[0].id;
@@ -2339,7 +2351,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
         }
 
-        res.json({ success: true, invoiceId: invoiceId, message: `बिक्री सेव हो गई! (कमीशन: ₹${commissionAmount.toFixed(2)})` });
+        res.json({ success: true, invoiceId: nextInvoiceNo, message: `बिक्री सेव हो गई! (कमीशन: ₹${commissionAmount.toFixed(2)})` });
     
     } catch (err) {
         await client.query('ROLLBACK');
