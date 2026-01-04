@@ -119,6 +119,16 @@ initDB();
 const repairDatabaseSchema = async () => {
     try {
         console.log("🛠️ Checking & Fixing Database Schema...");
+		
+		// [INSERT THIS INSIDE repairDatabaseSchema FUNCTION]
+// 🚀 FIX: Ensure invoice_no column exists for Custom Bill Numbers (1, 2, 3...)
+await pool.query(`
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'invoices'::regclass AND attname = 'invoice_no') THEN
+            ALTER TABLE invoices ADD COLUMN invoice_no INTEGER DEFAULT 0;
+        END IF;
+    END $$;
+`);
 
         // 1. Invoices Table: Add 'payment_mode'
         await pool.query(`
