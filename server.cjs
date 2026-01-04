@@ -2145,7 +2145,7 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 
 //... (बाकी server.cjs कोड)
 
-// [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें - FINAL VERSION ]
+// [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें - FULL FINAL VERSION ]
 // 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST, SALON CONSUMPTION, FINANCE & BILL NO 1-2-3)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
     // FIX 1: Extract all necessary fields from req.body including new ones
@@ -2157,10 +2157,11 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         place_of_supply, 
         latitude, 
         longitude, 
-        loanAccountNo, // New field for Finance/Recovery Agents
-        painterId,     // 🚀 NEW: Painter ID for Commission
+        loanAccountNo,   // New field for Finance/Recovery Agents
+        painterId,       // 🚀 NEW: Painter ID for Commission
         commissionValue, // 🚀 NEW: कमीशन की वैल्यू (जैसे 5 या 100)
-        commissionMode   // 🚀 NEW: मोड ('PERCENT' या 'FLAT')
+        commissionMode,  // 🚀 NEW: मोड ('PERCENT' या 'FLAT')
+        paymentMode      // 🚀 NEW: Payment Mode (Cash/Online)
     } = req.body;
     
     // Note: User ke code mein 'req.shopId' use ho raha hai, wahi rakhenge
@@ -2236,7 +2237,7 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         }
         // ============================================================
 
-        // 🚀 START: दुकान का अपना बिल नंबर (1, 2, 3...) बनाने का लॉजिक (ADDED HERE)
+        // 🚀 START: दुकान का अपना बिल नंबर (1, 2, 3...) बनाने का लॉजिक
         const lastInvoiceRes = await client.query(
             `SELECT MAX(invoice_no) as max_no FROM invoices WHERE shop_id = $1`,
             [shopId]
@@ -2249,12 +2250,12 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         // 🚀 END: Logic Complete
 
         // 2. Create Invoice
-        // [🚀 UPDATED QUERY: Added invoice_no along with other fields]
+        // [🚀 UPDATED QUERY: Added invoice_no, payment_mode along with other fields]
         const invoiceResult = await client.query(
             `INSERT INTO invoices (
                 shop_id, invoice_no, customer_id, total_amount, customer_gstin, place_of_supply, 
-                latitude, longitude, loan_account_no, painter_id, painter_commission_amount
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+                latitude, longitude, loan_account_no, painter_id, painter_commission_amount, payment_mode
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
             [
                 shopId, 
                 nextInvoiceNo, // ✅ $2: नया बिल नंबर (1, 2, 3...)
@@ -2266,7 +2267,8 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
                 longitude || null,
                 loanAccountNo || null, // Save Loan Account Number here
                 painterId || null,     // Save Painter ID here
-                commissionAmount       // Save Commission Amount here
+                commissionAmount,      // Save Commission Amount here
+                paymentMode || 'Cash'  // Save Payment Mode
             ]
         );
         const invoiceId = invoiceResult.rows[0].id;
