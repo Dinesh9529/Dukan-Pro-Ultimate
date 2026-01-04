@@ -2135,8 +2135,8 @@ app.delete('/api/stock/:sku', authenticateJWT, checkRole('ADMIN'), async (req, r
 
 //... (बाकी server.cjs कोड)
 
-// [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें ]
-// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST, SALON CONSUMPTION & FINANCE)
+// [ ✅ server.cjs: 8.1 वाले पूरे कोड को इससे बदलें - FINAL VERSION ]
+// 8.1 Process New Sale / Create Invoice (UPDATED FOR TALLY-GST, SALON CONSUMPTION, FINANCE & BILL NO 1-2-3)
 app.post('/api/invoices', authenticateJWT, async (req, res) => {
     // FIX 1: Extract all necessary fields from req.body including new ones
     const { 
@@ -2153,7 +2153,8 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         commissionMode   // 🚀 NEW: मोड ('PERCENT' या 'FLAT')
     } = req.body;
     
-    const shopId = req.shopId;
+    // Note: User ke code mein 'req.shopId' use ho raha hai, wahi rakhenge
+    const shopId = req.shopId || req.user.shopId; 
 
     if (!total_amount || !Array.isArray(sale_items) || sale_items.length === 0) {
         return res.status(400).json({ success: false, message: 'कुल राशि और बिक्री आइटम आवश्यक हैं.' });
@@ -2225,19 +2226,20 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
         }
         // ============================================================
 
-        // 🚀 START: बिल नंबर (1, 2, 3...) बनाने का लॉजिक
+        // 🚀 START: दुकान का अपना बिल नंबर (1, 2, 3...) बनाने का लॉजिक (ADDED HERE)
         const lastInvoiceRes = await client.query(
             `SELECT MAX(invoice_no) as max_no FROM invoices WHERE shop_id = $1`,
             [shopId]
         );
         
-        let nextInvoiceNo = 1; // पहला बिल = 1
+        let nextInvoiceNo = 1; // अगर पहला बिल है तो 1
         if (lastInvoiceRes.rows.length > 0 && lastInvoiceRes.rows[0].max_no) {
             nextInvoiceNo = parseInt(lastInvoiceRes.rows[0].max_no) + 1; // पिछला + 1
         }
-        // 🚀 END
+        // 🚀 END: Logic Complete
 
-        // 2. Create Invoice (अब इसमें invoice_no भी जाएगा)
+        // 2. Create Invoice
+        // [🚀 UPDATED QUERY: Added invoice_no along with other fields]
         const invoiceResult = await client.query(
             `INSERT INTO invoices (
                 shop_id, invoice_no, customer_id, total_amount, customer_gstin, place_of_supply, 
@@ -2245,16 +2247,16 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
             [
                 shopId, 
-                nextInvoiceNo,        // ✅ यहाँ गया नया नंबर
+                nextInvoiceNo, // ✅ $2: नया बिल नंबर (1, 2, 3...)
                 customerId, 
                 parseFloat(total_amount), 
                 customerGstin, 
                 (place_of_supply || ''), 
                 latitude || null, 
                 longitude || null,
-                loanAccountNo || null, 
-                painterId || null, 
-                commissionAmount      
+                loanAccountNo || null, // Save Loan Account Number here
+                painterId || null,     // Save Painter ID here
+                commissionAmount       // Save Commission Amount here
             ]
         );
         const invoiceId = invoiceResult.rows[0].id;
@@ -2351,7 +2353,13 @@ app.post('/api/invoices', authenticateJWT, async (req, res) => {
             broadcastToShop(shopId, JSON.stringify({ type: 'DASHBOARD_UPDATE', view: 'sales' }));
         }
 
-        res.json({ success: true, invoiceId: nextInvoiceNo, message: `बिक्री सेव हो गई! (कमीशन: ₹${commissionAmount.toFixed(2)})` });
+        // ✅ Frontend को 'nextInvoiceNo' भेजें ताकि रसीद पर 1, 2 दिखे (invoiceId variable contains the new friendly number now for frontend)
+        res.json({ 
+            success: true, 
+            invoiceId: nextInvoiceNo, // 👈 यह रसीद पर 1, 2, 3 दिखाएगा
+            dbId: invoiceId,          // यह Database UUID है
+            message: `बिक्री सेव हो गई! (कमीशन: ₹${commissionAmount.toFixed(2)})` 
+        });
     
     } catch (err) {
         await client.query('ROLLBACK');
