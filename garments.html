@@ -1174,58 +1174,42 @@
 }
 
 
-/* 🖨️ THERMAL PRINTER STYLE (58mm / 80mm) */
-@media print {
-    /* 1. वेबसाइट का बाकी सब कुछ छिपा दें */
-    body * {
-        visibility: hidden;
-    }
-
-    /* 2. सिर्फ पर्ची को दिखाएं */
-    #thermal-receipt-area, #thermal-receipt-area * {
-        visibility: visible;
-    }
-
-    /* 3. पर्ची की पोजीशन सेट करें */
-    #thermal-receipt-area {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%; /* प्रिंटर अपने आप चौड़ाई ले लेगा */
-        margin: 0;
-        padding: 0;
-    }
-
-    /* 4. पेज मार्जिन हटाएं (कागज बचाने के लिए) */
-    @page {
-        margin: 0;
-        size: auto;
-    }
-}
-
-/* स्क्रीन पर पर्ची कैसी दिखेगी (फिलहाल छिपा कर रखें) */
+/* 🖨️ THERMAL PRINTER STYLE (Mr. India Fix) */
 #thermal-receipt-area {
-    display: none; /* स्क्रीन पर नहीं दिखेगा */
-    width: 58mm;   /* स्टैंडर्ड छोटी पर्ची (आप 80mm भी कर सकते हैं) */
-    background: white;
+    display: none; /* डिफ़ॉल्ट रूप से छिपा रहे */
+    position: fixed; /* सबसे ऊपर */
+    top: 0; left: 0;
+    width: 58mm;
+    background-color: white !important; /* बैकग्राउंड सफ़ेद */
+    color: black !important; /* ⚠️ टेक्स्ट काला (जरूरी) */
+    z-index: 999999 !important; /* सबसे ऊपर */
     padding: 10px;
-    font-family: 'Courier New', monospace; /* रसीद वाला फॉन्ट */
+    font-family: 'Courier New', monospace;
     font-size: 12px;
-    color: black;
+    font-weight: bold; /* थोड़ा मोटा टेक्स्ट */
+    box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); /* बैकग्राउंड को धुंधला करें (Testing के लिए) */
 }
 
-.receipt-header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-.receipt-bold { font-weight: bold; }
-.receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-.receipt-table th { text-align: left; border-bottom: 1px dashed #000; font-size: 10px; }
-.receipt-table td { text-align: left; font-size: 11px; padding-top: 2px; }
+/* प्रिंट होते समय */
+@media print {
+    body * { visibility: hidden; }
+    #thermal-receipt-area, #thermal-receipt-area * { 
+        visibility: visible !important; 
+        color: black !important; /* प्रिंट में भी काला */
+    }
+    #thermal-receipt-area {
+        position: absolute; left: 0; top: 0; width: 100%;
+        box-shadow: none; /* प्रिंट में शैडो नहीं */
+    }
+    @page { margin: 0; size: auto; }
+}
+
+/* बाकी स्टाइल (Header, Table, Footer) */
+.receipt-header { text-align: center; margin-bottom: 5px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+.receipt-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.receipt-table th { text-align: left; border-bottom: 1px dashed #000; color: black !important; }
+.receipt-table td { text-align: left; padding-top: 2px; color: black !important; }
 .receipt-footer { text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px; font-size: 10px; }
-
-
-
-/* 🚀 FORCE HIDE: Anti-Theft Button Default */
-#dynamic-theft-btn-container { display: none !important; }
-
 
     </style>
 
@@ -14130,47 +14114,6 @@ function handleScannedBarcode(code) {
 }
 
 
-// 🖨️ THERMAL PRINT FUNCTION
-function generateThermalPrint(invoiceId, customerName, items, totalAmount) {
-    // 1. डेटा भरें
-    if(document.getElementById('p-invoice-id')) document.getElementById('p-invoice-id').innerText = invoiceId;
-    if(document.getElementById('p-date')) document.getElementById('p-date').innerText = new Date().toLocaleDateString('en-IN');
-    if(document.getElementById('p-time')) document.getElementById('p-time').innerText = new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'});
-    if(document.getElementById('p-total')) document.getElementById('p-total').innerText = parseFloat(totalAmount).toFixed(2);
-
-    // 2. आइटम लिस्ट बनाएं
-    const tbody = document.getElementById('p-items-body');
-    if(tbody) {
-        tbody.innerHTML = ''; // पुराना खाली करें
-        items.forEach(item => {
-            const qty = item.quantity || item.qty || 1;
-            const price = item.sale_price || item.price || 0;
-            const row = `
-                <tr>
-                    <td style="padding-bottom: 2px;">${item.name.substring(0, 15)}</td>
-                    <td style="vertical-align: top;">${qty}</td>
-                    <td style="text-align: right; vertical-align: top;">
-                        ${(price * qty).toFixed(2)}
-                    </td>
-                </tr>
-            `;
-            tbody.innerHTML += row;
-        });
-    }
-
-    // 3. पर्ची को विजिबल करें और प्रिंट डायलॉग खोलें
-    const receipt = document.getElementById('thermal-receipt-area');
-    if(receipt) {
-        receipt.style.display = 'block'; // थोड़ी देर के लिए दिखाएं
-        setTimeout(() => {
-            window.print(); // 🖨️ प्रिंट कमांड
-            receipt.style.display = 'none'; // वापस छिपा दें
-        }, 500);
-    }
-}
-
-
-
 // 2. कैमरा शुरू करें (Safe Mode)
 async function startSecurityCamera() {
     try {
@@ -14753,41 +14696,65 @@ if (typeof window.SecurityLogger === 'undefined') {
 
 <div id="thermal-receipt-area">
     
-    <div class="receipt-header">
-        <h3 style="margin:0;">DUKAN PRO</h3> <div style="font-size: 10px;">Mobile: 9876543210</div>
-        <div style="font-size: 10px;">Date: <span id="p-date"></span> | Time: <span id="p-time"></span></div>
-        <div class="receipt-bold">Bill No: #<span id="p-invoice-id"></span></div>
+    <style>
+        #thermal-receipt-area {
+            display: none; 
+            background: white !important;
+            color: black !important;
+            width: 58mm;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 5px;
+        }
+        /* प्रिंट के दौरान सेटिंग्स */
+        @media print {
+            body * { visibility: hidden; }
+            #thermal-receipt-area, #thermal-receipt-area * { 
+                visibility: visible !important; 
+                color: black !important;
+            }
+            #thermal-receipt-area {
+                position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0;
+            }
+            @page { margin: 0; size: auto; }
+        }
+        /* टेबल स्टाइल */
+        .receipt-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .receipt-table th { text-align: left; border-bottom: 1px dashed #000; color: black !important; }
+        .receipt-table td { text-align: left; padding-top: 2px; color: black !important; }
+    </style>
+
+    <div class="receipt-header" style="text-align: center; margin-bottom: 5px; border-bottom: 1px dashed #000;">
+        <h3 style="margin:0; color: black !important;">DUKAN PRO</h3> 
+        <div style="font-size: 10px; color: black !important;">Date: <span id="p-date"></span></div>
+        <div style="font-weight: bold; margin-top: 2px; color: black !important;">Bill No: #<span id="p-invoice-id"></span></div>
     </div>
 
     <table class="receipt-table">
         <thead>
             <tr>
-                <th style="width: 50%;">Item</th>
-                <th style="width: 15%;">Qty</th>
-                <th style="width: 35%; text-align: right;">Amt</th>
+                <th>Item</th>
+                <th>Qty</th>
+                <th style="text-align: right;">Amt</th>
             </tr>
         </thead>
-        <tbody id="p-items-body">
-            </tbody>
+        <tbody id="p-items-body"></tbody>
     </table>
 
-    <div style="text-align: right; border-top: 1px dashed #000; padding-top: 5px;">
-        <div>Total: ₹<span id="p-total" class="receipt-bold">0.00</span></div>
+    <div style="text-align: right; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">
+        <div style="font-size: 14px; font-weight: bold; color: black !important;">Total: ₹<span id="p-total">0.00</span></div>
     </div>
 
-    <div class="receipt-footer">
-        <div>Thank You! Visit Again.</div>
-        <div>No Refund / No Exchange</div>
+    <div style="text-align: center; margin-top: 10px; border-top: 1px dotted #000; padding-top: 5px;">
+        <img id="p-qr-image" src="" style="width: 100px; height: 100px; display:none;" onload="this.style.display='inline-block'">
+        <div style="font-size: 9px; font-weight: bold; color: black !important;">GATE PASS SCAN</div>
+    </div>
+
+    <div style="text-align: center; margin-top: 10px; font-size: 10px; color: black !important;">
+        Thank You! Visit Again.
     </div>
 </div>
-
-
-<audio id="theft-siren" src="https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3" preload="auto"></audio>
-
-<video id="security-video" width="320" height="240" autoplay style="display:none;"></video>
-<canvas id="security-canvas" width="320" height="240" style="display:none;"></canvas>
-
-
 
 
 <script>
@@ -15083,6 +15050,71 @@ if (typeof window.SecurityLogger === 'undefined') {
 
 
    
+
+// ... आपका पुराना सारा कोड यहाँ ऊपर है ...
+
+    // 👇 यहाँ पेस्ट करें (Script टैग खत्म होने से ठीक पहले) 👇
+    
+    // 🖨️ FINAL THERMAL PRINT FUNCTION (QR + OLD LAYOUT)
+    // 🖨️ SMART PRINT FUNCTION (From your Old Code - Optimized)
+window.generateThermalPrint = function(invoiceId, customerName, items, totalAmount) {
+    console.log("🖨️ Generating Smart Receipt...");
+
+    const receipt = document.getElementById('thermal-receipt-area');
+    if (!receipt) return alert("❌ Receipt Template Missing!");
+
+    // 1. Data Fill
+    document.getElementById('p-invoice-id').innerText = invoiceId;
+    document.getElementById('p-date').innerText = new Date().toLocaleDateString('en-IN');
+    document.getElementById('p-time').innerText = new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'});
+    document.getElementById('p-total').innerText = parseFloat(totalAmount).toFixed(2);
+
+    // 2. Items Fill
+    const tbody = document.getElementById('p-items-body');
+    tbody.innerHTML = '';
+    items.forEach(item => {
+        const qty = Number(item.quantity || item.qty || 1);
+        const price = Number(item.sale_price || item.price || 0);
+        const row = `
+            <tr>
+                <td style="padding: 2px 0;">${(item.name || 'Item').substring(0, 15)}</td>
+                <td style="text-align: center;">${qty}</td>
+                <td style="text-align: right;">${(price * qty).toFixed(2)}</td>
+            </tr>`;
+        tbody.innerHTML += row;
+    });
+
+    // 3. QR Code Logic (Smart Wait)
+    const qrImg = document.getElementById('p-qr-image');
+    let isPrinted = false;
+
+    // प्रिंट करने का फाइनल फंक्शन
+    const doPrint = () => {
+        if (isPrinted) return;
+        isPrinted = true;
+        receipt.style.display = 'block'; // दिखाएं
+        window.print(); // प्रिंट डायलॉग खोलें
+        setTimeout(() => { receipt.style.display = 'none'; }, 1000); // फिर छिपा दें
+    };
+
+    if (qrImg) {
+        // QR URL सेट करें
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${invoiceId}`;
+        
+        // अगर QR लोड हो जाए -> प्रिंट करो
+        qrImg.onload = doPrint;
+        
+        // अगर QR फेल हो जाए -> फिर भी प्रिंट करो (बिना रुके)
+        qrImg.onerror = doPrint;
+
+        // बैकअप: अगर 2 सेकंड तक कुछ न हो -> जबरदस्ती प्रिंट करो
+        setTimeout(doPrint, 2000);
+    } else {
+        doPrint();
+    }
+};
+
+
     </script>
     </body>
 </html> 

@@ -8101,46 +8101,81 @@ const unlockApplication = () => {
     localStorage.setItem('authToken', token);
     localStorage.setItem('authUser', JSON.stringify(user));
 
-    // 🔍 BUSINESS TYPE ढूंढो (चाहे वो किसी भी नाम से हो)
-    // कभी-कभी सर्वर 'businessType' भेजता है, कभी 'business_type'
+    // 🔍 BUSINESS TYPE ढूंढो और Normalize करो
     let rawType = user.business_type || user.businessType || user.type || '';
-    
-    // अगर यूजर ऑब्जेक्ट में नहीं मिला, तो लोकल स्टोरेज चेक करो
-    if (!rawType) {
-        rawType = localStorage.getItem('business_type') || '';
-    }
-
-    // उसे Uppercase में बदलो और सेव करो
+    if (!rawType) rawType = localStorage.getItem('business_type') || '';
     const bType = rawType.toUpperCase();
     localStorage.setItem('business_type', bType);
 
-    // 2. UI अपडेट (ताकि यूजर को लगे कुछ हो रहा है)
     updateShopDisplay(user);
 
     // ============================================================
-    // ✈️ AIRPORT REDIRECT SYSTEM (FINAL CHECK)
+    // ✈️ UNIVERSAL AIRPORT ROUTER (31 Types Logic)
     // ============================================================
-    console.log("✈️ FINAL ROUTING CHECK FOR:", bType);
+    console.log("✈️ ROUTING CHECK FOR:", bType);
 
+    // 1. GARMENTS
     if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION') || bType.includes('BOUTIQUE')) {
-        console.warn("🚀 FOUND GARMENT USER! Redirecting...");
-        
-        // 🛑 Stop everything else
-        if(window.stop) window.stop();
-        
-        // 👉 GO TO GARMENTS.HTML
-        window.location.href = 'garments.html'; 
-        return;
+        window.location.href = 'garments.html'; return;
     }
 
-    if (bType.includes('ARCHITECT') || bType.includes('INTERIOR')) {
-        window.location.href = 'architect.html';
-        return;
+    // 2. SALON / SPA
+    if (bType.includes('SALON') || bType.includes('BARBER') || bType.includes('BEAUTY') || bType.includes('SPA')) {
+        window.location.href = 'salon.html'; return;
     }
-    // ============================================================
+
+    // 3. SCHOOL / EDUCATION
+    if (bType.includes('SCHOOL') || bType.includes('COLLEGE') || bType.includes('INSTITUTE') || bType.includes('COACHING')) {
+        window.location.href = 'school.html'; return;
+    }
+
+    // 4. HOTEL / RESORT
+    if (bType.includes('HOTEL') || bType.includes('LODGE') || bType.includes('RESORT') || bType.includes('GUEST')) {
+        window.location.href = 'hotel.html'; return;
+    }
+
+    // 5. RESTAURANT / CAFE
+    if (bType.includes('RESTAURANT') || bType.includes('CAFE') || bType.includes('FOOD') || bType.includes('BAKERY')) {
+        window.location.href = 'restaurant.html'; return;
+    }
+
+    // 6. MEDICAL / PHARMACY
+    if (bType.includes('MEDICAL') || bType.includes('PHARMACY') || bType.includes('CLINIC') || bType.includes('HOSPITAL') || bType.includes('DOCTOR')) {
+        window.location.href = 'medical.html'; return;
+    }
+
+    // 7. OPTICAL
+    if (bType.includes('OPTICAL') || bType.includes('EYE') || bType.includes('VISION')) {
+        window.location.href = 'optical.html'; return;
+    }
+
+    // 8. JEWELLERY
+    if (bType.includes('JEWELLERY') || bType.includes('GOLD') || bType.includes('SILVER')) {
+        window.location.href = 'jewellery.html'; return;
+    }
+
+    // 9. REAL ESTATE / ARCHITECT
+    if (bType.includes('REALESTATE') || bType.includes('PROPERTY') || bType.includes('ARCHITECT') || bType.includes('INTERIOR') || bType.includes('CONSTRUCTION')) {
+        window.location.href = 'realestate.html'; return;
+    }
+
+    // 10. ELECTRONICS / MOBILE
+    if (bType.includes('ELECTRONIC') || bType.includes('MOBILE') || bType.includes('COMPUTER') || bType.includes('LAPTOP')) {
+        window.location.href = 'electronics.html'; return;
+    }
+    
+    // 11. GYM / FITNESS
+    if (bType.includes('GYM') || bType.includes('FITNESS') || bType.includes('YOGA')) {
+        window.location.href = 'gym.html'; return;
+    }
+
+    // ... इसी तरह बाकी 20 फाइलों के नाम जोड़ते जाना ...
+
+    // ✅ DEFAULT: RETAIL / HARDWARE / GROCERY (Stay Here)
+    console.log("✅ Staying on Main Hub (Retail/Hardware)...");
+    
+    if (typeof bootstrapApp === 'function') bootstrapApp();
 }
-
-
 
 
 
@@ -15133,44 +15168,88 @@ if (typeof window.SecurityLogger === 'undefined') {
 
 
 
-
     document.addEventListener('DOMContentLoaded', async function() {
     
-    // 👇 (AUTO REDIRECT CHECK) 👇
+    // 👇 (AUTO REDIRECT CHECK - ON PAGE LOAD) 👇
     const savedToken = localStorage.getItem('authToken');
     
     if (savedToken) {
-        // Business Type को सुरक्षित तरीके से निकालें
         const savedBizType = (localStorage.getItem('business_type') || '').toUpperCase();
-        
-        console.log("🔄 Checking User Type for Redirect:", savedBizType); // Debugging के लिए
+        console.log("🔄 Checking User Type for Redirect:", savedBizType);
 
-        // 1. GARMENTS वालों को 'garments.html' पर भेजो
+        // =======================================================
+        // 🚀 MASTER ROUTING LIST (Copy of saveAuthData Logic)
+        // =======================================================
+
+        // 1. GARMENTS
         if (savedBizType.includes('GARMENT') || savedBizType.includes('CLOTHING') || savedBizType.includes('FASHION') || savedBizType.includes('BOUTIQUE')) {
-            console.log("🚀 Redirecting to Garments...");
-            window.location.href = 'garments.html';
-            return; // आगे का कोड रोक दो
+            window.location.replace('garments.html'); return;
         }
 
-        // 2. ARCHITECT वालों को 'architect.html' पर भेजो
-        if (savedBizType.includes('ARCHITECT') || savedBizType.includes('INTERIOR') || savedBizType.includes('CONSTRUCTION')) {
-            console.log("🚀 Redirecting to Architect...");
-            window.location.href = 'architect.html';
-            return; 
+        // 2. SALON
+        if (savedBizType.includes('SALON') || savedBizType.includes('BARBER') || savedBizType.includes('BEAUTY') || savedBizType.includes('SPA')) {
+            window.location.replace('salon.html'); return;
         }
+
+        // 3. SCHOOL
+        if (savedBizType.includes('SCHOOL') || savedBizType.includes('COLLEGE') || savedBizType.includes('INSTITUTE')) {
+            window.location.replace('school.html'); return;
+        }
+
+        // 4. HOTEL
+        if (savedBizType.includes('HOTEL') || savedBizType.includes('LODGE') || savedBizType.includes('RESORT')) {
+            window.location.replace('hotel.html'); return;
+        }
+
+        // 5. RESTAURANT
+        if (savedBizType.includes('RESTAURANT') || savedBizType.includes('CAFE') || savedBizType.includes('FOOD')) {
+            window.location.replace('restaurant.html'); return;
+        }
+
+        // 6. MEDICAL
+        if (savedBizType.includes('MEDICAL') || savedBizType.includes('PHARMACY') || savedBizType.includes('CLINIC') || savedBizType.includes('DOCTOR')) {
+            window.location.replace('medical.html'); return;
+        }
+
+        // 7. OPTICAL
+        if (savedBizType.includes('OPTICAL') || savedBizType.includes('EYE') || savedBizType.includes('VISION')) {
+            window.location.replace('optical.html'); return;
+        }
+
+        // 8. JEWELLERY
+        if (savedBizType.includes('JEWELLERY') || savedBizType.includes('GOLD')) {
+            window.location.replace('jewellery.html'); return;
+        }
+
+        // 9. REAL ESTATE
+        if (savedBizType.includes('REALESTATE') || savedBizType.includes('PROPERTY') || savedBizType.includes('ARCHITECT') || savedBizType.includes('CONSTRUCTION')) {
+            window.location.replace('realestate.html'); return;
+        }
+
+        // 10. ELECTRONICS
+        if (savedBizType.includes('ELECTRONIC') || savedBizType.includes('MOBILE') || savedBizType.includes('COMPUTER')) {
+            window.location.replace('electronics.html'); return;
+        }
+
+        // 11. GYM
+        if (savedBizType.includes('GYM') || savedBizType.includes('FITNESS')) {
+            window.location.replace('gym.html'); return;
+        }
+
+        // ... अगर और भी फाइलें बनाओ तो यहाँ जोड़ते जाना ...
     }
-    // ☝️ यहाँ खत्म ☝️
+    // ☝️ REDIRECT CHECK END ☝️
 
 
-    // ✅ MAJOR FIX: initializeApp की जगह bootstrapApp
-    // यह चेक करेगा कि फंक्शन मौजूद है या नहीं, ताकि कोड क्रैश न हो
+    // ✅ START APP (For Retail, Hardware, Grocery, etc.)
     if (typeof bootstrapApp === 'function') {
         bootstrapApp();
     } else {
         console.log("⚠️ App initialized manually or bootstrapApp missing.");
     }
 });
-   
+
+
     </script>
     </body>
 </html> 
