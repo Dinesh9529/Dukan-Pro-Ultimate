@@ -1,6 +1,41 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
+    <script>
+        (function() {
+            try {
+                // 1. लॉगिन और बिजनेस टाइप चेक करो
+                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+                const rawBType = localStorage.getItem('business_type');
+                
+                if (token && rawBType) {
+                    const bType = rawBType.toUpperCase();
+                    
+                    // 2. अगर GARMENTS है -> तुरंत भागो garments.html पर
+                    if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION') || bType.includes('BOUTIQUE')) {
+                        console.log("🚀 Redirecting to Garments Terminal...");
+                        
+                        // यह लाइन पुराने पेज को लोड होने से रोक देगी
+                        if (window.stop) window.stop();
+                        
+                        // यह लाइन फाइल बदल देगी
+                        window.location.replace('garments.html');
+                    }
+                    
+                    // 3. अगर ARCHITECT है -> तुरंत भागो architect.html पर
+                    else if (bType.includes('ARCHITECT') || bType.includes('INTERIOR') || bType.includes('CONSTRUCTION')) {
+                        if (window.stop) window.stop();
+                        window.location.replace('architect.html');
+                    }
+                }
+            } catch (e) {
+                console.error("Auto-Redirect Error:", e);
+            }
+        })();
+    </script>
+
+
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dukan Pro - Ultimate Business Suite</title>
@@ -8058,44 +8093,56 @@ const unlockApplication = () => {
      * Saves auth data to AppState and localStorage
      */
      function saveAuthData(token, user) {
-    // 1. Save Token & User Object
+    console.log("💾 Saving Auth Data...", user);
+
+    // 1. डेटा सुरक्षित करें
     AppState.token = token;
     AppState.user = user;
     localStorage.setItem('authToken', token);
     localStorage.setItem('authUser', JSON.stringify(user));
 
-    // ✅ IMPORTANT: यह लाइन जरूर चाहिए ताकि garments.html पढ़ सके
-    if(user.business_type) {
-        localStorage.setItem('business_type', user.business_type);
+    // 🔍 BUSINESS TYPE ढूंढो (चाहे वो किसी भी नाम से हो)
+    // कभी-कभी सर्वर 'businessType' भेजता है, कभी 'business_type'
+    let rawType = user.business_type || user.businessType || user.type || '';
+    
+    // अगर यूजर ऑब्जेक्ट में नहीं मिला, तो लोकल स्टोरेज चेक करो
+    if (!rawType) {
+        rawType = localStorage.getItem('business_type') || '';
     }
 
-    // 2. Update UI (पुराना कोड)
+    // उसे Uppercase में बदलो और सेव करो
+    const bType = rawType.toUpperCase();
+    localStorage.setItem('business_type', bType);
+
+    // 2. UI अपडेट (ताकि यूजर को लगे कुछ हो रहा है)
     updateShopDisplay(user);
 
     // ============================================================
-    // ✈️ AIRPORT ROUTING SYSTEM (REDIRECT LOGIC)
+    // ✈️ AIRPORT REDIRECT SYSTEM (FINAL CHECK)
     // ============================================================
-    const bType = (user.business_type || '').toUpperCase();
-    console.log("✈️ Routing User to:", bType);
+    console.log("✈️ FINAL ROUTING CHECK FOR:", bType);
 
-    // 1. GARMENTS -> अपने किले में जाओ (garments.html)
-    if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION')) {
-        window.location.href = 'garments.html';
-        return; // यहीं रुक जाओ, आगे मत बढ़ो
+    if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION') || bType.includes('BOUTIQUE')) {
+        console.warn("🚀 FOUND GARMENT USER! Redirecting...");
+        
+        // 🛑 Stop everything else
+        if(window.stop) window.stop();
+        
+        // 👉 GO TO GARMENTS.HTML
+        window.location.href = 'garments.html'; 
+        return;
     }
 
-    // 2. ARCHITECT -> अपनी साइट पर जाओ (architect.html)
-    if (bType.includes('ARCHITECT') || bType.includes('INTERIOR') || bType.includes('CONSTRUCTION')) {
+    if (bType.includes('ARCHITECT') || bType.includes('INTERIOR')) {
         window.location.href = 'architect.html';
         return;
     }
     // ============================================================
 }
-    
-    // NEW: Update Shop Name/Logo in UI
-   // NEW: Update Shop Name/Logo in UI
-  // NEW: Update Shop Name/Logo in UI
- // [REPLACE THIS FUNCTION IN HTML <script>]
+
+
+
+
 
 function updateShopDisplay(user) {
     if (!user) return;
@@ -15082,6 +15129,47 @@ if (typeof window.SecurityLogger === 'undefined') {
     };
 
 
+
+
+
+
+
+    document.addEventListener('DOMContentLoaded', async function() {
+    
+    // 👇 (AUTO REDIRECT CHECK) 👇
+    const savedToken = localStorage.getItem('authToken');
+    
+    if (savedToken) {
+        // Business Type को सुरक्षित तरीके से निकालें
+        const savedBizType = (localStorage.getItem('business_type') || '').toUpperCase();
+        
+        console.log("🔄 Checking User Type for Redirect:", savedBizType); // Debugging के लिए
+
+        // 1. GARMENTS वालों को 'garments.html' पर भेजो
+        if (savedBizType.includes('GARMENT') || savedBizType.includes('CLOTHING') || savedBizType.includes('FASHION') || savedBizType.includes('BOUTIQUE')) {
+            console.log("🚀 Redirecting to Garments...");
+            window.location.href = 'garments.html';
+            return; // आगे का कोड रोक दो
+        }
+
+        // 2. ARCHITECT वालों को 'architect.html' पर भेजो
+        if (savedBizType.includes('ARCHITECT') || savedBizType.includes('INTERIOR') || savedBizType.includes('CONSTRUCTION')) {
+            console.log("🚀 Redirecting to Architect...");
+            window.location.href = 'architect.html';
+            return; 
+        }
+    }
+    // ☝️ यहाँ खत्म ☝️
+
+
+    // ✅ MAJOR FIX: initializeApp की जगह bootstrapApp
+    // यह चेक करेगा कि फंक्शन मौजूद है या नहीं, ताकि कोड क्रैश न हो
+    if (typeof bootstrapApp === 'function') {
+        bootstrapApp();
+    } else {
+        console.log("⚠️ App initialized manually or bootstrapApp missing.");
+    }
+});
    
     </script>
     </body>
