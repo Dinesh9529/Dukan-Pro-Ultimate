@@ -673,5 +673,18 @@
         window.onload = loadDesign;
 
     </script>
+<script>
+    // 🌍 REGISTER OFFLINE SERVICE WORKER
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            // यहाँ फाइल का नाम 'service-worker.js' ही होना चाहिए
+            navigator.serviceWorker.register('service-worker.js')
+                .then((reg) => console.log('✅ Service Worker Registered! Scope:', reg.scope))
+                .catch((err) => console.log('❌ Service Worker Registration Failed:', err));
+        });
+    }
+</script>
+    
 </body>
+
 </html>
