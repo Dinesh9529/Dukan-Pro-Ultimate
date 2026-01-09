@@ -1,126 +1,58 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
+
     <script>
+        // =========================================================
+        // 🛡️ SECURITY GATEKEEPER (घुसपैठिया रोकने वाला कोड)
+        // =========================================================
         (function() {
-            try {
-                // 1. लॉगिन और बिजनेस टाइप चेक करो
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-                const rawBType = localStorage.getItem('business_type');
+            console.log("🔒 Security Check Initiated...");
+        
+            // 1. लोकल स्टोरेज से "चाबी" (Token) निकालो
+            const token = localStorage.getItem('authToken');
+            const userStr = localStorage.getItem('authUser');
+        
+            // 2. अगर चाबी नहीं मिली, तो बाहर निकालो
+            if (!token || !userStr) {
+                console.warn("❌ घुसपैठिया पकड़ा गया! (No Login Found)");
+                alert("⚠️ एक्सेस नहीं है! कृपया पहले लॉगिन करें।");
                 
-                if (token && rawBType) {
-                    const bType = rawBType.toUpperCase();
-                    
-                    // ====================================================
-                    // 🚀 FAST REDIRECT SYSTEM (31 TYPES)
-                    // ====================================================
+                // पुरानी हिस्ट्री मिटाओ और लॉगिन पेज पर भेजो
+                window.location.replace('index.html'); 
+                
+                // आगे का कोड चलने से रोको
+                throw new Error("Unauthorized Access - Halting Execution");
+            }
         
-                    // 1. GARMENTS / FASHION
-                    if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION') || bType.includes('BOUTIQUE') || bType.includes('TEXTILE')) {
-                        if (window.stop) window.stop(); window.location.replace('garments.html'); return;
-                    }
-                    
-                    // 2. PAINT / COLOR (Hardware हटा दिया)
-                    if (bType.includes('PAINT') || bType.includes('COLOR')) {if (window.stop) window.stop(); window.location.replace('paint.html'); return; }
+            // 3. अगर चाबी सही है, तो यूजर का डेटा लोड करो
+            try {
+                const user = JSON.parse(userStr);
+                
+                // ग्लोबल AppState सेट करो (ताकि रसीद और बिलिंग में दुकान का नाम आए)
+                window.AppState = {
+                    token: token,
+                    user: user
+                };
         
-                    // 3. SALON / SPA
-                    if (bType.includes('SALON') || bType.includes('BARBER') || bType.includes('BEAUTY') || bType.includes('SPA') || bType.includes('MAKEUP')) {
-                        if (window.stop) window.stop(); window.location.replace('salon.html'); return;
-                    }
+                // (Optional) बिजनेस टाइप चेक - अगर पेंट वाला नहीं है तो भगाओ
+                const bType = (user.business_type || '').toUpperCase();
+                // अगर आप बहुत सख्त होना चाहते हैं तो नीचे वाली दो लाइन के कमेंट (//) हटा दें:
+                // if (!bType.includes('PAINT') && !bType.includes('HARDWARE')) {
+                //    alert("यह पेज सिर्फ पेंट बिजनेस के लिए है!"); window.location.replace('index.html');
+                // }
         
-                    // 4. SCHOOL / EDUCATION
-                    if (bType.includes('SCHOOL') || bType.includes('COLLEGE') || bType.includes('INSTITUTE') || bType.includes('COACHING') || bType.includes('ACADEMY')) {
-                        if (window.stop) window.stop(); window.location.replace('school.html'); return;
-                    }
+                console.log("✅ Welcome Owner: " + user.shopName);
         
-                    // 5. RESTAURANT / CAFE
-                    if (bType.includes('RESTAURANT') || bType.includes('CAFE') || bType.includes('FOOD') || bType.includes('HOTEL') || bType.includes('DHABA')) {
-                        if (window.stop) window.stop(); window.location.replace('restaurant.html'); return;
-                    }
-        
-                    // 6. MEDICAL / PHARMACY
-                    if (bType.includes('MEDICAL') || bType.includes('PHARMACY') || bType.includes('CLINIC') || bType.includes('DOCTOR') || bType.includes('HOSPITAL')) {
-                        if (window.stop) window.stop(); window.location.replace('medical.html'); return;
-                    }
-        
-                    // 7. REAL ESTATE / ARCHITECT
-                    if (bType.includes('REALESTATE') || bType.includes('PROPERTY') || bType.includes('ARCHITECT') || bType.includes('INTERIOR') || bType.includes('CONSTRUCTION')) {
-                        if (window.stop) window.stop(); window.location.replace('realestate.html'); return;
-                    }
-        
-                    // 8. ELECTRONICS / MOBILE
-                    if (bType.includes('ELECTRONIC') || bType.includes('MOBILE') || bType.includes('COMPUTER') || bType.includes('LAPTOP') || bType.includes('GADGET')) {
-                        if (window.stop) window.stop(); window.location.replace('electronics.html'); return;
-                    }
-        
-                    // 9. JEWELLERY
-                    if (bType.includes('JEWELLERY') || bType.includes('GOLD') || bType.includes('SILVER') || bType.includes('DIAMOND')) {
-                        if (window.stop) window.stop(); window.location.replace('jewellery.html'); return;
-                    }
-        
-                    // 10. OPTICAL
-                    if (bType.includes('OPTICAL') || bType.includes('EYE') || bType.includes('VISION') || bType.includes('GLASS')) {
-                        if (window.stop) window.stop(); window.location.replace('optical.html'); return;
-                    }
-        
-                    // 11. GYM / FITNESS
-                    if (bType.includes('GYM') || bType.includes('FITNESS') || bType.includes('YOGA') || bType.includes('SPORTS')) {
-                        if (window.stop) window.stop(); window.location.replace('gym.html'); return;
-                    }
-        
-                    // 12. GROCERY / SUPERMARKET
-                    if (bType.includes('GROCERY') || bType.includes('KIRANA') || bType.includes('MART') || bType.includes('SUPERMARKET')) {
-                        if (window.stop) window.stop(); window.location.replace('grocery.html'); return;
-                    }
-        
-                    // 13. AUTOMOBILE / GARAGE
-                    if (bType.includes('AUTO') || bType.includes('CAR') || bType.includes('BIKE') || bType.includes('GARAGE') || bType.includes('SPARE')) {
-                        if (window.stop) window.stop(); window.location.replace('automobile.html'); return;
-                    }
-        
-                    // 14. FURNITURE
-                    if (bType.includes('FURNITURE') || bType.includes('WOOD') || bType.includes('SOFA')) {
-                        if (window.stop) window.stop(); window.location.replace('furniture.html'); return;
-                    }
-        
-                    // 15. FOOTWEAR / SHOES
-                    if (bType.includes('FOOTWEAR') || bType.includes('SHOE') || bType.includes('SANDAL')) {
-                        if (window.stop) window.stop(); window.location.replace('footwear.html'); return;
-                    }
-        
-                    // 16. STATIONERY / BOOK
-                    if (bType.includes('STATIONERY') || bType.includes('BOOK') || bType.includes('PAPER')) {
-                        if (window.stop) window.stop(); window.location.replace('stationery.html'); return;
-                    }
-        
-                    // 17. SWEET / BAKERY
-                    if (bType.includes('SWEET') || bType.includes('BAKERY') || bType.includes('CAKE') || bType.includes('SNACKS')) {
-                        if (window.stop) window.stop(); window.location.replace('bakery.html'); return;
-                    }
-        
-                    // 18. DAIRY / MILK
-                    if (bType.includes('DAIRY') || bType.includes('MILK') || bType.includes('ICE')) {
-                        if (window.stop) window.stop(); window.location.replace('dairy.html'); return;
-                    }
-        
-                    // 19. PET SHOP
-                    if (bType.includes('PET') || bType.includes('DOG') || bType.includes('VET')) {
-                        if (window.stop) window.stop(); window.location.replace('petshop.html'); return;
-                    }
-        
-                    // 20. SOLAR / ENERGY
-                    if (bType.includes('SOLAR') || bType.includes('ENERGY') || bType.includes('POWER')) {
-                        if (window.stop) window.stop(); window.location.replace('solar.html'); return;
-                    }
-                    
-                    // ... (बाकी अन्य बिज़नेस Types यहाँ डाल सकते हैं) ...
-                }
             } catch (e) {
-                console.error("Auto-Redirect Error:", e);
+                // अगर डेटा करप्ट है
+                console.error("Auth Data Corrupt:", e);
+                localStorage.clear();
+                window.location.replace('index.html');
             }
         })();
-        </script>
 
+        </script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1295,32 +1227,58 @@
 }
 
 
-/* 🖨️ THERMAL PRINT SETTINGS (Updated) */
+/* 🖨️ THERMAL PRINTER STYLE (58mm / 80mm) */
 @media print {
-    /* वेबसाइट का बाकी सब छुपा दो */
+    /* 1. वेबसाइट का बाकी सब कुछ छिपा दें */
     body * {
         visibility: hidden;
-        height: 0;
-        overflow: hidden;
     }
-    /* सिर्फ रसीद दिखाओ */
+
+    /* 2. सिर्फ पर्ची को दिखाएं */
     #thermal-receipt-area, #thermal-receipt-area * {
         visibility: visible;
-        height: auto;
     }
-    /* रसीद की पोजीशन सेट करो */
+
+    /* 3. पर्ची की पोजीशन सेट करें */
     #thermal-receipt-area {
-        display: block !important;
         position: absolute;
         left: 0;
         top: 0;
-        width: 100%;
+        width: 100%; /* प्रिंटर अपने आप चौड़ाई ले लेगा */
         margin: 0;
         padding: 0;
-        background: white;
     }
-    @page { margin: 0; size: auto; }
+
+    /* 4. पेज मार्जिन हटाएं (कागज बचाने के लिए) */
+    @page {
+        margin: 0;
+        size: auto;
+    }
 }
+
+/* स्क्रीन पर पर्ची कैसी दिखेगी (फिलहाल छिपा कर रखें) */
+#thermal-receipt-area {
+    display: none; /* स्क्रीन पर नहीं दिखेगा */
+    width: 58mm;   /* स्टैंडर्ड छोटी पर्ची (आप 80mm भी कर सकते हैं) */
+    background: white;
+    padding: 10px;
+    font-family: 'Courier New', monospace; /* रसीद वाला फॉन्ट */
+    font-size: 12px;
+    color: black;
+}
+
+.receipt-header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+.receipt-bold { font-weight: bold; }
+.receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+.receipt-table th { text-align: left; border-bottom: 1px dashed #000; font-size: 10px; }
+.receipt-table td { text-align: left; font-size: 11px; padding-top: 2px; }
+.receipt-footer { text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px; font-size: 10px; }
+
+
+
+/* 🚀 FORCE HIDE: Anti-Theft Button Default */
+#dynamic-theft-btn-container { display: none !important; }
+
 
     </style>
 
@@ -1478,8 +1436,7 @@
                         
                                 <optgroup label="🎓 Education & Office">
                                     <option value="SCHOOL">School / Coaching</option>
-                                    <option value="ARCHITECT" style="background-color: #f0f8ff; font-weight: bold;">
-                                        🏗️ आर्किटेक्ट / इंटीरियर (Architect/Interior)
+                                    <option value="ARCHITECT_FIRM">Architect / Interior</option>
                                     <option value="SOFTWARE_COMPANY">Software / IT Firm</option>
                                 </optgroup>
                             </select>
@@ -2986,25 +2943,21 @@
                         </div>
                     </div>
                 </div>
-
-
-
-
                 
-                <div class="col-lg-7">
-                    <div class="card shadow-sm">
-                        <div class="card-header bg-primary text-white">
-                            <i class="fas fa-history"></i> हाल के चालान (Recent Sales)
-                        </div>
+                <div class="col-lg-7"> <div class="card">
+                        <div class="card-header">हाल के चालान</div>
                         <div class="card-body">
-                            
-                            <div class="mb-3 d-flex justify-content-end align-items-center">
+                            <div class="mb-3 d-flex justify-content-end">
+                                <button class="btn btn-sm btn-outline-secondary" id="refresh-sales-btn" onclick="fetchAndRenderSales()"><i class="fas fa-sync-alt"></i> ताज़ा करें</button>
+                                <div class="mb-3 d-flex justify-content-end">
+                                    <button class="btn btn-sm btn-outline-secondary" id="refresh-sales-btn" onclick="fetchAndRenderSales()">
+                                        <i class="fas fa-sync-alt"></i> ताज़ा करें
+                                    </button>
                                 
-                                <button class="btn btn-sm btn-outline-secondary" id="refresh-sales-btn" onclick="fetchAndRenderSales()">
-                                    <i class="fas fa-sync-alt"></i> ताज़ा करें
-                                </button>
-                                                              
-                            </div>
+                                    <button class="btn btn-dark btn-sm ms-2" onclick="SecurityLogger.showLogs()" title="View Security Logs">
+                                        <i class="fas fa-shield-alt"></i> Logs
+                                    </button>
+                                </div>
 
                             </div>
                             <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
@@ -4083,19 +4036,6 @@
     
 
 <script>
-
-// ========================================================
-// 🛡️ SECURITY LOGGER FIX (Prevent Crash)
-// ========================================================
-if (typeof window.SecurityLogger === 'undefined') {
-    console.warn("⚠️ SecurityLogger missing. Creating Dummy...");
-    window.SecurityLogger = {
-        log: function(msg) { console.log("🔒 Log:", msg); },
-        showLogs: function() { console.log("📜 Show Logs called (Dummy)"); },
-        alert: function(msg) { console.warn("🚨 Security Alert:", msg); }
-    };
-}
-
 
     // [ ✅ इन्हें <script> शुरू होते ही सबसे ऊपर पेस्ट करें ]
 
@@ -5438,30 +5378,7 @@ if (durationDiv) {
 
 
   // [ ✅ FIXED: SALES TABLE WITH ROBUST DATE ]
-  async function fetchAndRenderSales() {
-    
-    // ============================================================
-    // 🚀 NEW UPDATE: LOGS BUTTON VISIBILITY (Added at top)
-    // ============================================================
-    // यह कोड फंक्शन चलते ही चेक करेगा और बटन को सही कर देगा
-    try {
-        const bizType = (localStorage.getItem('business_type') || '').toUpperCase();
-        const logsBtn = document.getElementById('pos-logs-btn');
-        
-        if (logsBtn) {
-            // अगर Garments, Clothing या Fashion है -> बटन दिखाओ
-            if (bizType.includes('GARMENT') || bizType.includes('CLOTHING') || bizType.includes('FASHION')) {
-                logsBtn.style.display = 'inline-block';
-            } else {
-                // नहीं तो -> छिपा दो
-                logsBtn.style.display = 'none';
-            }
-        }
-    } catch (e) { console.error("Logs Button Logic Error:", e); }
-    // ============================================================
-
-
-    // 👇 यहाँ से आपका पुराना कोड शुरू (BILKUL SAME TO SAME) 👇
+async function fetchAndRenderSales() {
     const salesTableBody = document.getElementById('sales-table-body');  
     if (!salesTableBody) return;
 
@@ -5504,10 +5421,9 @@ if (durationDiv) {
                         
                         <td>
                             <div class="d-flex">
-                                <button class="btn btn-sm btn-warning py-1 px-2 shadow-sm" onclick="fetchAndPrintThermal('${sale.id}')" title="Thermal Print">
+                                <button class="btn btn-sm btn-secondary py-1 px-2 shadow-sm" onclick="printPOSInvoice(${sale.id})" title="Print">
                                     <i class="fas fa-print"></i>
                                 </button>
-                                
                                 <button class="btn btn-sm btn-success py-1 px-2 ms-1 shadow-sm" 
                                     onclick="sendWhatsAppMessage('${sale.customer_phone || ''}', '${sale.customer_name}')" 
                                     ${!(sale.customer_phone) ? 'disabled' : ''}>
@@ -5526,39 +5442,6 @@ if (durationDiv) {
         salesTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">त्रुटि: ${error.message}</td></tr>`; 
     }
 }
-
-
-
-
-// 👇 इसे index.html में सबसे नीचे पेस्ट करें
-async function fetchAndPrintThermal(invoiceId) {
-    try {
-        // 1. सर्वर से ताज़ा डेटा लाओ
-        const res = await fetchApi(`/api/invoices/${invoiceId}`, { method: 'GET' });
-        
-        if (res.success) {
-            const inv = res.invoice;
-            
-            // 2. अब प्रिंट मशीन को पूरा डेटा दो
-            generateThermalPrint(
-                inv.invoice_no, 
-                inv.customer_name, 
-                inv.items,           // ✅ यहाँ सारे आइटम अपने आप आ जाएंगे
-                inv.total_amount, 
-                inv.payment_mode || 'Cash' // ✅ यहाँ पेमेंट मोड भी आ जाएगा
-            );
-        }
-    } catch (e) {
-        console.error("Print Error:", e);
-    }
-}
-
-
-
-
-
-
-
 
 // NEW: Show Invoice Detail Modal (Placeholder, needs a modal)
     async function showInvoiceDetail(invoiceId) {
@@ -5663,7 +5546,7 @@ async function fetchAndPrintThermal(invoiceId) {
                             <p class="mb-0">Ph: ${invoice.customer_mobile || 'N/A'}</p>
                         </div>
                         <div class="col-4 text-end">
-                            <p class="mb-0"><strong>Invoice No:</strong> ${invoice.invoice_number || invoice.invoice_no || invoice.invoiceNumber || invoice.id}</p>
+                            <p class="mb-0"><strong>Invoice No:</strong> INV-${invoice.id}</p>
                             <p class="mb-0"><strong>Date:</strong> ${new Date(invoice.created_at).toLocaleDateString()}</p>
                         </div>
                     </div>
@@ -6540,18 +6423,16 @@ async function fetchAndRenderStockList() {
                             <button class="btn btn-sm btn-outline-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${safeSku}')"><i class="fas fa-trash"></i></button>
                         </td>`;
                 } 
-                // 2. GARMENTS ROW (Cleaned - No Logs Button Here)
+                // 2. GARMENTS ROW
                 else if (isGarments) {
-                    
-                    // कैलकुलेशन
                     totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
                     totalSaleValue += (item.sale_price || 0) * (item.quantity || 0);
 
-                    // एंटी-थेफ्ट आइकन
                     const anti = item.product_attributes || {};
                     const lockIcon = anti.is_secured
                     ? `<i class="fas fa-lock text-danger ms-1" title="Anti-Theft Enabled"></i>`
                     : '';
+
 
                     row.innerHTML = `
                         <td><span class="badge bg-secondary">${item.sku}</span></td>
@@ -6567,7 +6448,7 @@ async function fetchAndRenderStockList() {
                             <button class="btn btn-sm btn-info text-white me-1" onclick="printItemSticker(${itemDataSafe})"><i class="fas fa-qrcode"></i></button>
                             <button class="btn btn-sm btn-danger" data-role="ADMIN" onclick="deleteEntry('stock', '${safeSku}')"><i class="fas fa-trash"></i></button>
                         </td>`;
-                }
+                } 
                 // 3. STANDARD ROW
                 else {
                     totalPurchaseValue += (item.purchase_price || 0) * (item.quantity || 0);
@@ -8191,10 +8072,13 @@ const unlockApplication = () => {
     /**
      * Saves auth data to AppState and localStorage
      */
-     function saveAuthData(token, user) {
-    console.log("💾 Saving Auth Data...", user);
+     // =========================================================
+// 🛑 PAINT.HTML - SECURITY GUARD (Strictly Paint Only)
+// =========================================================
+function saveAuthData(token, user) {
+    console.log("🛡️ PAINT SECURITY CHECK INITIATED...", user);
 
-    // 1. डेटा सुरक्षित करें
+    // 1. डेटा सेव करो
     if (typeof AppState !== 'undefined') {
         AppState.token = token;
         AppState.user = user;
@@ -8202,119 +8086,46 @@ const unlockApplication = () => {
     localStorage.setItem('authToken', token);
     localStorage.setItem('authUser', JSON.stringify(user));
 
-    // 🔍 BUSINESS TYPE ढूंढो और Normalize करो
+    // Business Type निकालो
     let rawType = user.business_type || user.businessType || user.type || '';
     if (!rawType) rawType = localStorage.getItem('business_type') || '';
     const bType = rawType.toUpperCase();
+    
+    // टाइप अपडेट करो
     localStorage.setItem('business_type', bType);
 
+    // ============================================================
+    // 🚫 INTRUDER CHECK (सिर्फ Paint वाले अंदर, बाकी बाहर)
+    // ============================================================
+    
+    // हम सिर्फ इन्ही शब्दों को अनुमति देंगे
+    const isPaintBusiness = bType.includes('PAINT') || bType.includes('COLOR');
+
+    // अगर यह Paint नहीं है (यानी Hardware/Retail है)
+    if (!isPaintBusiness) {
+        console.error("🚨 WRONG USER TYPE:", bType);
+        console.warn("🚫 Kicking out to Main Dashboard...");
+        
+        alert("⚠️ यह डैशबोर्ड सिर्फ Paint बिज़नेस के लिए है।\nHardware/Retail के लिए आपको Main Dashboard पर भेजा जा रहा है।");
+        
+        // 👉 वापस index.html पर भेजो
+        window.location.replace('index.html'); 
+        return; // आगे का कोड रोक दो
+    }
+    // ============================================================
+
+    console.log("✅ User Verified: Welcome Paint Shop Owner.");
+    
+    // UI Update
     if (typeof updateShopDisplay === 'function') updateShopDisplay(user);
-
-    // ============================================================
-    // ✈️ UNIVERSAL AIRPORT ROUTER (31 Types Logic)
-    // ============================================================
-    console.log("✈️ ROUTING CHECK FOR:", bType);
-
-    setTimeout(() => {
-        // 1. GARMENTS
-        if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION')) { window.location.replace('garments.html'); return; }
-        
-        // 2. PAINT / HARDWARE
-        // 2. PAINT / COLOR (सिर्फ ये दोनों paint.html पर जाएंगे)
-        if (bType.includes('PAINT') || bType.includes('COLOR')) { 
-            window.location.replace('paint.html'); return; 
-        }
-        
-        // 3. SALON
-        if (bType.includes('SALON') || bType.includes('BARBER') || bType.includes('SPA')) { window.location.replace('salon.html'); return; }
-
-        // 4. SCHOOL
-        if (bType.includes('SCHOOL') || bType.includes('COLLEGE') || bType.includes('INSTITUTE')) { window.location.replace('school.html'); return; }
-
-        // 5. RESTAURANT / HOTEL
-        if (bType.includes('RESTAURANT') || bType.includes('HOTEL') || bType.includes('CAFE') || bType.includes('FOOD')) { window.location.replace('restaurant.html'); return; }
-
-        // 6. MEDICAL
-        if (bType.includes('MEDICAL') || bType.includes('PHARMACY') || bType.includes('CLINIC')) { window.location.replace('medical.html'); return; }
-
-        // 7. REAL ESTATE
-        if (bType.includes('REALESTATE') || bType.includes('PROPERTY') || bType.includes('ARCHITECT')) { window.location.replace('realestate.html'); return; }
-
-        // 8. ELECTRONICS
-        if (bType.includes('ELECTRONIC') || bType.includes('MOBILE') || bType.includes('COMPUTER')) { window.location.replace('electronics.html'); return; }
-
-        // 9. JEWELLERY
-        if (bType.includes('JEWELLERY') || bType.includes('GOLD')) { window.location.replace('jewellery.html'); return; }
-
-        // 10. OPTICAL
-        if (bType.includes('OPTICAL') || bType.includes('EYE')) { window.location.replace('optical.html'); return; }
-
-        // 11. GYM
-        if (bType.includes('GYM') || bType.includes('FITNESS')) { window.location.replace('gym.html'); return; }
-
-        // 12. GROCERY
-        if (bType.includes('GROCERY') || bType.includes('KIRANA') || bType.includes('MART')) { window.location.replace('grocery.html'); return; }
-
-        // 13. AUTOMOBILE
-        if (bType.includes('AUTO') || bType.includes('GARAGE') || bType.includes('SPARE')) { window.location.replace('automobile.html'); return; }
-
-        // 14. FURNITURE
-        if (bType.includes('FURNITURE') || bType.includes('WOOD')) { window.location.replace('furniture.html'); return; }
-
-        // 15. FOOTWEAR
-        if (bType.includes('FOOTWEAR') || bType.includes('SHOE')) { window.location.replace('footwear.html'); return; }
-
-        // 16. STATIONERY
-        if (bType.includes('STATIONERY') || bType.includes('BOOK')) { window.location.replace('stationery.html'); return; }
-        
-        // 17. AGRICULTURE
-        if (bType.includes('AGRICULTURE') || bType.includes('KISAN') || bType.includes('FERTILIZER')) { window.location.replace('agriculture.html'); return; }
-
-        // 18. SOLAR
-        if (bType.includes('SOLAR') || bType.includes('ENERGY')) { window.location.replace('solar.html'); return; }
-
-        // 19. TOURS & TRAVELS
-        if (bType.includes('TOUR') || bType.includes('TRAVEL') || bType.includes('BOOKING')) { window.location.replace('travel.html'); return; }
-
-        // 20. EVENT MANAGEMENT
-        if (bType.includes('EVENT') || bType.includes('WEDDING') || bType.includes('PLANNER')) { window.location.replace('event.html'); return; }
-
-        // 21. LAUNDRY
-        if (bType.includes('LAUNDRY') || bType.includes('DRYCLEAN')) { window.location.replace('laundry.html'); return; }
-
-        // 22. LIBRARY
-        if (bType.includes('LIBRARY') || bType.includes('BOOKS')) { window.location.replace('library.html'); return; }
-
-        // 23. PET SHOP
-        if (bType.includes('PET') || bType.includes('DOG') || bType.includes('VET')) { window.location.replace('petshop.html'); return; }
-
-        // 24. DAIRY
-        if (bType.includes('DAIRY') || bType.includes('MILK')) { window.location.replace('dairy.html'); return; }
-        
-        // 25. SWEET / BAKERY
-        if (bType.includes('SWEET') || bType.includes('BAKERY') || bType.includes('CAKE')) { window.location.replace('bakery.html'); return; }
-        
-        // 26. REPAIR / SERVICE
-        if (bType.includes('REPAIR') || bType.includes('SERVICE')) { window.location.replace('repair.html'); return; }
-        
-        // 27. LOGISTICS / COURIER
-        if (bType.includes('LOGISTIC') || bType.includes('COURIER') || bType.includes('TRANSPORT')) { window.location.replace('logistics.html'); return; }
-
-        // 28. CONSULTANT / OFFICE
-        if (bType.includes('CONSULTANT') || bType.includes('OFFICE') || bType.includes('CA')) { window.location.replace('office.html'); return; }
-        
-        // 29. FACTORY / MANUFACTURING
-        if (bType.includes('FACTORY') || bType.includes('MANUFACTURING') || bType.includes('INDUSTRY')) { window.location.replace('factory.html'); return; }
-        
-        // 30. PHOTO STUDIO
-        if (bType.includes('PHOTO') || bType.includes('STUDIO') || bType.includes('CAMERA')) { window.location.replace('studio.html'); return; }
-
-        // 31. GENERAL / RETAIL (DEFAULT)
-        console.log("🏠 Stay on Main Hub (Retail/Default)");
-
-    }, 500);
-}
-
+    
+    // App Start
+    if (typeof bootstrapApp === 'function') bootstrapApp();
+}    
+    // NEW: Update Shop Name/Logo in UI
+   // NEW: Update Shop Name/Logo in UI
+  // NEW: Update Shop Name/Logo in UI
+ // [REPLACE THIS FUNCTION IN HTML <script>]
 
 function updateShopDisplay(user) {
     if (!user) return;
@@ -8371,20 +8182,33 @@ function updateShopDisplay(user) {
     /**
      * Clears auth data and reloads the page to show login screen
      */
-     function logout() {
-    AppState.token = null;
-    AppState.user = null;
+    // ==========================================
+// 🚪 SECURE LOGOUT (Redirects to Login Page)
+// ==========================================
+function logout() {
+    // 1. यूजर से पूछें (Confirmation)
+    if (!confirm("क्या आप लॉग आउट करना चाहते हैं?")) return;
+
+    console.log("🔒 Logging out...");
+
+    // 2. AppState (RAM) खाली करें
+    if (typeof AppState !== 'undefined') {
+        AppState.token = null;
+        AppState.user = null;
+        if (AppState.licenseTimerId) clearInterval(AppState.licenseTimerId);
+    }
+
+    // 3. LocalStorage (Hard Drive) से चाबियां मिटाएं
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
-    if(AppState.licenseTimerId) clearInterval(AppState.licenseTimerId);
+    localStorage.removeItem('token'); // सेफ्टी के लिए इसे भी हटा दें
     
-    // window.location.reload(); // ✅ इसे हटा दिया (कमेंट कर दिया)
-    
-    // रिफ्रेश की जगह लॉगिन स्क्रीन दिखाएं
-    document.getElementById('login-wrapper-main').classList.add('active');
-    document.getElementById('auth-container-new').classList.remove('hidden');
-    document.getElementById('sidebar').classList.add('locked');
-    document.getElementById('main-content').classList.add('locked');
+    // (Optional) बिजनेस टाइप भी हटा सकते हैं ताकि अगली बार फ्रेश चेक हो
+    // localStorage.removeItem('business_type'); 
+
+    // 4. लॉगिन पेज पर वापस भेजें (Redirect)
+    // 'replace' का इस्तेमाल करें ताकि कोई 'Back' बटन दबाकर वापस न आ सके
+    window.location.replace('index.html');
 }
     
     // NEW: License Timer and Renewal Warning
@@ -14349,6 +14173,44 @@ function handleScannedBarcode(code) {
 }
 
 
+// 🖨️ THERMAL PRINT FUNCTION
+function generateThermalPrint(invoiceId, customerName, items, totalAmount) {
+    // 1. डेटा भरें
+    if(document.getElementById('p-invoice-id')) document.getElementById('p-invoice-id').innerText = invoiceId;
+    if(document.getElementById('p-date')) document.getElementById('p-date').innerText = new Date().toLocaleDateString('en-IN');
+    if(document.getElementById('p-time')) document.getElementById('p-time').innerText = new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'});
+    if(document.getElementById('p-total')) document.getElementById('p-total').innerText = parseFloat(totalAmount).toFixed(2);
+
+    // 2. आइटम लिस्ट बनाएं
+    const tbody = document.getElementById('p-items-body');
+    if(tbody) {
+        tbody.innerHTML = ''; // पुराना खाली करें
+        items.forEach(item => {
+            const qty = item.quantity || item.qty || 1;
+            const price = item.sale_price || item.price || 0;
+            const row = `
+                <tr>
+                    <td style="padding-bottom: 2px;">${item.name.substring(0, 15)}</td>
+                    <td style="vertical-align: top;">${qty}</td>
+                    <td style="text-align: right; vertical-align: top;">
+                        ${(price * qty).toFixed(2)}
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    // 3. पर्ची को विजिबल करें और प्रिंट डायलॉग खोलें
+    const receipt = document.getElementById('thermal-receipt-area');
+    if(receipt) {
+        receipt.style.display = 'block'; // थोड़ी देर के लिए दिखाएं
+        setTimeout(() => {
+            window.print(); // 🖨️ प्रिंट कमांड
+            receipt.style.display = 'none'; // वापस छिपा दें
+        }, 500);
+    }
+}
 
 
 
@@ -14932,7 +14794,45 @@ if (typeof window.SecurityLogger === 'undefined') {
 </div>
 
 
- 
+<div id="thermal-receipt-area">
+    
+    <div class="receipt-header">
+        <h3 style="margin:0;">DUKAN PRO</h3> <div style="font-size: 10px;">Mobile: 9876543210</div>
+        <div style="font-size: 10px;">Date: <span id="p-date"></span> | Time: <span id="p-time"></span></div>
+        <div class="receipt-bold">Bill No: #<span id="p-invoice-id"></span></div>
+    </div>
+
+    <table class="receipt-table">
+        <thead>
+            <tr>
+                <th style="width: 50%;">Item</th>
+                <th style="width: 15%;">Qty</th>
+                <th style="width: 35%; text-align: right;">Amt</th>
+            </tr>
+        </thead>
+        <tbody id="p-items-body">
+            </tbody>
+    </table>
+
+    <div style="text-align: right; border-top: 1px dashed #000; padding-top: 5px;">
+        <div>Total: ₹<span id="p-total" class="receipt-bold">0.00</span></div>
+    </div>
+
+    <div class="receipt-footer">
+        <div>Thank You! Visit Again.</div>
+        <div>No Refund / No Exchange</div>
+    </div>
+</div>
+
+
+<audio id="theft-siren" src="https://www.soundjay.com/mechanical/sounds/smoke-detector-1.mp3" preload="auto"></audio>
+
+<video id="security-video" width="320" height="240" autoplay style="display:none;"></video>
+<canvas id="security-canvas" width="320" height="240" style="display:none;"></canvas>
+
+
+
+
 <script>
     // ============================================================
     // 🚀 FINAL CODE: NO GHOST TAX + ALL FEATURES
@@ -14963,9 +14863,6 @@ if (typeof window.SecurityLogger === 'undefined') {
                 }
             }
         }, 1000);
-    });
-
-    
     
         // ==========================================
         // 🛠️ 2. RESET FUNCTION
@@ -14991,236 +14888,202 @@ if (typeof window.SecurityLogger === 'undefined') {
         };
     
         // ==========================================
-// 🎨 3. PAINT MIXER LOGIC (Safe & Updated)
-// ==========================================
-window.addMixedPaintToCart = function() {
-    console.log("🎨 Adding Paint...");
-
-    try {
-        // 1. डेटा उठाओ (Data Fetching)
-        const baseSku = document.getElementById('mix-base-sku')?.value;
-        const baseName = document.getElementById('mix-base-name')?.value || 'Paint Base';
-        const colorCode = document.getElementById('mix-color-code')?.value || 'Custom';
-        
-        let finalPrice = parseFloat(document.getElementById('mix-final-price')?.value) || 0;
-        const basePrice = parseFloat(document.getElementById('mix-base-price')?.value) || 0;
-        const colorCost = parseFloat(document.getElementById('mix-color-cost')?.value) || 0;
-
-        // अगर फाइनल प्राइस 0 है, तो बेस + कलर जोड़ लो
-        if (finalPrice === 0) finalPrice = basePrice + colorCost;
-
-        // 2. चेक करो (Validation)
-        if (!baseSku) {
-            alert("❌ गलती: बेस SKU खाली है! पहले डिब्बा स्कैन करें।");
-            return; 
-        }
-
-        // 3. आइटम बनाओ
-        const paintItem = {
-            id: 'MIX_' + Date.now(),
-            sku: baseSku,
-            name: `${baseName} (${colorCode})`,
-            qty: 1, quantity: 1,
-            price: finalPrice, sale_price: finalPrice, mrp: finalPrice,
-            is_paint: true,
-            gst: 0
+        // 🎨 3. PAINT MIXER LOGIC (GST FIX 0%)
+        // ==========================================
+        window.addMixedPaintToCart = function() {
+            console.log("🎨 Adding Paint...");
+            
+            const baseSku = document.getElementById('mix-base-sku')?.value || '';
+            const baseName = document.getElementById('mix-base-name')?.value || 'Paint Base';
+            const colorCode = document.getElementById('mix-code')?.value || document.getElementById('mix-color-code')?.value || 'Custom';
+            
+            let finalPrice = parseFloat(document.getElementById('mix-final-price')?.value) || 0;
+            const basePrice = parseFloat(document.getElementById('mix-base-price')?.value) || 0;
+            const colorCost = parseFloat(document.getElementById('mix-color-cost')?.value) || 0;
+    
+            if (finalPrice === 0) finalPrice = basePrice + colorCost;
+    
+            if (!baseSku) return alert("❌ बेस SKU स्कैन करें!");
+            if (finalPrice <= 0 && !confirm("⚠️ प्राइस 0 है। जारी रखें?")) return;
+    
+            const paintItem = {
+                id: 'MIX_' + Date.now(),
+                sku: baseSku,
+                name: `${baseName} (${colorCode})`,
+                price: finalPrice,          
+                sale_price: finalPrice,
+                mrp: finalPrice, 
+                purchase_price: basePrice,
+                qty: 1,
+                quantity: 1,
+                is_paint: true,
+                
+                // 🔥 FIXED: पहले यहाँ 18 था, अब 0 है। अब टैक्स नहीं लगेगा।
+                gst: 0  
+            };
+    
+            window.posCart.push(paintItem);
+            if(typeof posCart !== 'undefined' && posCart !== window.posCart) posCart.push(paintItem);
+    
+            if (typeof renderCart === 'function') renderCart();
+            
+            setTimeout(() => {
+                if (typeof updateCartTotals === 'function') updateCartTotals();
+                else if (typeof calculatePOSTotals === 'function') calculatePOSTotals();
+            }, 100);
+    
+            const modalEl = document.getElementById('paintMixingModal');
+            if(modalEl) {
+                modalEl.classList.remove('show');
+                modalEl.style.display = 'none';
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = 'auto';
+            }
+            
+            document.getElementById('mix-base-sku').value = '';
+            document.getElementById('mix-final-price').value = '';
         };
-
-        // 4. कार्ट में डालो
-        if (typeof window.posCart === 'undefined') window.posCart = [];
-        window.posCart.push(paintItem);
-        
-        // डिस्प्ले अपडेट करो
-        if(typeof renderCart === 'function') renderCart();
-        setTimeout(() => {
-            if(typeof updateCartTotals === 'function') updateCartTotals();
-        }, 100);
-
-        console.log("✅ Paint Added.");
-
-    } catch (error) {
-        alert("Error: " + error.message);
-    } finally {
-        // =================================================
-        // 🛡️ SAFETY LOCK: स्क्रीन को जबरदस्ती खोलो (Force Unlock)
-        // =================================================
-        console.log("🧹 Cleaning up screen...");
-        
-        // मोडल बंद करो
-        const modal = document.getElementById('paintMixingModal');
-        if(modal) {
-            modal.classList.remove('show');
-            modal.style.display = 'none';
-            modal.setAttribute('aria-hidden', 'true');
-        }
-
-        // काला पर्दा हटाओ
-        const backdrops = document.querySelectorAll('.modal-backdrop');
-        backdrops.forEach(el => el.remove());
-
-        // स्क्रॉल वापस लाओ
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = 'auto';
-        document.body.style.paddingRight = '0';
-
-        // इनपुट साफ करो
-        if(document.getElementById('mix-base-sku')) document.getElementById('mix-base-sku').value = '';
-        if(document.getElementById('mix-final-price')) document.getElementById('mix-final-price').value = '';
-    }
-};
-
-
+    
         // ==========================================
         // 🚀 4. HANDLE COMPLETE SALE
         // ==========================================
-    window.handleCompleteSale = async function() {
-    console.log("🚀 Starting Checkout...");
-    window.lastCheckoutClick = Date.now(); 
-
-    const btn = document.getElementById('complete-sale-btn');
-
-    let currentCart = window.posCart;
-    if (!currentCart || currentCart.length === 0) {
-        if (typeof posCart !== 'undefined' && posCart.length > 0) currentCart = posCart;
-        else {
-            if(typeof showMessage !== 'undefined') showMessage('Error', 'Cart is empty!', 'warning');
-            else alert('Cart is empty!');
-            return;
-        }
-    }
-
-    const cleanItems = currentCart.map(item => ({
-        sku: item.sku || 'MIX',
-        name: item.name,
-        quantity: parseFloat(item.quantity) || parseFloat(item.qty) || 1,
-        sale_price: parseFloat(item.sale_price) || parseFloat(item.price) || 0,
-        purchase_price: parseFloat(item.purchase_price) || 0,
-        gst: parseFloat(item.gst) || 0,
-        is_paint: item.is_paint || false
-    }));
-
-    let finalTotalAmount = 0;
-    const totalElem = document.getElementById('pos-total-amount');
-    if(totalElem) finalTotalAmount = parseFloat(totalElem.innerText.replace(/[^0-9.]/g, '')) || 0;
+        window.handleCompleteSale = async function() {
+            console.log("🚀 Starting Checkout...");
+            window.lastCheckoutClick = Date.now(); 
     
-    if(finalTotalAmount === 0) {
-        finalTotalAmount = cleanItems.reduce((sum, i) => sum + (i.sale_price * i.quantity), 0);
-    }
-
-    const saleData = {
-        customerName: document.getElementById('pos-customer')?.value || 'Cash Customer',
-        customerMobile: document.getElementById('pos-customer-mobile')?.value || null,
-        total_amount: finalTotalAmount,
-        sale_items: cleanItems,
-        painterId: document.getElementById('pos-painter-select')?.value,
-        painterMobile: document.getElementById('pos-painter-mobile')?.value,
-        paymentMode: document.getElementById('pos-payment-mode')?.value || 'Cash',
-        shopId: (typeof AppState !== 'undefined' && AppState.user) ? AppState.user.shopId : null
-    };
-
-    const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const currentBizType = (localStorage.getItem('business_type') || '').toUpperCase();
-    const allowMistriMsg = currentBizType.includes('HARDWARE') || currentBizType.includes('FURNITURE');
-
-    if(btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
-    }
-
-    try {
-        const res = await fetchApi('/api/invoices', { method: 'POST', body: saleData });
-
-        if (res.success) {
-            console.log("✅ Bill Saved:", res.invoiceId);
-
-            const itemDetails = cleanItems.map(i => `${i.name} (x${i.quantity})`).join(', ');
-            const whatsappMsg = `नमस्ते *${saleData.customerName}*,\n` +
-                                `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
-                                `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
-                                `💰 कुल राशि: *₹${finalTotalAmount.toFixed(2)}*\n` +
-                                `📦 सामान: ${itemDetails}\n` +
-                                `कृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
-
-            let mistriMsg = "";
-            const painterName = document.getElementById('pos-painter-select')?.options[document.getElementById('pos-painter-select').selectedIndex]?.text || 'Partner';
+            const btn = document.getElementById('complete-sale-btn');
+    
+            let currentCart = window.posCart;
+            if (!currentCart || currentCart.length === 0) {
+                if (typeof posCart !== 'undefined' && posCart.length > 0) currentCart = posCart;
+                else {
+                    if(typeof showMessage !== 'undefined') showMessage('Error', 'Cart is empty!', 'warning');
+                    else alert('Cart is empty!');
+                    return;
+                }
+            }
+    
+            const cleanItems = currentCart.map(item => ({
+                sku: item.sku || 'MIX',
+                name: item.name,
+                quantity: parseFloat(item.quantity) || parseFloat(item.qty) || 1,
+                sale_price: parseFloat(item.sale_price) || parseFloat(item.price) || 0,
+                purchase_price: parseFloat(item.purchase_price) || 0,
+                gst: parseFloat(item.gst) || 0,
+                is_paint: item.is_paint || false
+            }));
+    
+            let finalTotalAmount = 0;
+            const totalElem = document.getElementById('pos-total-amount');
+            if(totalElem) finalTotalAmount = parseFloat(totalElem.innerText.replace(/[^0-9.]/g, '')) || 0;
             
-            if (saleData.painterMobile && allowMistriMsg) {
-                mistriMsg = `नमस्ते *${painterName}*,\n` +
-                            `नई बिक्री हुई है! 🤝\n` +
-                            `ग्राहक: ${saleData.customerName}\n` +
-                            `बिल: #${res.invoiceId}\n` +
-                            `कमीशन जुड़ गया है।`;
+            if(finalTotalAmount === 0) {
+                finalTotalAmount = cleanItems.reduce((sum, i) => sum + (i.sale_price * i.quantity), 0);
             }
-
-            if (!isMobile) {
-                // DESKTOP
-                if (sendToCust && saleData.customerMobile) setTimeout(() => openSmartWhatsApp(saleData.customerMobile, whatsappMsg), 1000);
-                if (allowMistriMsg && saleData.painterMobile && mistriMsg) setTimeout(() => openSmartWhatsApp(saleData.painterMobile, mistriMsg), 3000);
-
-                Swal.fire({
-                    title: '✅ बिल बन गया!',
-                    text: `Invoice #${res.invoiceId} Saved.`,
-                    icon: 'success',
-                    showDenyButton: true,
-                    showCancelButton: true,
-                    confirmButtonText: '📄 PDF',
-                    denyButtonText: '🖨️ Print',
-                    cancelButtonText: '❌ Close',
-                    allowOutsideClick: false
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        if (typeof generateAndDownloadPDF === 'function') generateAndDownloadPDF(res.invoiceId, saleData.customerName, cleanItems, finalTotalAmount);
-                        else if (typeof downloadBillFinal === 'function') downloadBillFinal(res.invoiceId, saleData.customerName, cleanItems, finalTotalAmount);
-                    } 
-                    else if (result.isDenied) {
-                        if (typeof generateThermalPrint === 'function') {
-                            // 1. स्क्रीन से पता करो कि Cash है या UPI
-                            const currentMode = document.getElementById('pos-payment-mode').value || 'Cash';
-                            
-                            // 2. प्रिंटर को बताओ
-                            generateThermalPrint(
-                                res.invoiceId, 
-                                saleData.customerName, 
-                                cleanItems, 
-                                finalTotalAmount, 
-                                currentMode 
-                            );
-                        } else {
-                            window.print();
-                        }
+    
+            const saleData = {
+                customerName: document.getElementById('pos-customer')?.value || 'Cash Customer',
+                customerMobile: document.getElementById('pos-customer-mobile')?.value || null,
+                total_amount: finalTotalAmount,
+                sale_items: cleanItems,
+                painterId: document.getElementById('pos-painter-select')?.value,
+                painterMobile: document.getElementById('pos-painter-mobile')?.value,
+                paymentMode: document.getElementById('pos-payment-mode')?.value || 'Cash',
+                shopId: (typeof AppState !== 'undefined' && AppState.user) ? AppState.user.shopId : null
+            };
+    
+            const sendToCust = document.getElementById('pos_send_cust_wa')?.checked;
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const currentBizType = (localStorage.getItem('business_type') || '').toUpperCase();
+            const allowMistriMsg = currentBizType.includes('HARDWARE') || currentBizType.includes('FURNITURE');
+    
+            if(btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+            }
+    
+            try {
+                const res = await fetchApi('/api/invoices', { method: 'POST', body: saleData });
+    
+                if (res.success) {
+                    console.log("✅ Bill Saved:", res.invoiceId);
+    
+                    const itemDetails = cleanItems.map(i => `${i.name} (x${i.quantity})`).join(', ');
+                    const whatsappMsg = `नमस्ते *${saleData.customerName}*,\n` +
+                                        `आपका ऑडर कंफर्म हो गया है! 🎉\n` +
+                                        `🧾 बिल नंबर: *#${res.invoiceId}*\n` +
+                                        `💰 कुल राशि: *₹${finalTotalAmount.toFixed(2)}*\n` +
+                                        `📦 सामान: ${itemDetails}\n` +
+                                        `कृपया साथ में भेजा गया PDF बिल देखें। धन्यवाद! 🙏`;
+    
+                    let mistriMsg = "";
+                    const painterName = document.getElementById('pos-painter-select')?.options[document.getElementById('pos-painter-select').selectedIndex]?.text || 'Partner';
+                    
+                    if (saleData.painterMobile && allowMistriMsg) {
+                        mistriMsg = `नमस्ते *${painterName}*,\n` +
+                                    `नई बिक्री हुई है! 🤝\n` +
+                                    `ग्राहक: ${saleData.customerName}\n` +
+                                    `बिल: #${res.invoiceId}\n` +
+                                    `कमीशन जुड़ गया है।`;
                     }
-                    // ✅ यहाँ देखो: मैंने सही जगह '}' बंद किया है और resetPOSButton को .then() के अंदर ही रखा है
-                    resetPOSButton(true);
-                });
-
-            } else {
-                // MOBILE
-                Swal.fire({ icon: 'success', title: 'Success!', text: `Bill #${res.invoiceId}`, timer: 2000, showConfirmButton: false })
-                .then(() => {
-                    if (sendToCust && saleData.customerMobile) openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
-                    else if (allowMistriMsg && saleData.painterMobile && mistriMsg) setTimeout(() => openSmartWhatsApp(saleData.painterMobile, mistriMsg), 1000);
-                    resetPOSButton(true);
-                });
+    
+                    if (!isMobile) {
+                        // DESKTOP
+                        if (sendToCust && saleData.customerMobile) setTimeout(() => openSmartWhatsApp(saleData.customerMobile, whatsappMsg), 1000);
+                        if (allowMistriMsg && saleData.painterMobile && mistriMsg) setTimeout(() => openSmartWhatsApp(saleData.painterMobile, mistriMsg), 3000);
+    
+                        Swal.fire({
+                            title: '✅ बिल बन गया!',
+                            text: `Invoice #${res.invoiceId} Saved.`,
+                            icon: 'success',
+                            showDenyButton: true,
+                            showCancelButton: true,
+                            confirmButtonText: '📄 PDF',
+                            denyButtonText: '🖨️ Print',
+                            cancelButtonText: '❌ Close',
+                            allowOutsideClick: false
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                if (typeof generateAndDownloadPDF === 'function') generateAndDownloadPDF(res.invoiceId, saleData.customerName, cleanItems, finalTotalAmount);
+                                else if (typeof downloadBillFinal === 'function') downloadBillFinal(res.invoiceId, saleData.customerName, cleanItems, finalTotalAmount);
+                            } 
+                            else if (result.isDenied) {
+                                if(typeof generateThermalPrint === 'function') generateThermalPrint(res.invoiceId, saleData.customerName, cleanItems, finalTotalAmount);
+                                else window.print();
+                            }
+                            resetPOSButton(true);
+                        });
+    
+                    } else {
+                        // MOBILE
+                        Swal.fire({ icon: 'success', title: 'Success!', text: `Bill #${res.invoiceId}`, timer: 2000, showConfirmButton: false })
+                        .then(() => {
+                            if (sendToCust && saleData.customerMobile) openSmartWhatsApp(saleData.customerMobile, whatsappMsg);
+                            else if (allowMistriMsg && saleData.painterMobile && mistriMsg) setTimeout(() => openSmartWhatsApp(saleData.painterMobile, mistriMsg), 1000);
+                            resetPOSButton(true);
+                        });
+                    }
+    
+                } else {
+                    throw new Error(res.message || "Server Error");
+                }
+    
+            } catch (error) {
+                console.error("❌ Error:", error);
+                if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
+                else alert('Error: ' + error.message);
+            } finally {
+                if(btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Complete Sale (Pay) <i class="fas fa-check-circle"></i>';
+                }
+                window.lastCheckoutClick = 0;
             }
-
-        } else {
-            throw new Error(res.message || "Server Error");
-        }
-
-    } catch (error) {
-        console.error("❌ Error:", error);
-        if(typeof Swal !== 'undefined') Swal.fire('Error', error.message, 'error');
-        else alert('Error: ' + error.message);
-    } finally {
-        if(btn) {
-            btn.disabled = false;
-            btn.innerHTML = 'Complete Sale (Pay) <i class="fas fa-check-circle"></i>';
-        }
-        window.lastCheckoutClick = 0;
-    }
-};
-
+        };
+    
+    });
+    
     // ==========================================
     // 🛠️ FINAL FIX: CORRECT CALCULATION LOGIC
     // ==========================================
@@ -15261,70 +15124,42 @@ window.addMixedPaintToCart = function() {
         if (elemTotal) elemTotal.innerText = '₹' + grandTotal.toFixed(2);
     };
 
-
-
-
-
-
-    document.addEventListener('DOMContentLoaded', async function() {
+    // ============================================================
+// 🛠️ UI FIXER: HIDE LOGS BUTTON (EXCEPT GARMENTS)
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
     
-    // 👇 (AUTO REDIRECT CHECK - ON PAGE LOAD) 👇
-    const savedToken = localStorage.getItem('authToken');
-    
-    if (savedToken) {
-        const savedBizType = (localStorage.getItem('business_type') || '').toUpperCase();
-        console.log("🔄 Checking User Type for Redirect:", savedBizType);
+    // 1. बिज़नेस टाइप पता करें
+    const currentBizType = (localStorage.getItem('business_type') || '').toUpperCase();
+    console.log("🛠️ UI Check for Business Type:", currentBizType);
 
-        // =======================================================
-        // 🚀 MASTER ROUTING LIST (Fail-safe)
-        // =======================================================
+    // 2. Logs बटन ढूँढें (ID या Class से)
+    // (नोट: अगर आपने बटन को ID 'btn-theft-logs' दिया है तो यह काम करेगा)
+    const logsBtn = document.getElementById('btn-theft-logs');
 
-        if (savedBizType.includes('GARMENT') || savedBizType.includes('CLOTHING') || savedBizType.includes('FASHION')) { window.location.replace('garments.html'); return; }
-        if (savedBizType.includes('PAINT') || savedBizType.includes('COLOR')) { window.location.replace('paint.html'); return; }
-        if (savedBizType.includes('SALON') || savedBizType.includes('BARBER') || savedBizType.includes('SPA')) { window.location.replace('salon.html'); return; }
-        if (savedBizType.includes('SCHOOL') || savedBizType.includes('COLLEGE') || savedBizType.includes('INSTITUTE')) { window.location.replace('school.html'); return; }
-        if (savedBizType.includes('RESTAURANT') || savedBizType.includes('HOTEL') || savedBizType.includes('CAFE')) { window.location.replace('restaurant.html'); return; }
-        if (savedBizType.includes('MEDICAL') || savedBizType.includes('PHARMACY') || savedBizType.includes('CLINIC')) { window.location.replace('medical.html'); return; }
-        if (savedBizType.includes('REALESTATE') || savedBizType.includes('PROPERTY') || savedBizType.includes('ARCHITECT')) { window.location.replace('realestate.html'); return; }
-        if (savedBizType.includes('ELECTRONIC') || savedBizType.includes('MOBILE') || savedBizType.includes('COMPUTER')) { window.location.replace('electronics.html'); return; }
-        if (savedBizType.includes('JEWELLERY') || savedBizType.includes('GOLD')) { window.location.replace('jewellery.html'); return; }
-        if (savedBizType.includes('OPTICAL') || savedBizType.includes('EYE')) { window.location.replace('optical.html'); return; }
-        if (savedBizType.includes('GYM') || savedBizType.includes('FITNESS')) { window.location.replace('gym.html'); return; }
-        if (savedBizType.includes('GROCERY') || savedBizType.includes('KIRANA')) { window.location.replace('grocery.html'); return; }
-        if (savedBizType.includes('AUTO') || savedBizType.includes('GARAGE')) { window.location.replace('automobile.html'); return; }
-        if (savedBizType.includes('FURNITURE')) { window.location.replace('furniture.html'); return; }
-        if (savedBizType.includes('FOOTWEAR') || savedBizType.includes('SHOE')) { window.location.replace('footwear.html'); return; }
-        if (savedBizType.includes('STATIONERY') || savedBizType.includes('BOOK')) { window.location.replace('stationery.html'); return; }
-        if (savedBizType.includes('AGRICULTURE')) { window.location.replace('agriculture.html'); return; }
-        if (savedBizType.includes('SOLAR')) { window.location.replace('solar.html'); return; }
-        if (savedBizType.includes('TRAVEL')) { window.location.replace('travel.html'); return; }
-        if (savedBizType.includes('EVENT')) { window.location.replace('event.html'); return; }
-        if (savedBizType.includes('LAUNDRY')) { window.location.replace('laundry.html'); return; }
-        if (savedBizType.includes('LIBRARY')) { window.location.replace('library.html'); return; }
-        if (savedBizType.includes('PET')) { window.location.replace('petshop.html'); return; }
-        if (savedBizType.includes('DAIRY')) { window.location.replace('dairy.html'); return; }
-        if (savedBizType.includes('BAKERY')) { window.location.replace('bakery.html'); return; }
-        if (savedBizType.includes('REPAIR')) { window.location.replace('repair.html'); return; }
-        if (savedBizType.includes('LOGISTIC')) { window.location.replace('logistics.html'); return; }
-        if (savedBizType.includes('OFFICE')) { window.location.replace('office.html'); return; }
-        if (savedBizType.includes('FACTORY')) { window.location.replace('factory.html'); return; }
-        if (savedBizType.includes('STUDIO')) { window.location.replace('studio.html'); return; }
-
-        console.log("✅ Main Hub Loaded.");
-    }
-    
-    // ✅ START APP (For Retail, Hardware, Grocery, etc.)
-    if (typeof bootstrapApp === 'function') {
-        bootstrapApp();
+    if (logsBtn) {
+        if (currentBizType === 'GARMENTS' || currentBizType === 'CLOTHING') {
+            logsBtn.style.display = 'inline-block'; // दिखाओ
+            console.log("✅ Garments Mode: Logs Button Visible.");
+        } else {
+            logsBtn.style.display = 'none'; // छिपा दो
+            console.log("🚫 Other Mode: Logs Button Hidden.");
+        }
     } else {
-        console.log("⚠️ App initialized manually or bootstrapApp missing.");
+        // अगर ID नहीं मिली, तो हम टेक्स्ट से ढूंढेंगे (Jugaad)
+        const allButtons = document.getElementsByTagName('button');
+        for (let btn of allButtons) {
+            if (btn.innerText.includes('Logs') || btn.innerText.includes('Theft')) {
+                if (currentBizType === 'GARMENTS') btn.style.display = 'inline-block';
+                else btn.style.display = 'none';
+            }
+        }
     }
 });
 
+    </script>
 
-</script>
-    
-<script>
+    <script>
     // 🌍 REGISTER OFFLINE SERVICE WORKER
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -15335,149 +15170,6 @@ window.addMixedPaintToCart = function() {
         });
     }
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-<script>
-(function() {
-    console.log("🚀 System Check: Cleaning up & Fixing Red Button...");
-
-    // -----------------------------------------------------------
-    // 🛠️ FIX 1: RED BUTTON CRASH (SecurityLogger Fix)
-    // यह लाल बटन को क्रैश होने से बचाएगा
-    // -----------------------------------------------------------
-    if (typeof window.SecurityLogger === 'undefined') {
-        window.SecurityLogger = {
-            showLogs: function() { console.log("✅ (Dummy) Logs Checked - No Error."); },
-            log: function() { },
-            alert: function() { }
-        };
-        console.log("✅ Red Button Protection Activated.");
-    }
-
-    // -----------------------------------------------------------
-    // 🧹 FIX 2: CLEAN RECEIPT SYSTEM (No Audio/Video tags)
-    // -----------------------------------------------------------
-    
-    // पुराना कचरा साफ़ करें
-    const oldCss = document.getElementById('thermal-print-css-fast');
-    if (oldCss) oldCss.remove();
-    const oldHtml = document.getElementById('thermal-receipt-area');
-    if (oldHtml) oldHtml.remove();
-
-    // नया CSS (Receipt Only)
-    const css = document.createElement('style');
-    css.id = 'thermal-print-css-fast';
-    css.innerHTML = `
-        @media print {
-            body * { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
-            #thermal-receipt-area, #thermal-receipt-area * { visibility: visible !important; height: auto !important; }
-            #thermal-receipt-area { 
-                display: block !important; position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; background: white; z-index: 9999999;
-            }
-            @page { margin: 0; size: auto; }
-        }
-        #thermal-receipt-area { 
-            display: none; width: 75mm; font-family: 'Courier New', monospace; color: black; padding: 5px; background: #fff;
-        }
-        .tr-center { text-align: center; }
-        .tr-bold { font-weight: bold; }
-        .tr-line { border-bottom: 1px dashed #000; margin: 5px 0; }
-        .tr-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        .tr-table th { text-align: left; border-bottom: 1px solid #000; padding: 2px 0; }
-        .tr-table td { text-align: left; padding: 2px 0; }
-        .tr-qr-box { margin-top: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #local-qr-code { width: 100px; height: 100px; margin: 0 auto; }
-        #local-qr-code img { width: 100%; display: block; }
-    `;
-    document.head.appendChild(css);
-
-    // नया HTML (बिना Security Tags के)
-    const div = document.createElement('div');
-    div.id = 'thermal-receipt-area';
-    div.innerHTML = `
-        <div class="tr-center">
-            <h3 class="tr-bold" style="margin:0; font-size:16px;" id="p-shop-name">MY SHOP</h3>
-            <p style="margin:2px 0; font-size:12px;">Mobile: <span id="p-shop-mobile">--</span></p>
-            <div class="tr-line"></div>
-            <div style="display:flex; justify-content:space-between; font-size:12px;">
-                <span>Inv: <b id="p-inv-no">#000</b></span>
-                <span id="p-date">--/--</span>
-            </div>
-            <div style="text-align:left; font-size:12px; margin-top:2px;">
-                Cust: <strong id="p-cust-name">Cash Customer</strong>
-            </div>
-            <div class="tr-line"></div>
-            <table class="tr-table">
-                <thead><tr><th>Item</th><th style="width:15%">Qty</th><th style="text-align:right; width:25%">Amt</th></tr></thead>
-                <tbody id="p-items-body"></tbody>
-            </table>
-            <div style="border-top:1px solid #000; margin-top:5px; padding-top:5px;">
-                <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px;">
-                    <span>TOTAL:</span> <span>₹<span id="p-total">0.00</span></span>
-                </div>
-                <p style="margin:2px 0; font-size:11px;">Mode: <span id="p-mode">CASH</span></p>
-            </div>
-            <div class="tr-qr-box">
-                <div id="local-qr-code"></div>
-                <p style="margin:2px 0; font-size:10px; font-weight:bold;" id="p-qr-text">SCAN TO PAY</p>
-            </div>
-            <p style="margin-top:10px; font-size:10px;">Thank You! Visit Again.</p>
-        </div>
-        `;
-    document.body.appendChild(div);
-
-    // -----------------------------------------------------------
-    // 🖨️ FIX 3: PRINT FUNCTION
-    // -----------------------------------------------------------
-    window.generateThermalPrint = function(invoiceId, customerName, items, totalAmount, paymentMode = 'CASH') {
-        console.log("🖨️ Printing Receipt...");
-
-        // Data Fill
-        const shopName = (typeof AppState !== 'undefined' && AppState.user?.shopName) ? AppState.user.shopName : "DUKAN PRO";
-        const shopMobile = (typeof AppState !== 'undefined' && AppState.user?.mobile) ? AppState.user.mobile : "";
-        const upiId = (typeof AppState !== 'undefined' && AppState.user?.upiId) ? AppState.user.upiId : "";
-
-        document.getElementById('p-shop-name').innerText = shopName;
-        document.getElementById('p-shop-mobile').innerText = shopMobile;
-        document.getElementById('p-inv-no').innerText = invoiceId;
-        document.getElementById('p-cust-name').innerText = customerName || "Cash Customer";
-        document.getElementById('p-date').innerText = new Date().toLocaleDateString('en-IN');
-        document.getElementById('p-total').innerText = parseFloat(totalAmount).toFixed(2);
-        document.getElementById('p-mode').innerText = paymentMode.toUpperCase();
-
-        // Items Fill
-        const tbody = document.getElementById('p-items-body');
-        tbody.innerHTML = '';
-        if (items && items.length > 0) {
-            items.forEach(i => {
-                let name = i.name || i.item_name || 'Item';
-                let qty = i.quantity || i.qty || 1;
-                let price = i.sale_price || i.price || 0;
-                tbody.innerHTML += `<tr><td>${name.substring(0, 15)}</td><td>${qty}</td><td style="text-align:right">${(price * qty).toFixed(2)}</td></tr>`;
-            });
-        }
-
-        // Local QR
-        const qrContainer = document.getElementById('local-qr-code');
-        qrContainer.innerHTML = ""; 
-        let qrData = '';
-        if (paymentMode.toUpperCase() !== 'CASH' && upiId) {
-            qrData = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${totalAmount}&tn=Inv-${invoiceId}`;
-            document.getElementById('p-qr-text').innerText = "SCAN & PAY NOW";
-        } else {
-            qrData = `INVOICE:${invoiceId}|AMT:${totalAmount}|STATUS:PAID`;
-            document.getElementById('p-qr-text').innerText = "INVOICE VERIFIED";
-        }
-        if (typeof QRCode !== 'undefined') {
-            new QRCode(qrContainer, { text: qrData, width: 100, height: 100, correctLevel : QRCode.CorrectLevel.L });
-        }
-
-        setTimeout(() => { window.print(); }, 150);
-    };
-
-    console.log("✅ System Fully Optimized: No Security Tags, No Crashes.");
-})();
-
-</script>
-</body>
-</html>
+    </body>
+</html> 
