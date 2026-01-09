@@ -8041,40 +8041,48 @@ const unlockApplication = () => {
     /**
      * Saves auth data to AppState and localStorage
      */
-     function saveAuthData(token, user) {
-    // 1. Save Token & User Object
+     // 🛑 GARMENTS.HTML - SECURITY GUARD VERSION
+function saveAuthData(token, user) {
+    console.log("🛡️ SECURITY CHECK INITIATED...", user);
+
+    // 1. डेटा सेव करो
     AppState.token = token;
     AppState.user = user;
     localStorage.setItem('authToken', token);
     localStorage.setItem('authUser', JSON.stringify(user));
 
-    // ✅ IMPORTANT: यह लाइन जरूर चाहिए ताकि garments.html पढ़ सके
-    if(user.business_type) {
-        localStorage.setItem('business_type', user.business_type);
-    }
+    // Business Type निकालो
+    let rawType = user.business_type || user.businessType || user.type || '';
+    if (!rawType) rawType = localStorage.getItem('business_type') || '';
+    const bType = rawType.toUpperCase();
+    localStorage.setItem('business_type', bType);
 
-    // 2. Update UI (पुराना कोड)
+    // ============================================================
+    // 🚫 INTRUDER CHECK (घुसपैठिया रोको)
+    // ============================================================
+    // अगर ये गारमेंट्स नहीं है...
+    const isGarment = bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION') || bType.includes('BOUTIQUE');
+    
+    if (!isGarment) {
+        console.error("🚨 WRONG USER DETECTED! Type:", bType);
+        console.warn("🚫 Kicking out to Index.html...");
+        
+        alert("⚠️ यह Garments डैशबोर्ड है। Hardware/Retail वालों को Main Dashboard पर भेजा जा रहा है।");
+        
+        // 👉 लात मारकर बाहर निकालो
+        window.location.href = 'index.html'; 
+        return; // आगे का कोड मत चलाओ
+    }
+    // ============================================================
+
+    console.log("✅ User Verified: Welcome Garments User.");
     updateShopDisplay(user);
-
-    // ============================================================
-    // ✈️ AIRPORT ROUTING SYSTEM (REDIRECT LOGIC)
-    // ============================================================
-    const bType = (user.business_type || '').toUpperCase();
-    console.log("✈️ Routing User to:", bType);
-
-    // 1. GARMENTS -> अपने किले में जाओ (garments.html)
-    if (bType.includes('GARMENT') || bType.includes('CLOTHING') || bType.includes('FASHION')) {
-        window.location.href = 'garments.html';
-        return; // यहीं रुक जाओ, आगे मत बढ़ो
-    }
-
-    // 2. ARCHITECT -> अपनी साइट पर जाओ (architect.html)
-    if (bType.includes('ARCHITECT') || bType.includes('INTERIOR') || bType.includes('CONSTRUCTION')) {
-        window.location.href = 'architect.html';
-        return;
-    }
-    // ============================================================
+    
+    // App Start
+    if (typeof bootstrapApp === 'function') bootstrapApp();
 }
+
+
     
     // NEW: Update Shop Name/Logo in UI
    // NEW: Update Shop Name/Logo in UI
@@ -15113,6 +15121,35 @@ window.generateThermalPrint = function(invoiceId, customerName, items, totalAmou
         doPrint();
     }
 };
+
+
+
+document.addEventListener('DOMContentLoaded', async function() {
+    
+    // 👇 GATEKEEPER CHECK (ON LOAD) 👇
+    const savedToken = localStorage.getItem('authToken');
+    
+    if (savedToken) {
+        const savedBizType = (localStorage.getItem('business_type') || '').toUpperCase();
+        console.log("🔍 Page Load Security Check:", savedBizType);
+        
+        // चेक करो: क्या यह गारमेंट्स वाला है?
+        const isGarment = savedBizType.includes('GARMENT') || savedBizType.includes('CLOTHING') || savedBizType.includes('FASHION') || savedBizType.includes('BOUTIQUE');
+
+        if (!isGarment) {
+            console.error("🚫 Page Load Blocked! Redirecting to Index...");
+            window.location.href = 'index.html'; // वापस भेजो
+            return; // आगे का कोड लोड मत होने दो
+        }
+    }
+    // ☝️ CHECK END ☝️
+
+
+    // ✅ सब सही है, ऐप चालू करो
+    if (typeof bootstrapApp === 'function') {
+        bootstrapApp();
+    }
+});
 
 
     </script>
