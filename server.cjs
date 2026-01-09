@@ -2432,10 +2432,12 @@ app.get('/api/invoices/:invoiceId', authenticateJWT, async (req, res) => {
         const invoiceResult = await pool.query(`
             SELECT
                 i.id,
+                i.invoice_no,                -- ✅ यहाँ असली बिल नंबर जोड़ दिया है
                 i.total_amount,
                 i.total_cost,
                 i.created_at,
                 COALESCE(c.name, 'अज्ञात ग्राहक') AS customer_name,
+                c.mobile AS customer_mobile, -- ✅ ग्राहक का मोबाइल नंबर भी जोड़ दिया
                 s.shop_name
             FROM invoices i
             LEFT JOIN customers c ON i.customer_id = c.id
